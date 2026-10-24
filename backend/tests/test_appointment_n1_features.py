@@ -298,3 +298,162 @@ async def test_update_appointment_stale_data_error_raises_409(async_db_session):
             )
         assert exc_info.value.status_code == 409
         assert "تم تعديله من مستخدم آخر" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_update_appointment_two_doctors_same_time_allowed(async_db_session):
+    """Two different doctors in the same tenant at the exact same minute must be allowed."""
+    t1 = models.Tenant(name="MultiDoc Clinic", domain="multidoc.test")
+    async_db_session.add(t1)
+    await async_db_session.flush()
+
+    doc1 = models.User(username="doc1", email="doc1@test.com", role="doctor", tenant_id=t1.id, hashed_password="h")
+    doc2 = models.User(username="doc2", email="doc2@test.com", role="doctor", tenant_id=t1.id, hashed_password="h")
+    async_db_session.add_all([doc1, doc2])
+    await async_db_session.flush()
+
+    p1 = make_patient(t1.id, "Patient 1")
+    async_db_session.add(p1)
+    await async_db_session.flush()
+
+    slot = datetime(2026, 11, 10, 10, 0)
+    later_slot = datetime(2026, 11, 10, 12, 0)
+
+    appt_doc1 = models.Appointment(
+        patient_id=p1.id,
+        tenant_id=t1.id,
+        doctor_id=doc1.id,
+        date_time=slot,
+        duration_minutes=30,
+        status="Scheduled",
+    )
+    appt_doc2 = models.Appointment(
+        patient_id=p1.id,
+        tenant_id=t1.id,
+        doctor_id=doc2.id,
+        date_time=later_slot,
+        duration_minutes=30,
+        status="Scheduled",
+    )
+    async_db_session.add_all([appt_doc1, appt_doc2])
+    await async_db_session.commit()
+
+    # Move doc2 appointment to the same time slot as doc1 - MUST BE ALLOWED
+    updated = await crud.update_appointment(
+        db=async_db_session,
+        appointment_id=appt_doc2.id,
+        appointment=schemas.AppointmentUpdate(date_time=slot),
+        tenant_id=t1.id,
+    )
+    assert updated.date_time == slot
+
+
+@pytest.mark.asyncio
+async def test_update_appointment_same_doctor_duration_overlap_conflict(async_db_session):
+    """Same doctor with overlapping duration interval must raise 409 conflict."""
+    t1 = models.Tenant(name="Overlap Clinic", domain="overlap.test")
+    async_db_session.add(t1)
+    await async_db_session.flush()
+
+    doc1 = models.User(username="doc_overlap", email="doco@test.com", role="doctor", tenant_id=t1.id, hashed_password="h")
+    async_db_session.add(doc1)
+    await async_db_session.flush()
+
+    p1 = make_patient(t1.id, "Patient 1")
+    async_db_session.add(p1)
+    await async_db_session.flush()
+
+    # Doc1 has appointment 10:00 - 10:30
+    appt1 = models.Appointment(
+        patient_id=p1.id,
+        tenant_id=t1.id,
+        doctor_id=doc1.id,
+        date_time=datetime(2026, 11, 10, 10, 0),
+        duration_minutes=30,
+        status="Scheduled",
+    )
+    # Doc1 has another appointment at 11:00
+    appt2 = models.Appointment(
+        patient_id=p1.id,
+        tenant_id=t1.id,
+        doctor_id=doc1.id,
+        date_time=datetime(2026, 11, 10, 11, 0),
+        duration_minutes=30,
+        status="Scheduled",
+    )
+    async_db_session.add_all([appt1, appt2])
+    await async_db_session.commit()
+
+    # Reschedule appt2 to 10:15 (overlaps with 10:00 - 10:30)
+    with pytest.raises(HTTPException) as exc_info:
+        await crud.update_appointment(
+            db=async_db_session,
+            appointment_id=appt2.id,
+            appointment=schemas.AppointmentUpdate(date_time=datetime(2026, 11, 10, 10, 15)),
+            tenant_id=t1.id,
+        )
+    assert exc_info.value.status_code == 409
+    assert "conflict" in exc_info.value.detail.lower()
+
+
+@pytest.mark.asyncio
+async def test_update_appointment_ignores_cancelled_and_noshow_statuses(async_db_session):
+    """Cancelled and No Show appointments must not cause conflict."""
+    t1 = models.Tenant(name="Cancelled Clinic", domain="canc.test")
+    async_db_session.add(t1)
+    await async_db_session.flush()
+
+    doc1 = models.User(username="doc_canc", email="docc@test.com", role="doctor", tenant_id=t1.id, hashed_password="h")
+    async_db_session.add(doc1)
+    await async_db_session.flush()
+
+    p1 = make_patient(t1.id, "Patient 1")
+    async_db_session.add(p1)
+    await async_db_session.flush()
+
+    slot = datetime(2026, 11, 10, 10, 0)
+    cancelled_appt = models.Appointment(
+        patient_id=p1.id,
+        tenant_id=t1.id,
+        doctor_id=doc1.id,
+        date_time=slot,
+        duration_minutes=30,
+        status="Cancelled",
+    )
+    noshow_appt = models.Appointment(
+        patient_id=p1.id,
+        tenant_id=t1.id,
+        doctor_id=doc1.id,
+        date_time=datetime(2026, 11, 10, 10, 30),
+        duration_minutes=30,
+        status="No Show",
+    )
+    active_appt = models.Appointment(
+        patient_id=p1.id,
+        tenant_id=t1.id,
+        doctor_id=doc1.id,
+        date_time=datetime(2026, 11, 10, 14, 0),
+        duration_minutes=30,
+        status="Scheduled",
+    )
+    async_db_session.add_all([cancelled_appt, noshow_appt, active_appt])
+    await async_db_session.commit()
+
+    # Move active_appt into cancelled slot 10:00 - MUST SUCCEED
+    updated1 = await crud.update_appointment(
+        db=async_db_session,
+        appointment_id=active_appt.id,
+        appointment=schemas.AppointmentUpdate(date_time=slot),
+        tenant_id=t1.id,
+    )
+    assert updated1.date_time == slot
+
+    # Move active_appt into no-show slot 10:30 - MUST SUCCEED
+    updated2 = await crud.update_appointment(
+        db=async_db_session,
+        appointment_id=active_appt.id,
+        appointment=schemas.AppointmentUpdate(date_time=datetime(2026, 11, 10, 10, 30)),
+        tenant_id=t1.id,
+    )
+    assert updated2.date_time == datetime(2026, 11, 10, 10, 30)
+

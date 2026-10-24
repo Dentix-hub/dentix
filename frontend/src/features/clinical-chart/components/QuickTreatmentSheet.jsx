@@ -39,6 +39,7 @@ export default function QuickTreatmentSheet({
     selectedTeeth = [],
     selectedSurfacesByTooth = {},
     onSelectionChange,
+    onRefetch,
 }) {
     const { t } = useTranslation();
     const [treatment, setTreatment] = useState(() => normalizeSheetData(initialData));
@@ -232,6 +233,7 @@ export default function QuickTreatmentSheet({
         // Multi-tooth sequential save
         let failedIndex = -1;
         let lastError = null;
+        let successCount = 0;
 
         for (let i = 0; i < effectiveTeeth.length; i++) {
             const toothKey = effectiveTeeth[i];
@@ -260,7 +262,8 @@ export default function QuickTreatmentSheet({
             );
 
             try {
-                await onSave(singlePayload);
+                await onSave(singlePayload, { skipToast: true, skipRefetch: true });
+                successCount++;
             } catch (error) {
                 failedIndex = i;
                 lastError = error;
@@ -269,20 +272,31 @@ export default function QuickTreatmentSheet({
         }
 
         try {
+            if (successCount > 0 && typeof onRefetch === 'function') {
+                await onRefetch();
+            }
+
             if (failedIndex !== -1) {
                 const remainingTeeth = effectiveTeeth.slice(failedIndex);
-                const failedToothKey = effectiveTeeth[failedIndex];
-                const failedToothDisplay = palmerToFdi(failedToothKey) || failedToothKey;
-
                 onSelectionChange?.(remainingTeeth);
 
-                const res = lastError?.response?.data;
-                const detail = res?.detail;
-                const envelope = res?.error;
-                const msg = envelope?.details?.message || envelope?.message || detail || lastError?.message || t('quick_treatment_sheet.errors.save_failed', 'فشل حفظ الإجراء');
+                if (!lastError?.alreadyNotified) {
+                    const failedToothKey = effectiveTeeth[failedIndex];
+                    const failedToothDisplay = palmerToFdi(failedToothKey) || failedToothKey;
+                    const res = lastError?.response?.data;
+                    const detail = res?.detail;
+                    const envelope = res?.error;
+                    const msg = envelope?.details?.message || envelope?.message || detail || lastError?.message || t('quick_treatment_sheet.errors.save_failed', 'فشل حفظ الإجراء');
 
-                toast.error(`${t('quick_treatment_sheet.errors.tooth_prefix', 'السن')} ${failedToothDisplay}: ${msg}`);
+                    toast.error(`${t('quick_treatment_sheet.errors.tooth_prefix', 'السن')} ${failedToothDisplay}: ${msg}`);
+                }
             } else {
+                toast.success(
+                    t('quick_treatment_sheet.multi_save_success', 'تم حفظ الإجراءات لـ {{count}} أسنان بنجاح', {
+                        count: effectiveTeeth.length,
+                        defaultValue: t('patient_details.alerts.treatment_save_success', 'تم حفظ الإجراء بنجاح'),
+                    })
+                );
                 onSelectionChange?.([]);
                 onClose?.();
             }
@@ -574,4 +588,5 @@ QuickTreatmentSheet.propTypes = {
     selectedTeeth: PropTypes.arrayOf(PropTypes.oneOfType([PropTypes.string, PropTypes.number])),
     selectedSurfacesByTooth: PropTypes.object,
     onSelectionChange: PropTypes.func,
+    onRefetch: PropTypes.func,
 };

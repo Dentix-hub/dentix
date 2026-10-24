@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import i18n from './i18n';
+import { extractI18nKeys } from '../scripts/extract-i18n-keys.mjs';
 
 const expectedResources = {
     ar: {
@@ -45,5 +46,19 @@ describe('i18n resource integrity', () => {
             expect(arKeys.length).toBeGreaterThan(0);
             expect(arKeys).toEqual(enKeys);
         }
+    });
+
+    it('enforces that all static t() calls in the codebase exist in ar and en', () => {
+        const report = extractI18nKeys();
+        expect(report.missingInBoth, 'Static keys missing in both AR and EN').toEqual([]);
+        expect(report.missingInAr, 'Static keys missing in AR').toEqual([]);
+        expect(report.missingInEn, 'Static keys missing in EN').toEqual([]);
+    });
+
+    it('enforces complete key set parity across ar and en translation files', () => {
+        const report = extractI18nKeys();
+        expect(report.enMissingInAr, 'Keys in EN translation missing in AR').toEqual([]);
+        expect(report.arMissingInEn, 'Keys in AR translation missing in EN').toEqual([]);
+        expect(report.arTotalKeys).toBe(report.enTotalKeys);
     });
 });

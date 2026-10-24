@@ -15,7 +15,87 @@
         "cases": "Cases",
         "date_range": "Date Range",
         "search_patient": "Search patient...",
-        "no_results": "No results found"
+        "no_results": "No results found",
+        "active": "Active",
+        "expired": "Expired",
+        "refresh": "Refresh",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "copy": "Copy",
+        "date_time": "Date & Time",
+        "language": "Language",
+        "messages": {
+            "fill_all": "Please fill in all required fields"
+        },
+        "error_loading_data": "Failed to load data. Please check your connection.",
+        "doctor_prefix": "Dr.",
+        "separator": ", ",
+        "days": "Day",
+        "retry": "Retry",
+        "saving": "Saving",
+        "confirm": "Confirm",
+        "searching": "Searching",
+        "close": "Close",
+        "error": "Error",
+        "no_data": "No Data",
+        "all": "All",
+        "records": "records",
+        "page": "Page",
+        "of": "of",
+        "none": "None",
+        "add": "Add",
+        "minutes_short": "min",
+        "done": "Done",
+        "clear": "Clear",
+        "error_occurred": "Error Occurred",
+        "access_denied": "Access Denied",
+        "try_again_later": "Try Again Later",
+        "showing_results": "Showing Results",
+        "prev_page": "Prev Page",
+        "next_page": "Next Page",
+        "clear_search": "Clear Search",
+        "reset_filters": "Reset Filters",
+        "active_filters": "Active Filters",
+        "search_for": "Search For",
+        "remove_search_filter": "Remove Search Filter",
+        "remove_filter": "Remove Filter",
+        "deleting": "Deleting",
+        "view_all": "View All",
+        "type": "Type",
+        "egp": "Egp",
+        "view_details": "View Details",
+        "details": "Details",
+        "back": "Back",
+        "status": "Status",
+        "sort": "Sort",
+        "previous": "Previous",
+        "next": "Next",
+        "view": "View",
+        "prev_month": "Prev Month",
+        "next_month": "Next Month",
+        "notes": "Notes",
+        "general": "General",
+        "pagination": {
+            "label": "Pagination",
+            "page": "Page",
+            "of": "Of",
+            "previous": "Previous",
+            "next": "Next"
+        },
+        "delete_success": "Delete Success",
+        "close_menu": "Close menu",
+        "main_navigation": "Main navigation",
+        "toggle_sidebar": "Toggle Sidebar",
+        "open_menu": "Open Menu",
+        "processing": "Processing...",
+        "unknown": "Unknown",
+        "patient": "Patient",
+        "time": "Time",
+        "amount": "Amount",
+        "today": "Today",
+        "hour": "Hour",
+        "minute": "Minutes",
+        "search_min_chars": "Type at least 2 characters to search"
     },
     "static": {
         "not_found": {
@@ -269,6 +349,18 @@
         "mode": {
             "light": "Light Mode",
             "dark": "Dark Mode"
+        },
+        "labs": "Dental Labs",
+        "subscription": {
+            "grace_period": "Subscription grace period ({{count}} days remaining)",
+            "expired": "Subscription expired",
+            "ends_today": "Subscription ends today",
+            "days_left": "{{count}} days left on subscription",
+            "plan_premium": "Premium Plan",
+            "plan_basic": "Basic Plan",
+            "plan_trial": "Trial Period",
+            "expired_readonly": "Subscription expired — system is in read-only mode",
+            "expiring_soon": "Your subscription is expiring soon ({{count}} days remaining)"
         }
     },
     "dashboard": {
@@ -301,7 +393,8 @@
         "efficiency_description": "Based on completed vs scheduled appointments today",
         "efficiency_rate": "Efficiency Rate",
         "status_distribution": "Appointment Status",
-        "no_data": "No Data"
+        "no_data": "No Data",
+        "revenue": "Revenue"
     },
     "patients": {
         "title": "Patient Records",
@@ -346,12 +439,17 @@
             "success_msg": "Patient data saved successfully",
             "error_msg": "Error saving patient data",
             "update_success": "Patient data updated successfully",
-            "update_error": "Error updating patient data"
+            "update_error": "Error updating patient data",
+            "name_required": "Patient name is required",
+            "name": "Patient Name",
+            "phone": "Phone Number",
+            "create_btn": "Create & Select"
         },
         "empty_state": {
             "title": "No Patients Found",
             "desc": "No patients match your search. Start by adding a new patient."
         },
+        "medical_alert_generic": "Medical Alert",
         "medical_conditions": {
             "none": "None",
             "diabetes": "Diabetes",
@@ -364,7 +462,49 @@
             "pregnancy": "Pregnancy/Lactation",
             "smoking": "Smoking",
             "other": "Other"
-        }
+        },
+        "archive_confirm": "Are you sure you want to archive this patient?",
+        "archive_success": "Patient archived successfully",
+        "archive_error": "Failed to archive patient",
+        "patient_name": "Patient",
+        "file_number": "File Number",
+        "patient": "Patient",
+        "full_record": "Full Record",
+        "view_timeline": "View Timeline",
+        "view_profile": "View Profile",
+        "workspace_search_placeholder": "Search by name, file number, or phone...",
+        "workspace_search_label": "Search patients",
+        "workspace_search_hint": "Arabic name variants and Egyptian phone formats are supported.",
+        "workspace_subtitle": "Find the right patient quickly and continue the next clinic action.",
+        "quick_filters": "Patient filters",
+        "call_patient": "Call Patient",
+        "whatsapp_patient": "Whatsapp Patient",
+        "new_appointment": "New Appointment",
+        "open_patient": "Open Patient",
+        "archive_patient": "Archive Patient",
+        "load_error": "Load Error",
+        "load_error_hint": "Load Error Hint",
+        "no_search_results": "No Search Results",
+        "no_search_results_hint": "No Search Results Hint",
+        "assigned_doctor": "Assigned Doctor",
+        "load_more": "Load More",
+        "update_success": "Update Success",
+        "exact_dob_known": "Exact Dob Known",
+        "date_of_birth": "Date Of Birth",
+        "dob_hint": "Dob Hint",
+        "fast_registration": "Fast Registration",
+        "possible_matches": "Possible Matches",
+        "possible_matches_hint": "Possible Matches Hint",
+        "additional_information": "Additional Information",
+        "messages": {
+            "name_required": "Patient name is required",
+            "creating": "Creating patient...",
+            "create_success": "Patient created successfully",
+            "create_error": "Failed to create patient"
+        },
+        "quick_add_title": "Quick Add New Patient",
+        "quick_add_desc": "Enter the basic details to register this patient immediately.",
+        "years_short": "y"
     },
     "patientDetails": {
         "treatment_history": {
@@ -381,7 +521,13 @@
             "canal_unit": "mm",
             "lengths": "Lengths:",
             "sessions": "Sessions:",
-            "empty": "No treatment history recorded"
+            "empty": "No treatment history recorded",
+            "status": "Status",
+            "statuses": {
+                "Done": "Done",
+                "In Progress": "In Progress",
+                "Pending": "Pending"
+            }
         },
         "files": {
             "title": "X-Rays & Attachments",
@@ -521,6 +667,9 @@
                     "actions": "Actions"
                 }
             }
+        },
+        "chart": {
+            "select_tooth": "Please select a tooth first"
         }
     },
     "appointments": {
@@ -560,7 +709,8 @@
             "notes": "Notes",
             "status": "Status",
             "change_status": "Change Status",
-            "actions": "Actions"
+            "actions": "Actions",
+            "regular_visit": "Regular Visit"
         },
         "stats": {
             "today_total": "Total Today",
@@ -571,7 +721,8 @@
         "view": {
             "calendar": "Calendar",
             "list": "List View",
-            "board": "Board View"
+            "board": "Board View",
+            "label": "Appointment view"
         },
         "status": {
             "scheduled": "Scheduled",
@@ -603,8 +754,18 @@
             "update_error": "Failed to update status",
             "deleting": "Deleting...",
             "delete_success": "Appointment deleted",
-            "delete_error": "Failed to delete appointment"
-        }
+            "delete_error": "Failed to delete appointment",
+            "voice_unsupported": "Voice recognition not supported"
+        },
+        "treatments_count": "Treatments Count",
+        "no_treatments_period": "No Treatments Period",
+        "procedure": "Procedure",
+        "request_dismissed": "Next-visit request dismissed",
+        "board": {
+            "swipe_hint": "Swipe horizontally to view stages. You can also change status from each card without dragging."
+        },
+        "confirm_delete_desc": "Confirm Delete Desc",
+        "drag_handle": "Drag appointment"
     },
     "settings": {
         "title": "Settings",
@@ -631,6 +792,10 @@
             "commit_sha": "Commit SHA (Git)",
             "built_at": "Built at",
             "environment": "Environment",
+            "env_staging": "Staging",
+            "env_production": "Production",
+            "env_development": "Development",
+            "env_unknown": "Unknown",
             "origin": "Origin",
             "display_mode": "Display mode",
             "mode_standalone": "Installed app (Standalone)",
@@ -729,7 +894,18 @@
                     "list_price": "List Price",
                     "saved": "Saved ✅"
                 }
-            }
+            },
+            "deactivated_success": "Deactivated Success",
+            "deactivate_title": "Deactivate Title",
+            "deactivate_btn": "Deactivate Btn"
+        },
+        "push": {
+            "title": "Web Push Notifications",
+            "description": "Receive alerts for appointments and messages even when the app is closed",
+            "disable": "Disable Notifications",
+            "enable": "Enable Notifications",
+            "denied_hint": "Notifications permission was blocked in browser settings. Please allow notifications from the address bar.",
+            "install_hint": "To receive push notifications on iOS, please add this app to your Home Screen first."
         }
     },
     "users": {
@@ -778,7 +954,8 @@
     },
     "language": {
         "switch_to_en": "English",
-        "switch_to_ar": "العربية"
+        "switch_to_ar": "العربية",
+        "code": "en"
     },
     "patient_details": {
         "loading_error": "Failed to load patient data",
@@ -870,6 +1047,30 @@
             "delete_payment_fail": "Failed to delete payment",
             "rx_fail": "Failed to save/print prescription",
             "upload_fail": "Failed to upload file"
+        },
+        "chart_error": "Failed to load clinical workspace"
+    },
+    "clinical": {
+        "coverage": "Coverage",
+        "fallback_notice": "Notice",
+        "fallback_desc": "Displaying clinical records with legacy fallback contribution.",
+        "warnings": "Warnings",
+        "legacy_review_needed": "{{count}} legacy records need review",
+        "technical_details": "Technical details",
+        "empty_workspace": "No clinical events or work items recorded for this patient yet.",
+        "coverage_status": {
+            "complete": "Complete",
+            "partial": "Partial",
+            "uncovered": "Uncovered"
+        },
+        "domain": {
+            "teeth": "Teeth",
+            "periodontal": "Periodontal",
+            "endodontic": "Endodontic",
+            "soft_tissue": "Soft Tissue",
+            "restorative": "Restorative",
+            "treatments": "Treatments",
+            "sessions": "Sessions"
         }
     },
     "clinical_plans": {
@@ -1019,7 +1220,8 @@
         },
         "alerts": {
             "title": "Expiry Alerts",
-            "days_left": "Days"
+            "days_left": "Days",
+            "more_alerts": "More Alerts"
         },
         "actions": {
             "search_placeholder": "Search material...",
@@ -1030,7 +1232,9 @@
             "edit": "Edit",
             "delete": "Delete",
             "open_package": "Open Package",
-            "close_package": "Close Package"
+            "close_package": "Close Package",
+            "add_warehouse": "Add Warehouse",
+            "more": "More material actions"
         },
         "categories": {
             "add_new": "New Category",
@@ -1042,7 +1246,8 @@
         "filters": {
             "all": "All",
             "low": "Low",
-            "critical": "Critical"
+            "critical": "Critical",
+            "label": "Filter stock"
         },
         "table": {
             "material": "Material",
@@ -1072,7 +1277,8 @@
             "delete_fail": "Failed to delete material.",
             "delete_requires_empty": "Materials with current stock or an open package cannot be deleted. Reduce stock to zero and close packages first.",
             "delete_confirm": "Are you sure you want to delete \"{{name}}\"?\nIt will be hidden while its inventory audit history is preserved.",
-            "open_packages_tooltip": "{{count}} open packages. Click to close one by one."
+            "open_packages_tooltip": "{{count}} open packages. Click to close one by one.",
+            "load_error": "Load Error"
         },
         "warehouses": {
             "add_button": "Add New Warehouse",
@@ -1081,7 +1287,16 @@
             "click_to_view": "Click to view",
             "delete_confirm": "Are you sure you want to delete warehouse \"{{name}}\"? This cannot be undone!",
             "delete_success": "Warehouse deleted successfully.",
-            "delete_fail": "Failed to delete warehouse"
+            "delete_fail": "Failed to delete warehouse",
+            "delete_error": "An error occurred while deleting warehouse",
+            "add_success": "Add Success",
+            "add_fail": "Add Fail",
+            "add_title": "Add Title",
+            "name": "Name",
+            "name_placeholder": "Name Placeholder",
+            "type": "Type",
+            "type_main": "Type Main",
+            "type_clinic": "Type Clinic"
         },
         "materials": {
             "modal_add": "Add New Material",
@@ -1187,8 +1402,10 @@
             "messages": {
                 "select_error": "Please select a package",
                 "success_open": "Package opened successfully",
-                "error_prefix": "Error: "
-            }
+                "error_prefix": "Error: ",
+                "success_close": "Success Close"
+            },
+            "info_close_auto": "Info Close Auto"
         },
         "material_details": {
             "title": "Stock & Package Details",
@@ -1214,6 +1431,18 @@
                 "update_success": "Material properties updated successfully",
                 "update_fail": "Failed to update material"
             }
+        },
+        "medical_conditions": {
+            "none": "None",
+            "diabetes": "Diabetes",
+            "hypertension": "Hypertension",
+            "heart_disease": "Heart Disease",
+            "allergy": "Allergy",
+            "blood_thinners": "Blood Thinners",
+            "hepatitis_c": "Hepatitis C",
+            "thyroid": "Thyroid",
+            "pregnancy": "Pregnancy/Lactation",
+            "smoking": "Smoking"
         }
     },
     "labs": {
@@ -1394,7 +1623,9 @@
             "doctors_load_fail": "Failed to load doctors data",
             "doctor_details_load_fail": "Failed to load doctor details",
             "saving": "Saving settings...",
-            "cancel_pay_confirm": "Are you sure you want to cancel this payment?"
+            "cancel_pay_confirm": "Are you sure you want to cancel this payment?",
+            "cancel_pay_success": "Payment cancelled",
+            "cancel_pay_fail": "Failed to cancel payment"
         },
         "doctor_revenue": {
             "title": "Doctors Accounts",
@@ -1510,7 +1741,18 @@
             "actions": "Actions",
             "no_data": "No expenses",
             "no_data_desc": "No expenses recorded for this period",
-            "add_first": "Add First Expense"
+            "add_first": "Add First Expense",
+            "categories": {
+                "general": "General",
+                "materials": "Materials",
+                "salaries": "Salaries",
+                "rent": "Rent",
+                "utilities": "Utilities",
+                "maintenance": "Maintenance",
+                "laboratory": "Laboratory"
+            },
+            "notes": "Notes",
+            "notes_placeholder": "Optional expense notes..."
         },
         "payments": {
             "title": "Patient Payment History",
@@ -1553,7 +1795,16 @@
             "modal_title": "Edit Details",
             "modal_per_appointment_input": "Per Appointment Rate",
             "per_appointment_desc": "Added automatically when checkup is completed"
-        }
+        },
+        "expenses_page": {
+            "title": "Expense Management",
+            "subtitle": "Track clinic expenses and net profit",
+            "notes": "Notes",
+            "empty": "No recorded expenses",
+            "add_button": "Add New Expense",
+            "create_fail": "Failed to create expense"
+        },
+        "payment_received": "Payment Received"
     },
     "auth": {
         "login": {
@@ -1796,6 +2047,13 @@
         "export_excel_loading": "Generating Excel export...",
         "export_excel_success": "Excel backup exported successfully",
         "export_excel_fail": "Failed to export Excel backup",
+        "download_fail": "Failed to download backup",
+        "restore_fail": "Failed to restore backup data",
+        "connect_fail": "Connection failed",
+        "purge_fail": "Operation failed",
+        "backing_up": "Backing up...",
+        "auto_not_available": "Automatic backup is currently unavailable",
+        "auto_not_available_hint": "Automatic backup is not available yet — use the manual backup button.",
         "restore_warning": "Warning: Restoring a backup will delete all current data and replace it with the new version. Are you sure?",
         "restore_success": "Data restored successfully! Refreshing page...",
         "danger_zone": {
@@ -1844,7 +2102,11 @@
         "save": "Save",
         "cancel": "Cancel",
         "delete_confirm": "Are you sure you want to deactivate this provider?",
-        "price_lists_count": "Price Lists:"
+        "price_lists_count": "Price Lists:",
+        "deactivated_success": "Deactivated Success",
+        "deactivate_title": "Deactivate Title",
+        "deactivate_confirm": "Deactivate Confirm",
+        "deactivate_btn": "Deactivate Btn"
     },
     "command_palette": {
         "placeholder": "Search anything...",
@@ -1908,7 +2170,8 @@
                 "status": "Status",
                 "time": "Time",
                 "success": "Success",
-                "failed": "Failed"
+                "failed": "Failed",
+                "no_logs": "No AI logs recorded"
             },
             "periods": {
                 "today": "Today",
@@ -1944,7 +2207,10 @@
             "new_value": "Updated State",
             "no_data": "No JSON data available",
             "no_results_found": "No matching records found",
-            "id_label": "ID"
+            "id_label": "ID",
+            "system_global": "Global System Audit",
+            "export_success": "Audit log exported successfully",
+            "view_details": "View Details"
         },
         "security": {
             "title": "Security & Protection Dashboard",
@@ -1983,7 +2249,14 @@
             "block_success": "IP blocked successfully",
             "block_failed": "Blocking operation failed",
             "unblock_confirm": "Are you sure you want to unblock?",
-            "unblock_failed": "Unblocking failed"
+            "unblock_failed": "Unblocking failed",
+            "unblock_success": "Successfully unblocked",
+            "level_critical": "Critical",
+            "level_moderate": "Moderate",
+            "level_optimal": "Optimal",
+            "no_recent_failures": "No recent login failures",
+            "unblock_confirm_title": "Confirm Unblock",
+            "unblock_confirm_msg": "Are you sure you want to unblock this address/user?"
         },
         "finance": {
             "title": "Financial Insights",
@@ -2055,7 +2328,23 @@
             "failed": "Failed",
             "success": "Successful",
             "last_check": "Last Check",
-            "update_now": "Update Now"
+            "update_now": "Update Now",
+            "status_success": "Success",
+            "status_running": "Running",
+            "status_pending": "Pending",
+            "status_failed": "Failed",
+            "overall_status": "Overall System Health",
+            "overview_desc": "Monitor services performance, background workers, and database health",
+            "no_active_alerts": "No active alerts currently",
+            "job_success_rate": "Job Success Rate",
+            "recent_jobs": "Recent Background Jobs",
+            "job_status": "Job Status",
+            "job_duration": "Duration",
+            "job_triggered_by": "Triggered By",
+            "job_started_at": "Started At",
+            "loading_jobs": "Loading jobs...",
+            "no_jobs": "No recorded jobs",
+            "unnamed_job": "Unnamed Job"
         },
         "features": {
             "title": "Feature Flags Management",
@@ -2073,7 +2362,15 @@
             "add_title": "Add New Feature",
             "description": "Description",
             "global_enable": "Global Enable",
-            "save_btn": "Save Feature"
+            "save_btn": "Save Feature",
+            "rollout_invalid": "Rollout percentage must be between 0 and 100",
+            "global_update_fail": "Failed to update global feature state",
+            "rollout_label": "Rollout Percentage",
+            "enable": "Enable",
+            "disable": "Disable",
+            "close_create": "Cancel Creation",
+            "feature_key_label": "Feature Key",
+            "rollout_percentage_label": "Rollout Percentage (%)"
         },
         "notifications": {
             "title": "Send New System Notification",
@@ -2091,7 +2388,17 @@
             "error": "Error (Important)",
             "system": "System",
             "all_clinics": "All Clinics",
-            "specific_clinic": "Specific Clinic"
+            "specific_clinic": "Specific Clinic",
+            "date_col": "Date",
+            "delete_notif": "Delete Notification",
+            "delete_title": "Confirm Notification Deletion",
+            "delete_confirm_msg": "Are you sure you want to permanently delete this notification?",
+            "error_fill_required": "Please fill in required fields",
+            "error_select_tenant": "Please select a target clinic",
+            "success_sent": "Notification sent successfully",
+            "error_sending": "Failed to send notification",
+            "success_deleted": "Notification deleted successfully",
+            "error_deleting": "Failed to delete notification"
         },
         "support": {
             "title": "Support Inbox",
@@ -2112,7 +2419,13 @@
             "read": "Read",
             "view_details": "View Details",
             "delete_msg": "Delete Message",
-            "actions_col": "Actions"
+            "actions_col": "Actions",
+            "error_updating_status": "Failed to update message status",
+            "message_body": "Message Body",
+            "delete_title": "Confirm Message Deletion",
+            "delete_confirm_msg": "Are you sure you want to delete this support message?",
+            "success_deleted": "Message deleted successfully",
+            "error_deleting": "Failed to delete message"
         },
         "tenants": {
             "title": "Clinic",
@@ -2132,7 +2445,49 @@
             "permanent_delete": "Permanent Delete",
             "permanent_delete_confirm": "Permanent Delete (Irreversible)",
             "no_tenants": "No clinics registered yet",
-            "select_plan": "Select Plan"
+            "select_plan": "Select Plan",
+            "clinic_name": "Clinic Name",
+            "manual_renewal": "Manual Renewal",
+            "archive_action": "Archive Action",
+            "permanent_delete_title": "Permanent Delete Title",
+            "permanent_short": "Permanent Short",
+            "change_plan_title": "Change Plan Title",
+            "change_plan_msg": "Change Plan Msg",
+            "plan_changed_success": "Plan Changed Success",
+            "plan_change_failed": "Plan Change Failed",
+            "reset_pw_title": "Reset Pw Title",
+            "reset_pw_msg": "Reset Pw Msg",
+            "archive_title": "Archive Title",
+            "archive_msg": "Archive Msg",
+            "archive_btn": "Archive Btn",
+            "archive_success": "Archive Success",
+            "archive_fail": "Archive Fail",
+            "restore_title": "Restore Title",
+            "restore_msg": "Restore Msg",
+            "restore_btn": "Restore Btn",
+            "restore_success": "Restore Success",
+            "restore_fail": "Restore Fail",
+            "permanent_title": "Permanent Title",
+            "permanent_msg": "Permanent Msg",
+            "permanent_btn": "Permanent Btn",
+            "permanent_success": "Permanent Success",
+            "permanent_fail": "Permanent Fail",
+            "subtitle": "Tenants Subtitle",
+            "manual_renewal_title": "Manual Renewal Title",
+            "plan_label": "Plan Label",
+            "current_plan": "Current Plan",
+            "extension_days": "Extension Days",
+            "renewal_notes": "Renewal Notes",
+            "notes_placeholder": "Notes Placeholder",
+            "documenting": "Documenting",
+            "confirm_renewal": "Confirm Renewal",
+            "reset_pw_modal_title": "Reset Pw Modal Title",
+            "select_user": "Select User",
+            "choose_user": "Choose User",
+            "new_pw": "New Pw",
+            "pw_placeholder": "Pw Placeholder",
+            "pw_hint": "Pw Hint",
+            "reset_pw_action": "Reset Pw Action"
         },
         "users": {
             "title": "Users Management",
@@ -2152,7 +2507,17 @@
             "no_results": "No results found",
             "search_instruction": "Search to view users",
             "loading": "Loading...",
-            "system": "System"
+            "system": "System",
+            "search_fail": "Search Fail",
+            "deactivate_action": "Deactivate Action",
+            "activate_action": "Activate Action",
+            "toggle_status_title": "Toggle Status Title",
+            "toggle_status_msg": "Toggle Status Msg",
+            "this_user": "This User",
+            "status_changed_to": "Status Changed To",
+            "user_successfully": "User Successfully",
+            "status_change_fail": "Status Change Fail",
+            "subtitle": "Users Subtitle"
         },
         "payments": {
             "title": "Payment History",
@@ -2170,7 +2535,22 @@
             "credit_card": "Credit Card",
             "completed": "Completed",
             "delete_title": "Delete Payment",
-            "no_payments": "No payment records found"
+            "no_payments": "No payment records found",
+            "error_select_tenant": "Please select a clinic first",
+            "error_select_plan": "Please select a plan",
+            "error_invalid_amount": "Invalid payment amount",
+            "error_invalid_date": "Invalid payment date",
+            "success_recorded": "Payment recorded successfully",
+            "error_recording": "Failed to record payment",
+            "success_deleted": "Payment deleted successfully",
+            "error_deleting": "Failed to delete payment",
+            "modal_title": "Record Subscription Payment",
+            "modal_subtitle": "Enter payment details and update subscription status",
+            "select_clinic": "Select Clinic",
+            "select_user": "Responsible Doctor / User",
+            "notes_placeholder": "Additional notes regarding payment...",
+            "submit_button": "Confirm & Save Payment",
+            "delete_confirm_msg": "Are you sure you want to delete this payment record?"
         },
         "stats": {
             "total_tenants": "Total Clinics",
@@ -2219,7 +2599,250 @@
             "default_badge": "Default",
             "unlimited": "Unlimited",
             "days_unit": "day",
-            "requests_unit": "req/day"
+            "requests_unit": "req/day",
+            "current_plan": "Current Plan",
+            "remaining_duration": "Remaining Duration",
+            "expiry": "Expiry Date",
+            "trial": "Trial",
+            "save_success": "Plan saved successfully",
+            "error_saving": "Failed to save plan",
+            "error_missing_code": "Plan code is required",
+            "error_invalid_price": "Invalid price amount",
+            "error_invalid_duration": "Invalid duration in days",
+            "custom_features_placeholder": "Custom features (one per line)",
+            "delete_plan": "Delete Plan",
+            "delete_title": "Confirm Plan Deletion"
+        },
+        "impersonation": {
+            "banner": "Simulation Mode ({{scope}}): Clinic {{tenant}}{{user}}",
+            "read_only": "Read-only",
+            "full_access": "Full Access",
+            "tenant_fallback": "Tenant",
+            "return": "Return to Admin Panel"
+        },
+        "sessions": {
+            "fetch_error": "Failed to fetch active sessions",
+            "terminate_success": "Session terminated successfully",
+            "terminate_failed": "Failed to terminate session",
+            "loading": "Loading sessions...",
+            "title": "Active Sessions Management",
+            "subtitle": "Monitor active user sessions with instant termination capability",
+            "search_placeholder": "Search sessions...",
+            "anonymous_user": "Anonymous User",
+            "terminate_btn": "Terminate Session",
+            "last_active": "Last Active",
+            "start_time": "Session Start",
+            "no_search_matches": "No sessions matching search",
+            "no_active_sessions": "No active sessions currently",
+            "terminate_confirm_title": "Confirm Session Termination",
+            "terminate_confirm_msg": "Are you sure you want to terminate this session? The user will be logged out immediately.",
+            "terminate_confirm_btn": "Terminate Session"
+        },
+        "settings": {
+            "save_success": "Settings saved successfully",
+            "save_fail": "Failed to save settings",
+            "maintenance_title": "Global Maintenance Mode",
+            "maintenance_desc": "When maintenance mode is active, non-admin users will be temporarily blocked from accessing the system.",
+            "maintenance_toggle": "Enable Maintenance Mode",
+            "announcement_title": "System Banner Announcement",
+            "announcement_desc": "Display a banner announcement at the top of the screen for all users",
+            "announcement_placeholder": "Type announcement text here...",
+            "save_changes": "Save Changes",
+            "support_info_title": "Technical Support Info",
+            "support_info_desc": "Support contact information shown to clinics within the system",
+            "support_phone": "Support Phone",
+            "support_whatsapp": "Support WhatsApp",
+            "support_email": "Support Email",
+            "support_working_hours": "Working Hours",
+            "maintenance_confirm_title": "Confirm Maintenance Mode Change",
+            "maintenance_disable_confirm": "Are you sure you want to disable maintenance mode and reopen the system for everyone?",
+            "maintenance_enable_confirm": "Are you sure you want to enable maintenance mode? Non-admin users will be blocked."
+        },
+        "tenant_detail": {
+            "unavailable": "Unavailable",
+            "title": "Clinic Details",
+            "close_drawer": "Close Drawer",
+            "subtitle": "Manage tenant data and resources",
+            "load_failed": "Failed to load clinic details",
+            "retry_hint": "Please try again later",
+            "unnamed": "Unnamed",
+            "clinic_number": "Clinic #:",
+            "auto_admin": "Auto Admin",
+            "reason_placeholder": "Access reason (at least 5 characters)",
+            "readonly_scope": "Session Scope: Read-Only",
+            "min_reason": "Minimum 5 characters",
+            "start_impersonation": "Start Impersonation",
+            "patients": "Patients",
+            "appointments": "Appointments",
+            "revenue": "Revenue",
+            "current_plan": "Current Plan",
+            "contact_info": "Contact Info",
+            "email": "Email",
+            "phone": "Phone",
+            "activity_title": "Activity & Registration",
+            "joined": "Joined Date",
+            "last_activity": "Last Activity",
+            "no_activity": "No activity recorded",
+            "close": "Close"
+        },
+        "two_factor": {
+            "invalid_setup_payload": "Invalid two-factor setup data",
+            "setup_fail": "Failed to setup two-factor authentication",
+            "missing_secret": "Secret key is missing",
+            "code_length_error": "Verification code must be 6 digits",
+            "enable_success": "Two-factor authentication enabled successfully",
+            "invalid_code": "Invalid code, please try again",
+            "disable_success": "Two-factor authentication disabled successfully",
+            "disable_fail": "Failed to disable two-factor authentication",
+            "secret_copied": "Secret key copied to clipboard",
+            "clipboard_unsupported": "Clipboard not supported in this browser",
+            "clipboard_fail": "Failed to copy to clipboard",
+            "title": "Two-Factor Authentication (2FA)",
+            "subtitle": "Secure your account with an extra verification code from an authenticator app",
+            "desc": "Add an extra layer of protection to your account to prevent unauthorized access.",
+            "start_setup": "Start Setup",
+            "scan_qr": "Scan QR Code",
+            "scan_qr_desc": "Scan the code using an app like Google Authenticator or Authy",
+            "manual_secret": "Or enter the secret key manually:",
+            "enter_code": "Enter 6-digit code",
+            "activate_now": "Activate Now",
+            "enabled_desc": "Two-factor authentication is currently enabled on your account providing maximum security.",
+            "disable_btn": "Disable Two-Factor",
+            "disable_confirm_title": "Confirm Disabling Two-Factor",
+            "disable_confirm_msg": "Are you sure you want to disable two-factor authentication? This reduces account security."
+        },
+        "communications": {
+            "loading": "Loading communications...",
+            "title": "Communications & Notifications Center",
+            "subtitle": "Send announcements and manage support inquiries",
+            "tabs": {
+                "messages": "Support Messages",
+                "notifications": "Global Notifications"
+            }
+        },
+        "logs": {
+            "delete_success": "Log deleted successfully",
+            "delete_failed": "Failed to delete log",
+            "clear_success": "Logs cleared successfully",
+            "clear_failed": "Failed to clear logs",
+            "export_success": "Logs exported successfully",
+            "export_failed": "Failed to export logs",
+            "copy_success": "Log details copied to clipboard",
+            "copy_failed": "Failed to copy log",
+            "col_level": "Level",
+            "col_source": "Source",
+            "col_message": "Message",
+            "col_path": "Path",
+            "col_date": "Date",
+            "col_actions": "Actions",
+            "action_view": "View",
+            "action_copy": "Copy",
+            "action_delete": "Delete",
+            "title": "System Logs",
+            "subtitle": "Monitor server logs, errors, and real-time warnings",
+            "export_csv": "Export CSV",
+            "clear_all": "Clear All",
+            "fetch_error": "Failed to fetch system logs",
+            "empty_msg": "No logs matching current filter",
+            "detail_title": "Log Event Details",
+            "copy_details": "Copy Details",
+            "delete_title": "Confirm Log Deletion",
+            "delete_confirm_msg": "Are you sure you want to permanently delete this log?",
+            "clear_title": "Confirm Clear All Logs",
+            "clear_confirm_msg": "Are you sure you want to clear all logs? This action cannot be undone."
+        },
+        "backup": {
+            "oauth_success": "Google Drive connected successfully",
+            "oauth_failed": "Failed to connect Google Drive",
+            "oauth_error": "An error occurred during Google OAuth",
+            "drive_not_configured": "Cloud backup target not configured yet",
+            "connect_failed": "Failed to connect to cloud storage service",
+            "started_msg": "Backup process started in background",
+            "trigger_failed": "Failed to trigger backup process",
+            "disconnect_success": "Google Drive disconnected successfully",
+            "disconnect_fail": "Failed to disconnect Google Drive",
+            "policy_title": "Central Backup Policy",
+            "policy_desc": "Configure backup frequency and encrypted cloud storage",
+            "drive_title": "Google Drive Cloud Backup",
+            "drive_subtitle": "Connect Google Drive to store scheduled backups automatically",
+            "connected": "Connected",
+            "disconnected": "Disconnected",
+            "last_run_label": "Last Backup:",
+            "no_runs_yet": "Not run yet",
+            "status_success": "Completed successfully",
+            "status_processing": "Processing...",
+            "status_failed": "Failed",
+            "connect_btn": "Connect Google Drive",
+            "starting": "Starting...",
+            "trigger_cloud_btn": "Trigger Cloud Backup Now",
+            "disconnecting": "Disconnecting...",
+            "disconnect_btn": "Disconnect Google Drive",
+            "confirm_upload_title": "Confirm Cloud Backup Start",
+            "confirm_upload_msg": "A full snapshot of the database will be taken and uploaded immediately. Continue?",
+            "confirm_start_btn": "Start Backup",
+            "disconnect_confirm_title": "Confirm Google Drive Disconnect",
+            "disconnect_confirm_msg": "Are you sure you want to disconnect? Automated backups to Google Drive will be paused."
+        },
+        "profile": {
+            "no_changes_error": "No changes to save",
+            "update_success": "Profile updated successfully",
+            "update_fail": "Failed to update profile",
+            "title": "Edit Admin Profile",
+            "username_label": "Username",
+            "unchanged_placeholder": "Leave blank to keep unchanged",
+            "email_label": "Email",
+            "password_label": "New Password",
+            "save_changes": "Update Account",
+            "confirm_title": "Confirm Profile Update",
+            "confirm_msg": "Are you sure you want to save the new admin credentials?"
+        },
+        "system": {
+            "loading": "Loading system settings...",
+            "tabs": {
+                "settings": "General Settings",
+                "features": "Feature Flags",
+                "profile": "Profile",
+                "backup": "Cloud Backup",
+                "security": "Security",
+                "sessions": "Active Sessions"
+            },
+            "title": "System Settings & Administration",
+            "subtitle": "Central control over platform options, maintenance, backups, and security"
+        },
+        "palette": {
+            "overview_title": "Overview Title",
+            "overview_sub": "Overview Sub",
+            "tenants_title": "Tenants Title",
+            "tenants_sub": "Tenants Sub",
+            "users_title": "Users Title",
+            "users_sub": "Users Sub",
+            "finance_title": "Finance Title",
+            "finance_sub": "Finance Sub",
+            "support_title": "Support Title",
+            "support_sub": "Support Sub",
+            "ai_title": "Ai Title",
+            "ai_sub": "Ai Sub",
+            "logs_title": "Logs Title",
+            "logs_sub": "Logs Sub",
+            "settings_title": "Settings Title",
+            "settings_sub": "Settings Sub",
+            "clinic": "Clinic",
+            "plan": "Plan",
+            "search_placeholder": "Search Placeholder",
+            "no_results": "No Results",
+            "quick_suggestions": "Quick Suggestions",
+            "to_select": "To Select",
+            "to_navigate": "To Navigate",
+            "esc_to_close": "Esc To Close"
+        },
+        "overview": {
+            "title": "Overview Title",
+            "subtitle": "Overview Subtitle",
+            "platform_admin": "Platform Admin",
+            "stats_error": "Stats Error"
+        },
+        "impersonate": {
+            "reason_required": "Reason Required"
         }
     },
     "finance": {
@@ -2233,7 +2856,10 @@
             "compensation": "Compensation & Payroll",
             "activity": "Financial Activity",
             "reports": "Financial Reports",
-            "aria_label": "Finance module navigation"
+            "aria_label": "Finance module navigation",
+            "cash_movements": "Cash Movements",
+            "team": "Team",
+            "reports_insights": "Reports Insights"
         },
         "scope": {
             "period": "Selected Period",
@@ -2246,7 +2872,8 @@
             "custom_range": "Custom Range",
             "from": "From",
             "to": "To",
-            "apply": "Apply Filter"
+            "apply": "Apply Filter",
+            "title": "Title"
         },
         "metrics": {
             "gross_production": "Gross Production",
@@ -2260,11 +2887,27 @@
             "doctor_dues": "Doctor Due",
             "staff_dues": "Staff Due",
             "total_deductions": "Total Deductions",
-            "net_result": "Net Operational Result"
+            "net_result": "Net Operational Result",
+            "net_revenue_sub": "Net Revenue Sub",
+            "collected_sub": "Collected Sub",
+            "total_deductions_sub": "Total Deductions Sub",
+            "net_result_sub": "Net Result Sub",
+            "payment": "Payment",
+            "expense": "Expense",
+            "invoiced": "Invoiced",
+            "discount": "Discount",
+            "net_invoiced": "Net Invoiced",
+            "deductions": "Deductions",
+            "all_time_debt": "All Time Debt",
+            "net_profit": "Net Profit"
         },
         "overview": {
             "title": "Finance Overview",
-            "description": "Financial summary and key performance indicators"
+            "description": "Financial summary and key performance indicators",
+            "trend_chart_title": "Trend Chart Title",
+            "trend_chart_subtitle": "Trend Chart Subtitle",
+            "no_trend_data": "No Trend Data",
+            "headline_metrics": "Headline Metrics"
         },
         "patient_accounts": {
             "title": "Patient Accounts & Receivables",
@@ -2272,15 +2915,100 @@
         },
         "payments": {
             "title": "Payments Log",
-            "description": "All patient payment transactions and cash receipts"
+            "description": "All patient payment transactions and cash receipts",
+            "record_btn": "Record Btn",
+            "receipt_num": "Receipt Num",
+            "patient": "Patient",
+            "amount": "Amount",
+            "date": "Date",
+            "notes": "Notes",
+            "detail_badge": "Detail Badge",
+            "subtitle": "Payments Subtitle",
+            "search_placeholder": "Search Placeholder",
+            "active_identifier_filters": "Active Identifier Filters",
+            "visible_count": "Visible Count",
+            "visible_total": "Visible Total",
+            "no_payments": "No Payments",
+            "detail_title": "Detail Title",
+            "date_time": "Date Time",
+            "doctor": "Doctor",
+            "no_notes": "No Notes",
+            "confirm_delete_title": "Confirm Delete Title",
+            "confirm_delete_desc": "Confirm Delete Desc",
+            "delete_payment": "Delete Payment",
+            "error_select_patient": "Error Select Patient",
+            "error_invalid_amount": "Error Invalid Amount",
+            "record_title": "Record Title",
+            "record_subtitle": "Record Subtitle",
+            "select_patient": "Patient",
+            "choose_patient": "Choose Patient",
+            "notes_label": "Notes Label",
+            "notes_placeholder": "Notes Placeholder",
+            "save_payment": "Save Payment"
         },
         "expenses": {
             "title": "Expenses & Operations",
-            "description": "Manage clinic overhead, utilities, supplies, and expenses"
+            "description": "Manage clinic overhead, utilities, supplies, and expenses",
+            "lab_total": "Lab Total",
+            "item_name_required": "Item Name Required",
+            "cost_invalid": "Cost Invalid",
+            "add_drawer_title": "Add Drawer Title",
+            "add_drawer_sub": "Add Drawer Sub",
+            "item_name": "Item Name",
+            "item_placeholder": "Item Placeholder",
+            "cost": "Cost",
+            "category": "Category",
+            "date": "Date",
+            "notes": "Notes",
+            "notes_placeholder": "Notes Placeholder",
+            "save_btn": "Save Btn",
+            "delete_title": "Delete Title",
+            "delete_sub": "Delete Sub",
+            "delete_impact_warning": "Delete Impact Warning",
+            "confirm_delete_btn": "Confirm Delete Btn",
+            "no_labs_period": "No Labs Period",
+            "source": "Source",
+            "source_manual": "Source Manual",
+            "manual_total": "Manual Total",
+            "manual_total_sub": "Manual Total Sub",
+            "lab_total_sub": "Lab Total Sub",
+            "deductions_sub": "Deductions Sub",
+            "add_btn": "Add Btn",
+            "search_placeholder": "Search Placeholder",
+            "no_expenses": "No Expenses",
+            "category_general": "Category General",
+            "records_count": "Records Count",
+            "total_expenses": "Total Expenses",
+            "direct_total": "Direct Total"
         },
         "compensation": {
             "doctors": "Doctor Compensation",
-            "payroll": "Staff Payroll"
+            "payroll": "Staff Payroll",
+            "equation_title": "Equation Title",
+            "commission_calc": "Commission Calc",
+            "fixed_salary": "Fixed Salary",
+            "total_entitlement": "Total Entitlement",
+            "commission_invalid": "Commission Invalid",
+            "salary_invalid": "Salary Invalid",
+            "config_permission_required": "Config Permission Required",
+            "settings_title": "Settings Title",
+            "commission_rate": "Commission Rate",
+            "commission_desc": "Commission Desc",
+            "salary_desc": "Salary Desc",
+            "doctor_name": "Doctor",
+            "rule_summary": "Rule Summary",
+            "commission_short": "Commission Short",
+            "total_due": "Total Due",
+            "edit_rules": "Edit Rules",
+            "dues_sub": "Dues Sub",
+            "total_production": "Total Production",
+            "production_sub": "Production Sub",
+            "total_collected": "Total Collected",
+            "collected_sub": "Collected Sub",
+            "search_placeholder": "Search Placeholder",
+            "no_doctors": "No Doctors",
+            "doctor_details": "Doctor Details",
+            "doctor_details_sub": "Doctor Details Sub"
         },
         "doctors": {
             "title": "Doctor Earnings & Rates",
@@ -2292,16 +3020,206 @@
         },
         "payroll": {
             "title": "Staff Payroll",
-            "description": "Manage monthly staff salaries, deductions, and bonuses"
+            "description": "Manage monthly staff salaries, deductions, and bonuses",
+            "status_unpaid": "Status Unpaid",
+            "status_partial": "Status Partial",
+            "status_paid": "Status Paid",
+            "employee_name": "Employee Name",
+            "base_salary": "Base Salary",
+            "days_count": "Days Count",
+            "payable": "Payable",
+            "paid": "Paid",
+            "remaining": "Remaining",
+            "pay_salary": "Pay Salary",
+            "confirm_delete_payment": "Confirm Delete Payment",
+            "cancel_payment": "Cancel Payment",
+            "edit_salary_rules": "Edit Salary Rules",
+            "edit_rules": "Edit Rules",
+            "pay_action": "Pay Action",
+            "total_payable": "Total Payable",
+            "employees_count": "Employees Count",
+            "total_paid": "Total Paid",
+            "paid_sub": "Paid Sub",
+            "total_remaining": "Total Remaining",
+            "remaining_sub": "Remaining Sub",
+            "search_placeholder": "Search Placeholder",
+            "no_employees": "No Employees",
+            "current_month": "Current Month",
+            "invalid_amount": "Invalid Amount",
+            "record_payment_title": "Record Payment Title",
+            "already_paid": "Already Paid",
+            "payment_amount": "Payment Amount",
+            "pay_remaining_quick": "Pay Remaining Quick",
+            "is_partial_label": "Is Partial Label",
+            "is_partial_hint": "Is Partial Hint",
+            "days_worked": "Days Worked",
+            "notes_placeholder": "Notes Placeholder",
+            "confirm_payment": "Confirm Payment",
+            "invalid_salary": "Invalid Salary",
+            "config_permission_required": "Config Permission Required",
+            "staff_settings_title": "Staff Settings Title",
+            "base_salary_label": "Base Salary Label",
+            "hire_date_label": "Hire Date Label",
+            "hire_date_hint": "Hire Date Hint"
         },
         "activity": {
             "title": "Financial Activity Feed",
-            "description": "Unified chronological audit trail of all financial movements"
+            "description": "Unified chronological audit trail of all financial movements",
+            "type_payment": "Type Payment",
+            "type_expense": "Type Expense",
+            "type_lab": "Type Lab",
+            "type_salary": "Type Salary",
+            "preview_title": "Preview Title",
+            "preview_subtitle": "Preview Subtitle",
+            "no_recent_activity": "No Recent Activity",
+            "timestamp": "Timestamp",
+            "subject": "Subject",
+            "movement": "Movement",
+            "total_inflow": "Total Inflow",
+            "inflow_sub": "Inflow Sub",
+            "total_outflow": "Total Outflow",
+            "outflow_sub": "Outflow Sub",
+            "net_flow": "Net Flow",
+            "net_sub": "Net Sub",
+            "search_placeholder": "Search Placeholder",
+            "no_events": "No Events"
         },
         "reports": {
             "title": "Financial Reports & Analytics",
-            "description": "Income statements, cash flow, and financial analytics"
-        }
+            "description": "Income statements, cash flow, and financial analytics",
+            "export_failed": "Export Failed",
+            "export_csv": "Export Csv",
+            "export_providers": "Export Providers",
+            "export_filtered_csv": "Export Filtered Csv",
+            "export_summary": "Export Summary",
+            "complete": "Complete",
+            "partial": "Partial",
+            "unavailable": "Unavailable",
+            "confidence_high": "Confidence High",
+            "confidence_medium": "Confidence Medium",
+            "confidence_low": "Confidence Low",
+            "confidence_unavailable": "Confidence Unavailable",
+            "source_overview": "Source Overview",
+            "source_receivables": "Source Receivables",
+            "source_cash": "Source Cash",
+            "source_team": "Source Team",
+            "insights_title": "Insights Title",
+            "insights_desc_pr6": "Insights Desc Pr6",
+            "period_comparison": "Period Comparison",
+            "vs": "Vs",
+            "previous_equal_period": "Previous Equal Period",
+            "comparison_error": "Comparison Error",
+            "no_comparison_data": "No Comparison Data",
+            "previous_period": "Previous Period",
+            "change": "Change",
+            "material_margin": "Material Margin",
+            "material_margin_scope": "Material Margin Scope",
+            "export_all_filtered": "Export All Filtered",
+            "search_procedure": "Search Procedure",
+            "sort_name_asc": "Sort Name Asc",
+            "sort_name_desc": "Sort Name Desc",
+            "sort_price_asc": "Sort Price Asc",
+            "sort_price_desc": "Sort Price Desc",
+            "incomplete_material_warning": "Incomplete Material Warning",
+            "current_page_completeness": "Current Page Completeness",
+            "material_error": "Material Error",
+            "no_material_rows": "No Material Rows",
+            "procedure": "Procedure",
+            "price": "Price",
+            "material_cost": "Material Cost",
+            "margin": "Margin",
+            "coverage_confidence": "Coverage Confidence",
+            "not_available": "Unavailable",
+            "coverage": "Coverage",
+            "pagination_summary": "Pagination Summary",
+            "canonical_sources": "Canonical Sources",
+            "operational_sources": "Operational Sources",
+            "collected_desc": "Collected Desc",
+            "invoiced_desc": "Invoiced Desc",
+            "period_balance_sub": "Period Balance Sub",
+            "all_time_sub": "All Time Sub",
+            "collections_table_title": "Collections Table Title",
+            "collections_table_sub": "Collections Table Sub",
+            "no_patients_data": "No Patients Data",
+            "share_percent": "Share Percent",
+            "categories_count": "Categories Count",
+            "categories_sub": "Categories Sub",
+            "top_category": "Top Category",
+            "expense_category_title": "Expense Category Title",
+            "expense_category_sub": "Expense Category Sub",
+            "gross_sub": "Gross Sub",
+            "discounts_sub": "Discounts Sub",
+            "net_invoiced_sub": "Net Invoiced Sub",
+            "collected_sub": "Collected Sub",
+            "expenses_sub": "Expenses Sub",
+            "labs_sub": "Labs Sub",
+            "doctor_dues_sub": "Doctor Dues Sub",
+            "staff_dues_sub": "Staff Dues Sub",
+            "total_deductions_sub": "Total Deductions Sub",
+            "margin_label": "Margin Label",
+            "statement_item": "Statement Item",
+            "invoiced_kpi_sub": "Invoiced Kpi Sub",
+            "collected_kpi_sub": "Collected Kpi Sub",
+            "deductions_kpi_sub": "Deductions Kpi Sub",
+            "statement_title": "Statement Title",
+            "statement_sub": "Statement Sub",
+            "margin_amount": "Margin Amount",
+            "margin_percent_short": "Margin Percent Short",
+            "procedures_analyzed": "Procedures Analyzed",
+            "procedures_sub": "Procedures Sub",
+            "avg_margin": "Avg Margin",
+            "avg_margin_sub": "Avg Margin Sub",
+            "profitability_table_title": "Profitability Table Title",
+            "profitability_table_sub": "Profitability Table Sub",
+            "no_procedures_data": "No Procedures Data",
+            "doctor_labs_sub": "Doctor Labs Sub",
+            "provider_performance_title": "Provider Performance Title",
+            "provider_performance_sub": "Provider Performance Sub"
+        },
+        "permissions": {
+            "access_denied": "Access Denied",
+            "access_denied_desc": "Access Denied Desc",
+            "go_to_allowed": "Go To Allowed"
+        },
+        "obligations": {
+            "patient_debt": "Patient Debt",
+            "patient_debt_desc": "Patient Debt Desc",
+            "view_debtors": "View Debtors",
+            "doctor_dues": "Doctor Dues",
+            "doctor_dues_desc": "Doctor Dues Desc",
+            "view_doctors": "View Doctors",
+            "staff_dues": "Staff Dues",
+            "staff_dues_desc": "Staff Dues Desc",
+            "view_payroll": "View Payroll",
+            "title": "Obligations Title",
+            "section_title": "Section Title",
+            "actionable_hint": "Actionable Hint",
+            "all_time_debt": "All Time Debt"
+        },
+        "receivables": {
+            "total_debt": "Total Debt",
+            "view_statement": "View Statement",
+            "total_clinic_debt_sub": "Total Clinic Debt Sub",
+            "active_accounts_count": "Active Accounts Count",
+            "active_accounts_sub": "Active Accounts Sub",
+            "filter_all": "Filter All",
+            "filter_debtors": "Filter Debtors",
+            "search_placeholder": "Search Placeholder",
+            "no_debtors": "No Debtors",
+            "no_accounts": "No Accounts",
+            "debt_desc": "Debt Desc",
+            "period_summary": "Period Summary",
+            "period_balance": "Period Balance",
+            "payment_history": "Payment History",
+            "no_payments_in_period": "No Payments In Period",
+            "treatment_history": "Treatment History",
+            "no_treatments_in_period": "No Treatments In Period",
+            "discount": "Discount"
+        },
+        "team": {
+            "navigation": "Navigation"
+        },
+        "pay_success": "Pay Success"
     },
     "pwa": {
         "update": {
@@ -2436,11 +3354,64 @@
         "unit_cost_label": "Unit cost",
         "total_cost_label": "Total ({{count}} teeth):",
         "save_all_button": "Save all ({{count}})",
+        "multi_save_success": "Successfully saved treatments for {{count}} teeth",
         "whole_tooth_short": "Whole",
         "errors": {
             "surfaces_required_for_teeth": "Please specify surfaces for the following teeth: {{teeth}}",
             "tooth_prefix": "Tooth",
             "save_failed": "Failed to save procedure"
         }
+    },
+    "notifications": {
+        "mark_read": "Mark as read",
+        "empty": "No new notifications",
+        "dismiss": "Dismiss notification",
+        "title": "Notifications",
+        "new": "new"
+    },
+    "care_sessions": {
+        "continue_treatment": "Continue Treatment",
+        "tooth": "Tooth",
+        "rct_title": "Root Canal Treatment (RCT)",
+        "status_paused": "Paused Session",
+        "status_in_progress": "In Progress",
+        "steps_progress": "{{completed}} of {{total}} steps completed ({{percent}}%)",
+        "next_step": "Next: {{step}}",
+        "ready_to_resume": "Treatment ready to be resumed chairside",
+        "canals": "Canals",
+        "resume_session": "Resume Session",
+        "resume_treatment": "Resume Treatment",
+        "canal_lengths": "Recorded Canals:",
+        "last_visit": "Last visit:",
+        "measurements_detail": "Canal Observations & Measurements:"
+    },
+    "lab_handoff": {
+        "failed_load_labs": "Failed to load dental laboratories list.",
+        "error_select_lab": "Please select a laboratory.",
+        "error_submitting": "Failed to dispatch lab handoff.",
+        "modal_title": "Chairside Lab Handoff (1-Tap)",
+        "quick_handoff_subtitle": "Instant chairside dispatch linked to Clinical Work Item",
+        "no_double_billing": "0 Duplicate Billing (R06)",
+        "success_title": "Lab Order Dispatched Successfully!",
+        "success_detail": "Success Detail",
+        "laboratory_label": "Select Dental Laboratory",
+        "choose_lab": "-- Select Laboratory --",
+        "tooth_number": "Tooth Number",
+        "work_type": "Prescription / Work Type",
+        "shade_label": "Shade Selection",
+        "custom_shade": "Other shade...",
+        "material_label": "Material",
+        "custom_material": "Other material...",
+        "delivery_date": "Expected Delivery",
+        "lab_cost": "Lab Cost",
+        "patient_price": "Patient Price (Info)",
+        "notes_label": "Instructions to Lab Technician",
+        "notes_placeholder": "e.g. Subgingival margin on buccal, check contact with tooth 22...",
+        "submitting": "Dispatching...",
+        "submit_button": "Send to Lab (1-Tap)"
+    },
+    "nav": {
+        "home": "Home",
+        "settings": "Manage your application preferences"
     }
 }

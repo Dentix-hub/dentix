@@ -113,12 +113,24 @@ test.describe('Patient Details - Clinical Workspace Chart', () => {
     await expect(readModeBadge).toBeVisible();
     await expect(readModeBadge).toContainText(snapshot.read_mode);
 
-    // Coverage container contains each domain and the exact status from the real response
+    // Coverage container contains each domain and the status from the real response (supporting both AR and EN)
     const coverageContainer = page.getByTestId('clinical-workspace-coverage');
     await expect(coverageContainer).toBeVisible();
+    const domainLabels: Record<string, string> = {
+      teeth: 'الأسنان',
+      treatments: 'العلاجات',
+      sessions: 'الجلسات',
+    };
+    const statusLabels: Record<string, string> = {
+      UNCOVERED: 'غير مغطى',
+      PARTIAL: 'جزئي',
+      COMPLETE: 'مكتمل',
+    };
     for (const [domain, status] of Object.entries(snapshot.coverage)) {
-      await expect(coverageContainer).toContainText(domain);
-      await expect(coverageContainer).toContainText(status as string);
+      const expectedDomain = new RegExp(`(${domainLabels[domain] || domain}|${domain})`, 'i');
+      const expectedStatus = new RegExp(`(${statusLabels[status as string] || status}|${status})`, 'i');
+      await expect(coverageContainer).toContainText(expectedDomain);
+      await expect(coverageContainer).toContainText(expectedStatus);
     }
 
     // If fallback notice active, assert banner visibility

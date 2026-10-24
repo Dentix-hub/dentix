@@ -4,9 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import PatientDetails from './PatientDetails';
 
-const { mockDeleteTreatment, mockUsePatientTreatments } = vi.hoisted(() => ({
+const { mockDeleteTreatment, mockUsePatientTreatments, mockAuthState } = vi.hoisted(() => ({
     mockDeleteTreatment: vi.fn(),
     mockUsePatientTreatments: vi.fn(),
+    mockAuthState: { user: { role: 'admin' } },
 }));
 
 vi.mock('../api', async (importOriginal) => ({
@@ -16,10 +17,28 @@ vi.mock('../api', async (importOriginal) => ({
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
-        t: (key, fallback) => (typeof fallback === 'string' ? fallback : key),
+        t: (key, fallback, options) => {
+            let res = typeof fallback === 'string' ? fallback : key;
+            if (options && typeof options === 'object') {
+                Object.entries(options).forEach(([k, v]) => {
+                    res = res.replace(new RegExp(`{{${k}}}`, 'g'), v);
+                });
+            }
+            return res;
+        },
         i18n: { language: 'en' },
     }),
 }));
+
+vi.mock('@/auth/useAuth', () => ({
+    useAuth: () => ({ user: mockAuthState.user }),
+}));
+
+vi.mock('@/store/auth.store', () => {
+    const fn = (selector) => (selector ? selector({ user: mockAuthState.user }) : { user: mockAuthState.user });
+    fn.getState = () => ({ user: mockAuthState.user });
+    return { useAuthStore: fn };
+});
 
 vi.mock('react-router-dom', async (importOriginal) => {
     const actual = await importOriginal();
@@ -119,6 +138,7 @@ const renderPatientDetails = () => {
 
 describe('PatientDetails Clinical Workspace Tab', () => {
     beforeEach(() => {
+        mockAuthState.user = { role: 'admin' };
         Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
             configurable: true,
             value: vi.fn(),
@@ -279,6 +299,49 @@ describe('PatientDetails Clinical Workspace Tab', () => {
         // Chart renderer renders the 32 teeth
         const crowns = container.querySelectorAll('svg[data-layer="crown"]');
         expect(crowns).toHaveLength(32);
+    });
+
+    it('renders simplified Arabic warning summary and hides coverage/codes for non-admin', () => {
+        mockAuthState.user = { role: 'doctor' };
+        mockUsePatientClinicalWorkspace.mockReturnValue({
+            data: {
+                schema_version: 1,
+                projection_id: 'cws-snap-123',
+                patient_id: 123,
+                tenant_id: 1,
+                read_mode: 'SHADOW',
+                coverage: {
+                    teeth: 'COMPLETE',
+                    treatments: 'COMPLETE',
+                    sessions: 'COMPLETE',
+                },
+                warnings: [
+                    {
+                        code: 'UNSUPPORTED_CLINICAL_CODE',
+                        message: "Unsupported legacy procedure 'Complete Denture' preserved as unclassified warning.",
+                        source_kind: 'treatment',
+                        source_id: 88,
+                    },
+                ],
+                teeth: {},
+                work_items: [],
+                generated_at: '2026-09-08T12:00:00Z',
+                effective_at: '2026-09-08T12:00:00Z',
+            },
+            isLoading: false,
+            isError: false,
+            error: null,
+            refetch: vi.fn(),
+        });
+
+        renderPatientDetails();
+
+        const warningsPanel = screen.getByTestId('clinical-workspace-warnings');
+        expect(warningsPanel).toBeInTheDocument();
+        expect(warningsPanel.textContent).toContain('1 سجلات قديمة تحتاج مراجعة');
+        expect(warningsPanel.textContent).not.toContain('[UNSUPPORTED_CLINICAL_CODE]');
+        expect(screen.queryByTestId('clinical-workspace-coverage')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('clinical-workspace-fallback-banner')).not.toBeInTheDocument();
     });
 
     it('renders LEGACY_ONLY read mode correctly', () => {

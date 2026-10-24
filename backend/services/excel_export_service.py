@@ -27,7 +27,7 @@ def sanitize_cell_value(val: Any) -> Any:
     - Decimal -> float quantized to 2 decimal places (HALF_UP)
     - int / float -> numeric value preserved
     - datetime / date -> YYYY-MM-DD HH:MM or YYYY-MM-DD
-    - Strings starting with '=', '+', '-', '@', '\t', '\r' -> prefixed with single quote (')
+    - Strings -> preserved as string without prepending quote (formula protection via cell.data_type = 's')
     """
     if val is None:
         return ""
@@ -42,10 +42,7 @@ def sanitize_cell_value(val: Any) -> Any:
     if isinstance(val, date):
         return val.strftime("%Y-%m-%d")
 
-    val_str = str(val)
-    if val_str and val_str[0] in ("=", "+", "-", "@", "\t", "\r"):
-        return f"'{val_str}"
-    return val_str
+    return str(val)
 
 
 def _build_workbook_sync(sheets_data: dict[str, tuple[list[str], list[list[Any]]]]) -> io.BytesIO:
@@ -71,10 +68,15 @@ def _build_workbook_sync(sheets_data: dict[str, tuple[list[str], list[list[Any]]
             cell = ws.cell(row=1, column=col_idx)
             cell.font = header_font
             cell.fill = header_fill
+            cell.data_type = "s"
 
         # Data rows
         for row in rows:
-            ws.append([sanitize_cell_value(v) for v in row])
+            clean_row = [sanitize_cell_value(v) for v in row]
+            ws.append(clean_row)
+            for col_idx, cell_val in enumerate(clean_row, 1):
+                if isinstance(cell_val, str):
+                    ws.cell(row=ws.max_row, column=col_idx).data_type = "s"
 
     buf = io.BytesIO()
     wb.save(buf)

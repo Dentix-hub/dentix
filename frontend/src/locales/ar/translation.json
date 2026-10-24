@@ -17,7 +17,85 @@
         "cases": "حالات",
         "date_range": "النطاق الزمني",
         "search_patient": "بحث عن مريض...",
-        "no_results": "لا توجد نتائج"
+        "no_results": "لا توجد نتائج",
+        "active": "نشط",
+        "expired": "منتهي الصلاحية",
+        "refresh": "تحديث",
+        "enabled": "مفعل",
+        "disabled": "معطل",
+        "copy": "نسخ",
+        "date_time": "التاريخ والوقت",
+        "language": "اللغة",
+        "messages": {
+            "fill_all": "يرجى ملء جميع الحقول المطلوبة"
+        },
+        "currency": "ج.م",
+        "days": "يوم",
+        "retry": "إعادة المحاولة",
+        "saving": "جاري الحفظ...",
+        "confirm": "تأكيد",
+        "searching": "جاري البحث...",
+        "close": "إغلاق",
+        "error": "خطأ",
+        "no_data": "لا توجد بيانات للعرض",
+        "all": "All",
+        "records": "records",
+        "page": "Page",
+        "of": "of",
+        "none": "None",
+        "add": "Add",
+        "minutes_short": "min",
+        "done": "Done",
+        "clear": "Clear",
+        "error_occurred": "حدث خطأ أثناء حفظ الإعدادات",
+        "access_denied": "غير مصرح بالوصول",
+        "try_again_later": "يرجى المحاولة مرة أخرى أو التحقق من الاتصال",
+        "showing_results": "عرض {{from}} إلى {{to}} من أصل {{total}} سجل",
+        "prev_page": "الصفحة السابقة",
+        "next_page": "الصفحة التالية",
+        "clear_search": "مسح البحث",
+        "reset_filters": "إعادة ضبط",
+        "active_filters": "الفلاتر النشطة:",
+        "search_for": "بحث:",
+        "remove_search_filter": "إزالة فلتر البحث",
+        "remove_filter": "إزالة الفلتر",
+        "deleting": "جاري الحذف...",
+        "view_all": "عرض الكل",
+        "type": "النوع",
+        "egp": "ج.م",
+        "view_details": "عرض التفاصيل",
+        "details": "التفاصيل",
+        "back": "رجوع",
+        "status": "الحالة",
+        "sort": "ترتيب",
+        "previous": "السابق",
+        "next": "التالي",
+        "view": "عرض",
+        "prev_month": "الشهر السابق",
+        "next_month": "الشهر التالي",
+        "notes": "ملاحظات الصرف",
+        "general": "عام",
+        "pagination": {
+            "label": "Pagination",
+            "page": "Page",
+            "of": "Of",
+            "previous": "Previous",
+            "next": "Next"
+        },
+        "delete_success": "تم الحذف بنجاح",
+        "close_menu": "Close menu",
+        "main_navigation": "Main navigation",
+        "toggle_sidebar": "Toggle Sidebar",
+        "open_menu": "Open Menu",
+        "processing": "Processing...",
+        "unknown": "Unknown",
+        "patient": "Patient",
+        "time": "Time",
+        "amount": "Amount",
+        "today": "Today",
+        "hour": "Hour",
+        "minute": "Minutes",
+        "search_min_chars": "Type at least 2 characters to search"
     },
     "static": {
         "not_found": {
@@ -271,6 +349,18 @@
         "mode": {
             "light": "الوضع الفاتح",
             "dark": "الوضع الداكن"
+        },
+        "labs": "المعامل والتركيبات",
+        "subscription": {
+            "grace_period": "فترة سماح الاشتراك (متبقي {{count}} يوم)",
+            "expired": "انتهت صلاحية الاشتراك",
+            "ends_today": "ينتهي الاشتراك اليوم",
+            "days_left": "متبقي على الاشتراك {{count}} يوم",
+            "plan_premium": "الخطة المميزة",
+            "plan_basic": "الخطة الأساسية",
+            "plan_trial": "الفترة التجريبية",
+            "expired_readonly": "انتهى الاشتراك - النظام في وضع القراءة فقط",
+            "expiring_soon": "ينتهي اشتراكك قريباً (متبقي {{count}} يوم)"
         }
     },
     "dashboard": {
@@ -303,7 +393,8 @@
         "efficiency_description": "بناءً على المواعيد المكتملة مقابل المجدولة اليوم",
         "efficiency_rate": "معدل الكفاءة",
         "status_distribution": "توزيع الحالات",
-        "no_data": "لا توجد بيانات"
+        "no_data": "لا توجد بيانات",
+        "revenue": "الإيرادات"
     },
     "patients": {
         "title": "سجلات المرضى",
@@ -328,6 +419,7 @@
             "labs": "المعمل",
             "timeline": "الجدول الزمني"
         },
+        "medical_alert_generic": "تنبيه طبي",
         "medical_conditions": {
             "none": "لا يوجد",
             "diabetes": "سكري",
@@ -361,12 +453,58 @@
             "success_msg": "تم حفظ بيانات المريض بنجاح",
             "error_msg": "حدث خطأ أثناء حفظ بيانات المريض",
             "update_success": "تم تحديث بيانات المريض بنجاح",
-            "update_error": "حدث خطأ أثناء تحديث بيانات المريض"
+            "update_error": "حدث خطأ أثناء تحديث بيانات المريض",
+            "name_required": "Patient name is required",
+            "name": "Patient Name",
+            "phone": "Phone Number",
+            "create_btn": "Create & Select"
         },
         "empty_state": {
             "title": "لا يوجد مرضى",
             "desc": "لم يتم العثور على مرضى مطابقين للبحث. ابدأ بإضافة مريض جديد."
-        }
+        },
+        "archive_confirm": "هل أنت متأكد من أرشفة هذا المريض؟",
+        "archive_success": "تم أرشفة المريض بنجاح",
+        "archive_error": "فشل أرشفة المريض",
+        "patient_name": "المريض",
+        "file_number": "رقم الملف",
+        "patient": "مريض",
+        "full_record": "الملف الطبي والمالي الكامل",
+        "view_timeline": "عرض سجل المريض الكامل",
+        "view_profile": "عرض ملف المريض",
+        "workspace_search_placeholder": "Search by name, file number, or phone...",
+        "workspace_search_label": "Search patients",
+        "workspace_search_hint": "Arabic name variants and Egyptian phone formats are supported.",
+        "workspace_subtitle": "العنوان",
+        "quick_filters": "Patient filters",
+        "call_patient": "Call Patient",
+        "whatsapp_patient": "Whatsapp Patient",
+        "new_appointment": "New Appointment",
+        "open_patient": "Open Patient",
+        "archive_patient": "Archive Patient",
+        "load_error": "حدث خطأ",
+        "load_error_hint": "حدث خطأ",
+        "no_search_results": "No Search Results",
+        "no_search_results_hint": "No Search Results Hint",
+        "assigned_doctor": "Assigned Doctor",
+        "load_more": "Load More",
+        "update_success": "تم بنجاح",
+        "exact_dob_known": "Exact Dob Known",
+        "date_of_birth": "Date Of Birth",
+        "dob_hint": "Dob Hint",
+        "fast_registration": "Fast Registration",
+        "possible_matches": "Possible Matches",
+        "possible_matches_hint": "Possible Matches Hint",
+        "additional_information": "Additional Information",
+        "messages": {
+            "name_required": "Patient name is required",
+            "creating": "Creating patient...",
+            "create_success": "تم بنجاح",
+            "create_error": "حدث خطأ"
+        },
+        "quick_add_title": "العنوان",
+        "quick_add_desc": "الوصف",
+        "years_short": "y"
     },
     "patientDetails": {
         "treatment_history": {
@@ -529,6 +667,9 @@
                     "actions": "الإجراءات"
                 }
             }
+        },
+        "chart": {
+            "select_tooth": "يرجى تحديد سن أولاً"
         }
     },
     "appointments": {
@@ -568,7 +709,8 @@
             "notes": "ملاحظات",
             "status": "الحالة",
             "change_status": "تغيير الحالة",
-            "actions": "إجراءات"
+            "actions": "إجراءات",
+            "regular_visit": "زيارة اعتيادية"
         },
         "stats": {
             "today_total": "إجمالي اليوم",
@@ -579,7 +721,8 @@
         "view": {
             "calendar": "التقويم",
             "list": "عرض القائمة",
-            "board": "عرض اللوحة"
+            "board": "عرض اللوحة",
+            "label": "Appointment view"
         },
         "status": {
             "scheduled": "مجدول",
@@ -611,8 +754,18 @@
             "update_error": "فشل تحديث الحالة",
             "deleting": "جاري الحذف...",
             "delete_success": "تم حذف الموعد",
-            "voice_unsupported": "التعرف الصوتي غير مدعوم"
-        }
+            "voice_unsupported": "التعرف الصوتي غير مدعوم",
+            "delete_error": "فشل حذف الموعد"
+        },
+        "treatments_count": "إجراء علاجي",
+        "no_treatments_period": "لا توجد علاجات منفذة لهذا الطبيب في هذه الفترة",
+        "procedure": "الإجراء الطبي",
+        "request_dismissed": "Next-visit request dismissed",
+        "board": {
+            "swipe_hint": "Swipe horizontally to view stages. You can also change status from each card without dragging."
+        },
+        "confirm_delete_desc": "هل أنت متأكد من حذف هذا الموعد؟ هذه العملية لا يمكن التراجع عنها.",
+        "drag_handle": "Drag appointment"
     },
     "settings": {
         "title": "الإعدادات",
@@ -639,6 +792,10 @@
             "commit_sha": "معرف النسخة (Git)",
             "built_at": "تاريخ البناء",
             "environment": "البيئة",
+            "env_staging": "بيئة الاختبار (Staging)",
+            "env_production": "البيئة الفعلية (Production)",
+            "env_development": "بيئة التطوير (Development)",
+            "env_unknown": "غير معروف",
             "origin": "عنوان الخدمة",
             "display_mode": "وضع التشغيل",
             "mode_standalone": "تطبيق مثبت (Standalone)",
@@ -737,7 +894,18 @@
                     "list_price": "سعر القائمة",
                     "saved": "محفوظ ✅"
                 }
-            }
+            },
+            "deactivated_success": "تم تعطيل قائمة الأسعار بنجاح",
+            "deactivate_title": "تعطيل قائمة الأسعار",
+            "deactivate_btn": "تعطيل"
+        },
+        "push": {
+            "title": "إشعارات الويب (Push Notifications)",
+            "description": "تلقي تنبيهات بالمواعيد والرسائل حتى عند إغلاق التطبيق",
+            "disable": "تعطيل الإشعارات",
+            "enable": "تفعيل الإشعارات",
+            "denied_hint": "تم رفض إذن الإشعارات من إعدادات المتصفح. يرجى السماح بالإشعارات من شريط العنوان.",
+            "install_hint": "لتلقي الإشعارات على أجهزة iOS، يرجى إضافة التطبيق إلى الشاشة الرئيسية أولاً."
         }
     },
     "users": {
@@ -786,7 +954,8 @@
     },
     "language": {
         "switch_to_en": "English",
-        "switch_to_ar": "العربية"
+        "switch_to_ar": "العربية",
+        "code": "ar"
     },
     "patient_details": {
         "loading_error": "فشل تحميل بيانات المريض",
@@ -854,7 +1023,8 @@
             "show_all_procedures": "عرض الكل ({{count}})",
             "show_less": "عرض أقل",
             "no_clinic_procedures": "لا توجد إجراءات مضافة للعيادة.",
-            "configure_in_settings": "انتقل إلى الإعدادات ← الإجراءات لإضافة إجراءات للعيادة."
+            "configure_in_settings": "انتقل إلى الإعدادات ← الإجراءات لإضافة إجراءات للعيادة.",
+            "voice_unsupported": "التعرف الصوتي غير مدعوم في هذا المتصفح"
         },
         "edit_modal": {
             "title": "تعديل بيانات المريض",
@@ -877,6 +1047,30 @@
             "delete_payment_fail": "فشل حذف الدفعة",
             "rx_fail": "فشل حفظ/طباعة الروشتة",
             "upload_fail": "فشل رفع الملف"
+        },
+        "chart_error": "حدث خطأ"
+    },
+    "clinical": {
+        "coverage": "التغطية السريرية",
+        "fallback_notice": "ملاحظة",
+        "fallback_desc": "عرض السجلات السريرية بمساهمة السجلات القديمة.",
+        "warnings": "تنبيهات السجلات القديمة",
+        "legacy_review_needed": "{{count}} سجلات قديمة تحتاج مراجعة",
+        "technical_details": "التفاصيل التقنية",
+        "empty_workspace": "لم يتم تسجيل أي إجراءات أو ملاحظات سريرية لهذا المريض حتى الآن.",
+        "coverage_status": {
+            "complete": "مكتمل",
+            "partial": "جزئي",
+            "uncovered": "غير مغطى"
+        },
+        "domain": {
+            "teeth": "الأسنان",
+            "periodontal": "الأنسجة الداعمة",
+            "endodontic": "علاج الجذور",
+            "soft_tissue": "الأنسجة الرخوة",
+            "restorative": "الترميمات",
+            "treatments": "العلاجات",
+            "sessions": "الجلسات"
         }
     },
     "clinical_plans": {
@@ -1026,7 +1220,8 @@
         },
         "alerts": {
             "title": "تنبيهات الصلاحية (Expiring Soon)",
-            "days_left": "يوم"
+            "days_left": "يوم",
+            "more_alerts": "تنبيهات إضافية"
         },
         "actions": {
             "search_placeholder": "بحث عن مادة...",
@@ -1037,7 +1232,9 @@
             "edit": "تعديل",
             "delete": "حذف",
             "open_package": "فتح عبوة جديدة",
-            "close_package": "إنهاء العبوة الحالية"
+            "close_package": "إنهاء العبوة الحالية",
+            "add_warehouse": "إضافة مخزن جديد",
+            "more": "More material actions"
         },
         "categories": {
             "add_new": "فئة جديدة",
@@ -1049,7 +1246,8 @@
         "filters": {
             "all": "الكل",
             "low": "منخفض",
-            "critical": "ننفذ"
+            "critical": "ننفذ",
+            "label": "Filter stock"
         },
         "table": {
             "material": "المادة",
@@ -1079,7 +1277,8 @@
             "delete_fail": "فشل حذف المادة.",
             "delete_requires_empty": "لا يمكن حذف مادة لها رصيد حالي أو عبوة مفتوحة. صفّر الرصيد وأغلق العبوات أولاً.",
             "delete_confirm": "هل أنت متأكد من حذف المادة \"{{name}}\"؟\nسيتم إخفاؤها مع الاحتفاظ بسجل حركات المخزون.",
-            "open_packages_tooltip": "يوجد {{count}} عبوات مفتوحة. اضغط للإغلاق واحدة تلو الأخرى."
+            "open_packages_tooltip": "يوجد {{count}} عبوات مفتوحة. اضغط للإغلاق واحدة تلو الأخرى.",
+            "load_error": "حدث خطأ في تحميل البيانات"
         },
         "warehouses": {
             "add_button": "إضافة مخزن جديد",
@@ -1088,7 +1287,16 @@
             "click_to_view": "اضغط للعرض",
             "delete_confirm": "هل أنت متأكد من حذف المخزن \"{{name}}\"؟ لا يمكن التراجع عن هذا الإجراء!",
             "delete_success": "تم حذف المريض بنجاح",
-            "delete_error": "فشل حذف المريض"
+            "delete_error": "فشل حذف المريض",
+            "delete_fail": "فشل حذف المخزن",
+            "add_success": "تم إضافة المخزن بنجاح",
+            "add_fail": "فشل الإضافة",
+            "add_title": "إضافة مخزن جديد",
+            "name": "اسم المخزن",
+            "name_placeholder": "مثال: المخزن الرئيسي",
+            "type": "النوع",
+            "type_main": "مخزن رئيسي (Main Warehouse)",
+            "type_clinic": "عيادة / فرعي (Clinic)"
         },
         "medical_conditions": {
             "none": "لا يوجد",
@@ -1206,8 +1414,10 @@
             "messages": {
                 "select_error": "يرجى اختيار العبوة",
                 "success_open": "تم فتح العبوة بنجاح",
-                "error_prefix": "حدث خطأ: "
-            }
+                "error_prefix": "حدث خطأ: ",
+                "success_close": "تم بنجاح"
+            },
+            "info_close_auto": "عند إنهاء الجلسة، سيتم حساب الاستهلاك تلقائياً بناءً على الأوزان النسبية للإجراءات."
         },
         "material_details": {
             "title": "تفاصيل المخزون والعبوات",
@@ -1366,7 +1576,10 @@
             "assistant_label": "المساعد",
             "input_placeholder": "اكتب رسالتك هنا...",
             "input_listening": "جاري الاستماع...",
-            "connection_error": "حدث خطأ في الاتصال"
+            "connection_error": "حدث خطأ في الاتصال",
+            "powered_by": "مدعوم بواسطة الذكاء الاصطناعي لـ Dentix",
+            "voice_enabled": "تم تفعيل التعرف الصوتي",
+            "voice_unsupported": "التعرف الصوتي غير مدعوم في هذا المتصفح"
         }
     },
     "billing": {
@@ -1415,7 +1628,9 @@
             "doctors_load_fail": "فشل تحميل بيانات الأطباء",
             "doctor_details_load_fail": "فشل تحميل تفاصيل الطبيب",
             "saving": "جاري حفظ الإعدادات...",
-            "cancel_pay_confirm": "هل أنت متأكد من إلغاء هذا الدفع؟"
+            "cancel_pay_confirm": "هل أنت متأكد من إلغاء هذا الدفع؟",
+            "cancel_pay_success": "إلغاء",
+            "cancel_pay_fail": "إلغاء"
         },
         "doctor_revenue": {
             "title": "حسابات الأطباء",
@@ -1443,7 +1658,8 @@
                 "net_profit": "صافي الربح",
                 "commission": "العمولة",
                 "doctor_dues": "مستحقات الطبيب",
-                "actions": ""
+                "actions": "",
+                "cases": "عدد الحالات"
             },
             "settings": {
                 "title": "إعدادات الحساب",
@@ -1532,8 +1748,11 @@
                 "salaries": "مرتبات",
                 "rent": "إيجار",
                 "utilities": "فواتير",
-                "maintenance": "صيانة"
-            }
+                "maintenance": "صيانة",
+                "laboratory": "Laboratory"
+            },
+            "notes": "ملاحظات",
+            "notes_placeholder": "Optional expense notes..."
         },
         "payments": {
             "title": "سجل مدفوعات المرضى",
@@ -1584,7 +1803,8 @@
             "modal_title": "تعديل بيانات",
             "modal_per_appointment_input": "نسبة عن كل كشف",
             "per_appointment_desc": "تضاف تلقائياً عند إتمام الكشف"
-        }
+        },
+        "payment_received": "تم استلام دفعة"
     },
     "analytics": {
         "dashboard": {
@@ -1824,6 +2044,13 @@
         "export_excel_loading": "جاري إنشاء ملف Excel...",
         "export_excel_success": "تم تصدير ملف Excel بنجاح",
         "export_excel_fail": "فشل تصدير ملف Excel",
+        "download_fail": "فشل تحميل النسخة الاحتياطية",
+        "restore_fail": "فشل استعادة البيانات",
+        "connect_fail": "فشل الاتصال",
+        "purge_fail": "فشل تنفيذ العملية",
+        "backing_up": "جاري النسخ...",
+        "auto_not_available": "النسخ الاحتياطي التلقائي غير متوفر حالياً",
+        "auto_not_available_hint": "النسخ التلقائي غير متوفر بعد — استخدم زر النسخ اليدوي.",
         "restore_warning": "تحذير: استعادة النسخة الاحتياطية ستمسح جميع البيانات الحالية وتستبدلها بالنسخة الجديدة. هل أنت متأكد؟",
         "restore_success": "تمت استعادة البيانات بنجاح! سيتم إعادة تحميل الصفحة...",
         "danger_zone": {
@@ -1832,7 +2059,10 @@
             "purge_desc": "هذا الإجراء سيقوم بمسح جميع المرضى الذين تم حذفهم سابقاً بشكل نهائي لتوفير المساحة. لا يمكن التراجع عن هذا الإجراء.",
             "purge_confirm": "هل أنت متأكد تماماً؟ سيتم حذف جميع المرضى المحذوفين مؤقتاً ولن يمكن استعادتهم أبداً.",
             "purge_success": "تم تنظيف قاعدة البيانات بنجاح."
-        }
+        },
+        "title": "النسخ الاحتياطي وحماية البيانات",
+        "auto_backup_label": "تكرار النسخ الاحتياطي التلقائي",
+        "off": "إيقاف"
     },
     "rx_settings": {
         "title": "إعدادات الروشتة",
@@ -1920,7 +2150,8 @@
                 "status": "الحالة",
                 "time": "الوقت",
                 "success": "ناجح",
-                "failed": "فشل"
+                "failed": "فشل",
+                "no_logs": "لا توجد سجلات ذكاء اصطناعي مسجلة"
             },
             "periods": {
                 "today": "اليوم",
@@ -1956,7 +2187,10 @@
             "new_value": "الحالة المحدثة",
             "no_data": "لا توجد بيانات متاحة",
             "no_results_found": "لا توجد سجلات مطابقة للبحث",
-            "id_label": "معرف"
+            "id_label": "معرف",
+            "system_global": "سجل عام للنظام",
+            "export_success": "تم تصدير سجل التدقيق بنجاح",
+            "view_details": "عرض التفاصيل"
         },
         "security": {
             "title": "لوحة الأمن والحماية",
@@ -1995,7 +2229,14 @@
             "block_success": "تم حظر IP بنجاح",
             "block_failed": "فشلت عملية الحظر",
             "unblock_confirm": "هل أنت متأكد من فك الحظر؟",
-            "unblock_failed": "فشل فك الحظر"
+            "unblock_failed": "فشل فك الحظر",
+            "unblock_success": "تم إلغاء الحظر بنجاح",
+            "level_critical": "حرج",
+            "level_moderate": "متوسط",
+            "level_optimal": "آمن ومثالي",
+            "no_recent_failures": "لا توجد محاولات دخول فاشلة حديثاً",
+            "unblock_confirm_title": "تأكيد إلغاء الحظر",
+            "unblock_confirm_msg": "هل أنت متأكد من رغبتك في رفع الحظر عن هذا العنوان/المستخدم؟"
         },
         "finance": {
             "title": "الرؤى المالية",
@@ -2067,7 +2308,23 @@
             "failed": "فشل",
             "success": "ناجح",
             "last_check": "آخر فحص",
-            "update_now": "تحديث الآن"
+            "update_now": "تحديث الآن",
+            "status_success": "ناجح",
+            "status_running": "قيد التشغيل",
+            "status_pending": "قيد الانتظار",
+            "status_failed": "فاشل",
+            "overall_status": "حالة النظام الإجمالية",
+            "overview_desc": "متابعة أداء الخدمات والمهام الخلفية وقواعد البيانات",
+            "no_active_alerts": "لا توجد تنبيهات نشطة حالياً",
+            "job_success_rate": "معدل نجاح المهام",
+            "recent_jobs": "المهام الخلفية الحديثة",
+            "job_status": "حالة المهمة",
+            "job_duration": "المدة",
+            "job_triggered_by": "مُشغّل المهمة",
+            "job_started_at": "وقت البدء",
+            "loading_jobs": "جاري تحميل المهام...",
+            "no_jobs": "لا توجد مهام مسجلة",
+            "unnamed_job": "مهمة بدون اسم"
         },
         "features": {
             "title": "إدارة المزايا (Feature Flags)",
@@ -2085,7 +2342,15 @@
             "add_title": "إضافة ميزة جديدة",
             "description": "الوصف",
             "global_enable": "تفعيل عالمي",
-            "save_btn": "حفظ الميزة"
+            "save_btn": "حفظ الميزة",
+            "rollout_invalid": "نسبة الإطلاق يجب أن تكون بين 0 و 100",
+            "global_update_fail": "فشل تحديث حالة الميزة العامة",
+            "rollout_label": "نسبة الإطلاق التدريجي",
+            "enable": "تفعيل",
+            "disable": "تعطيل",
+            "close_create": "إلغاء الإضافة",
+            "feature_key_label": "مفتاح الميزة (Feature Key)",
+            "rollout_percentage_label": "نسبة النشر (%)"
         },
         "notifications": {
             "title": "إرسال إشعار جديد للنظام",
@@ -2103,7 +2368,17 @@
             "error": "خطأ (هام)",
             "system": "نظام",
             "all_clinics": "جميع العيادات",
-            "specific_clinic": "عيادة محددة"
+            "specific_clinic": "عيادة محددة",
+            "date_col": "التاريخ",
+            "delete_notif": "حذف الإشعار",
+            "delete_title": "تأكيد حذف الإشعار",
+            "delete_confirm_msg": "هل أنت متأكد من رغبتك في حذف هذا الإشعار بشكل نهائي؟",
+            "error_fill_required": "يرجى ملء الحقول المطلوبة",
+            "error_select_tenant": "يرجى اختيار العيادة المستهدفة",
+            "success_sent": "تم إرسال الإشعار بنجاح",
+            "error_sending": "فشل إرسال الإشعار",
+            "success_deleted": "تم حذف الإشعار بنجاح",
+            "error_deleting": "فشل حذف الإشعار"
         },
         "support": {
             "title": "صندوق الوارد",
@@ -2124,7 +2399,13 @@
             "read": "مقروءة",
             "view_details": "عرض التفاصيل",
             "delete_msg": "حذف الرسالة",
-            "actions_col": "الإجراءات"
+            "actions_col": "الإجراءات",
+            "error_updating_status": "فشل تحديث حالة الرسالة",
+            "message_body": "نص الرسالة",
+            "delete_title": "تأكيد حذف الرسالة",
+            "delete_confirm_msg": "هل أنت متأكد من حذف هذه الرسالة من الدعم الفني؟",
+            "success_deleted": "تم حذف الرسالة بنجاح",
+            "error_deleting": "فشل حذف الرسالة"
         },
         "tenants": {
             "title": "العيادة",
@@ -2144,7 +2425,49 @@
             "permanent_delete": "حذف نهائي",
             "permanent_delete_confirm": "حذف نهائي (لا يمكن التراجع عنه)",
             "no_tenants": "لا توجد عيادات مسجلة حتى الآن",
-            "select_plan": "اختر خطة"
+            "select_plan": "اختر خطة",
+            "clinic_name": "اسم العيادة",
+            "manual_renewal": "تجديد اشتراك يدوي",
+            "archive_action": "أرشفة العيادة (قابلة للاستعادة)",
+            "permanent_delete_title": "حذف نهائي مدمر",
+            "permanent_short": "حذف نهائي",
+            "change_plan_title": "تغيير باقة الاشتراك",
+            "change_plan_msg": "هل أنت متأكد من تغيير الخطة؟ سيتم احتساب المدة الجديدة بدءاً من اليوم.",
+            "plan_changed_success": "تم تغيير الباقة بنجاح",
+            "plan_change_failed": "فشل تغيير الخطة",
+            "reset_pw_title": "إعادة تعيين كلمة المرور",
+            "reset_pw_msg": "هل أنت متأكد من إعادة تعيين كلمة المرور لهذا الحساب؟",
+            "archive_title": "أرشفة العيادة",
+            "archive_msg": "هل أنت متأكد من أرشفة هذه العيادة؟ يمكنك استعادتها وتفعيلها لاحقاً.",
+            "archive_btn": "أرشفة",
+            "archive_success": "تمت أرشفة العيادة بنجاح",
+            "archive_fail": "فشلت عملية أرشفة العيادة",
+            "restore_title": "استعادة العيادة",
+            "restore_msg": "هل أنت متأكد من استعادة هذه العيادة وتفعيل الوصول إليها؟",
+            "restore_btn": "استعادة",
+            "restore_success": "تمت استعادة العيادة بنجاح",
+            "restore_fail": "فشلت عملية الاستعادة",
+            "permanent_title": "حذف نهائي مدمر للعيادة",
+            "permanent_msg": "تحذير شديد: هذا الإجراء سيقوم بحذف العيادة وجميع بياناتها (المرضى، المواعيد، المستخدمين، السجلات) بشكل نهائي ودائم ولا يمكن التراجع عنه مطلقاً! هل أنت متأكد تماماً؟",
+            "permanent_btn": "حذف نهائي دائم",
+            "permanent_success": "تم الحذف النهائي بنجاح",
+            "permanent_fail": "فشلت عملية الحذف النهائي",
+            "subtitle": "التحكم في العيادات والتجديد الإداري اليدوي",
+            "manual_renewal_title": "تجديد اشتراك يدوي موثق",
+            "plan_label": "باقة الاشتراك",
+            "current_plan": "الباقة الحالية",
+            "extension_days": "أيام التمديد الإضافية",
+            "renewal_notes": "ملاحظات التجديد / سبب التمديد",
+            "notes_placeholder": "مثال: تم سداد الاشتراك نقداً أو بموجب إيصال بنكي رقم ...",
+            "documenting": "جاري توثيق التجديد...",
+            "confirm_renewal": "تأكيد وتوثيق التجديد",
+            "reset_pw_modal_title": "إعادة تعيين كلمة المرور",
+            "select_user": "المستخدم",
+            "choose_user": "اختر المستخدم",
+            "new_pw": "كلمة المرور الجديدة",
+            "pw_placeholder": "أدخل كلمة المرور الجديدة (6 أحرف على الأقل)",
+            "pw_hint": "سيتم إلغاء قفل الحساب وتفعيله تلقائياً",
+            "reset_pw_action": "إعادة تعيين كلمة المرور"
         },
         "users": {
             "title": "إدارة المستخدمين",
@@ -2164,7 +2487,17 @@
             "no_results": "لا توجد نتائج بحث",
             "search_instruction": "قم بالبحث لعرض المستخدمين",
             "loading": "جاري التحميل...",
-            "system": "النظام"
+            "system": "النظام",
+            "search_fail": "فشل البحث عن المستخدمين",
+            "deactivate_action": "تعطيل",
+            "activate_action": "تفعيل",
+            "toggle_status_title": "تغيير حالة المستخدم",
+            "toggle_status_msg": "هل أنت متأكد من",
+            "this_user": "هذا المستخدم؟",
+            "status_changed_to": "تم",
+            "user_successfully": "المستخدم بنجاح",
+            "status_change_fail": "فشل تغيير حالة المستخدم",
+            "subtitle": "البحث والتحكم في جميع مستخدمي النظام"
         },
         "payments": {
             "title": "سجل المدفوعات",
@@ -2182,7 +2515,22 @@
             "credit_card": "بطاقة ائتمان",
             "completed": "مكتملة",
             "delete_title": "حذف الدفعة",
-            "no_payments": "لا توجد سجلات دفع حتى الآن"
+            "no_payments": "لا توجد سجلات دفع حتى الآن",
+            "error_select_tenant": "يرجى اختيار العيادة أولاً",
+            "error_select_plan": "يرجى اختيار الخطة",
+            "error_invalid_amount": "مبلغ الدفعة غير صحيح",
+            "error_invalid_date": "تاريخ الدفعة غير صحيح",
+            "success_recorded": "تم تسجيل الدفعة بنجاح",
+            "error_recording": "فشل تسجيل الدفعة",
+            "success_deleted": "تم حذف الدفعة بنجاح",
+            "error_deleting": "فشل حذف الدفعة",
+            "modal_title": "تسجيل دفعة اشتراك جديدة",
+            "modal_subtitle": "إدخال تفاصيل الدفعة المالية وتحديث حالة الاشتراك",
+            "select_clinic": "اختر العيادة",
+            "select_user": "المستخدم / الطبيب المسؤول",
+            "notes_placeholder": "ملاحظات إضافية حول الدفعة...",
+            "submit_button": "تأكيد وحفظ الدفعة",
+            "delete_confirm_msg": "هل أنت متأكد من حذف هذه الدفعة من السجلات المالية؟"
         },
         "stats": {
             "total_tenants": "إجمالي العيادات",
@@ -2231,7 +2579,250 @@
             "default_badge": "افتراضي",
             "unlimited": "غير محدود",
             "days_unit": "يوم",
-            "requests_unit": "طلب/يوم"
+            "requests_unit": "طلب/يوم",
+            "current_plan": "الخطة الحالية",
+            "remaining_duration": "المدة المتبقية",
+            "expiry": "تاريخ الانتهاء",
+            "trial": "تجريبي",
+            "save_success": "تم حفظ الخطة بنجاح",
+            "error_saving": "فشل حفظ الخطة",
+            "error_missing_code": "يرجى كتابة كود الخطة",
+            "error_invalid_price": "السعر غير صحيح",
+            "error_invalid_duration": "المدة بالأيام غير صحيحة",
+            "custom_features_placeholder": "ميزات مخصصة (ميزة في كل سطر)",
+            "delete_plan": "حذف الخطة",
+            "delete_title": "تأكيد حذف الخطة"
+        },
+        "impersonation": {
+            "banner": "وضع المحاكاة ({{scope}}): عيادة {{tenant}}{{user}}",
+            "read_only": "قراءة فقط",
+            "full_access": "وصول كامل",
+            "tenant_fallback": "المستأجر",
+            "return": "العودة للوحة الإشراف"
+        },
+        "sessions": {
+            "fetch_error": "فشل جلب الجلسات النشطة",
+            "terminate_success": "تم إنهاء الجلسة بنجاح",
+            "terminate_failed": "فشل إنهاء الجلسة",
+            "loading": "جاري تحميل الجلسات...",
+            "title": "إدارة الجلسات النشطة",
+            "subtitle": "مراقبة الجلسات المفتوحة للمستخدمين مع إمكانية الإنهاء الفوري",
+            "search_placeholder": "بحث في الجلسات...",
+            "anonymous_user": "مستخدم غير معرف",
+            "terminate_btn": "إنهاء الجلسة",
+            "last_active": "آخر نشاط",
+            "start_time": "بداية الجلسة",
+            "no_search_matches": "لا توجد جلسات تطابق البحث",
+            "no_active_sessions": "لا توجد جلسات نشطة حالياً",
+            "terminate_confirm_title": "تأكيد إنهاء الجلسة",
+            "terminate_confirm_msg": "هل أنت متأكد من إنهاء هذه الجلسة؟ سيتم تسجيل خروج المستخدم فوراً.",
+            "terminate_confirm_btn": "إنهاء الجلسة"
+        },
+        "settings": {
+            "save_success": "تم حفظ الإعدادات بنجاح",
+            "save_fail": "فشل حفظ الإعدادات",
+            "maintenance_title": "وضع الصيانة العام",
+            "maintenance_desc": "عند تفعيل وضع الصيانة، يتم منع المستخدمين من الوصول إلى النظام مؤقتاً باستثناء المشرفين.",
+            "maintenance_toggle": "تفعيل وضع الصيانة",
+            "announcement_title": "إعلان شريط النظام",
+            "announcement_desc": "إظهار شريط إعلاني أعلى الشاشة لجميع المستخدمين في النظام",
+            "announcement_placeholder": "اكتب نص الإعلان هنا...",
+            "save_changes": "حفظ التغييرات",
+            "support_info_title": "بيانات التواصل والدعم الفني",
+            "support_info_desc": "معلومات الدعم الفني المعروضة للعيادات داخل النظام",
+            "support_phone": "هاتف الدعم",
+            "support_whatsapp": "واتساب الدعم",
+            "support_email": "بريد الدعم",
+            "support_working_hours": "ساعات العمل",
+            "maintenance_confirm_title": "تأكيد تغيير وضع الصيانة",
+            "maintenance_disable_confirm": "هل أنت متأكد من رغبتك في إلغاء وضع الصيانة وإعادة إتاحة النظام للجميع؟",
+            "maintenance_enable_confirm": "هل أنت متأكد من تفعيل وضع الصيانة؟ سيتم حظر المستخدمين غير المشرفين."
+        },
+        "tenant_detail": {
+            "unavailable": "غير متوفر",
+            "title": "تفاصيل العيادة",
+            "close_drawer": "إغلاق اللوحة",
+            "subtitle": "إدارة بيانات وموارد المستأجر",
+            "load_failed": "فشل تحميل بيانات العيادة",
+            "retry_hint": "يرجى إعادة المحاولة لاحقاً",
+            "unnamed": "بدون اسم",
+            "clinic_number": "رقم العيادة:",
+            "auto_admin": "مدير تلقائي",
+            "reason_placeholder": "سبب الدخول (5 أحرف على الأقل)",
+            "readonly_scope": "نطاق الجلسة: قراءة فقط (Read-Only)",
+            "min_reason": "الحد الأدنى 5 أحرف",
+            "start_impersonation": "دخول مؤقت للنظام",
+            "patients": "المرضى",
+            "appointments": "المواعيد",
+            "revenue": "الإيرادات",
+            "current_plan": "الخطة الحالية",
+            "contact_info": "بيانات الاتصال",
+            "email": "البريد الإلكتروني",
+            "phone": "الهاتف",
+            "activity_title": "النشاط والتسجيل",
+            "joined": "تاريخ الانضمام",
+            "last_activity": "آخر نشاط",
+            "no_activity": "لا يوجد نشاط مسجل",
+            "close": "إغلاق"
+        },
+        "two_factor": {
+            "invalid_setup_payload": "بيانات إعداد المصادقة الثنائية غير صحيحة",
+            "setup_fail": "فشل إعداد المصادقة الثنائية",
+            "missing_secret": "المفتاح السري مفقود",
+            "code_length_error": "رمز التحقق يجب أن يتكون من 6 أرقام",
+            "enable_success": "تم تفعيل المصادقة الثنائية بنجاح",
+            "invalid_code": "رمز التحقق غير صحيح، يرجى المحاولة ثانية",
+            "disable_success": "تم تعطيل المصادقة الثنائية بنجاح",
+            "disable_fail": "فشل تعطيل المصادقة الثنائية",
+            "secret_copied": "تم نسخ المفتاح السري",
+            "clipboard_unsupported": "الحافظة غير مدعومة في هذا المتصفح",
+            "clipboard_fail": "فشل نسخ المفتاح إلى الحافظة",
+            "title": "المصادقة الثنائية (2FA)",
+            "subtitle": "تأمين حسابك برمز تحقق إضافي من تطبيق المصادقة",
+            "desc": "أضف طبقة حماية إضافية لحسابك لمنع الوصول غير المصرح به.",
+            "start_setup": "بدء الإعداد",
+            "scan_qr": "امسح رمز QR",
+            "scan_qr_desc": "امسح الرمز باستخدام تطبيق مثل Google Authenticator أو Authy",
+            "manual_secret": "أو أدخل المفتاح السري يدوياً:",
+            "enter_code": "أدخل رمز التحقق (6 أرقام)",
+            "activate_now": "تفعيل الآن",
+            "enabled_desc": "المصادقة الثنائية مفعلة حالياً على حسابك وتوفر أعلى درجات الأمان.",
+            "disable_btn": "تعطيل المصادقة الثنائية",
+            "disable_confirm_title": "تأكيد تعطيل المصادقة الثنائية",
+            "disable_confirm_msg": "هل أنت متأكد من رغبتك في تعطيل المصادقة الثنائية؟ سيؤدي ذلك لخفض أمان حسابك."
+        },
+        "communications": {
+            "loading": "جاري تحميل المراسلات...",
+            "title": "مركز التواصل والإشعارات",
+            "subtitle": "إرسال التنبيهات ومتابعة رسائل الدعم الفني",
+            "tabs": {
+                "messages": "رسائل الدعم",
+                "notifications": "الإشعارات العامة"
+            }
+        },
+        "logs": {
+            "delete_success": "تم حذف السجل بنجاح",
+            "delete_failed": "فشل حذف السجل",
+            "clear_success": "تم مسح السجلات بنجاح",
+            "clear_failed": "فشل مسح السجلات",
+            "export_success": "تم تصدير السجلات بنجاح",
+            "export_failed": "فشل تصدير السجلات",
+            "copy_success": "تم نسخ تفاصيل السجل",
+            "copy_failed": "فشل نسخ السجل",
+            "col_level": "المستوى",
+            "col_source": "المصدر",
+            "col_message": "الرسالة",
+            "col_path": "المسار",
+            "col_date": "التاريخ",
+            "col_actions": "الإجراءات",
+            "action_view": "عرض",
+            "action_copy": "نسخ",
+            "action_delete": "حذف",
+            "title": "سجلات أحداث النظام",
+            "subtitle": "متابعة سجلات الخادم والأخطاء والتحذيرات اللحظية",
+            "export_csv": "تصدير CSV",
+            "clear_all": "مسح الكل",
+            "fetch_error": "فشل جلب سجلات النظام",
+            "empty_msg": "لا توجد سجلات تطابق الفلترة الحالية",
+            "detail_title": "تفاصيل سجل الحدث",
+            "copy_details": "نسخ التفاصيل",
+            "delete_title": "تأكيد حذف السجل",
+            "delete_confirm_msg": "هل أنت متأكد من حذف هذا السجل بشكل نهائي؟",
+            "clear_title": "تأكيد مسح كافة السجلات",
+            "clear_confirm_msg": "هل أنت متأكد من مسح جميع السجلات؟ لا يمكن التراجع عن هذا الإجراء."
+        },
+        "backup": {
+            "oauth_success": "تم ربط Google Drive بنجاح",
+            "oauth_failed": "فشل ربط Google Drive",
+            "oauth_error": "حدث خطأ أثناء الاتصال بمصادقة Google",
+            "drive_not_configured": "لم يتم إعداد مسار النسخ السحابي بعد",
+            "connect_failed": "فشل الاتصال بخدمة التخزين السحابي",
+            "started_msg": "تم بدء عملية النسخ الاحتياطي في الخلفية",
+            "trigger_failed": "فشل بدء عملية النسخ الاحتياطي",
+            "disconnect_success": "تم فصل خدمة Google Drive بنجاح",
+            "disconnect_fail": "فشل فصل Google Drive",
+            "policy_title": "سياسة النسخ الاحتياطي المركزي",
+            "policy_desc": "تحديد دورية النسخ وتخزين النسخ المشفرة على السحابة",
+            "drive_title": "النسخ السحابي عبر Google Drive",
+            "drive_subtitle": "ربط حساب Google Drive لتخزين النسخ الدورية تلقائياً",
+            "connected": "متصل",
+            "disconnected": "غير متصل",
+            "last_run_label": "آخر نسخة احتياطية:",
+            "no_runs_yet": "لم يتم التشغيل بعد",
+            "status_success": "مكتمل بنجاح",
+            "status_processing": "جاري النسخ...",
+            "status_failed": "فشل النسخ",
+            "connect_btn": "ربط Google Drive",
+            "starting": "جاري البدء...",
+            "trigger_cloud_btn": "بدء نسخة سحابية الآن",
+            "disconnecting": "جاري الفصل...",
+            "disconnect_btn": "فصل Google Drive",
+            "confirm_upload_title": "تأكيد بدء النسخ السحابي",
+            "confirm_upload_msg": "سيتم أخذ لقطة كاملة لقاعدة البيانات ورفعها إلى السحابة فوراً. هل ترغب في المتابعة؟",
+            "confirm_start_btn": "بدء النسخ",
+            "disconnect_confirm_title": "تأكيد فصل Google Drive",
+            "disconnect_confirm_msg": "هل أنت متأكد من فصل الحساب السحابي؟ ستتوقف النسخ الاحتياطية التلقائية إلى Google Drive."
+        },
+        "profile": {
+            "no_changes_error": "لم يتم إجراء أي تعديلات للحفظ",
+            "update_success": "تم تحديث البيانات بنجاح",
+            "update_fail": "فشل تحديث البيانات",
+            "title": "تعديل الملف الشخصي للمشرف",
+            "username_label": "اسم المستخدم",
+            "unchanged_placeholder": "اتركه فارغاً دون تغيير",
+            "email_label": "البريد الإلكتروني",
+            "password_label": "كلمة المرور الجديدة",
+            "save_changes": "تحديث الحساب",
+            "confirm_title": "تأكيد تحديث بيانات المشرف",
+            "confirm_msg": "هل أنت متأكد من رغبتك في حفظ بيانات المشرف الجديدة؟"
+        },
+        "system": {
+            "loading": "جاري تحميل إعدادات النظام...",
+            "tabs": {
+                "settings": "الإعدادات العامة",
+                "features": "الميزات التجريبية",
+                "profile": "الملف الشخصي",
+                "backup": "النسخ السحابي",
+                "security": "الأمان والحماية",
+                "sessions": "الجلسات المفتوحة"
+            },
+            "title": "إدارة وإعدادات النظام",
+            "subtitle": "التحكم المركزي في خيارات المنصة والصيانة والنسخ الاحتياطي والأمان"
+        },
+        "palette": {
+            "overview_title": "لوحة التحكم الرئيسية",
+            "overview_sub": "نظرة عامة ومؤشرات النظام",
+            "tenants_title": "إدارة العيادات والمستأجرين",
+            "tenants_sub": "الاشتراكات والعيادات النشطة",
+            "users_title": "إدارة المستخدمين",
+            "users_sub": "حسابات المستخدمين والمشرفين",
+            "finance_title": "التقارير المالية والفوترة",
+            "finance_sub": "الإيرادات والمدفوعات والاشتراكات",
+            "support_title": "رسائل الدعم والتواصل",
+            "support_sub": "صندوق رسائل العيادات والدعم",
+            "ai_title": "تحليلات الذكاء الاصطناعي",
+            "ai_sub": "استهلاك وتكاليف نماذج AI",
+            "logs_title": "سجل أخطاء النظام",
+            "logs_sub": "مراقبة أخطاء الخادم والتشخيص",
+            "settings_title": "إعدادات النظام العامة",
+            "settings_sub": "تكوين الخادم والميزات والأمان",
+            "clinic": "عيادة",
+            "plan": "خطة",
+            "search_placeholder": "ابحث عن عيادة، مستخدم، أو صفحة إدارية...",
+            "no_results": "لم يتم العثور على نتائج",
+            "quick_suggestions": "اقتراحات سريعة",
+            "to_select": "للتنفيذ",
+            "to_navigate": "للتنقل",
+            "esc_to_close": "اضغط ESC للإغلاق"
+        },
+        "overview": {
+            "title": "مركز القيادة",
+            "subtitle": "إدارة وتحليلات النظام المركزية",
+            "platform_admin": "لوحة الإدارة المركزية",
+            "stats_error": "تعذر تحميل إحصائيات مركز القيادة"
+        },
+        "impersonate": {
+            "reason_required": "سبب الدخول للنظام مطلوب (5 أحرف على الأقل)"
         }
     },
     "finance": {
@@ -2245,7 +2836,10 @@
             "compensation": "المستحقات والرواتب",
             "activity": "سجل المعاملات",
             "reports": "التقارير المالية",
-            "aria_label": "التنقل في قسم المالية"
+            "aria_label": "التنقل في قسم المالية",
+            "cash_movements": "الحركات النقدية",
+            "team": "الفريق",
+            "reports_insights": "التقارير والرؤى"
         },
         "scope": {
             "period": "الفترة المحددة",
@@ -2258,7 +2852,8 @@
             "custom_range": "نطاق مخصص",
             "from": "من",
             "to": "إلى",
-            "apply": "تطبيق الفلتر"
+            "apply": "تطبيق الفلتر",
+            "title": "العنوان"
         },
         "metrics": {
             "gross_production": "إجمالي الإنتاج",
@@ -2272,11 +2867,27 @@
             "doctor_dues": "مستحقات الأطباء",
             "staff_dues": "مستحقات الموظفين",
             "total_deductions": "إجمالي الاستقطاعات",
-            "net_result": "صافي النتيجة التشغيلية"
+            "net_result": "صافي النتيجة التشغيلية",
+            "net_revenue_sub": "إجمالي قيمة الجلسات بعد الخصم",
+            "collected_sub": "النقد المقبوض فعلياً من المرضى",
+            "total_deductions_sub": "أطباء + موظفين + تشغيل + معامل",
+            "net_result_sub": "التحصيل مطروحاً منه الاستقطاعات",
+            "payment": "تحصيل",
+            "expense": "مصروف",
+            "invoiced": "المحتسب",
+            "discount": "الخصم",
+            "net_invoiced": "الصافي",
+            "deductions": "إجمالي الخصومات والالتزامات",
+            "all_time_debt": "إجمالي الدين المتراكم",
+            "net_profit": "صافي الدخل التشغيلي للعيادة (Net Operating Profit)"
         },
         "overview": {
             "title": "نظرة عامة على المالية",
-            "description": "الملخص المالي ومؤشرات الأداء الرئيسية"
+            "description": "الملخص المالي ومؤشرات الأداء الرئيسية",
+            "trend_chart_title": "اتجاهات التحصيل والمصروفات",
+            "trend_chart_subtitle": "تتبع يومي لمقارنة السيولة الداخلة بالنفقات التشغيلية",
+            "no_trend_data": "لا توجد حركات مالية مسجلة خلال هذه الفترة",
+            "headline_metrics": "المؤشرات المالية الرئيسية"
         },
         "patient_accounts": {
             "title": "حسابات المرضى والمديونيات",
@@ -2284,15 +2895,100 @@
         },
         "payments": {
             "title": "سجل المدفوعات",
-            "description": "جميع الدفعات المسددة من المرضى"
+            "description": "جميع الدفعات المسددة من المرضى",
+            "record_btn": "تسجيل دفعة",
+            "receipt_num": "رقم السند",
+            "patient": "المريض",
+            "amount": "المبلغ المحصل",
+            "date": "تاريخ التحصيل",
+            "notes": "ملاحظات",
+            "detail_badge": "تحصيل نقدي",
+            "subtitle": "كشف حركات القبض الصادرة من المرضى",
+            "search_placeholder": "البحث برقم السند أو الملف، اسم المريض، أو البيان...",
+            "active_identifier_filters": "فلاتر الرابط النشطة",
+            "visible_count": "عدد السندات المعروضة",
+            "visible_total": "إجمالي المعروض",
+            "no_payments": "لا توجد سندات تحصيل",
+            "detail_title": "تفاصيل سند التحصيل",
+            "date_time": "تاريخ ووقت التحصيل",
+            "doctor": "الطبيب المعالج",
+            "no_notes": "لا توجد ملاحظات إضافية",
+            "confirm_delete_title": "تأكيد حذف سند التحصيل؟",
+            "confirm_delete_desc": "سيتم إرجاع المبلغ لذمة المريض التراكمية فوراً.",
+            "delete_payment": "حذف سند التحصيل",
+            "error_select_patient": "يرجى اختيار المريض",
+            "error_invalid_amount": "يرجى إدخال مبلغ صحيح أكبر من الصفر",
+            "record_title": "تسجيل دفعة مريض",
+            "record_subtitle": "سند قبض نقدي جديد يتم ترحيله للحسابات",
+            "select_patient": "المريض",
+            "choose_patient": "اختر المريض من القائمة...",
+            "notes_label": "ملاحظات وسند التحصيل (اختياري)",
+            "notes_placeholder": "مثال: دفعة تحت حساب تقويم الأسنان / جلسة حشو...",
+            "save_payment": "تسجيل السند"
         },
         "expenses": {
             "title": "المصروفات والتشغيل",
-            "description": "إدارة نفقات العيادة التشغيلية والمشتريات"
+            "description": "إدارة نفقات العيادة التشغيلية والمشتريات",
+            "lab_total": "تكاليف المعمل",
+            "item_name_required": "يرجى إدخال اسم أو بيان المصروف",
+            "cost_invalid": "يرجى إدخال قيمة صحيحة للمصروف أكبر من صفر",
+            "add_drawer_title": "تسجيل مصروف جديد",
+            "add_drawer_sub": "إضافة حركة مصروفات تشغيلية للعيادة",
+            "item_name": "بيان المصروف",
+            "item_placeholder": "مثال: شراء مواد تخدير، صيانة كرسي...",
+            "cost": "المبلغ (جنيه)",
+            "category": "التصنيف",
+            "date": "التاريخ",
+            "notes": "ملاحظات إضافية",
+            "notes_placeholder": "أي تفاصيل عن المورد أو الفاتورة...",
+            "save_btn": "حفظ المصروف",
+            "delete_title": "تأكيد حذف المصروف",
+            "delete_sub": "إلغاء قيد المصروف من السجلات المالية",
+            "delete_impact_warning": "سيؤدي حذف هذا المصروف إلى خفض إجمالي المصروفات التشغيلية المسجلة وتعديل صافي الأرباح التشغيلية للفترة.",
+            "confirm_delete_btn": "حذف المصروف نهائياً",
+            "no_labs_period": "لا توجد طلبات معامل مسجلة لهذا الطبيب في هذه الفترة",
+            "source": "المصدر",
+            "source_manual": "يدوي",
+            "manual_total": "المصروفات التشغيلية المباشرة",
+            "manual_total_sub": "المصروفات اليومية والمستلزمات المسجلة",
+            "lab_total_sub": "إجمالي مطالبات المعامل الخاصة بحالات المرضى",
+            "deductions_sub": "تشمل المصروفات + المعامل + أتعاب الأطباء والرواتب",
+            "add_btn": "تسجيل مصروف",
+            "search_placeholder": "البحث في بيان المصروفات والملاحظات...",
+            "no_expenses": "لا توجد مصروفات مسجلة تطابق معايير البحث",
+            "category_general": "عام / متنوع",
+            "records_count": "سجل",
+            "total_expenses": "إجمالي المصروفات المباشرة",
+            "direct_total": "المصروفات التشغيلية المباشرة"
         },
         "compensation": {
             "doctors": "مستحقات الأطباء",
-            "payroll": "رواتب الموظفين"
+            "payroll": "رواتب الموظفين",
+            "equation_title": "معادلة احتساب مستحقات الطبيب للفترة",
+            "commission_calc": "العمولة",
+            "fixed_salary": "الراتب الثابت",
+            "total_entitlement": "إجمالي المستحقات النهائية للطبيب",
+            "commission_invalid": "نسبة العمولة يجب أن تكون بين 0% و 100%",
+            "salary_invalid": "قيمة الراتب الثابت يجب أن تكون أكبر من أو تساوي صفر",
+            "config_permission_required": "تعديل قواعد أتعاب الأطباء يتطلب صلاحيات إدارة النظام.",
+            "settings_title": "إعدادات أتعاب الطبيب",
+            "commission_rate": "نسبة العمولة من الصافي (%)",
+            "commission_desc": "تحتسب من إجمالي المحصل منسوباً للطبيب بعد خصم تكاليف المعمل",
+            "salary_desc": "مبلغ ثابت يضاف لمستحقات الطبيب شهرياً",
+            "doctor_name": "الطبيب",
+            "rule_summary": "قاعدة الحساب",
+            "commission_short": "عمولة",
+            "total_due": "المستحق للفترة",
+            "edit_rules": "تعديل قواعد الأتعاب",
+            "dues_sub": "مجموع العمولات المحتسبة والرواتب لجميع الأطباء",
+            "total_production": "إنتاجية الأطباء الإجمالية",
+            "production_sub": "إجمالي قيمة الخدمات العلاجية المنفذة",
+            "total_collected": "المحصل منسوباً للأطباء",
+            "collected_sub": "إجمالي الدفعات المحصلة من حالات الأطباء",
+            "search_placeholder": "البحث باسم الطبيب...",
+            "no_doctors": "لا يوجد أطباء مسجلون في هذه الفترة",
+            "doctor_details": "تفاصيل حساب الطبيب",
+            "doctor_details_sub": "كشف حساب الحالات العلاجية ومطالبات المعامل"
         },
         "doctors": {
             "title": "مستحقات ونسب الأطباء",
@@ -2304,16 +3000,206 @@
         },
         "payroll": {
             "title": "رواتب الموظفين وطاقم العمل",
-            "description": "إدارة مسيرات الرواتب الشهرية والبدلات والخصومات"
+            "description": "إدارة مسيرات الرواتب الشهرية والبدلات والخصومات",
+            "status_unpaid": "غير مسدد",
+            "status_partial": "مسدد جزئياً",
+            "status_paid": "مسدد بالكامل",
+            "employee_name": "الموظف",
+            "base_salary": "الراتب الأساسي",
+            "days_count": "الأيام المحتسبة",
+            "payable": "المستحق",
+            "paid": "المسدد",
+            "remaining": "المتبقي",
+            "pay_salary": "صرف الراتب",
+            "confirm_delete_payment": "هل أنت متأكد من حذف وإلغاء تسجيل هذا الصرف؟",
+            "cancel_payment": "إلغاء الصرف",
+            "edit_salary_rules": "تعديل قاعدة الراتب",
+            "edit_rules": "تعديل الراتب",
+            "pay_action": "صرف",
+            "total_payable": "إجمالي الرواتب المستحقة",
+            "employees_count": "موظف مسجل",
+            "total_paid": "إجمالي الرواتب المسددة",
+            "paid_sub": "مجموع المسدد فعلياً خلال هذا الشهر",
+            "total_remaining": "المتبقي للصرف",
+            "remaining_sub": "مستحقات معلقة لم تصرف بعد",
+            "search_placeholder": "البحث باسم الموظف...",
+            "no_employees": "لا يوجد موظفون مسجلون في كشف المرتبات",
+            "current_month": "الشهر الحالي",
+            "invalid_amount": "يرجى إدخال مبلغ صحيح أكبر من صفر",
+            "record_payment_title": "صرف راتب الموظف",
+            "already_paid": "المسدد سابقاً",
+            "payment_amount": "مبلغ الصرف",
+            "pay_remaining_quick": "صرف كامل المتبقي",
+            "is_partial_label": "دفعة جزئية (سلفة / جزء من الراتب)",
+            "is_partial_hint": "حدد هذا الخيار إذا كان المبلغ لا يغلق مستحقات الشهر بالكامل",
+            "days_worked": "عدد الأيام المحتسبة",
+            "notes_placeholder": "سلفة، مكافأة، خصم غياب...",
+            "confirm_payment": "تأكيد تسجيل الصرف",
+            "invalid_salary": "يرجى إدخال راتب أساسي صحيح",
+            "config_permission_required": "تعديل رواتب الموظفين يتطلب صلاحيات إدارة النظام.",
+            "staff_settings_title": "قواعد راتب الموظف",
+            "base_salary_label": "الراتب الأساسي الشهري (جنيه)",
+            "hire_date_label": "تاريخ بداية العمل / التعيين",
+            "hire_date_hint": "يستخدم لاحتساب نسبة الأيام الفعلية للموظف في شهر التعيين"
         },
         "activity": {
             "title": "سجل الحركات المالية",
-            "description": "التدفق الزمني الشامل لجميع العمليات المالية المسجلة"
+            "description": "التدفق الزمني الشامل لجميع العمليات المالية المسجلة",
+            "type_payment": "دفعة مريض",
+            "type_expense": "مصروف عيادة",
+            "type_lab": "معمل أسنان",
+            "type_salary": "راتب موظف",
+            "preview_title": "آخر المعاملات المالية",
+            "preview_subtitle": "سجل فوري للتحصيلات والمصروفات المسجلة",
+            "no_recent_activity": "لا توجد معاملات مسجلة مؤخراً",
+            "timestamp": "الوقت والتاريخ",
+            "subject": "البيان / الطرف",
+            "movement": "حركة المبلغ",
+            "total_inflow": "إجمالي التدفقات الواردة",
+            "inflow_sub": "مجموع الدفعات النقدية المحصلة من المرضى",
+            "total_outflow": "إجمالي المدفوعات الصادرة",
+            "outflow_sub": "مجموع المصروفات، المعامل، والرواتب المسددة",
+            "net_flow": "صافي الحركة المالية",
+            "net_sub": "الفارق بين المقبوضات والمدفوعات للفترة",
+            "search_placeholder": "البحث في البيان، اسم المريض، الموظف، أو الملاحظات...",
+            "no_events": "لا توجد حركات مالية مسجلة في هذا النطاق"
         },
         "reports": {
             "title": "التقارير المالية والتحليلات",
-            "description": "تقارير الأرباح والخسائر والتحصيلات والتدفقات النقدية"
-        }
+            "description": "تقارير الأرباح والخسائر والتحصيلات والتدفقات النقدية",
+            "export_failed": "تعذر تصدير الملف. حاول مرة أخرى.",
+            "export_csv": "تصدير CSV",
+            "export_providers": "تصدير الأطباء",
+            "export_filtered_csv": "تصدير النتائج المفلترة",
+            "export_summary": "تصدير الملخص",
+            "complete": "مكتمل",
+            "partial": "جزئي",
+            "unavailable": "غير متاح",
+            "confidence_high": "ثقة مرتفعة",
+            "confidence_medium": "ثقة متوسطة",
+            "confidence_low": "ثقة منخفضة",
+            "confidence_unavailable": "الثقة غير متاحة",
+            "source_overview": "الملخص المالي المعتمد",
+            "source_receivables": "حسابات المرضى والذمم",
+            "source_cash": "الحركات النقدية",
+            "source_team": "الفريق والمستحقات",
+            "insights_title": "التقارير والرؤى",
+            "insights_desc_pr6": "تحليل مقارن مبني على مصدر الحقيقة المالي، وهامش مواد تقديري يظهر فقط عندما تكون بيانات التكلفة والاستخدام قابلة للدفاع عنها.",
+            "period_comparison": "مقارنة الفترة",
+            "vs": "مقابل",
+            "previous_equal_period": "تتم المقارنة تلقائيًا بالفترة السابقة المساوية في الطول.",
+            "comparison_error": "تعذر تحميل مقارنة الفترة، ولا يتم عرض قيم بديلة.",
+            "no_comparison_data": "لا توجد بيانات مقارنة متاحة لهذه الفترة.",
+            "previous_period": "الفترة السابقة",
+            "change": "التغير",
+            "material_margin": "هامش المواد التقديري",
+            "material_margin_scope": "هذا المؤشر يقارن سعر الإجراء بتكلفة المواد فقط؛ لا يدّعي احتساب الخصومات أو المعامل أو أتعاب الأطباء أو تكاليف التشغيل.",
+            "export_all_filtered": "يصدر جميع النتائج المطابقة للفلاتر من الخادم",
+            "search_procedure": "بحث باسم الإجراء...",
+            "sort_name_asc": "الاسم: أ → ي",
+            "sort_name_desc": "الاسم: ي → أ",
+            "sort_price_asc": "السعر: الأقل أولًا",
+            "sort_price_desc": "السعر: الأعلى أولًا",
+            "incomplete_material_warning": "بعض الإجراءات لا تملك بيانات تكلفة/استخدام مكتملة؛ تم حجب الهامش بدل افتراض تكلفة صفرية.",
+            "current_page_completeness": "اكتمال الصفحة الحالية",
+            "material_error": "تعذر تحميل هامش المواد، ولا يتم عرض أصفار بديلة.",
+            "no_material_rows": "لا توجد إجراءات مطابقة للفلاتر الحالية.",
+            "procedure": "الإجراء",
+            "price": "السعر",
+            "material_cost": "تكلفة المواد",
+            "margin": "الهامش",
+            "coverage_confidence": "الاكتمال / الثقة",
+            "not_available": "غير متاح",
+            "coverage": "الاكتمال",
+            "pagination_summary": "النتائج",
+            "canonical_sources": "مصادر البيانات المالية المعتمدة",
+            "operational_sources": "المصادر التشغيلية الأصلية",
+            "collected_desc": "إجمالي المقبوضات النقدية",
+            "invoiced_desc": "إجمالي الإنتاجية العلاجية",
+            "period_balance_sub": "صافي تغير المديونية خلال الفترة",
+            "all_time_sub": "رصيد الذمم المدينة لجميع المرضى",
+            "collections_table_title": "تقرير تحصيلات وحسابات المرضى",
+            "collections_table_sub": "كشف مفصل بالإنتاجية، المبالغ المحصلة، والديون المتراكمة",
+            "no_patients_data": "لا توجد بيانات مرضى في هذه الفترة",
+            "share_percent": "النسبة من الإجمالي",
+            "categories_count": "عدد البنود التشغيلية",
+            "categories_sub": "تصنيفات المصروفات النشطة",
+            "top_category": "أعلى بند استهلاكاً",
+            "expense_category_title": "تحليل وتوزيع المصروفات حسب البند",
+            "expense_category_sub": "توزيع النفقات التشغيلية المباشرة وحصتها المئوية من الميزانية",
+            "gross_sub": "القيمة الإجمالية قبل الخصومات",
+            "discounts_sub": "مجموع الخصومات الممنوحة على الخدمات",
+            "net_invoiced_sub": "القيمة الصافية المستحقة بعد الخصم",
+            "collected_sub": "المبالغ النقدية المقبوضة فعلياً في العيادة",
+            "expenses_sub": "إيجار، فواتير، مستلزمات، صيانة",
+            "labs_sub": "مطالبات وتكاليف معامل الأسنان للفترة",
+            "doctor_dues_sub": "نسب الأطباء ورواتبهم المعتمدة",
+            "staff_dues_sub": "رواتب طاقم الاستقبال والمساعدين",
+            "total_deductions_sub": "مجموع (المصروفات + المعامل + الأطباء + الموظفين)",
+            "margin_label": "هامش الربح التشغيلي",
+            "statement_item": "بند البيان المالي",
+            "invoiced_kpi_sub": "قيمة الخدمات بعد الخصم",
+            "collected_kpi_sub": "التدفقات النقدية الداخلة",
+            "deductions_kpi_sub": "مصروفات، معامل، أجور",
+            "statement_title": "قائمة الدخل والتدفقات المالية المعتمدة",
+            "statement_sub": "مطابقة كاملة بين الإنتاجية، التحصيلات، والاستقطاعات التشغيلية",
+            "margin_amount": "هامش الربح",
+            "margin_percent_short": "نسبة الهامش",
+            "procedures_analyzed": "عدد الإجراءات المحللة",
+            "procedures_sub": "الخدمات المربوطة بجدول تكلفة المواد",
+            "avg_margin": "متوسط هامش الربح للإجراءات",
+            "avg_margin_sub": "متوسط العائد على تكلفة الخامات",
+            "profitability_table_title": "تحليل ربحية الخدمات والإجراءات",
+            "profitability_table_sub": "مقارنة سعر الخدمة وتكلفة المواد المستهلكة لتقدير العائد المالي",
+            "no_procedures_data": "لا توجد بيانات تكاليف للإجراءات",
+            "doctor_labs_sub": "تكاليف المعامل المخصومة من الأطباء",
+            "provider_performance_title": "تقرير الأداء المالي للأطباء",
+            "provider_performance_sub": "الإنتاجية، المبالغ المحصلة، الخصومات المعملية، وصافي العمولات"
+        },
+        "permissions": {
+            "access_denied": "غير مصرح بالوصول إلى هذا القسم",
+            "access_denied_desc": "صلاحيات حسابك الحالية لا تسمح بالاطلاع على هذه البيانات المالية.",
+            "go_to_allowed": "الانتقال إلى القسم المصرح"
+        },
+        "obligations": {
+            "patient_debt": "مستحقات المرضى (الديون التراكمية)",
+            "patient_debt_desc": "إجمالي المبالغ المتبقية بذمة المرضى عبر جميع الفترات",
+            "view_debtors": "عرض كشف المديونيات",
+            "doctor_dues": "مستحقات الأطباء غير المسددة",
+            "doctor_dues_desc": "عمولات الجلسات المحصلة والرواتب الثابتة للفترة",
+            "view_doctors": "تفصيل مستحقات الأطباء",
+            "staff_dues": "التزامات رواتب الموظفين",
+            "staff_dues_desc": "رواتب وبدلات طاقم التمريض والاستقبال والإدارة",
+            "view_payroll": "مسير الرواتب",
+            "title": "الالتزامات والمستحقات القائمة",
+            "section_title": "الالتزامات والذمم المالية القائمة",
+            "actionable_hint": "مؤشرات قابلة للمتابعة الفورية",
+            "all_time_debt": "إجمالي الديون المتراكمة"
+        },
+        "receivables": {
+            "total_debt": "المديونية القائمة",
+            "view_statement": "عرض كشف الحساب",
+            "total_clinic_debt_sub": "مجموع الذمم غير المسددة لجميع المرضى عبر العيادة",
+            "active_accounts_count": "إجمالي حسابات المرضى المالية",
+            "active_accounts_sub": "المرضى الذين يمتلكون سجلات علاجية أو دفعات",
+            "filter_all": "جميع الحسابات",
+            "filter_debtors": "المدينون فقط",
+            "search_placeholder": "البحث برقم الملف، اسم المريض، أو رقم الهاتف...",
+            "no_debtors": "لا يوجد مرضى عليهم مديونيات قائمة",
+            "no_accounts": "لا توجد حسابات مرضى مسجلة",
+            "debt_desc": "إجمالي المبالغ غير المسددة عبر جميع الفترات العلاجية",
+            "period_summary": "ملخص الفترة المختارة",
+            "period_balance": "فارق الفترة",
+            "payment_history": "حركات السداد",
+            "no_payments_in_period": "لا توجد دفعات في الفترة المختارة",
+            "treatment_history": "حركات العلاج والخصم",
+            "no_treatments_in_period": "لا توجد خدمات علاجية في الفترة المختارة",
+            "discount": "خصم"
+        },
+        "team": {
+            "navigation": "التنقل داخل قسم الفريق"
+        },
+        "pay_success": "تم الدفع بنجاح"
     },
     "pwa": {
         "update": {
@@ -2448,11 +3334,84 @@
         "unit_cost_label": "سعر السن الواحد",
         "total_cost_label": "الإجمالي ({{count}} أسنان):",
         "save_all_button": "حفظ للكل ({{count}})",
+        "multi_save_success": "تم حفظ الإجراءات لـ {{count}} أسنان بنجاح",
         "whole_tooth_short": "كامل",
         "errors": {
             "surfaces_required_for_teeth": "يرجى تحديد أسطح للأسنان التالية: {{teeth}}",
             "tooth_prefix": "السن",
             "save_failed": "فشل حفظ الإجراء"
         }
+    },
+    "insurance": {
+        "title": "شركات التأمين",
+        "subtitle": "إدارة شركات التأمين والتعاقدات",
+        "add_btn": "إضافة شركة تأمين",
+        "edit_title": "تعديل شركة التأمين",
+        "add_title": "إضافة شركة تأمين جديدة",
+        "company_name": "اسم الشركة",
+        "code": "كود الشركة",
+        "email": "البريد الإلكتروني",
+        "phone": "رقم الهاتف",
+        "address": "العنوان",
+        "save": "حفظ",
+        "cancel": "إلغاء",
+        "delete_confirm": "هل أنت متأكد من رغبتك في إلغاء تفعيل هذا المزود؟",
+        "price_lists_count": "قوائم الأسعار المرتبطة:",
+        "deactivated_success": "تم تعطيل شركة التأمين بنجاح",
+        "deactivate_title": "تعطيل شركة التأمين",
+        "deactivate_confirm": "هل أنت متأكد من تعطيل شركة التأمين هذه؟",
+        "deactivate_btn": "تعطيل"
+    },
+    "notifications": {
+        "mark_read": "تحديد كمقروء",
+        "empty": "No new notifications",
+        "dismiss": "Dismiss notification",
+        "title": "العنوان",
+        "new": "new"
+    },
+    "care_sessions": {
+        "continue_treatment": "Continue Treatment",
+        "tooth": "Tooth",
+        "rct_title": "العنوان",
+        "status_paused": "Paused Session",
+        "status_in_progress": "In Progress",
+        "steps_progress": "{{completed}} of {{total}} steps completed ({{percent}}%)",
+        "next_step": "Next: {{step}}",
+        "ready_to_resume": "Treatment ready to be resumed chairside",
+        "canals": "Canals",
+        "resume_session": "Resume Session",
+        "resume_treatment": "Resume Treatment",
+        "canal_lengths": "Recorded Canals:",
+        "last_visit": "Last visit:",
+        "measurements_detail": "Canal Observations & Measurements:"
+    },
+    "lab_handoff": {
+        "failed_load_labs": "Failed to load dental laboratories list.",
+        "error_select_lab": "حدث خطأ",
+        "error_submitting": "حدث خطأ",
+        "modal_title": "العنوان",
+        "quick_handoff_subtitle": "العنوان",
+        "no_double_billing": "0 Duplicate Billing (R06)",
+        "success_title": "العنوان",
+        "success_detail": "تم بنجاح",
+        "laboratory_label": "Select Dental Laboratory",
+        "choose_lab": "-- Select Laboratory --",
+        "tooth_number": "Tooth Number",
+        "work_type": "Prescription / Work Type",
+        "shade_label": "Shade Selection",
+        "custom_shade": "Other shade...",
+        "material_label": "Material",
+        "custom_material": "Other material...",
+        "delivery_date": "Expected Delivery",
+        "lab_cost": "Lab Cost",
+        "patient_price": "Patient Price (Info)",
+        "notes_label": "Instructions to Lab Technician",
+        "notes_placeholder": "e.g. Subgingival margin on buccal, check contact with tooth 22...",
+        "submitting": "Dispatching...",
+        "submit_button": "Send to Lab (1-Tap)"
+    },
+    "nav": {
+        "home": "Home",
+        "settings": "Manage your application preferences"
     }
 }

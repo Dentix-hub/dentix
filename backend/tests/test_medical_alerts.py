@@ -59,6 +59,29 @@ def test_derive_medical_alerts_free_text():
     assert "other" in res_mixed["kinds"]
 
 
+def test_derive_medical_alerts_free_text_negatives():
+    negatives = ["مفيش", "لا شيء", "ما فيش", "no", "none", "n/a", "-", "لا شئ", "مافيش"]
+    for neg in negatives:
+        res = derive_medical_alerts(neg)
+        assert res["has_alert"] is False, f"Negative '{neg}' should not have alert, got {res}"
+        assert res["kinds"] == [], f"Negative '{neg}' kinds should be empty, got {res}"
+
+
+def test_derive_medical_alerts_smoking_alone_has_no_alert():
+    res_en = derive_medical_alerts("smoking")
+    assert res_en["has_alert"] is False, f"Smoking alone must not set has_alert, got {res_en}"
+    assert "smoking" in res_en["kinds"]
+
+    res_ar = derive_medical_alerts("تدخين")
+    assert res_ar["has_alert"] is False, f"Smoking alone in Arabic must not set has_alert, got {res_ar}"
+    assert "smoking" in res_ar["kinds"]
+
+    res_combo = derive_medical_alerts("smoking, diabetes")
+    assert res_combo["has_alert"] is True
+    assert set(res_combo["kinds"]) == {"smoking", "diabetes"}
+
+
+
 def test_locale_parity_with_frontend_translation_files():
     root = Path(__file__).resolve().parent.parent.parent
     en_path = root / "frontend" / "src" / "locales" / "en" / "translation.json"
@@ -75,19 +98,21 @@ def test_locale_parity_with_frontend_translation_files():
     en_conditions = en_data["patients"]["medical_conditions"]
     ar_conditions = ar_data["patients"]["medical_conditions"]
 
-    # Every condition key in locale files (except none) should map to has_alert=True
+    # Every condition key in locale files (except none and smoking) should map to has_alert=True
     for key, label in en_conditions.items():
         if key == "none":
             continue
         alerts = derive_medical_alerts(label)
-        assert alerts["has_alert"] is True, f"EN label '{label}' for key '{key}' should have alert"
+        expected_has_alert = (key != "smoking")
+        assert alerts["has_alert"] is expected_has_alert, f"EN label '{label}' for key '{key}' should have has_alert={expected_has_alert}"
         assert key in alerts["kinds"], f"EN label '{label}' should map to key '{key}'"
 
     for key, label in ar_conditions.items():
         if key == "none":
             continue
         alerts = derive_medical_alerts(label)
-        assert alerts["has_alert"] is True, f"AR label '{label}' for key '{key}' should have alert"
+        expected_has_alert = (key != "smoking")
+        assert alerts["has_alert"] is expected_has_alert, f"AR label '{label}' for key '{key}' should have has_alert={expected_has_alert}"
         assert key in alerts["kinds"], f"AR label '{label}' should map to key '{key}'"
 
 

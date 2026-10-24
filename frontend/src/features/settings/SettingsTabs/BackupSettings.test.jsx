@@ -106,4 +106,88 @@ describe('BackupSettings - Excel Export', () => {
             });
         });
     });
+
+    it('unpacks Blob error responses to extract detail and status for JSON backup download', async () => {
+        const errorBlob = new Blob([JSON.stringify({ detail: 'Tenant export crashed' })], {
+            type: 'application/json',
+        });
+        api.exportTenantBackup.mockRejectedValueOnce({
+            response: { status: 500, data: errorBlob },
+        });
+
+        render(
+            <BackupSettings
+                backupStatus={mockBackupStatus}
+                currentUser={mockCurrentUser}
+                setMessage={mockSetMessage}
+                loadUserInfo={mockLoadUserInfo}
+            />
+        );
+
+        const btn = screen.getByText(/backup.download_btn/i);
+        fireEvent.click(btn);
+
+        await waitFor(() => {
+            expect(mockSetMessage).toHaveBeenCalledWith({
+                type: 'error',
+                text: 'Tenant export crashed (500)',
+            });
+        });
+    });
+
+    it('unpacks Blob error responses for Excel backup export', async () => {
+        const errorBlob = new Blob([JSON.stringify({ detail: 'Excel export crashed' })], {
+            type: 'application/json',
+        });
+        api.exportTenantBackupXlsx.mockRejectedValueOnce({
+            response: { status: 502, data: errorBlob },
+        });
+
+        render(
+            <BackupSettings
+                backupStatus={mockBackupStatus}
+                currentUser={mockCurrentUser}
+                setMessage={mockSetMessage}
+                loadUserInfo={mockLoadUserInfo}
+            />
+        );
+
+        const btn = screen.getByTestId('export-excel-button');
+        fireEvent.click(btn);
+
+        await waitFor(() => {
+            expect(mockSetMessage).toHaveBeenCalledWith({
+                type: 'error',
+                text: 'Excel export crashed (502)',
+            });
+        });
+    });
+
+    it('falls back to localized default message when Blob error response contains no detail', async () => {
+        const errorBlob = new Blob(['not-json'], {
+            type: 'text/plain',
+        });
+        api.exportTenantBackup.mockRejectedValueOnce({
+            response: { status: 503, data: errorBlob },
+        });
+
+        render(
+            <BackupSettings
+                backupStatus={mockBackupStatus}
+                currentUser={mockCurrentUser}
+                setMessage={mockSetMessage}
+                loadUserInfo={mockLoadUserInfo}
+            />
+        );
+
+        const btn = screen.getByText(/backup.download_btn/i);
+        fireEvent.click(btn);
+
+        await waitFor(() => {
+            expect(mockSetMessage).toHaveBeenCalledWith({
+                type: 'error',
+                text: 'not-json (503)',
+            });
+        });
+    });
 });

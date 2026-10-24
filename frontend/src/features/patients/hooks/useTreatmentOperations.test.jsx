@@ -242,4 +242,59 @@ describe('useTreatmentOperations', () => {
         expect(mockCreateTreatment).toHaveBeenCalledTimes(1);
         expect(mockUpdateToothStatus).not.toHaveBeenCalled();
     });
+
+    it('suppresses toast and refetch when skipToast and skipRefetch options are true', async () => {
+        mockCreateTreatment.mockResolvedValue({ id: 50 });
+
+        const { result } = renderHook(
+            () =>
+                useTreatmentOperations({
+                    patientId: 101,
+                    refetchHistory,
+                    refetchTeeth,
+                    refetchWorkspace,
+                    setIsTreatmentModalOpen,
+                    setEditingTreatmentId,
+                    editingTreatmentId: null,
+                    selectedToothCondition: null,
+                }),
+            { wrapper: createWrapper() }
+        );
+
+        await act(async () => {
+            await result.current.handleSaveTreatment(
+                { procedure: 'Composite', tooth_number: '16', cost: 100 },
+                { skipToast: true, skipRefetch: true }
+            );
+        });
+
+        expect(mockCreateTreatment).toHaveBeenCalledTimes(1);
+        expect(refetchHistory).not.toHaveBeenCalled();
+        expect(refetchWorkspace).not.toHaveBeenCalled();
+    });
+
+    it('refetches clinical data on refetchOnly call', async () => {
+        const { result } = renderHook(
+            () =>
+                useTreatmentOperations({
+                    patientId: 101,
+                    refetchHistory,
+                    refetchTeeth,
+                    refetchWorkspace,
+                    setIsTreatmentModalOpen,
+                    setEditingTreatmentId,
+                    editingTreatmentId: null,
+                    selectedToothCondition: null,
+                }),
+            { wrapper: createWrapper() }
+        );
+
+        await act(async () => {
+            await result.current.handleSaveTreatment(null, { refetchOnly: true });
+        });
+
+        expect(mockCreateTreatment).not.toHaveBeenCalled();
+        expect(refetchHistory).toHaveBeenCalledTimes(1);
+        expect(refetchWorkspace).toHaveBeenCalledTimes(1);
+    });
 });

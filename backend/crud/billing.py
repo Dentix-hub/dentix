@@ -479,7 +479,7 @@ async def precompute_dashboard_cache(tenant_id: int, db: AsyncSession) -> None:
     Called as a background task so the next real request hits the cache.
     """
     import os
-    if os.getenv("ENVIRONMENT") == "testing":
+    if os.getenv("ENVIRONMENT") in ("testing", "test", "ci"):
         return
     try:
         await get_dashboard_stats(db=db, tenant_id=tenant_id)

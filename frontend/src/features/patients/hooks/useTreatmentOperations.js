@@ -20,7 +20,27 @@ export const useTreatmentOperations = ({
     const { t } = useTranslation();
     const queryClient = useContext(QueryClientContext);
 
-    const handleSaveTreatment = useCallback(async (data) => {
+    const refetchClinicalData = useCallback(async () => {
+        await Promise.all([
+            Promise.resolve(refetchHistory?.()),
+            Promise.resolve(refetchWorkspace?.()),
+        ]);
+        if (queryClient && patientId) {
+            invalidatePatientClinicalQueries(queryClient, patientId);
+        }
+    }, [refetchHistory, refetchWorkspace, queryClient, patientId]);
+
+    const handleSaveTreatment = useCallback(async (data, options = {}) => {
+        if (!data && options?.refetchOnly) {
+            await refetchClinicalData();
+            return;
+        }
+
+        const {
+            skipToast = false,
+            skipRefetch = false,
+        } = options;
+
         try {
             // Prepare payload: convert Palmer tooth number (e.g. "UR5") to FDI integer (e.g. 15)
             // Backend expects integer or null
@@ -88,14 +108,12 @@ export const useTreatmentOperations = ({
 
             setIsTreatmentModalOpen(false);
             setEditingTreatmentId(null);
-            await Promise.all([
-                Promise.resolve(refetchHistory?.()),
-                Promise.resolve(refetchWorkspace?.()),
-            ]);
-            if (queryClient && patientId) {
-                invalidatePatientClinicalQueries(queryClient, patientId);
+            if (!skipRefetch) {
+                await refetchClinicalData();
             }
-            toast.success(t('patient_details.alerts.treatment_save_success'));
+            if (!skipToast) {
+                toast.success(t('patient_details.alerts.treatment_save_success'));
+            }
         } catch (err) {
             logger.error(err);
             const res = err.response?.data;
@@ -130,7 +148,7 @@ export const useTreatmentOperations = ({
             err.alreadyNotified = true;
             throw err;
         }
-    }, [patientId, editingTreatmentId, refetchHistory, refetchTeeth, refetchWorkspace, setIsTreatmentModalOpen, setEditingTreatmentId, t, queryClient]);
+    }, [patientId, editingTreatmentId, refetchTeeth, refetchClinicalData, setIsTreatmentModalOpen, setEditingTreatmentId, t]);
 
-    return { handleSaveTreatment };
+    return { handleSaveTreatment, refetchClinicalData };
 };
