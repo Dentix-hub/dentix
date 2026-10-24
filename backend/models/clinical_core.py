@@ -714,9 +714,9 @@ class ClinicalProjectionCoverage(Base):
 
     __rls_policies__ = _tenant_rls_policy()
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
-    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     domain = Column(String(32), nullable=False)
     status = Column(String(32), nullable=False, default=DEFAULT_COVERAGE_STATE, server_default=DEFAULT_COVERAGE_STATE)
     notes = Column(Text, nullable=True)

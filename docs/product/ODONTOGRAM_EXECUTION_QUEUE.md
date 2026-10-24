@@ -410,6 +410,10 @@ Retiring legacy `models.Treatment` writes (`G16-M03`, `G16-M06..M07`, `G16-M09`,
 | **AI Clinical Assistant & Scribe** | `backend/routers/ai_assist.py`<br>`backend/routers/ai.py`<br>`backend/routers/analytics_ai_v2.py`<br>`backend/services/scribe_service.py` | Reads patient `models.Treatment` history for clinical summarization and chairside AI tools (`ClinicalService.add_treatment` at `backend/services/clinical_service.py:224`). |
 | **Clinical Workspace Projection Fallback** | `backend/services/clinical_workspace_service.py:136-995`<br>`backend/crud/clinical_workspace.py:22,152-180` | Loads `models.Treatment` rows to drive chart projection in `LEGACY_ONLY` and `SHADOW` modes and fallback domains in `VNEXT_PRIMARY` mode. |
 
+> **Owner Decision D1 (F-02 Intentional Sync Invariant):**
+> Unconditional legacy-treatment → clinical work-item sync remains exactly as-is (already present on `main`), including for `LEGACY_ONLY` tenants.
+> This maintains continuous shadow projection parity and guarantees historical sync integrity across all rollout modes without branching write paths.
+
 ---
 
 ## 7. Verified Identifiers Appendix (Flash Must Reuse — Never Invent)

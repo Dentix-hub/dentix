@@ -18,6 +18,10 @@ from unittest.mock import MagicMock
 import sys
 import os
 
+# Preserve incoming PostgreSQL URL for live Postgres contract tests
+if (url := os.environ.get("DATABASE_URL", "")).startswith(("postgresql://", "postgres://")):
+    os.environ.setdefault("TEST_DATABASE_URL", url)
+
 # Force SQLite and Test Mode for all backend imports
 os.environ["DATABASE_URL"] = "sqlite:///file:testdb?mode=memory&cache=shared&uri=true"
 os.environ["ENVIRONMENT"] = "testing"

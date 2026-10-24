@@ -314,10 +314,24 @@ class TreatmentMaterialUsage(Base):
     id = Column(Integer, primary_key=True, index=True)
     treatment_id = Column(Integer, ForeignKey("treatments.id"), nullable=True, index=True)
     care_session_id = Column(
-        Integer, ForeignKey("care_sessions.id", ondelete="SET NULL"), nullable=True, index=True
+        Integer,
+        ForeignKey(
+            "care_sessions.id",
+            ondelete="SET NULL",
+            name="fk_treatment_material_usages_care_session_id",
+        ),
+        nullable=True,
+        index=True,
     )
     work_item_id = Column(
-        Integer, ForeignKey("clinical_work_items.id", ondelete="SET NULL"), nullable=True, index=True
+        Integer,
+        ForeignKey(
+            "clinical_work_items.id",
+            ondelete="SET NULL",
+            name="fk_treatment_material_usages_work_item_id",
+        ),
+        nullable=True,
+        index=True,
     )
     material_id = Column(Integer, ForeignKey("materials.id"), nullable=False, index=True)
     session_id = Column(Integer, ForeignKey("material_sessions.id"), nullable=True)

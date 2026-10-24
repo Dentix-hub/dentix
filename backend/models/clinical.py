@@ -14,7 +14,7 @@ from .base import (
     Index,
     datetime,
 )
-from sqlalchemy import Boolean, CheckConstraint, UniqueConstraint, column, text
+from sqlalchemy import Boolean, CheckConstraint, UniqueConstraint, column, func, text
 from rls.schemas import Permissive, ConditionArg, Command
 
 
@@ -348,7 +348,11 @@ class LabOrder(Base):
     laboratory_id = Column(Integer, ForeignKey("laboratories.id"), index=True)
     work_item_id = Column(
         Integer,
-        ForeignKey("clinical_work_items.id", ondelete="SET NULL"),
+        ForeignKey(
+            "clinical_work_items.id",
+            ondelete="SET NULL",
+            name="fk_lab_orders_work_item_id",
+        ),
         nullable=True,
         index=True,
     )
@@ -455,14 +459,16 @@ class ProcedureChartStyle(Base):
     template = Column(String(32), nullable=False)
     color_key = Column(String(16), nullable=True)
     created_at = Column(
-        DateTime,
-        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
         nullable=False,
     )
     updated_at = Column(
-        DateTime,
-        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
-        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
         nullable=False,
     )
 

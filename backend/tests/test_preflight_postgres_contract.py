@@ -10,7 +10,7 @@ from backend.scripts import preflight_migrations as preflight
 
 
 def _postgres_base_url() -> str:
-    url = os.getenv("DATABASE_URL", "")
+    url = os.getenv("TEST_DATABASE_URL") or os.getenv("DATABASE_URL", "")
     if not url.startswith(("postgresql://", "postgres://")):
         pytest.skip("Production migration contract requires PostgreSQL")
     return url
@@ -24,17 +24,21 @@ def _url_for_database(url: str, database: str) -> str:
 def _create_database(base_url: str) -> tuple[str, str]:
     database = f"dentix_contract_{uuid.uuid4().hex[:10]}"
     admin_url = _url_for_database(base_url, "postgres")
-    with psycopg2.connect(admin_url) as connection:
-        connection.autocommit = True
+    connection = psycopg2.connect(admin_url)
+    connection.autocommit = True
+    try:
         with connection.cursor() as cursor:
             cursor.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(database)))
+    finally:
+        connection.close()
     return database, _url_for_database(base_url, database)
 
 
 def _drop_database(base_url: str, database: str) -> None:
     admin_url = _url_for_database(base_url, "postgres")
-    with psycopg2.connect(admin_url) as connection:
-        connection.autocommit = True
+    connection = psycopg2.connect(admin_url)
+    connection.autocommit = True
+    try:
         with connection.cursor() as cursor:
             cursor.execute(
                 """
@@ -45,6 +49,8 @@ def _drop_database(base_url: str, database: str) -> None:
                 (database,),
             )
             cursor.execute(sql.SQL("DROP DATABASE IF EXISTS {}").format(sql.Identifier(database)))
+    finally:
+        connection.close()
 
 
 def test_preflight_bootstraps_fresh_database_then_upgrades_existing(monkeypatch):
