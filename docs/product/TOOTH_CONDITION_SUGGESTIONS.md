@@ -134,7 +134,7 @@ The control will be integrated inside `QuickTreatmentSheet.jsx` (`frontend/src/f
 
 ---
 
-## 6. Approval Checklist for Eslam
-- [ ] Confirm procedure category to condition mapping table (Section 4).
-- [ ] Confirm default checkbox behavior: Checked by default for `Done` status vs. Doctor must opt-in every time.
-- [ ] Confirm UI placement inside `QuickTreatmentSheet.jsx` (Section 5).
+## 6. Approvals & Decisions Recorded
+- [x] Confirmed procedure category to condition mapping table (Section 4) — Approved by Eslam.
+- [x] Default checkbox behavior: **Checked by default for `Done` status** (one-click confirm) — Approved by Eslam.
+- [x] Confirmed UI placement inside `QuickTreatmentSheet.jsx` (Section 5) — Approved by Eslam.
