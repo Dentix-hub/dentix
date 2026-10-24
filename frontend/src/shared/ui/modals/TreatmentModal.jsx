@@ -73,6 +73,7 @@ export default function TreatmentModal({
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [isManualProcedure, setIsManualProcedure] = useState(false);
     const [linkError, setLinkError] = useState(null);
+    const [explicitToothCondition, setExplicitToothCondition] = useState(null);
     const safeProcedures = useMemo(() => (Array.isArray(procedures) ? procedures : []), [procedures]);
 
     const displayProcedures = useMemo(() => {
@@ -191,6 +192,7 @@ export default function TreatmentModal({
                 setToothModalTab('Status');
                 setSelectedPathologies([]);
                 setSelectedRestorations([]);
+                setExplicitToothCondition(null);
             }
 
             if (escalationErr) {
@@ -396,6 +398,9 @@ export default function TreatmentModal({
         const cleanTreatment = { ...(treatment || {}) };
         delete cleanTreatment.escalated_from_quick_sheet;
         delete cleanTreatment.escalation_error;
+        if (explicitToothCondition) {
+            cleanTreatment.explicit_tooth_condition = explicitToothCondition;
+        }
 
         const payload = buildTreatmentPayload(cleanTreatment, {
             consumedMaterials,
@@ -515,6 +520,7 @@ export default function TreatmentModal({
                                                 <button
                                                     key={status}
                                                     onClick={() => {
+                                                        setExplicitToothCondition(status);
                                                         setSelectedToothCondition(status);
                                                         // Auto-fill logic
                                                         const foundProc = safeProcedures.find(p => p.name.toLowerCase() === status.toLowerCase());

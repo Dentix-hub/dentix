@@ -37,6 +37,12 @@ export const useTreatmentOperations = ({
 
             const cleanData = { ...data };
             delete cleanData.prefill_source;
+            delete cleanData.materials_usage;
+            delete cleanData.raw_tooth_number;
+            delete cleanData.escalated_from_quick_sheet;
+            delete cleanData.escalation_error;
+            delete cleanData.explicit_tooth_condition;
+
             const payload = {
                 ...cleanData,
                 tooth_number: fdiToothNumber,
@@ -50,13 +56,14 @@ export const useTreatmentOperations = ({
                 await createTreatment(payload);
             }
 
-            // 2. Update Tooth Status if applicable
-            if (data.tooth_number && selectedToothCondition) {
+            // 2. Update Tooth Status ONLY if user explicitly changed the condition in TreatmentModal
+            const conditionToUpdate = data.explicit_tooth_condition;
+            if (data.tooth_number && conditionToUpdate) {
                 try {
                     logger.log("[DEBUG] Updating Tooth Status:", {
                         patientId,
                         tooth: data.tooth_number,
-                        condition: selectedToothCondition
+                        condition: conditionToUpdate
                     });
 
                     let fdiNumber = palmerToFdi(data.tooth_number);
@@ -66,7 +73,7 @@ export const useTreatmentOperations = ({
                         await updateToothStatus({
                             patient_id: parseInt(patientId, 10),
                             tooth_number: fdiNumber,
-                            condition: selectedToothCondition
+                            condition: conditionToUpdate
                         });
                         logger.log("[DEBUG] Tooth status updated successfully");
                         await refetchTeeth(); // Await refetch

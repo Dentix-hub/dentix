@@ -90,6 +90,7 @@ describe('useTreatmentOperations', () => {
                 procedure: 'Scaling',
                 tooth_number: 'UR6',
                 cost: 100,
+                explicit_tooth_condition: 'Healthy',
             });
         });
 
@@ -209,5 +210,36 @@ describe('useTreatmentOperations', () => {
         expect(sentPayload).not.toHaveProperty('prefill_source');
         expect(sentPayload.procedure).toBe('Composite Filling');
         expect(sentPayload.cost).toBe(150);
+    });
+
+    it('does not re-send Decayed when saving a filling on a Decayed tooth through the quick sheet', async () => {
+        mockCreateTreatment.mockResolvedValue({ id: 12 });
+
+        const { result } = renderHook(
+            () =>
+                useTreatmentOperations({
+                    patientId: 101,
+                    refetchHistory,
+                    refetchTeeth,
+                    refetchWorkspace,
+                    setIsTreatmentModalOpen,
+                    setEditingTreatmentId,
+                    editingTreatmentId: null,
+                    selectedToothCondition: 'Decayed',
+                }),
+            { wrapper: createWrapper() }
+        );
+
+        await act(async () => {
+            // Quick sheet save payload has tooth_number, but NO explicit_tooth_condition
+            await result.current.handleSaveTreatment({
+                procedure: 'Composite Filling',
+                tooth_number: 'UR6',
+                cost: 150,
+            });
+        });
+
+        expect(mockCreateTreatment).toHaveBeenCalledTimes(1);
+        expect(mockUpdateToothStatus).not.toHaveBeenCalled();
     });
 });
