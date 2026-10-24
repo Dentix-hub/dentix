@@ -111,7 +111,14 @@ test.describe('Patient Details - Clinical Workspace Chart', () => {
     // Read mode badge agrees with server snapshot read_mode
     const readModeBadge = page.getByTestId('clinical-workspace-read-mode');
     await expect(readModeBadge).toBeVisible();
-    await expect(readModeBadge).toContainText(snapshot.read_mode);
+    await expect(readModeBadge).toHaveAttribute('data-read-mode', snapshot.read_mode);
+    const readModeLabels: Record<string, string> = {
+      VNEXT_PRIMARY: 'النظام الأساسي المحدث',
+      SHADOW: 'الوضع المتوازي',
+      LEGACY_ONLY: 'الوضع التقليدي',
+    };
+    const expectedReadMode = new RegExp(`(${readModeLabels[snapshot.read_mode] || snapshot.read_mode}|${snapshot.read_mode})`, 'i');
+    await expect(readModeBadge).toHaveText(expectedReadMode);
 
     // Coverage container contains each domain and the status from the real response (supporting both AR and EN)
     const coverageContainer = page.getByTestId('clinical-workspace-coverage');

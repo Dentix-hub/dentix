@@ -690,6 +690,7 @@ export default function PatientDetails() {
                                             {!workspaceLoading && !workspaceIsError && (
                                                 <span
                                                     data-testid="clinical-workspace-read-mode"
+                                                    data-read-mode={adaptedChart.readMode}
                                                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                                                         adaptedChart.readMode === 'VNEXT_PRIMARY'
                                                             ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
@@ -698,7 +699,7 @@ export default function PatientDetails() {
                                                             : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300'
                                                     }`}
                                                 >
-                                                    {adaptedChart.readMode}
+                                                    {t(`clinical.read_mode.${adaptedChart.readMode?.toLowerCase()}`, adaptedChart.readMode)}
                                                 </span>
                                             )}
                                         </div>

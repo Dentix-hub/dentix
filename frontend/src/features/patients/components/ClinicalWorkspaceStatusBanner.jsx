@@ -1,6 +1,7 @@
 import PropTypes from 'prop-types';
 import { useAuth } from '@/auth/useAuth';
 import { useAuthStore } from '@/store/auth.store';
+import { formatClinicalWarning } from '../utils/clinicalWarningFormatter';
 
 export default function ClinicalWorkspaceStatusBanner({ adaptedChart, t }) {
     let user = null;
@@ -96,12 +97,26 @@ export default function ClinicalWorkspaceStatusBanner({ adaptedChart, t }) {
                             { count: warningsCount }
                         )}
                     </div>
+                    <ul className="mt-1.5 space-y-1">
+                        {adaptedChart.warnings.map((w, idx) => {
+                            const formatted = formatClinicalWarning(w, t);
+                            return (
+                                <li
+                                    key={idx}
+                                    data-testid={`clinical-warning-friendly-${idx}`}
+                                    className="text-xs text-amber-900 dark:text-amber-200 font-normal"
+                                >
+                                    {formatted.friendlyMessage}
+                                </li>
+                            );
+                        })}
+                    </ul>
                     <details
                         data-testid="clinical-workspace-technical-details"
                         className="mt-2 text-xs"
                     >
                         <summary className="cursor-pointer font-medium text-amber-900 dark:text-amber-200 hover:underline">
-                            {t('clinical.technical_details', 'التفاصيل التقنية')}
+                            {t('clinical.technical_details', 'تفاصيل فنية')}
                         </summary>
                         <ul className="mt-1 list-inside list-disc space-y-0.5">
                             {adaptedChart.warnings.map((w, idx) => (
