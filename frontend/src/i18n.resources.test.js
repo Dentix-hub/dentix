@@ -29,4 +29,21 @@ describe('i18n resource integrity', () => {
             expect(i18n.getResource(language, 'translation', key)).toBe(expected);
         }
     });
+
+    it('enforces ar and en key parity for care_session, dental_chart, and quick_treatment_sheet', () => {
+        const sections = ['care_session', 'dental_chart', 'quick_treatment_sheet'];
+        for (const section of sections) {
+            const arSection = i18n.getResource('ar', 'translation', section);
+            const enSection = i18n.getResource('en', 'translation', section);
+
+            expect(arSection, `ar should have section "${section}"`).toBeDefined();
+            expect(enSection, `en should have section "${section}"`).toBeDefined();
+
+            const arKeys = Object.keys(arSection || {}).sort();
+            const enKeys = Object.keys(enSection || {}).sort();
+
+            expect(arKeys.length).toBeGreaterThan(0);
+            expect(arKeys).toEqual(enKeys);
+        }
+    });
 });
