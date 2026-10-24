@@ -381,6 +381,25 @@ async def test_cross_tenant_and_cross_patient_work_item_rejection(async_db_sessi
         role="doctor",
     )
 
+    # Enable native writes for tenant_a so work_item_id is allowed to reach validation
+    from backend.models.system import FeatureFlag
+    from backend.services.feature_service import FeatureFlagService
+    from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
+
+    stmt_ff = select(FeatureFlag).where(FeatureFlag.key == FEATURE_FLAG_CLINICAL_NATIVE_WRITES)
+    flag = (await db.execute(stmt_ff)).scalar_one_or_none()
+    if not flag:
+        flag = FeatureFlag(
+            key=FEATURE_FLAG_CLINICAL_NATIVE_WRITES,
+            description="Clinical native writes",
+            is_global_enabled=True,
+            rollout_percentage=0,
+        )
+        db.add(flag)
+        await db.flush()
+    await FeatureFlagService.set_tenant_override(db, tenant_a.id, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, True)
+    await db.commit()
+
     # 1. Create with cross-tenant work_item_id -> 404
     order_create_cross_tenant = LabOrderCreate(
         patient_id=patient_a.id,

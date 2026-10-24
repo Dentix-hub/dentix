@@ -305,11 +305,17 @@ class FinanceParityService:
                     except (ValueError, TypeError):
                         pass
 
-        # Map work_item_id -> ClinicalCharge (active non-voided preferred)
+        # Identify corrected work items (superseded / entered_in_error) to avoid double-counting
+        corrected_wi_ids = {
+            w.id for w in work_items
+            if w.status in ("entered_in_error", "superseded", "entered-in-error")
+        }
+
+        # Map work_item_id -> ClinicalCharge (active non-voided preferred, excluding corrected work items)
         charges_by_wi: Dict[int, models.ClinicalCharge] = {}
         active_charges: List[models.ClinicalCharge] = []
         for c in charges:
-            if c.status != CLINICAL_CHARGE_STATUS_VOIDED:
+            if c.status != CLINICAL_CHARGE_STATUS_VOIDED and c.work_item_id not in corrected_wi_ids:
                 active_charges.append(c)
                 charges_by_wi[c.work_item_id] = c
 
@@ -356,6 +362,24 @@ class FinanceParityService:
         accounted_treatment_ids: set[int] = set()
 
         for wi in work_items:
+            # F-05: Exclude corrected work items so a superseded + replacement pair is not double-counted
+            if wi.id in corrected_wi_ids:
+                if include_breakdown:
+                    work_item_projections.append({
+                        "work_item_id": wi.id,
+                        "kind": wi.kind,
+                        "code": wi.code,
+                        "work_item_status": wi.status,
+                        "source": "none",
+                        "amount": 0.0,
+                        "discount": 0.0,
+                        "net": 0.0,
+                        "status": None,
+                        "charge_id": None,
+                        "treatment_id": None,
+                    })
+                continue
+
             tx_id = wi_to_treatment_id.get(wi.id)
             tx = treatments_by_id.get(tx_id) if tx_id else None
             ch = charges_by_wi.get(wi.id)

@@ -55,7 +55,7 @@ async def invoice_clinical_charge(
     charge_id: int,
     payload: Optional[schemas.ClinicalChargeActionRequest] = None,
     db: AsyncSession = Depends(get_async_db),
-    current_user: models.User = Depends(require_permission(Permission.RECEIVABLE_READ)),
+    current_user: models.User = Depends(require_permission(Permission.PAYMENT_CREATE)),
 ):
     tenant_id = require_tenant_id(current_user)
     service = ClinicalChargeService(db, tenant_id, current_user)
@@ -80,7 +80,7 @@ async def void_clinical_charge(
     charge_id: int,
     payload: Optional[schemas.ClinicalChargeActionRequest] = None,
     db: AsyncSession = Depends(get_async_db),
-    current_user: models.User = Depends(require_permission(Permission.RECEIVABLE_READ)),
+    current_user: models.User = Depends(require_permission(Permission.PAYMENT_VOID)),
 ):
     tenant_id = require_tenant_id(current_user)
     service = ClinicalChargeService(db, tenant_id, current_user)

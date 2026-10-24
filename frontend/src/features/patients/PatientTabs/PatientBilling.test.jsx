@@ -218,6 +218,41 @@ describe('PatientBilling Component - Pending Clinical Charges', () => {
         });
     });
 
+    it('invalidates patient treatments queries alongside charges on invoice success (F-16)', async () => {
+        mockUseTenantFeatures.mockReturnValue({ data: ['clinical_vnext_finance_read'] });
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+        render(
+            <PatientBilling
+                patientId={101}
+                tenantFeatures={['clinical_vnext_finance_read']}
+            />,
+            {
+                wrapper: ({ children }) => (
+                    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+                ),
+            }
+        );
+
+        const card = screen.getByTestId('pending-clinical-charges-card');
+        await waitFor(() => {
+            expect(within(card).getByText('#501')).toBeInTheDocument();
+        });
+
+        const invoiceBtn = within(card).getByRole('button', { name: /^Invoice$/i });
+        fireEvent.click(invoiceBtn);
+
+        await waitFor(() => {
+            expect(invalidateSpy).toHaveBeenCalledWith(
+                expect.objectContaining({ queryKey: ['patient-clinical-charges', 101] })
+            );
+            expect(invalidateSpy).toHaveBeenCalledWith(
+                expect.objectContaining({ queryKey: ['patient', '101', 'treatments'] })
+            );
+        });
+    });
+
     it('has required English and Arabic i18n keys configured', () => {
         const enPending = enTranslations.patientDetails?.billing?.pending_charges;
         const arPending = arTranslations.patientDetails?.billing?.pending_charges;

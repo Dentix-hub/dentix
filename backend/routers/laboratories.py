@@ -261,6 +261,13 @@ async def create_lab_order(
         raise HTTPException(status_code=404, detail="Laboratory not found")
 
     if order.work_item_id is not None:
+        if not await FeatureFlagService.is_feature_enabled(
+            db, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, current_user.tenant_id
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail="Clinical native writes are disabled",
+            )
         work_item = (
             await db.execute(
                 select(models.ClinicalWorkItem).where(
@@ -470,6 +477,13 @@ async def update_lab_order(
             raise HTTPException(status_code=404, detail="Laboratory not found")
 
     if update_data.get("work_item_id") is not None:
+        if not await FeatureFlagService.is_feature_enabled(
+            db, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, current_user.tenant_id
+        ):
+            raise HTTPException(
+                status_code=404,
+                detail="Clinical native writes are disabled",
+            )
         work_item = (
             await db.execute(
                 select(models.ClinicalWorkItem).where(

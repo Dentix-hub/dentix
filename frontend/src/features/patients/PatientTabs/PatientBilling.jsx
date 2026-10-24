@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTenantFeatures } from '@/hooks/usePatientDetails';
 import { getPatientClinicalCharges, invoiceClinicalCharge, voidClinicalCharge } from '@/api/clinicalCharges';
 import { toast } from '@/shared/ui';
+import { invalidatePatientClinicalQueries } from '@/features/patients/utils/invalidatePatientClinicalQueries';
 
 const PatientBilling = ({
     _patientId,
@@ -41,6 +42,7 @@ const PatientBilling = ({
         onSuccess: () => {
             toast.success(t('patientDetails.billing.pending_charges.invoiced_success', 'Charge marked as invoiced'));
             queryClient.invalidateQueries({ queryKey: ['patient-clinical-charges', effectivePatientId] });
+            invalidatePatientClinicalQueries(queryClient, effectivePatientId);
         },
         onError: (err) => {
             toast.error(err?.response?.data?.detail || t('patientDetails.billing.pending_charges.error_action', 'Failed to update charge'));
