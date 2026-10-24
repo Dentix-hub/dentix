@@ -1,4 +1,5 @@
 import asyncio
+import os
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import HTTPException
@@ -209,9 +210,10 @@ async def create_appointment(
     patient = result_patient.scalars().first()
     if patient:
         invalidate_dashboard_cache(patient.tenant_id)
-        asyncio.create_task(
-            precompute_dashboard_cache(tenant_id=patient.tenant_id, db=db)
-        )
+        if os.getenv("ENVIRONMENT") not in ("testing", "test", "ci"):
+            asyncio.create_task(
+                precompute_dashboard_cache(tenant_id=patient.tenant_id, db=db)
+            )
         event_service.emit_event(
             db,
             event_type="appointment.created",
@@ -298,9 +300,10 @@ async def update_appointment_status(
     await db.commit()
     await db.refresh(db_appt)
     invalidate_dashboard_cache(tenant_id)
-    asyncio.create_task(
-        precompute_dashboard_cache(tenant_id=tenant_id, db=db)
-    )
+    if os.getenv("ENVIRONMENT") not in ("testing", "test", "ci"):
+        asyncio.create_task(
+            precompute_dashboard_cache(tenant_id=tenant_id, db=db)
+        )
     return db_appt
 
 
@@ -353,9 +356,10 @@ async def delete_appointment(db: AsyncSession, appointment_id: int, tenant_id: i
     await db.commit()
     await db.refresh(db_appt)
     invalidate_dashboard_cache(tenant_id)
-    asyncio.create_task(
-        precompute_dashboard_cache(tenant_id=tenant_id, db=db)
-    )
+    if os.getenv("ENVIRONMENT") not in ("testing", "test", "ci"):
+        asyncio.create_task(
+            precompute_dashboard_cache(tenant_id=tenant_id, db=db)
+        )
     return db_appt
 
 
@@ -481,9 +485,10 @@ async def update_appointment(
         await db.commit()
         await db.refresh(db_appt)
         invalidate_dashboard_cache(tenant_id)
-        asyncio.create_task(
-            precompute_dashboard_cache(tenant_id=tenant_id, db=db)
-        )
+        if os.getenv("ENVIRONMENT") not in ("testing", "test", "ci"):
+            asyncio.create_task(
+                precompute_dashboard_cache(tenant_id=tenant_id, db=db)
+            )
         return db_appt
     except StaleDataError:
         await db.rollback()

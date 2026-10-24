@@ -132,7 +132,12 @@ async def test_concurrent_reschedules_to_same_slot_serialize_and_reject_one():
     res1, res2 = await asyncio.gather(
         reschedule(APPT_1_ID),
         reschedule(APPT_2_ID),
+        return_exceptions=True,
     )
+
+    for r in (res1, res2):
+        if isinstance(r, Exception):
+            raise r
 
     statuses = [res1[0], res2[0]]
     assert "success" in statuses, f"Expected at least one success, got {res1}, {res2}"
