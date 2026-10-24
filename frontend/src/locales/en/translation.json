@@ -1439,7 +1439,8 @@
         "error_prefix": "Error: ",
         "success_close": "Session consumption recorded and closed successfully"
       },
-      "info_close_auto": "Upon ending session, consumption is computed automatically based on procedure relative weights."
+      "info_close_auto": "Upon ending session, consumption is computed automatically based on procedure relative weights.",
+      "stock_fetch_error": "Failed to load material stock items."
     },
     "material_details": {
       "title": "Stock & Package Details",
