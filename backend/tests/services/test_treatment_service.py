@@ -224,6 +224,36 @@ class TestTreatmentCreation:
             mock_db.commit.assert_called()
             mock_db.refresh.assert_called_with(mock_treatment)
 
+    async def test_create_treatment_audit_logged_before_commit(
+        self, treatment_service, sample_treatment_data, mock_db
+    ):
+        """F-10: log_admin_action must add AuditLog before commit is called, otherwise audit row is lost."""
+        mock_patient = MagicMock(default_price_list_id=None)
+        mock_treatment = MagicMock(id=102)
+
+        mock_result = MagicMock()
+        mock_result.scalars.return_value.first.side_effect = [
+            mock_patient,
+            MagicMock(spec=models.Procedure, id=1, price=500.0),
+            None,
+        ]
+        mock_db.execute.return_value = mock_result
+
+        with patch("backend.crud") as mock_crud:
+            mock_crud.patient.get_patient = AsyncMock(return_value=mock_patient)
+            mock_crud.billing.create_treatment = AsyncMock(return_value=mock_treatment)
+
+            await treatment_service.create_treatment(sample_treatment_data)
+
+            # AuditLog entry must be added to session BEFORE commit() is called
+            commit_idx = next(i for i, call in enumerate(mock_db.method_calls) if call[0] == "commit")
+            audit_add_indices = [
+                i for i, call in enumerate(mock_db.method_calls)
+                if call[0] == "add" and isinstance(call.args[0], models.AuditLog)
+            ]
+            assert audit_add_indices, "AuditLog was not added to db session"
+            assert audit_add_indices[0] < commit_idx, f"AuditLog was added at step {audit_add_indices[0]} AFTER commit at step {commit_idx}"
+
     async def test_create_treatment_deferred_commit(
         self, treatment_service, sample_treatment_data, mock_db
     ):

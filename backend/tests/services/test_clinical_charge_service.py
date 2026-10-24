@@ -83,7 +83,15 @@ async def seed_data(async_db_session):
         role="receptionist",
         is_active=True,
     )
-    async_db_session.add_all([doctor_1, receptionist_1, doctor_2, receptionist_2])
+    admin_1 = models.User(
+        tenant_id=tenant_1.id,
+        username="admin_alpha",
+        email="admin1@alpha.com",
+        hashed_password="hashed-pass-admin",
+        role="admin",
+        is_active=True,
+    )
+    async_db_session.add_all([doctor_1, receptionist_1, doctor_2, receptionist_2, admin_1])
     await async_db_session.flush()
 
     patient_1 = models.Patient(
@@ -135,6 +143,7 @@ async def seed_data(async_db_session):
         "receptionist_1": receptionist_1,
         "doctor_2": doctor_2,
         "receptionist_2": receptionist_2,
+        "admin_1": admin_1,
         "patient_1": patient_1,
         "patient_2": patient_2,
         "proc_composite": proc_composite,
@@ -449,11 +458,12 @@ async def test_charge_failure_never_blocks_completion(async_db_session, seed_dat
 
 @pytest.mark.asyncio
 async def test_reception_invoice_and_void_state_machine(async_db_session, seed_data, async_client):
-    """D5: Reception moves pending -> invoiced and pending -> voided. Other transitions 409."""
+    """D5/D3: Reception invoices; Admin/manager voids. Other transitions 409."""
     t1 = seed_data["tenant_1"].id
     p1 = seed_data["patient_1"].id
     doc_hdrs = make_headers(seed_data["doctor_1"])
     recep_hdrs = make_headers(seed_data["receptionist_1"])
+    admin_hdrs = make_headers(seed_data["admin_1"])
 
     await set_feature_flag(async_db_session, t1, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, True)
 
@@ -495,15 +505,15 @@ async def test_reception_invoice_and_void_state_machine(async_db_session, seed_d
 
     void_inv = await async_client.post(
         f"/api/v1/clinical-charges/{ch1.id}/void",
-        headers=recep_hdrs,
+        headers=admin_hdrs,
     )
     assert void_inv.status_code == 409
 
-    # 3. Void charge 2
+    # 3. Void charge 2 (requires PAYMENT_VOID, e.g. admin)
     void_res = await async_client.post(
         f"/api/v1/clinical-charges/{ch2.id}/void",
-        json={"expected_version_id": 1, "notes": "Voided by front desk"},
-        headers=recep_hdrs,
+        json={"expected_version_id": 1, "notes": "Voided by manager/admin"},
+        headers=admin_hdrs,
     )
     assert void_res.status_code == 200
     assert void_res.json()["data"]["status"] == CLINICAL_CHARGE_STATUS_VOIDED
@@ -551,6 +561,7 @@ async def test_endpoints_fail_closed_when_flags_off(async_db_session, seed_data,
     t1 = seed_data["tenant_1"].id
     p1 = seed_data["patient_1"].id
     recep_hdrs = make_headers(seed_data["receptionist_1"])
+    admin_hdrs = make_headers(seed_data["admin_1"])
 
     # Ensure flags are OFF
     await set_feature_flag(async_db_session, t1, FEATURE_FLAG_CLINICAL_FINANCE_READ, False)
@@ -573,7 +584,7 @@ async def test_endpoints_fail_closed_when_flags_off(async_db_session, seed_data,
     # 3. POST /clinical-charges/{id}/void -> 404
     void_res = await async_client.post(
         "/api/v1/clinical-charges/1/void",
-        headers=recep_hdrs,
+        headers=admin_hdrs,
     )
     assert void_res.status_code == 404
 
@@ -835,3 +846,234 @@ async def test_finance_invariance(async_db_session, seed_data, async_client):
         headers=recep_hdrs,
     )
     assert res_inv_after.json()["data"] == inv_data_before["data"]
+
+
+@pytest.mark.asyncio
+async def test_correct_work_item_voids_pending_charge_and_preserves_invoiced(
+    async_db_session, seed_data, async_client
+):
+    """F-05 / D2: Correcting a work item automatically voids its pending clinical charge.
+    Invoiced charges are left untouched.
+    """
+    t1 = seed_data["tenant_1"].id
+    p1 = seed_data["patient_1"].id
+    doc_hdrs = make_headers(seed_data["doctor_1"])
+
+    await set_feature_flag(async_db_session, t1, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, True)
+
+    # 1. Create completed procedure -> pending charge created
+    res1 = await async_client.post(
+        f"/api/v1/patients/{p1}/clinical-procedures",
+        json={"code": "REST_COMPOSITE", "status": "completed", "targets": [{"target_kind": "tooth", "tooth_key": "14"}]},
+        headers=doc_hdrs,
+    )
+    assert res1.status_code == 201
+    wi_1 = res1.json()["data"]["id"]
+
+    stmt1 = select(ClinicalCharge).where(ClinicalCharge.work_item_id == wi_1)
+    ch1 = (await async_db_session.execute(stmt1)).scalars().first()
+    assert ch1 is not None
+    assert ch1.status == CLINICAL_CHARGE_STATUS_PENDING
+
+    # Correct work item via entered_in_error
+    cor_res = await async_client.post(
+        f"/api/v1/patients/{p1}/clinical-work-items/{wi_1}/correct",
+        json={"mode": "entered_in_error", "reason": "Wrong tooth selected"},
+        headers=doc_hdrs,
+    )
+    assert cor_res.status_code == 200
+
+    # Charge must be voided in DB
+    await async_db_session.refresh(ch1)
+    assert ch1.status == CLINICAL_CHARGE_STATUS_VOIDED
+
+    # 2. Test invoiced charge is NOT modified on correction
+    res2 = await async_client.post(
+        f"/api/v1/patients/{p1}/clinical-procedures",
+        json={"code": "REST_COMPOSITE", "status": "completed", "targets": [{"target_kind": "tooth", "tooth_key": "15"}]},
+        headers=doc_hdrs,
+    )
+    wi_2 = res2.json()["data"]["id"]
+    stmt2 = select(ClinicalCharge).where(ClinicalCharge.work_item_id == wi_2)
+    ch2 = (await async_db_session.execute(stmt2)).scalars().first()
+    ch2.status = CLINICAL_CHARGE_STATUS_INVOICED
+    await async_db_session.commit()
+
+    # Correct wi_2 via entered_in_error
+    cor_res2 = await async_client.post(
+        f"/api/v1/patients/{p1}/clinical-work-items/{wi_2}/correct",
+        json={"mode": "entered_in_error", "reason": "Patient decided against it"},
+        headers=doc_hdrs,
+    )
+    assert cor_res2.status_code == 200
+
+    # Invoiced charge must remain invoiced
+    await async_db_session.refresh(ch2)
+    assert ch2.status == CLINICAL_CHARGE_STATUS_INVOICED
+
+
+@pytest.mark.asyncio
+async def test_mark_charge_invoiced_rejects_corrected_work_item(
+    async_db_session, seed_data, async_client
+):
+    """F-05: Invoicing a charge whose work item is entered_in_error or superseded returns 409."""
+    t1 = seed_data["tenant_1"].id
+    p1 = seed_data["patient_1"].id
+    doc_hdrs = make_headers(seed_data["doctor_1"])
+    recep_hdrs = make_headers(seed_data["receptionist_1"])
+
+    await set_feature_flag(async_db_session, t1, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, True)
+
+    # 1. Work item entered_in_error
+    res1 = await async_client.post(
+        f"/api/v1/patients/{p1}/clinical-procedures",
+        json={"code": "REST_COMPOSITE", "status": "completed", "targets": [{"target_kind": "tooth", "tooth_key": "24"}]},
+        headers=doc_hdrs,
+    )
+    wi_1 = res1.json()["data"]["id"]
+    stmt1 = select(ClinicalCharge).where(ClinicalCharge.work_item_id == wi_1)
+    ch1 = (await async_db_session.execute(stmt1)).scalars().first()
+
+    # Directly mark work item entered_in_error while keeping charge pending for testing gate
+    wi_obj = await async_db_session.get(models.ClinicalWorkItem, wi_1)
+    wi_obj.status = "entered_in_error"
+    ch1.status = CLINICAL_CHARGE_STATUS_PENDING
+    await async_db_session.commit()
+
+    inv_res = await async_client.post(
+        f"/api/v1/clinical-charges/{ch1.id}/invoice",
+        headers=recep_hdrs,
+    )
+    assert inv_res.status_code == 409
+    assert "corrected" in inv_res.json()["detail"].lower() or "entered_in_error" in inv_res.json()["detail"].lower()
+
+    # 2. Work item superseded
+    wi_obj.status = "superseded"
+    await async_db_session.commit()
+
+    inv_res2 = await async_client.post(
+        f"/api/v1/clinical-charges/{ch1.id}/invoice",
+        headers=recep_hdrs,
+    )
+    assert inv_res2.status_code == 409
+    assert "corrected" in inv_res2.json()["detail"].lower() or "superseded" in inv_res2.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_void_charge_rbac_and_audit(async_db_session, seed_data, async_client):
+    """F-10: Only PAYMENT_VOID holders (manager/accountant/admin) can void; receptionist gets 403; audit row persisted."""
+    t1 = seed_data["tenant_1"].id
+    p1 = seed_data["patient_1"].id
+    doc_hdrs = make_headers(seed_data["doctor_1"])
+    recep_hdrs = make_headers(seed_data["receptionist_1"])
+
+    # Create manager and accountant users
+    manager_user = models.User(
+        tenant_id=t1,
+        username="mgr_alpha_f10",
+        email="mgr_f10@alpha.com",
+        hashed_password="hashed-pass-mgr",
+        role="manager",
+        is_active=True,
+    )
+    accountant_user = models.User(
+        tenant_id=t1,
+        username="acct_alpha_f10",
+        email="acct_f10@alpha.com",
+        hashed_password="hashed-pass-acct",
+        role="accountant",
+        is_active=True,
+    )
+    async_db_session.add_all([manager_user, accountant_user])
+    await async_db_session.commit()
+
+    mgr_hdrs = make_headers(manager_user)
+    acct_hdrs = make_headers(accountant_user)
+
+    await set_feature_flag(async_db_session, t1, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, True)
+
+    # Create completed procedure with pending charge
+    res = await async_client.post(
+        f"/api/v1/patients/{p1}/clinical-procedures",
+        json={"code": "REST_COMPOSITE", "status": "completed", "targets": [{"target_kind": "tooth", "tooth_key": "15"}]},
+        headers=doc_hdrs,
+    )
+    wi_id = res.json()["data"]["id"]
+    stmt = select(ClinicalCharge).where(ClinicalCharge.work_item_id == wi_id)
+    ch = (await async_db_session.execute(stmt)).scalars().first()
+
+    # 1. Receptionist void attempt -> MUST BE 403
+    recep_void = await async_client.post(
+        f"/api/v1/clinical-charges/{ch.id}/void",
+        headers=recep_hdrs,
+    )
+    assert recep_void.status_code == 403, f"Expected 403 for receptionist void, got {recep_void.status_code}"
+
+    # 2. Manager void attempt -> 200
+    mgr_void = await async_client.post(
+        f"/api/v1/clinical-charges/{ch.id}/void",
+        headers=mgr_hdrs,
+    )
+    assert mgr_void.status_code == 200
+
+    # 3. Accountant void attempt on second charge -> 200
+    res2 = await async_client.post(
+        f"/api/v1/patients/{p1}/clinical-procedures",
+        json={"code": "REST_COMPOSITE", "status": "completed", "targets": [{"target_kind": "tooth", "tooth_key": "14"}]},
+        headers=doc_hdrs,
+    )
+    wi2_id = res2.json()["data"]["id"]
+    stmt2 = select(ClinicalCharge).where(ClinicalCharge.work_item_id == wi2_id)
+    ch2 = (await async_db_session.execute(stmt2)).scalars().first()
+
+    acct_void = await async_client.post(
+        f"/api/v1/clinical-charges/{ch2.id}/void",
+        headers=acct_hdrs,
+    )
+    assert acct_void.status_code == 200
+
+    # 4. Audit row must be persisted in database
+    audit_stmt = select(models.AuditLog).where(
+        models.AuditLog.tenant_id == t1,
+        models.AuditLog.entity_type == "clinical_charge",
+        models.AuditLog.entity_id == ch.id,
+        models.AuditLog.action == "void",
+    )
+    audit_entry = (await async_db_session.execute(audit_stmt)).scalars().first()
+    assert audit_entry is not None, "AuditLog entry for void action was not committed"
+    assert audit_entry.performed_by_username == manager_user.username
+
+
+@pytest.mark.asyncio
+async def test_invoice_charge_audit_persisted(async_db_session, seed_data, async_client):
+    """F-10: Invoicing a charge persists an AuditLog entry."""
+    t1 = seed_data["tenant_1"].id
+    p1 = seed_data["patient_1"].id
+    doc_hdrs = make_headers(seed_data["doctor_1"])
+    recep_hdrs = make_headers(seed_data["receptionist_1"])
+
+    await set_feature_flag(async_db_session, t1, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, True)
+
+    res = await async_client.post(
+        f"/api/v1/patients/{p1}/clinical-procedures",
+        json={"code": "REST_COMPOSITE", "status": "completed", "targets": [{"target_kind": "tooth", "tooth_key": "16"}]},
+        headers=doc_hdrs,
+    )
+    wi_id = res.json()["data"]["id"]
+    stmt = select(ClinicalCharge).where(ClinicalCharge.work_item_id == wi_id)
+    ch = (await async_db_session.execute(stmt)).scalars().first()
+
+    inv_res = await async_client.post(
+        f"/api/v1/clinical-charges/{ch.id}/invoice",
+        headers=recep_hdrs,
+    )
+    assert inv_res.status_code == 200
+
+    audit_stmt = select(models.AuditLog).where(
+        models.AuditLog.tenant_id == t1,
+        models.AuditLog.entity_type == "clinical_charge",
+        models.AuditLog.entity_id == ch.id,
+        models.AuditLog.action == "invoice",
+    )
+    audit_entry = (await async_db_session.execute(audit_stmt)).scalars().first()
+    assert audit_entry is not None, "AuditLog entry for invoice action was not committed"

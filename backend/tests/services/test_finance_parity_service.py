@@ -505,3 +505,70 @@ async def test_rbac_super_admin_required(client, parity_seed_data, auth_headers,
     # Anonymous -> 401/403
     res_anon = client.get("/api/v1/admin/finance-parity/1")
     assert res_anon.status_code in (401, 403)
+
+
+@pytest.mark.asyncio
+async def test_parity_does_not_double_count_superseded_work_item(
+    async_db_session, parity_seed_data, client, super_admin_headers
+):
+    """F-05: Superseded and entered_in_error work items must not be counted in shadow charges."""
+    db = async_db_session
+
+    patient = models.Patient(
+        id=50,
+        tenant_id=1,
+        name="Parity Correction Patient",
+        age=30,
+        phone="01099999950",
+        medical_history="None",
+        notes="",
+    )
+    db.add(patient)
+    await db.flush()
+
+    # Original work item that was superseded
+    wi_orig = models.ClinicalWorkItem(
+        tenant_id=1,
+        patient_id=patient.id,
+        kind="procedure",
+        code="REST_COMPOSITE",
+        status="superseded",
+        created_by_user_id=10,
+    )
+    # Replacement work item
+    wi_repl = models.ClinicalWorkItem(
+        tenant_id=1,
+        patient_id=patient.id,
+        kind="procedure",
+        code="REST_AMALGAM",
+        status="completed",
+        created_by_user_id=10,
+    )
+    db.add_all([wi_orig, wi_repl])
+    await db.flush()
+
+    # Both have active clinical charges of 100 each
+    ch_orig = models.ClinicalCharge(
+        tenant_id=1,
+        patient_id=patient.id,
+        work_item_id=wi_orig.id,
+        amount=Decimal("100.00"),
+        discount=Decimal("0.00"),
+        status="pending",
+    )
+    ch_repl = models.ClinicalCharge(
+        tenant_id=1,
+        patient_id=patient.id,
+        work_item_id=wi_repl.id,
+        amount=Decimal("100.00"),
+        discount=Decimal("0.00"),
+        status="pending",
+    )
+    db.add_all([ch_orig, ch_repl])
+    await db.commit()
+
+    service = FinanceParityService(db)
+    result = await service.compute_patient_parity(tenant_id=1, patient_id=patient.id)
+
+    # Shadow charges must only count the active replacement item (100.00), NOT both (200.00)
+    assert result.shadow_charges == Decimal("100.00")

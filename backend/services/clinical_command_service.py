@@ -43,7 +43,12 @@ from backend.clinical.catalog import (
     validate_treatment_status,
 )
 from backend.core.permissions import Permission, has_permission
-from backend.models.clinical_core import FDI_TOOTH_KEYS
+from backend.models.clinical_core import (
+    CLINICAL_CHARGE_STATUS_PENDING,
+    CLINICAL_CHARGE_STATUS_VOIDED,
+    FDI_TOOTH_KEYS,
+)
+from backend.utils.audit_logger import log_admin_action
 from backend.schemas.clinical_commands import validate_target_shape
 from backend.services.clinical_workspace_service import (
     FEATURE_FLAG_CLINICAL_NATIVE_WRITES,
@@ -1163,6 +1168,32 @@ class ClinicalCommandService:
             self.db.add(correction_event)
         else:
             raise HTTPException(status_code=422, detail=f"Invalid correction mode: '{payload.mode}'")
+
+        # F-05 (D2): Correcting a completed procedure automatically voids that work item's pending clinical charge.
+        # Invoiced charges are left untouched.
+        charge_stmt = select(models.ClinicalCharge).where(
+            models.ClinicalCharge.tenant_id == self.tenant_id,
+            models.ClinicalCharge.work_item_id == work_item.id,
+            models.ClinicalCharge.status == CLINICAL_CHARGE_STATUS_PENDING,
+        )
+        charge_res = await self.db.execute(charge_stmt)
+        for pending_charge in charge_res.scalars().all():
+            old_version = pending_charge.version_id
+            pending_charge.status = CLINICAL_CHARGE_STATUS_VOIDED
+            pending_charge.notes = (
+                f"{pending_charge.notes or ''}; Auto-voided due to work item correction ({payload.mode})"
+            ).strip("; ")
+            log_admin_action(
+                db=self.db,
+                admin_user=self.current_user,
+                action="void",
+                entity_type="clinical_charge",
+                entity_id=pending_charge.id,
+                tenant_id=self.tenant_id,
+                details=f"Clinical charge {pending_charge.id} automatically voided due to work item {work_item.id} correction ({payload.mode})",
+                old_value={"status": CLINICAL_CHARGE_STATUS_PENDING, "version_id": old_version},
+                new_value={"status": CLINICAL_CHARGE_STATUS_VOIDED, "version_id": pending_charge.version_id},
+            )
 
         try:
             await self.db.commit()

@@ -389,22 +389,20 @@ class ClinicalChargeService:
                 detail=f"Cannot transition charge from '{charge.status}' to '{CLINICAL_CHARGE_STATUS_INVOICED}'",
             )
 
+        # F-05: Reject invoicing charges for corrected work items
+        work_item = await self.db.get(models.ClinicalWorkItem, charge.work_item_id)
+        if work_item and work_item.status in ("entered_in_error", "superseded", "entered-in-error"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot invoice charge for corrected work item (status: '{work_item.status}')",
+            )
+
         old_version = charge.version_id
         charge.status = CLINICAL_CHARGE_STATUS_INVOICED
         if notes:
             charge.notes = f"{charge.notes}\n{notes}" if charge.notes else notes
 
-        try:
-            await self.db.commit()
-            await self.db.refresh(charge)
-        except StaleDataError as exc:
-            await self.db.rollback()
-            raise HTTPException(
-                status_code=409,
-                detail="Concurrent modification detected on clinical charge",
-            ) from exc
-
-        # Audit with log_admin_action
+        # Audit with log_admin_action (before commit as it only calls db.add)
         log_admin_action(
             db=self.db,
             admin_user=self.current_user,
@@ -416,6 +414,17 @@ class ClinicalChargeService:
             old_value={"status": CLINICAL_CHARGE_STATUS_PENDING, "version_id": old_version},
             new_value={"status": CLINICAL_CHARGE_STATUS_INVOICED, "version_id": charge.version_id},
         )
+
+        try:
+            await self.db.commit()
+            await self.db.refresh(charge)
+        except StaleDataError as exc:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Concurrent modification detected on clinical charge",
+            ) from exc
+
         return charge
 
     async def mark_charge_voided(
@@ -458,17 +467,7 @@ class ClinicalChargeService:
         if notes:
             charge.notes = f"{charge.notes}\n{notes}" if charge.notes else notes
 
-        try:
-            await self.db.commit()
-            await self.db.refresh(charge)
-        except StaleDataError as exc:
-            await self.db.rollback()
-            raise HTTPException(
-                status_code=409,
-                detail="Concurrent modification detected on clinical charge",
-            ) from exc
-
-        # Audit with log_admin_action
+        # Audit with log_admin_action (before commit as it only calls db.add)
         log_admin_action(
             db=self.db,
             admin_user=self.current_user,
@@ -480,4 +479,15 @@ class ClinicalChargeService:
             old_value={"status": CLINICAL_CHARGE_STATUS_PENDING, "version_id": old_version},
             new_value={"status": CLINICAL_CHARGE_STATUS_VOIDED, "version_id": charge.version_id},
         )
+
+        try:
+            await self.db.commit()
+            await self.db.refresh(charge)
+        except StaleDataError as exc:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Concurrent modification detected on clinical charge",
+            ) from exc
+
         return charge

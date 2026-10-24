@@ -794,6 +794,16 @@ class TreatmentService:
             doctor_id=doctor_id
         )
 
+        # 6.6. Log admin action (must be before commit so AuditLog row is committed)
+        log_admin_action(
+            db=self.db,
+            admin_user=self.current_user,
+            action="create",
+            entity_type="treatment",
+            entity_id=created_treatment.id,
+            details=f"Treatment '{treatment_data.procedure}' for patient {treatment_data.patient_id}",
+        )
+
         # 7. Commit transaction
         if commit:
             await self.db.commit()
@@ -816,16 +826,6 @@ class TreatmentService:
             created_treatment.surface = surface
         if surfaces:
             created_treatment.surfaces = surfaces
-
-        # 8. Log admin action
-        log_admin_action(
-            db=self.db,
-            admin_user=self.current_user,
-            action="create",
-            entity_type="treatment",
-            entity_id=created_treatment.id,
-            details=f"Treatment '{treatment_data.procedure}' for patient {treatment_data.patient_id}",
-        )
 
         return created_treatment
 

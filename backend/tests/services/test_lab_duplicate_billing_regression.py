@@ -20,8 +20,10 @@ from backend.clinical.shade_material_sync import (
     sync_observation_to_open_lab_orders,
     sync_lab_order_to_active_care_session_observations,
 )
+from fastapi import HTTPException
 from backend.routers.laboratories import (
     create_clinical_lab_handoff,
+    create_lab_order,
     update_lab_order,
 )
 from backend.services.care_session_service import CareSessionService
@@ -550,3 +552,102 @@ async def test_g12_workspace_snapshot_includes_lab_state(async_db_session):
     assert wi_summary.lab_ready is True
     assert wi_summary.shade == "A2"
     assert wi_summary.material == "Zirconia"
+
+
+# ===========================================================================
+# F-04: Reject work_item_id on create/update when native writes is OFF (404)
+# ===========================================================================
+
+@pytest.mark.asyncio
+async def test_f04_create_lab_order_with_work_item_id_flag_gated(async_db_session):
+    """F-04: create_lab_order rejects work_item_id with 404 when native writes is OFF; accepts when ON."""
+    db = async_db_session
+    tenant, doctor, patient, lab = await _seed_lab_context(db)
+
+    wi = models.ClinicalWorkItem(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        kind="procedure",
+        code="PROS_CROWN",
+        status="active",
+        created_by_user_id=doctor.id,
+    )
+    db.add(wi)
+    await db.commit()
+
+    # 1. Flag OFF -> must reject with 404
+    await FeatureFlagService.set_tenant_override(db, tenant.id, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, False)
+
+    order_payload = schemas.LabOrderCreate(
+        patient_id=patient.id,
+        laboratory_id=lab.id,
+        work_type="Crown",
+        tooth_number="11",
+        work_item_id=wi.id,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await create_lab_order(order=order_payload, db=db, current_user=doctor)
+
+    assert exc_info.value.status_code == 404
+    assert "disabled" in exc_info.value.detail.lower() or "clinical native writes" in exc_info.value.detail.lower()
+
+    # 2. Flag ON -> must accept and link work_item_id
+    await FeatureFlagService.set_tenant_override(db, tenant.id, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, True)
+
+    resp = await create_lab_order(order=order_payload, db=db, current_user=doctor)
+    assert resp["success"] is True
+    created_order = resp["data"]
+    assert created_order["work_item_id"] == wi.id
+
+
+@pytest.mark.asyncio
+async def test_f04_update_lab_order_with_work_item_id_flag_gated(async_db_session):
+    """F-04: update_lab_order rejects work_item_id with 404 when native writes is OFF; accepts when ON."""
+    db = async_db_session
+    tenant, doctor, patient, lab = await _seed_lab_context(db)
+
+    wi = models.ClinicalWorkItem(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        kind="procedure",
+        code="PROS_BRIDGE",
+        status="active",
+        created_by_user_id=doctor.id,
+    )
+    db.add(wi)
+    await db.flush()
+
+    existing_order = models.LabOrder(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        doctor_id=doctor.id,
+        laboratory_id=lab.id,
+        work_type="Bridge",
+        tooth_number="12",
+        status="pending",
+    )
+    db.add(existing_order)
+    await db.commit()
+
+    # 1. Flag OFF -> must reject update carrying work_item_id with 404
+    await FeatureFlagService.set_tenant_override(db, tenant.id, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, False)
+
+    update_payload = schemas.LabOrderUpdate(
+        work_item_id=wi.id,
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await update_lab_order(order_id=existing_order.id, order_update=update_payload, db=db, current_user=doctor)
+
+    assert exc_info.value.status_code == 404
+    assert "disabled" in exc_info.value.detail.lower() or "clinical native writes" in exc_info.value.detail.lower()
+
+    # 2. Flag ON -> must accept update carrying work_item_id
+    await FeatureFlagService.set_tenant_override(db, tenant.id, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, True)
+
+    resp = await update_lab_order(order_id=existing_order.id, order_update=update_payload, db=db, current_user=doctor)
+    assert resp["success"] is True
+    updated_order = resp["data"]
+    assert updated_order["work_item_id"] == wi.id
+
