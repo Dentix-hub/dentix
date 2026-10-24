@@ -127,8 +127,19 @@ export function useNextVisitRequests(filters = {}, options = {}) {
     return useQuery({
         queryKey: queryKeys.nextVisitRequests(filters),
         queryFn: async () => {
-            const res = await getReceptionNextVisitRequests(filters);
-            return res.data;
+            try {
+                const res = await getReceptionNextVisitRequests(filters);
+                return res.data;
+            } catch (err) {
+                if (err?.response?.status === 404) {
+                    return [];
+                }
+                throw err;
+            }
+        },
+        retry: (failureCount, error) => {
+            if (error?.response?.status === 404) return false;
+            return failureCount < 1;
         },
         staleTime: 15 * 1000,
         ...options
