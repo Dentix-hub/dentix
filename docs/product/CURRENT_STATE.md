@@ -4,7 +4,10 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 
 - Plan: Odontogram & Clinical VNext (docs/product/ODONTOGRAM_EXECUTION_QUEUE.md)
 - Baseline: staging @ 1907061 (PR #291).
-- Current task: R1 Polish (post PR #291) on branch fix/r1-polish.
+- Current task: R1 Polish follow-up (PR #292 on fix/r1-polish; Part B cd.yml hotfix pending on main).
+- P1 status: PARTIAL (resolver ready; build-info stamping pending Part B merge on main).
+- Decisions: D1 (endo/Fractured aliases mapped), D3 (dashboard cache task isolated session), D4 (plain Arabic clinical warnings & collapsed technical codes).
+- Polish fixes: A6 (restore FK order & error sanitization), A7 (material stock eager loading & UI state), A8 (reception queue graceful fallback), A9 (SW precache deduplication & cache v2).
 - Last merged PR: #291
 - Current brief: R1 Polish (P1-P6: build-info, banner D1, backup RFC 5987, full i18n D2, review findings N1-N4, condition suggestions proposal).
 - Open decisions (Eslam): none recorded

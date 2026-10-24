@@ -314,6 +314,8 @@ _RAW_PROCEDURE_ALLOWLIST: dict[str, str] = {
     "Surgical Extraction": ProcedureCode.SURG_EXTRACTION.value,
     "Extraction": ProcedureCode.SURG_EXTRACTION.value,
     "Denture": ProcedureCode.PROS_DENTURE.value,
+    # Legacy aliases (D1)
+    "endo": ProcedureCode.ENDO_RCT.value,
     # Standard Seed procedures (exact literals from seed_procedures.py)
     "حشو كومبوزيت -- Composite Filling Class I": ProcedureCode.REST_COMPOSITE.value,
     "حشو كومبوزيت -- Composite Filling Class II": ProcedureCode.REST_COMPOSITE.value,
@@ -529,6 +531,7 @@ _TOOTH_STATUS_FINDING_MAP: dict[str, str] = {
     "Decayed": FindingCode.CARIES.value,
     "FRACTURE": FindingCode.FRACTURE.value,
     "Fracture": FindingCode.FRACTURE.value,
+    "Fractured": FindingCode.FRACTURE.value,
     "PAIN": FindingCode.PAIN.value,
     "Pain": FindingCode.PAIN.value,
 }

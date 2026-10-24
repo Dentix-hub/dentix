@@ -10,6 +10,7 @@ import {
     cancelNextVisitRequest
 } from '@/api';
 import { queryKeys } from '@/lib/queryClient';
+import { useTenantFeatures } from '@/hooks/usePatientDetails';
 
 /**
  * Hook for fetching appointments with caching
@@ -124,12 +125,16 @@ export function usePrefetchAppointments() {
  * Hook for fetching next-visit requests queue (G11-M04)
  */
 export function useNextVisitRequests(filters = {}, options = {}) {
+    const { data: tenantFeatures = [] } = useTenantFeatures();
+    const isNativeWritesEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_vnext_native_writes');
+
     return useQuery({
         queryKey: queryKeys.nextVisitRequests(filters),
         queryFn: async () => {
             const res = await getReceptionNextVisitRequests(filters);
             return res.data;
         },
+        enabled: isNativeWritesEnabled && (options.enabled !== false),
         staleTime: 15 * 1000,
         ...options
     });

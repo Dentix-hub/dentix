@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import i18n from './i18n';
-import { extractI18nKeys } from '../scripts/extract-i18n-keys.mjs';
+import { extractI18nKeys, flattenTranslations } from '../scripts/extract-i18n-keys.mjs';
+import arTranslations from './locales/ar/translation.json';
+import enTranslations from './locales/en/translation.json';
+import allowlist from './locales/i18n-allowlist.json';
+// Baseline exemptions for pre-existing keys in staging (1907061). This list MAY ONLY SHRINK over time, never grow.
+import baselineExemptions from './locales/i18n-exemptions-baseline.json';
 
 const expectedResources = {
     ar: {
@@ -60,5 +65,34 @@ describe('i18n resource integrity', () => {
         expect(report.enMissingInAr, 'Keys in EN translation missing in AR').toEqual([]);
         expect(report.arMissingInEn, 'Keys in AR translation missing in EN').toEqual([]);
         expect(report.arTotalKeys).toBe(report.enTotalKeys);
+    });
+
+    it('enforces that every ar value contains Arabic letters unless allowlisted or in baseline exemptions', () => {
+        const flatAr = flattenTranslations(arTranslations);
+        const hasArabic = /[\u0600-\u06FF]/;
+        const permitted = new Set([...allowlist, ...baselineExemptions]);
+
+        const violations = [];
+        for (const [key, value] of Object.entries(flatAr)) {
+            if (!permitted.has(key) && !hasArabic.test(String(value))) {
+                violations.push({ key, value });
+            }
+        }
+        expect(violations, 'AR translation values without Arabic letters must be translated or allowlisted').toEqual([]);
+    });
+
+    it('enforces that ar values equal to en values are explicitly allowlisted', () => {
+        const flatAr = flattenTranslations(arTranslations);
+        const flatEn = flattenTranslations(enTranslations);
+        const permitted = new Set([...allowlist, ...baselineExemptions]);
+
+        const identical = [];
+        for (const [key, arVal] of Object.entries(flatAr)) {
+            const enVal = flatEn[key];
+            if (!permitted.has(key) && typeof arVal === 'string' && arVal.trim() !== '' && arVal.trim() === String(enVal).trim()) {
+                identical.push({ key, arVal, enVal });
+            }
+        }
+        expect(identical, 'AR values identical to EN values must be translated or allowlisted').toEqual([]);
     });
 });

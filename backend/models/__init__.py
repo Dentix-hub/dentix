@@ -58,6 +58,7 @@ from .inventory import (
     StockItem,
     MaterialSession,
     StockMovement,
+    MaterialLearningLog,
     ProcedureMaterialWeight,
     TreatmentMaterialUsage,
 )

@@ -10,6 +10,20 @@ from .patient import get_patient
 
 logger = logging.getLogger(__name__)
 
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
+
+
+def schedule_dashboard_precompute(tenant_id: int) -> asyncio.Task | None:
+    """Schedule background dashboard cache precomputation with strong task reference."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+    task = loop.create_task(precompute_dashboard_cache(tenant_id=tenant_id))
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+    return task
+
 
 # --- Treatment CRUD ---
 async def create_treatment(
@@ -311,9 +325,7 @@ async def create_payment(
         )
         _ = db_payment.patient.name if db_payment.patient else None
     invalidate_dashboard_cache(tenant_id)
-    asyncio.create_task(
-        precompute_dashboard_cache(tenant_id=tenant_id, db=db)
-    )
+    schedule_dashboard_precompute(tenant_id)
     return db_payment
 
 
@@ -473,18 +485,27 @@ async def delete_expense(db: AsyncSession, expense_id: int, tenant_id: int):
 
 
 # --- Statistics ---
-async def precompute_dashboard_cache(tenant_id: int, db: AsyncSession) -> None:
+async def precompute_dashboard_cache(tenant_id: int) -> None:
     """
     Silently precompute dashboard stats into cache after invalidation.
-    Called as a background task so the next real request hits the cache.
+    Opens its own isolated database session with tenant context.
     """
-    import os
-    if os.getenv("ENVIRONMENT") in ("testing", "test", "ci"):
-        return
+    from backend.database import AsyncSessionLocal, RlsContext
+    from backend.core.tenancy import set_current_tenant_id, clear_tenant_context
+
+    token = set_current_tenant_id(tenant_id)
     try:
-        await get_dashboard_stats(db=db, tenant_id=tenant_id)
+        context = RlsContext(tenant_id=tenant_id)
+        async with AsyncSessionLocal(context=context) as session:
+            await get_dashboard_stats(db=session, tenant_id=tenant_id)
     except Exception:
-        pass  # silent — cache will rebuild on the next real request
+        logger.warning(
+            "Failed to precompute dashboard cache for tenant %s",
+            tenant_id,
+            exc_info=True,
+        )
+    finally:
+        clear_tenant_context(tenant_token=token)
 
 
 async def get_financial_stats(db: AsyncSession, tenant_id: int, doctor_id: int = None):

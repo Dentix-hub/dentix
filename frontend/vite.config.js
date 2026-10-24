@@ -22,13 +22,6 @@ export default defineConfig(({ mode }) => ({
             strategies: 'injectManifest',
             srcDir: 'src/pwa',
             filename: 'sw.js',
-            includeAssets: [
-                'icons/icon-192.png',
-                'icons/icon-512.png',
-                'icons/icon-192-maskable.png',
-                'icons/icon-512-maskable.png',
-                'icons/apple-touch-icon-180.png',
-            ],
             manifest: {
                 // Stable application identity bound to the canonical origin.
                 // Installed PWAs, cookie stores, push subscriptions and future
