@@ -137,3 +137,61 @@ async def test_upload_backup_sanitizes_db_errors_in_response(async_db_session, m
     assert "material_learning_logs" not in detail
     assert "foreign key" not in detail.lower()
     assert "تعذرت استعادة النسخة الاحتياطية" in detail
+
+
+@pytest.mark.asyncio
+async def test_failed_restore_leaves_existing_data_unchanged(async_db_session, monkeypatch):
+    """
+    Verify that if a restore fails midway (e.g. during import_tenant_data after deletion),
+    the session is cleanly rolled back and all existing tenant data remains intact.
+    """
+    from datetime import date
+    import json
+    from backend.services import import_service
+
+    tenant = models.Tenant(name="Rollback Test Clinic", subscription_status="active", is_active=True)
+    async_db_session.add(tenant)
+    await async_db_session.flush()
+
+    patient = models.Patient(
+        name="Pre-existing Patient",
+        phone="01099999999",
+        age=30,
+        medical_history="None",
+        notes="Important notes",
+        tenant_id=tenant.id,
+    )
+    async_db_session.add(patient)
+    await async_db_session.commit()
+
+    # Verify patient exists
+    check_stmt = select(models.Patient).where(models.Patient.tenant_id == tenant.id)
+    pts_before = (await async_db_session.execute(check_stmt)).scalars().all()
+    assert len(pts_before) == 1
+    assert pts_before[0].name == "Pre-existing Patient"
+
+    # Mock import_tenant_data to simulate a failure halfway through restore
+    async def mock_import_fail(*args, **kwargs):
+        raise RuntimeError("Simulated corruption or DB failure during import")
+
+    monkeypatch.setattr(import_service, "import_tenant_data", mock_import_fail)
+
+    # Valid backup structure to pass initial validation
+    backup_payload = json.dumps({
+        "version": "1.0",
+        "tenant_id": tenant.id,
+        "exported_at": "2026-10-24T00:00:00Z",
+        "data": {
+            "patients": [{"name": "New Patient", "phone": "01011111111"}]
+        }
+    })
+
+    result = await restore_tenant_from_json(async_db_session, tenant.id, backup_payload)
+    assert result["success"] is False
+    assert result["error"] == "تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك."
+
+    # Verify existing patient was preserved by the transaction rollback
+    pts_after = (await async_db_session.execute(check_stmt)).scalars().all()
+    assert len(pts_after) == 1
+    assert pts_after[0].name == "Pre-existing Patient"
+

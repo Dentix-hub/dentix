@@ -1662,10 +1662,8 @@ class CareSessionService:
         """
         List next-visit requests for the reception triage queue (G11-M04).
         Scoped by tenant, ordered by preferred window or creation time.
-        When native writes are disabled, returns an empty queue.
         """
-        if not await self.is_native_writes_enabled():
-            return []
+        await self.ensure_native_writes_enabled()
 
         stmt = (
             select(models.NextVisitRequest)
