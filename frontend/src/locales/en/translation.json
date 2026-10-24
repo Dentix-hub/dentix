@@ -362,7 +362,8 @@
             "hepatitis_c": "Hepatitis C",
             "thyroid": "Thyroid",
             "pregnancy": "Pregnancy/Lactation",
-            "smoking": "Smoking"
+            "smoking": "Smoking",
+            "other": "Other"
         }
     },
     "patientDetails": {

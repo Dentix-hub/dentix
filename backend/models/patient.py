@@ -74,6 +74,12 @@ class Patient(Base):
         """Stable display identifier used by Finance V2 without adding a DB column."""
         return self.id
 
+    @property
+    def medical_alert(self) -> dict:
+        """Structured medical alert flags computed on-the-fly from free-text medical_history."""
+        from backend.utils.medical_alerts import derive_medical_alerts
+        return derive_medical_alerts(self.medical_history)
+
     appointments = relationship("Appointment", back_populates="patient", cascade="all, delete-orphan")
     treatments = relationship("Treatment", back_populates="patient", cascade="all, delete-orphan")
     tooth_statuses = relationship("ToothStatus", back_populates="patient", cascade="all, delete-orphan")

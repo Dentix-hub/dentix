@@ -1,9 +1,9 @@
 """Patient-related schemas."""
 
 from datetime import date, datetime
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class PatientBase(BaseModel):
@@ -70,13 +70,29 @@ class PatientUpdate(BaseModel):
     )
 
 
+class MedicalAlert(BaseModel):
+    has_alert: bool = False
+    kinds: list[str] = Field(default_factory=list)
+
+
 class Patient(PatientBase):
     id: int
     created_at: Optional[datetime] = None
     date_of_birth_precision: Optional[str] = None
     age_recorded_at: Optional[datetime] = None
+    medical_alert: MedicalAlert = Field(default_factory=MedicalAlert)
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _populate_alert(cls, data: Any) -> Any:
+        from backend.utils.medical_alerts import derive_medical_alerts
+        if isinstance(data, dict):
+            if "medical_alert" not in data or data["medical_alert"] is None:
+                history = data.get("medical_history")
+                data["medical_alert"] = derive_medical_alerts(history)
+        return data
 
 
 class PatientSummary(BaseModel):
@@ -89,8 +105,19 @@ class PatientSummary(BaseModel):
     date_of_birth: Optional[date] = None
     date_of_birth_precision: Optional[str] = None
     age_recorded_at: Optional[datetime] = None
+    medical_alert: MedicalAlert = Field(default_factory=MedicalAlert)
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _populate_alert(cls, data: Any) -> Any:
+        from backend.utils.medical_alerts import derive_medical_alerts
+        if isinstance(data, dict):
+            if "medical_alert" not in data or data["medical_alert"] is None:
+                history = data.get("medical_history")
+                data["medical_alert"] = derive_medical_alerts(history)
+        return data
 
 
 class PatientDirectoryItem(BaseModel):
@@ -105,6 +132,9 @@ class PatientDirectoryItem(BaseModel):
     date_of_birth_precision: Optional[str] = None
     age_recorded_at: Optional[datetime] = None
     created_at: Optional[datetime] = None
+    medical_alert: MedicalAlert = Field(default_factory=MedicalAlert)
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class AttachmentBase(BaseModel):

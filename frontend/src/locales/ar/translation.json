@@ -338,7 +338,8 @@
             "hepatitis_c": "فيروس سي",
             "thyroid": "غدة درقية",
             "pregnancy": "حمل",
-            "smoking": "تدخين"
+            "smoking": "تدخين",
+            "other": "أخرى"
         },
         "form": {
             "add_new": "إضافة مريض جديد",
