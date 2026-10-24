@@ -597,8 +597,8 @@ Next Slice: S08
   - `G8-M07`: Add direct surface interaction
 
 #### DECISIONS
-1. In `PatientDetails.jsx` (**Chart** tab), clicking a tooth or surface on `ClinicalChartRenderer` must **select** the tooth/surface inline and display a chairside selection bar + `ClinicalChartInspector` panel instead of immediately popping open the giant `TreatmentModal`!
-2. Provide a clear `"Record Treatment / تسجيل علاج"` action inside the selection bar / inspector that opens `TreatmentModal` pre-populated with the selected tooth and toggled surfaces (`M`, `D`, `O`, `I`, `B`, `L`, `P`), so existing legacy treatment entry continues to work seamlessly (`0` workflow regressions).
+1. In `PatientDetails.jsx` (**Chart** tab), clicking a tooth or surface on `ClinicalChartRenderer` must **select** the tooth/surface inline and display a chairside selection bar + `ClinicalChartInspector` panel instead of immediately popping open the giant `QuickTreatmentSheet`!
+2. Provide a clear `"Record Treatment / تسجيل علاج"` action inside the selection bar / inspector that opens `QuickTreatmentSheet` pre-populated with the selected tooth and toggled surfaces (`M`, `D`, `O`, `I`, `B`, `L`, `P`), so existing legacy treatment entry continues to work seamlessly (`0` workflow regressions).
 3. **Multi-Select (`G8-M06`):** Add a `"Multi-Select / تحديد متعدد"` toggle (and `Shift+Click` / `Ctrl+Click` support on desktop) allowing the doctor to select multiple teeth simultaneously (e.g., `[16, 17, 18]`), showing selected tooth badges and a `"Clear Selection"` button.
 4. **Direct Surface Interaction (`G8-M07`):** Clicking surfaces directly on the SVG crown or in the inline surface pill bar toggles multiple surfaces (`['M', 'O', 'D']`) on the active tooth selection state.
 5. Full Arabic RTL and English LTR i18n (`frontend/src/locales/ar/translation.json` and `frontend/src/locales/en/translation.json`) and keyboard/touch accessibility (`min-h-11` touch targets per design system guardrails).
@@ -607,7 +607,7 @@ Next Slice: S08
 - `frontend/src/pages/PatientDetails.jsx`: Add `selectedTeeth` (`string[]`), `selectedSurfacesByTooth` (`Record<string, string[]>`), and `isMultiSelectMode` (`boolean`) states; pass selection state to `adaptWorkspaceSnapshotToRenderer` / `ClinicalChartRenderer`; render inline chairside selection summary + surface toggles + `"Record Treatment"` trigger.
 - `frontend/src/features/clinical-chart/adapters/workspaceSnapshotAdapter.js` & `ClinicalChartRenderer.jsx`: Support highlighting multiple selected teeth (`selectedToothKeys`) and selected surfaces (`selectedSurfaces`) alongside single `selectedToothKey`.
 - `frontend/src/locales/ar/translation.json` & `frontend/src/locales/en/translation.json`: Add translation keys.
-- `frontend/src/features/clinical-chart/tests/ChartSelectionAndSurfaces.test.jsx` (new): Add unit/integration tests for single selection, multi-tooth selection, multi-surface toggling, and opening `TreatmentModal` from selection with pre-filled tooth & surfaces.
+- `frontend/src/features/clinical-chart/tests/ChartSelectionAndSurfaces.test.jsx` (new): Add unit/integration tests for single selection, multi-tooth selection, multi-surface toggling, and opening `QuickTreatmentSheet` from selection with pre-filled tooth & surfaces.
 - `docs/product/ODONTOGRAM_IMPLEMENTATION_STATUS.md`: Update `G8` row with `G8-M01`, `G8-M06`, `G8-M07` evidence.
 
 #### EXCLUDE
@@ -628,7 +628,7 @@ Next Slice: S08
 
 #### TESTS REQUIRED
 - Clicking Tooth `16` selects Tooth `16` visually (`aria-pressed` / `data-selected="true"`) and shows inline inspector with Tooth `16`.
-- Clicking surfaces `M` and `O` on Tooth `16` accumulates `['M', 'O']` in selection state; clicking `"Record Treatment"` opens `TreatmentModal` pre-populated with Tooth `16` and surfaces `['M', 'O']`.
+- Clicking surfaces `M` and `O` on Tooth `16` accumulates `['M', 'O']` in selection state; clicking `"Record Treatment"` opens `QuickTreatmentSheet` pre-populated with Tooth `16` and surfaces `['M', 'O']`.
 - Multi-select mode selects Teeth `14`, `15`, `16` together and clears cleanly.
 - RTL/LTR rendering and `check-design-system-guardrails.mjs` pass.
 
@@ -644,7 +644,7 @@ Next Slice: S08
 - **How to test on staging (<= 15 min):**
   1. Open any patient -> **Chart** tab.
   2. Click Tooth `16` -> confirm tooth highlights and inline selection bar appears with surface pills (`M, D, O, B, L`).
-  3. Toggle surfaces `M` and `O`, then click `"Record Treatment"` -> confirm `TreatmentModal` opens with Tooth `16` and `MO` selected.
+  3. Toggle surfaces `M` and `O`, then click `"Record Treatment"` -> confirm `QuickTreatmentSheet` opens with Tooth `16` and `MO` selected.
   4. Toggle `"Multi-Select"` -> click Teeth `16`, `17`, `18` -> confirm all 3 teeth highlight.
 
 #### STOP CONDITIONS
@@ -685,7 +685,7 @@ Next Slice: S09
      - When `allowed_target_kinds` contains `'tooth'` and does **not** contain `'surface'` (i.e. `ENDO_RCT`, `PROS_CROWN`, `PROS_BRIDGE`, `IMPLANT_FIXTURE`, `IMPLANT_CROWN`, `SURG_EXTRACTION`, `PROS_DENTURE`, `PAIN`), `target_kind` defaults to `'tooth'` (no surface required; applies in 1 click).
      - When `'surface'` is in `allowed_target_kinds` (`REST_COMPOSITE` where `allowed_target_kinds == ('surface',)` at `catalog.py:276`, or `CARIES`/`FRACTURE` where `allowed_target_kinds == ('tooth', 'surface')` at `catalog.py:379,385`), if the user already clicked surfaces on the tooth (`S08`), reuse those surfaces (`target_kind='surface'`); if no surface was clicked yet, open an inline 1-click surface pill popover pre-selecting `'O'` on posterior teeth (`4`–`8`) and `'I'` on anterior teeth (`1`–`3`) so `ck_cwit_shape` (`TARGET_SHAPE_CONSTRAINT` at `backend/models/clinical_core.py:77-84,172`) is always satisfied.
 5. **Safe Write Routing (Respecting Coexistence & Flags):**
-   - When `clinical_vnext_native_writes` is enabled in `useTenantFeatures()`, findings and native procedures can dispatch to the `G7` endpoints (`S05`); when `clinical_vnext_native_writes` is OFF (the default for all clinics today), selecting a procedure from the quick launcher either dispatches through `POST /api/v1/treatments` / `POST /api/v1/treatments/multi-procedure` with smart defaults (using the clinic's `procedures` catalog fee) or opens `TreatmentModal` pre-filled with the chosen procedure, tooth, surfaces, and default price so **legacy billing and inventory remain 100% intact**.
+   - When `clinical_vnext_native_writes` is enabled in `useTenantFeatures()`, findings and native procedures can dispatch to the `G7` endpoints (`S05`); when `clinical_vnext_native_writes` is OFF (the default for all clinics today), selecting a procedure from the quick launcher either dispatches through `POST /api/v1/treatments` / `POST /api/v1/treatments/multi-procedure` with smart defaults (using the clinic's `procedures` catalog fee) or opens `QuickTreatmentSheet` pre-filled with the chosen procedure, tooth, surfaces, and default price so **legacy billing and inventory remain 100% intact**.
 6. **Work-Item Filtering:** Any work-item queries or active/recent item lookups consumed by the launcher strictly exclude corrected work items (`status NOT IN ('superseded', 'entered_in_error')`).
 
 #### SCOPE
@@ -763,7 +763,7 @@ Each brief below locks the architectural boundaries, exact matrix items, depende
 ### S11 — Consequence-Aware Remove, Click-Budget Telemetry & Giant Modal De-emphasis (`EXPAND JUST-IN-TIME`)
 - **Branch:** `feat/chart-click-budget-consequence-remove` · **Deps:** `S10` · **Size:** `M` · **Risk:** `NORMAL` · **Migration:** `No`
 - **Exact Matrix Items (3):** `G8-M13` (Add consequence-aware remove), `G8-M14` (Measure click budget), `G8-M15` (De-emphasize old giant modal).
-- **Goal & Decisions:** (1) When removing/cancelling a work item or treatment from the chart inspector, inspect whether it is attached to an active treatment plan phase (`plan_items`) or has completed sessions/payments, and display a consequence warning modal before removal (`G8-M13`). (2) Add deterministic unit/integration click-counter assertions proving single-finding, multi-tooth finding, and single-procedure entry complete in `<= 3` clicks (`G8-M14`). (3) Make the inline quick launcher + inspector the primary chairside path and relegate `TreatmentModal` to a secondary `"Advanced / Classic Entry"` button (`G8-M15`). Closes Phase `G8`.
+- **Goal & Decisions:** (1) When removing/cancelling a work item or treatment from the chart inspector, inspect whether it is attached to an active treatment plan phase (`plan_items`) or has completed sessions/payments, and display a consequence warning modal before removal (`G8-M13`). (2) Add deterministic unit/integration click-counter assertions proving single-finding, multi-tooth finding, and single-procedure entry complete in `<= 3` clicks (`G8-M14`). (3) Make the inline quick launcher + inspector the primary chairside path and relegate `QuickTreatmentSheet` to a secondary `"Advanced / Classic Entry"` button (`G8-M15`). Closes Phase `G8`.
 
 ### S12 — Treatment Plan Phase Reorder/Edit & Chart Plan Overlay (`EXPAND JUST-IN-TIME`)
 - **Branch:** `feat/clinical-plans-reorder-chart-overlay` · **Deps:** `S08` · **Size:** `M` · **Risk:** `NORMAL` · **Migration:** `No`

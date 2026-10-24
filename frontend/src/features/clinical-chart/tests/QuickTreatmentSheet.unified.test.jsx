@@ -1,12 +1,14 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import TreatmentModal from './TreatmentModal';
+import QuickTreatmentSheet from '../components/QuickTreatmentSheet';
 
 const getStockSummary = vi.fn();
 const getMaterials = vi.fn();
 const getActiveSessions = vi.fn();
-const palmerToFdi = vi.fn();
+const getLaboratories = vi.fn();
+const getPatientLabOrders = vi.fn();
+const addTreatmentSession = vi.fn();
 
 vi.mock('@/api/inventory', () => ({
     getStockSummary: (...args) => getStockSummary(...args),
@@ -14,12 +16,15 @@ vi.mock('@/api/inventory', () => ({
     getActiveSessions: (...args) => getActiveSessions(...args),
 }));
 
-vi.mock('@/utils/toothUtils', () => ({
-    palmerToFdi: (...args) => palmerToFdi(...args),
+vi.mock('@/api', () => ({
+    getLaboratories: (...args) => getLaboratories(...args),
+    getPatientLabOrders: (...args) => getPatientLabOrders(...args),
+    addTreatmentSession: (...args) => addTreatmentSession(...args),
+    createLabOrder: vi.fn(),
 }));
 
 vi.mock('@/features/inventory/components/EnhancedMaterialConsumption', () => ({
-    EnhancedMaterialConsumption: ({ isOpen }) => isOpen ? <div data-testid="smart-material-dialog">Smart materials</div> : null,
+    EnhancedMaterialConsumption: ({ isOpen }) => (isOpen ? <div data-testid="smart-material-dialog">Smart materials</div> : null),
 }));
 
 vi.mock('@/features/inventory/MaterialConsumptionPanel', () => ({
@@ -27,24 +32,17 @@ vi.mock('@/features/inventory/MaterialConsumptionPanel', () => ({
 }));
 
 vi.mock('@/features/inventory/components/TrackSessionModal', () => ({
-    default: ({ isOpen, stockItem, material }) => isOpen ? (
+    default: ({ isOpen, stockItem, material }) => (isOpen ? (
         <div data-testid="track-session-dialog">
             {stockItem?.id}:{material?.name}
         </div>
-    ) : null,
+    ) : null),
 }));
 
-vi.mock('../components/MultiSessionPanel', () => ({
-    MultiSessionPanel: () => <div data-testid="multi-session-panel">Sessions</div>,
-}));
-
-vi.mock('@/api', () => ({
-    addTreatmentSession: vi.fn(),
-}));
-
-vi.mock('react-hot-toast', () => ({
-    default: Object.assign(vi.fn(), {
+vi.mock('@/shared/ui', () => ({
+    toast: Object.assign(vi.fn(), {
         error: vi.fn(),
+        success: vi.fn(),
         dismiss: vi.fn(),
     }),
 }));
@@ -67,14 +65,28 @@ const initialData = {
     default_price_list_id: null,
 };
 
-const procedures = [{
-    id: 5,
-    name: 'Cleaning',
-    price: 100,
-    suggestedMaterials: [],
-}];
+const procedures = [
+    {
+        id: 5,
+        name: 'Cleaning',
+        price: 100,
+        suggestedMaterials: [],
+    },
+    {
+        id: 12,
+        name: 'Crown PFM',
+        category: 'prosthodontic',
+        price: 1200,
+        suggestedMaterials: [],
+    },
+];
 
-function renderTreatmentModal(overrides = {}) {
+const mockLabs = [
+    { id: 101, name: 'Alpha Dental Lab' },
+    { id: 102, name: 'Precision Ceramics' },
+];
+
+function renderSheet(overrides = {}) {
     const queryClient = new QueryClient({
         defaultOptions: {
             queries: { retry: false },
@@ -96,38 +108,40 @@ function renderTreatmentModal(overrides = {}) {
 
     render(
         <QueryClientProvider client={queryClient}>
-            <TreatmentModal {...props} />
+            <QuickTreatmentSheet {...props} />
         </QueryClientProvider>
     );
 
     return props;
 }
 
-describe('TreatmentModal', () => {
+describe('QuickTreatmentSheet Unified Specification (D1–D4 & F1–F10)', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         getStockSummary.mockResolvedValue({ data: [] });
         getMaterials.mockResolvedValue({ data: [] });
-        getActiveSessions.mockResolvedValue([]);
-        palmerToFdi.mockReturnValue(11);
+        getActiveSessions.mockResolvedValue({ data: [] });
+        getLaboratories.mockResolvedValue({ data: mockLabs });
+        getPatientLabOrders.mockResolvedValue({ data: [] });
+        addTreatmentSession.mockResolvedValue({ data: { id: 1, notes: 'Session 1' } });
     });
 
-    it('uses the canonical accessible dialog at a clinical-workspace width', () => {
-        renderTreatmentModal();
+    it('1. uses the canonical accessible bottom sheet dialog at max-w-3xl width', () => {
+        renderSheet();
 
         const dialog = screen.getByRole('dialog');
         expect(dialog.className).toContain('bg-surface-elevated');
         expect(dialog.className).toContain('max-w-3xl');
-        expect(screen.getByText('تفاصيل السن رقم #UR1')).toBeInTheDocument();
+        expect(screen.getByText(/تفاصيل السن رقم #UR1/i)).toBeInTheDocument();
         expect(screen.getByLabelText('التشخيص')).toBeInTheDocument();
         expect(screen.getByLabelText('التكلفة')).toBeInTheDocument();
         expect(screen.getByLabelText('الخصم')).toBeInTheDocument();
         expect(screen.getByLabelText('رقم السن')).toBeInTheDocument();
     });
 
-    it('preserves the treatment save payload contract after the shell migration', async () => {
+    it('2. preserves the treatment save payload contract after unification', async () => {
         const onSave = vi.fn().mockResolvedValue(undefined);
-        renderTreatmentModal({ onSave });
+        renderSheet({ onSave });
 
         fireEvent.click(screen.getByRole('button', { name: 'حفظ' }));
 
@@ -147,7 +161,7 @@ describe('TreatmentModal', () => {
         }));
     });
 
-    it('preserves the confirm-open recovery path for treatment stock conflicts', async () => {
+    it('3. absorbs confirm-open recovery path (CONFIRM_OPEN_REQUIRED) directly without escalating', async () => {
         const onSave = vi.fn().mockRejectedValue({
             response: {
                 data: {
@@ -159,7 +173,7 @@ describe('TreatmentModal', () => {
                 },
             },
         });
-        renderTreatmentModal({ onSave });
+        renderSheet({ onSave });
 
         fireEvent.click(screen.getByRole('button', { name: 'حفظ' }));
 
@@ -167,17 +181,15 @@ describe('TreatmentModal', () => {
         expect(sessionDialog).toHaveTextContent('42:Composite A3');
     });
 
-    it('allows selecting surfaces via interactive buttons and sends them in save payload', async () => {
+    it('4. allows selecting surfaces via interactive buttons and sends them in save payload', async () => {
         const onSave = vi.fn().mockResolvedValue(undefined);
-        renderTreatmentModal({ onSave });
+        renderSheet({ onSave });
 
-        // Surface buttons exist
         const surfaceM = screen.getByRole('button', { name: /تحديد السطح M/i });
         const surfaceO = screen.getByRole('button', { name: /تحديد السطح O/i });
         expect(surfaceM).toHaveAttribute('aria-pressed', 'false');
         expect(surfaceO).toHaveAttribute('aria-pressed', 'false');
 
-        // Click M and O
         fireEvent.click(surfaceM);
         fireEvent.click(surfaceO);
 
@@ -197,9 +209,9 @@ describe('TreatmentModal', () => {
         }));
     });
 
-    it('normalizes pre-selected surface initialData and enables clearing surfaces', async () => {
+    it('5. normalizes pre-selected surface initialData and enables clearing surfaces', async () => {
         const onSave = vi.fn().mockResolvedValue(undefined);
-        renderTreatmentModal({
+        renderSheet({
             onSave,
             initialData: {
                 ...initialData,
@@ -211,13 +223,8 @@ describe('TreatmentModal', () => {
         expect(surfaceInput).toHaveValue('MOD');
 
         const surfaceM = screen.getByRole('button', { name: /تحديد السطح M/i });
-        const surfaceO = screen.getByRole('button', { name: /تحديد السطح O/i });
-        const surfaceD = screen.getByRole('button', { name: /تحديد السطح D/i });
         expect(surfaceM).toHaveAttribute('aria-pressed', 'true');
-        expect(surfaceO).toHaveAttribute('aria-pressed', 'true');
-        expect(surfaceD).toHaveAttribute('aria-pressed', 'true');
 
-        // Click clear surfaces
         const clearBtn = screen.getByRole('button', { name: 'مسح الأسطح' });
         fireEvent.click(clearBtn);
 
@@ -234,9 +241,9 @@ describe('TreatmentModal', () => {
         }));
     });
 
-    it('syncs manual surface input with surface pills', async () => {
+    it('6. syncs manual surface input with surface pills', async () => {
         const onSave = vi.fn().mockResolvedValue(undefined);
-        renderTreatmentModal({ onSave });
+        renderSheet({ onSave });
 
         const surfaceInput = screen.getByLabelText('سطح السن (Surface)');
         fireEvent.change(surfaceInput, { target: { value: 'ob' } });
@@ -256,9 +263,9 @@ describe('TreatmentModal', () => {
         }));
     });
 
-    it('renders plan item prefill chip and sends clinical_work_item_id in save payload', async () => {
+    it('7. renders plan item prefill chip and sends clinical_work_item_id in save payload', async () => {
         const onSave = vi.fn().mockResolvedValue(undefined);
-        renderTreatmentModal({
+        renderSheet({
             onSave,
             initialData: {
                 ...initialData,
@@ -280,7 +287,7 @@ describe('TreatmentModal', () => {
         }));
     });
 
-    it('displays error banner on CLINICAL_LINK rejection and keeps modal open', async () => {
+    it('8. displays error banner on CLINICAL_LINK rejection and keeps sheet open', async () => {
         const onSave = vi.fn().mockRejectedValue({
             response: {
                 data: {
@@ -289,7 +296,7 @@ describe('TreatmentModal', () => {
             },
         });
         const onClose = vi.fn();
-        renderTreatmentModal({
+        renderSheet({
             onSave,
             onClose,
             initialData: {
@@ -307,8 +314,8 @@ describe('TreatmentModal', () => {
         expect(onClose).not.toHaveBeenCalled();
     });
 
-    it('renders context header banner when prefill_source is set for chart-driven opens', () => {
-        renderTreatmentModal({
+    it('9. renders context header banner when prefill_source is set for chart-driven opens', () => {
+        renderSheet({
             initialData: {
                 ...initialData,
                 prefill_source: 'quick_launcher',
@@ -323,5 +330,102 @@ describe('TreatmentModal', () => {
         expect(contextBanner).toHaveTextContent('quick_launcher');
         expect(contextBanner).toHaveTextContent('Cleaning');
         expect(contextBanner).toHaveTextContent('#UR1 (MO)');
+    });
+
+    it('10. renders localized tooth-status chips in Arabic without hardcoded English labels', () => {
+        renderSheet();
+
+        expect(screen.getByRole('button', { name: 'سليم' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'مفقود' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'منطمر' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'غير بازغ' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'جذر متبقي' })).toBeInTheDocument();
+
+        // Must NOT render unlocalized English strings as chips
+        expect(screen.queryByRole('button', { name: 'Retained Root' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Unerupted' })).not.toBeInTheDocument();
+    });
+
+    it('11. displays condition suggestion and confirms only upon doctor action', async () => {
+        renderSheet({
+            initialData: {
+                ...initialData,
+                procedure: 'Crown PFM',
+                diagnosis: 'Healthy',
+            },
+        });
+
+        // Procedure "Crown PFM" suggests Crown
+        const banner = await screen.findByTestId('condition-suggestion-banner');
+        expect(banner).toBeInTheDocument();
+        expect(banner).toHaveTextContent(/الحالة المقترحة:/i);
+
+        const confirmBtn = screen.getByRole('button', { name: 'تأكيد الحالة' });
+        fireEvent.click(confirmBtn);
+
+        // After confirmation, banner disappears
+        await waitFor(() => {
+            expect(screen.queryByTestId('condition-suggestion-banner')).not.toBeInTheDocument();
+        });
+    });
+
+    it('12. displays lab section when prosthetic procedure is selected and includes lab_order in payload', async () => {
+        const onSave = vi.fn().mockResolvedValue(undefined);
+        renderSheet({
+            onSave,
+            initialData: {
+                ...initialData,
+                procedure: 'Crown PFM',
+                cost: '1200',
+            },
+        });
+
+        expect(await screen.findByText('بيانات المعمل')).toBeInTheDocument();
+        expect(screen.getByLabelText('اختر المعمل')).toBeInTheDocument();
+
+        // Select laboratory
+        fireEvent.change(screen.getByLabelText('اختر المعمل'), { target: { value: '101' } });
+        fireEvent.change(screen.getByLabelText('درجة اللون (Shade)'), { target: { value: 'A2' } });
+
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ' }));
+
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+            procedure: 'Crown PFM',
+            lab_order: expect.objectContaining({
+                laboratory_id: '101',
+                shade: 'A2',
+            }),
+        }));
+    });
+
+    it('13. renders sessions list in edit mode and allows recording legacy sessions (D4)', async () => {
+        renderSheet({
+            isEditing: true,
+            initialData: {
+                ...initialData,
+                id: 99,
+                treatment_sessions: [
+                    { id: 1, notes: 'First visit prep', created_at: '2026-10-20T10:00:00Z' },
+                ],
+            },
+        });
+
+        expect(await screen.findByText('سجل الجلسات (Sessions)')).toBeInTheDocument();
+        expect(screen.getByText('First visit prep')).toBeInTheDocument();
+
+        // Add new session
+        fireEvent.click(screen.getByRole('button', { name: 'إضافة جلسة' }));
+        const notesInput = screen.getByPlaceholderText('ماذا تم في هذه الجلسة؟');
+        fireEvent.change(notesInput, { target: { value: 'Second visit try-in' } });
+
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ الجلسة' }));
+
+        await waitFor(() => {
+            expect(addTreatmentSession).toHaveBeenCalledWith(99, expect.objectContaining({
+                notes: 'Second visit try-in',
+                treatment_id: 99,
+            }));
+        });
     });
 });

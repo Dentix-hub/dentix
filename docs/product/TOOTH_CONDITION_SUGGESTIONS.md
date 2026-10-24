@@ -55,7 +55,7 @@ The DENTIX codebase currently manages tooth conditions across three architectura
   - `Missing` (مخلوع) — Fill `#f1f5f9`, stroke `#e2e8f0`, opacity 0.3
   - `Crown` (طربوش) — Fill `#fef08a`, stroke `#eab308`
   - `RootCanal` (عصب) — Fill `#e9d5ff`, stroke `#a855f7`
-- **TreatmentModal Condition Selectors** (`frontend/src/shared/ui/modals/TreatmentModal.jsx:616-701`):
+- **QuickTreatmentSheet Condition Selectors** (`frontend/src/shared/ui/modals/QuickTreatmentSheet.jsx:616-701`):
   - Tab 1 (Status): `Healthy`, `Missing`, `Impacted`, `Unerupted`, `Retained Root`
   - Tab 2 (Pathology): `Decayed`, `Fractured`, `Abscess`, `Mobility`, `Pain`
   - Tab 3 (Restorations): `Filled`, `Root Canal`, `Crown`, `Bridge`, `Implant`

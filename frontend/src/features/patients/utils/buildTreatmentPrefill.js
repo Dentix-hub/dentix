@@ -1,7 +1,7 @@
 import { fdiToPalmer } from '@/utils/toothUtils';
 
 /**
- * Shared prefill builder for chart-driven TreatmentModal opens (U3.2).
+ * Shared prefill builder for chart-driven treatment sheet opens (U3.2).
  * Normalizes tooth notation, surfaces, target kind, procedure names,
  * and clinical linking metadata without mutating base objects.
  *
@@ -19,7 +19,7 @@ import { fdiToPalmer } from '@/utils/toothUtils';
  * @param {number|null} [options.planId=null] - Clinical plan ID
  * @param {string} [options.workItemCode=''] - Work item canonical procedure code
  * @param {number|null} [options.defaultPriceListId=null] - Patient's active price list ID
- * @returns {Object} Normalized prefill object ready for TreatmentModal
+ * @returns {Object} Normalized prefill object ready for QuickTreatmentSheet
  */
 export function buildTreatmentPrefill({
     baseTreatment = {},
@@ -38,7 +38,7 @@ export function buildTreatmentPrefill({
     selectedTeeth = [],
     selectedSurfacesByTooth = {},
 } = {}) {
-    // 1. Resolve tooth number in Palmer notation for legacy TreatmentModal
+    // 1. Resolve tooth number in Palmer notation for treatment sheet
     let resolvedPalmer = palmerTooth || '';
     if (!resolvedPalmer && toothKey !== null && toothKey !== undefined && toothKey !== '') {
         const parsedFdi = Number.parseInt(toothKey, 10);

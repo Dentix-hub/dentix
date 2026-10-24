@@ -9,7 +9,7 @@
 - **User problem:** record and maintain dental clinical status, treatment, treatment sessions, tooth status, materials consumed, and prescription-related clinical work from the patient workspace.
 - **Primary users/roles:** dentists and other clinic users holding the relevant clinical/treatment permissions; exact action authority remains server-owned.
 - **Current entry points:** mainly `/patients/:id`, especially the dental chart and treatment history; prescription printing also uses `/print/rx/:id`.
-- **Evidence:** `frontend/src/pages/PatientDetails.jsx`, `frontend/src/shared/ui/modals/TreatmentModal.jsx`, `frontend/src/features/dental/`, `backend/routers/treatments.py`, treatment/prescription/procedure routers and services.
+- **Evidence:** `frontend/src/pages/PatientDetails.jsx`, `frontend/src/shared/ui/modals/QuickTreatmentSheet.jsx`, `frontend/src/features/dental/`, `backend/routers/treatments.py`, treatment/prescription/procedure routers and services.
 
 ## Product intent review
 
@@ -23,7 +23,7 @@ A permitted clinician can open a visible patient, inspect the dental chart, regi
 - **Works but UX is poor:** treatment editing is a very dense single modal, many controls are raw/unlabelled, advanced/material/session workflows compete for attention, and the shell is narrow even on large displays.
 - **Visually poor/inconsistent:** hard-coded white/slate/red/blue surfaces and local radii/shadows coexist with Plan 02 semantic tokens.
 - **Broken:** repeated treatment edits can produce incorrect stock reversal behavior; see P1 finding C-DENTAL-001.
-- **Slow / performance-risk:** opening TreatmentModal starts an active-session query and a stock-summary request, with additional material/procedure requests during interaction. Timing is not yet measured; no performance regression claim is made without runtime evidence.
+- **Slow / performance-risk:** opening QuickTreatmentSheet starts an active-session query and a stock-summary request, with additional material/procedure requests during interaction. Timing is not yet measured; no performance regression claim is made without runtime evidence.
 - **Permission-sensitive:** all treatment/clinical mutations and patient visibility.
 - **Future feature — do not implement:** anything not already proven in current routes/capabilities, including new charting concepts, new AI clinical actions, or new treatment business rules.
 
@@ -78,7 +78,7 @@ The following observable behavior must remain stable unless a separate authorize
 ### Loading / error / empty states
 
 - Existing React Query/server errors remain authoritative.
-- Specialized stock errors are intentionally rethrown from `useTreatmentOperations` so TreatmentModal can present the existing recovery workflow.
+- Specialized stock errors are intentionally rethrown from `useTreatmentOperations` so QuickTreatmentSheet can present the existing recovery workflow.
 - Generic clinical failures must remain visible to the user rather than being masked.
 
 ### Mobile / RTL
@@ -91,7 +91,7 @@ The following observable behavior must remain stable unless a separate authorize
 ### Frontend ownership
 
 - `frontend/src/pages/PatientDetails.jsx`
-- `frontend/src/shared/ui/modals/TreatmentModal.jsx`
+- `frontend/src/shared/ui/modals/QuickTreatmentSheet.jsx`
 - `frontend/src/features/patients/hooks/useTreatmentOperations.js`
 - `frontend/src/features/dental/`
 - material/session consumers under `frontend/src/features/inventory/`
@@ -99,7 +99,7 @@ The following observable behavior must remain stable unless a separate authorize
 ### State / requests
 
 - PatientDetails uses React Query hooks and lazy tab data loading; this is a strong existing pattern to preserve.
-- TreatmentModal uses React Query for active material sessions and imperative stock-summary loading on open.
+- QuickTreatmentSheet uses React Query for active material sessions and imperative stock-summary loading on open.
 - Treatment mutation ownership remains in `useTreatmentOperations`.
 
 ### Backend ownership
@@ -132,13 +132,13 @@ The following observable behavior must remain stable unless a separate authorize
 
 **Regression required:** initial reversal, fully-balanced repeated reversal no-op, and reversal after new movements have been added under the same treatment reference.
 
-### C-DENTAL-002 — P2 — TreatmentModal bypasses canonical overlay behavior
+### C-DENTAL-002 — P2 — QuickTreatmentSheet bypasses canonical overlay behavior
 
 **Class:** UX_REFINEMENT / VISUAL_SYSTEM_ALIGNMENT / ACCESSIBILITY / TEST_GAP
 
-`TreatmentModal.jsx` still owns a raw `fixed inset-0 ... z-50` shell, while Plan 02 established `DentixDialog` with focus trap/return, Escape, outside-click contract, scroll locking, semantic surfaces and canonical z-layer behavior.
+`QuickTreatmentSheet.jsx` still owns a raw `fixed inset-0 ... z-50` shell, while Plan 02 established `DentixDialog` with focus trap/return, Escape, outside-click contract, scroll locking, semantic surfaces and canonical z-layer behavior.
 
-**Required fix:** migrate only the TreatmentModal shell to the canonical dialog and preserve the exact payload/mutation/business behavior. Nested inventory/session workflows remain existing capabilities and must continue to function.
+**Required fix:** migrate only the QuickTreatmentSheet shell to the canonical dialog and preserve the exact payload/mutation/business behavior. Nested inventory/session workflows remain existing capabilities and must continue to function.
 
 ### C-DENTAL-003 — P2 — treatment form semantics are inconsistent
 
@@ -160,13 +160,13 @@ The existing treatment workflow contains tooth state, pathology/restoration stat
 
 **Class:** ACCESSIBILITY / VISUAL_SYSTEM_ALIGNMENT / TEST_GAP
 
-`PatientDetails.jsx` renders the tooth selector as its own `fixed inset-0` `z-[60]` overlay with no canonical focus/scroll behavior. This is in the same clinical flow and should be migrated after TreatmentModal shell regression is proven.
+`PatientDetails.jsx` renders the tooth selector as its own `fixed inset-0` `z-[60]` overlay with no canonical focus/scroll behavior. This is in the same clinical flow and should be migrated after QuickTreatmentSheet shell regression is proven.
 
 ### C-DENTAL-006 — P2 — treatment UI lacks focused regression coverage
 
 **Class:** TEST_GAP
 
-Backend TreatmentService unit tests exist, but current tests mock stock reversal rather than proving repeated reversal correctness. No dedicated TreatmentModal unit test was found in the rapid search. Plan 02 overlay tests prove the shared primitive, not this clinical consumer's payload/workflow.
+Backend TreatmentService unit tests exist, but current tests mock stock reversal rather than proving repeated reversal correctness. No dedicated QuickTreatmentSheet unit test was found in the rapid search. Plan 02 overlay tests prove the shared primitive, not this clinical consumer's payload/workflow.
 
 ## UX / visual audit
 
@@ -230,7 +230,7 @@ No client-only authorization is accepted as sufficient.
 ### Missing / required
 
 - direct regression for repeated stock reversal under the same treatment reference;
-- TreatmentModal consumer regression preserving save payload and specialized stock-error path after shell migration;
+- QuickTreatmentSheet consumer regression preserving save payload and specialized stock-error path after shell migration;
 - tooth-selector canonical overlay regression if migrated in this module pass;
 - focused AR/EN/mobile interaction validation for clinical surfaces.
 
@@ -244,7 +244,7 @@ No client-only authorization is accepted as sufficient.
 
 ### UI change
 
-1. Migrate TreatmentModal shell to `DentixDialog`.
+1. Migrate QuickTreatmentSheet shell to `DentixDialog`.
 2. Keep its internal treatment/material/session state and save payload unchanged.
 3. Use a larger desktop width while retaining viewport-bounded mobile scrolling.
 4. Add accessible close/remove/control names and semantic surface/text/border tokens in the touched shell/critical controls.
@@ -261,7 +261,7 @@ No client-only authorization is accepted as sufficient.
 
 - targeted backend reversal regression;
 - existing TreatmentService tests;
-- targeted frontend TreatmentModal test(s);
+- targeted frontend QuickTreatmentSheet test(s);
 - relevant patient/clinical E2E;
 - Plan 02 overlay/visual guardrails;
 - full module role/tenant regression before closeout.
@@ -275,7 +275,7 @@ No client-only authorization is accepted as sufficient.
 - [ ] Existing treatment create/update/delete APIs and payload shapes are unchanged.
 - [ ] Treatment/patient RBAC and tenant isolation are unchanged.
 - [ ] Existing stock-conflict recovery behavior is preserved.
-- [ ] TreatmentModal uses the canonical blocking-dialog contract without changing mutation count or save payload.
+- [ ] QuickTreatmentSheet uses the canonical blocking-dialog contract without changing mutation count or save payload.
 - [ ] Clinical controls touched in this pass have persistent/accessible names.
 - [ ] Desktop/mobile and Arabic/English states are reviewed where applicable.
 - [ ] Targeted backend/frontend tests and relevant E2E pass.

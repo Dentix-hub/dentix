@@ -1,33 +1,36 @@
 import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { FlaskConical, CheckCircle, Clock, AlertCircle, Plus, Edit2, Trash2, X } from 'lucide-react';
-import { getPatientLabOrders, getLaboratories, createLabOrder, updateLabOrder, deleteLabOrder } from '@/api';
+import { getPatientLabOrders, getLaboratories, createLabOrder, updateLabOrder, deleteLabOrder, getPatientTreatments } from '@/api';
 import { useTranslation } from 'react-i18next';
-const LabOrdersTab = ({ patientId }) => {
+const LabOrdersTab = ({ patientId, treatments = null }) => {
     const { t } = useTranslation();
     const [labOrders, setLabOrders] = useState([]);
     const [laboratories, setLaboratories] = useState([]);
+    const [patientTreatments, setPatientTreatments] = useState(Array.isArray(treatments) ? treatments : []);
     const [loading, setLoading] = useState(false);
     // Modal State
     const [isLabOrderModalOpen, setIsLabOrderModalOpen] = useState(false);
     const [editingLabOrder, setEditingLabOrder] = useState(null);
-    const initialLabOrder = { laboratory_id: '', work_type: '', tooth_number: '', shade: '', material: '', cost: '', price_to_patient: '', notes: '' };
+    const initialLabOrder = { laboratory_id: '', treatment_id: '', work_type: '', tooth_number: '', shade: '', material: '', cost: '', price_to_patient: '', notes: '' };
     const [newLabOrder, setNewLabOrder] = useState(initialLabOrder);
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
-            const [ordersRes, labsRes] = await Promise.all([
+            const [ordersRes, labsRes, treatmentsRes] = await Promise.all([
                 getPatientLabOrders(patientId),
-                getLaboratories()
+                getLaboratories(),
+                Array.isArray(treatments) ? Promise.resolve({ data: treatments }) : getPatientTreatments(patientId).catch(() => ({ data: [] }))
             ]);
-            setLabOrders(ordersRes.data);
-            setLaboratories(labsRes.data);
+            setLabOrders(ordersRes.data || []);
+            setLaboratories(labsRes.data || []);
+            setPatientTreatments(treatmentsRes.data || []);
         } catch (err) {
             logger.error("Failed to load lab data", err);
         } finally {
             setLoading(false);
         }
-    }, [patientId]);
+    }, [patientId, treatments]);
     useEffect(() => {
         if (patientId) {
             loadData();
@@ -59,6 +62,9 @@ const LabOrdersTab = ({ patientId }) => {
                 price_to_patient: parseFloat(newLabOrder.price_to_patient) || 0,
                 notes: newLabOrder.notes
             };
+            if (newLabOrder.treatment_id) {
+                orderData.treatment_id = parseInt(newLabOrder.treatment_id, 10);
+            }
             if (editingLabOrder) {
                 orderData.status = newLabOrder.status;
                 await updateLabOrder(editingLabOrder.id, orderData);
@@ -160,6 +166,7 @@ const LabOrdersTab = ({ patientId }) => {
                                                 setEditingLabOrder(order);
                                                 setNewLabOrder({
                                                     laboratory_id: order.laboratory_id,
+                                                    treatment_id: order.treatment_id || '',
                                                     work_type: order.work_type,
                                                     tooth_number: order.tooth_number || '',
                                                     shade: order.shade || '',
@@ -218,6 +225,40 @@ const LabOrdersTab = ({ patientId }) => {
                             </button>
                         </div>
                         <div className="space-y-4">
+                            {!editingLabOrder && patientTreatments.length > 0 && (
+                                <div>
+                                    <label htmlFor="lab-order-treatment-link" className="block text-sm font-bold text-slate-600 mb-1">
+                                        {t('patientDetails.lab_orders.modal.treatment_link_label', 'ربط بإجراء علاجي من السجل (Treatment)')}
+                                    </label>
+                                    <select
+                                        id="lab-order-treatment-link"
+                                        value={newLabOrder.treatment_id || ''}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (!val) {
+                                                setNewLabOrder(prev => ({ ...prev, treatment_id: '' }));
+                                            } else {
+                                                const tr = patientTreatments.find(item => String(item.id) === String(val));
+                                                setNewLabOrder(prev => ({
+                                                    ...prev,
+                                                    treatment_id: val,
+                                                    tooth_number: tr?.tooth_number ? String(tr.tooth_number) : prev.tooth_number,
+                                                    work_type: tr?.procedure || prev.work_type,
+                                                    price_to_patient: 0
+                                                }));
+                                            }
+                                        }}
+                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500 font-medium"
+                                    >
+                                        <option value="">{t('patientDetails.lab_orders.modal.unlinked_option', 'طلب بدون ربط (طلب حر - Free text)')}</option>
+                                        {patientTreatments.map(tr => (
+                                            <option key={tr.id} value={tr.id}>
+                                                #{tr.id} — {tr.procedure || 'Treatment'} {tr.tooth_number ? `(السن ${tr.tooth_number})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">
                                     {t('patientDetails.lab_orders.modal.lab_label')} <span className="text-red-500">*</span>

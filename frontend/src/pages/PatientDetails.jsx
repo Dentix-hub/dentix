@@ -8,7 +8,6 @@ import QuickTreatmentSheet from '@/features/clinical-chart/components/QuickTreat
 import { adaptWorkspaceSnapshotToRenderer } from '@/features/clinical-chart/adapters/workspaceSnapshotAdapter';
 import PatientInfoCard from '@/features/patients/PatientInfoCard';
 import { useProcedures } from '@/shared/context/ProceduresContext';
-import TreatmentModal from '@/shared/ui/modals/TreatmentModal';
 import PrescriptionModal from '@/shared/ui/modals/PrescriptionModal';
 import PaymentModal from '@/shared/ui/modals/PaymentModal';
 import EditPatientModal from '@/features/patients/modals/EditPatientModal.jsx';
@@ -92,8 +91,7 @@ export default function PatientDetails() {
 
     const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
     const [isRxModalOpen, setIsRxModalOpen] = useState(false);
-    const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
-    const [isQuickTreatmentSheetOpen, setIsQuickTreatmentSheetOpen] = useState(false);
+    const [isTreatmentSheetOpen, setIsTreatmentSheetOpen] = useState(false);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
     const getInitialTreatment = useCallback(() => ({
@@ -174,7 +172,7 @@ export default function PatientDetails() {
         isTouchScrollingRef,
         executeClinicalActionRef,
         setNewTreatment,
-        setIsTreatmentModalOpen,
+        setIsTreatmentSheetOpen,
         setSelectedToothCondition,
         getInitialTreatment,
     });
@@ -377,7 +375,7 @@ export default function PatientDetails() {
 
     const { data: history = [], refetch: refetchHistory } = usePatientTreatments(
         id,
-        activeTab === 'chart' || activeTab === 'history' || activeTab === 'billing' || activeTab === 'timeline'
+        activeTab === 'chart' || activeTab === 'history' || activeTab === 'billing' || activeTab === 'timeline' || activeTab === 'labs'
     );
     const { data: payments = [] } = usePatientPayments(
         id,
@@ -402,7 +400,7 @@ export default function PatientDetails() {
         refetchHistory,
         refetchTeeth: refetchAllTeeth,
         refetchWorkspace,
-        setIsTreatmentModalOpen,
+        setIsTreatmentSheetOpen,
         setEditingTreatmentId,
         editingTreatmentId,
         selectedToothCondition,
@@ -434,7 +432,7 @@ export default function PatientDetails() {
         deletePaymentMutate,
         setIsEditPatientOpen,
         setIsPaymentModalOpen,
-        setIsTreatmentModalOpen,
+        setIsTreatmentSheetOpen,
         setIsRxModalOpen,
         setEditingTreatmentId,
         setNewTreatment,
@@ -532,7 +530,7 @@ export default function PatientDetails() {
             defaultPriceListId: patient?.default_price_list_id,
         });
         setNewTreatment(prefill);
-        setIsQuickTreatmentSheetOpen(true);
+        setIsTreatmentSheetOpen(true);
         return true;
     }, [id, resolvedActiveTooth, isNativeWritesEnabled, patient, getInitialTreatment, refetchWorkspace, refetchTeeth, refetchHistory, queryClient, t, selectedSurfacesByTooth]);
 
@@ -563,7 +561,7 @@ export default function PatientDetails() {
             defaultPriceListId: patient?.default_price_list_id,
         });
         setNewTreatment(prefill);
-        setIsTreatmentModalOpen(true);
+        setIsTreatmentSheetOpen(true);
     }, [procedures, patient, getInitialTreatment]);
 
     executeClinicalActionRef.current = executeClinicalAction;
@@ -926,7 +924,7 @@ export default function PatientDetails() {
                             />
                         )}
 
-                        {activeTab === 'labs' && <LabOrdersTab patientId={id} />}
+                        {activeTab === 'labs' && <LabOrdersTab patientId={id} treatments={history} />}
                     </Suspense>
                 </div>
             </section>
@@ -939,29 +937,17 @@ export default function PatientDetails() {
             />
 
             <QuickTreatmentSheet
-                isOpen={isQuickTreatmentSheetOpen}
-                onClose={() => setIsQuickTreatmentSheetOpen(false)}
+                isOpen={isTreatmentSheetOpen}
+                onClose={() => {
+                    setIsTreatmentSheetOpen(false);
+                    setEditingTreatmentId(null);
+                }}
                 onSave={handleSaveTreatment}
                 onRefetch={refetchClinicalData}
-                onOpenDetails={(escalatedData) => {
-                    setNewTreatment(escalatedData);
-                    setIsQuickTreatmentSheetOpen(false);
-                    setIsTreatmentModalOpen(true);
-                }}
                 initialData={newTreatment}
+                isEditing={Boolean(editingTreatmentId)}
                 procedures={procedures}
-                selectedTeeth={selectedTeeth}
-                selectedSurfacesByTooth={selectedSurfacesByTooth}
-                onSelectionChange={setSelectedTeeth}
-            />
-
-            <TreatmentModal
-                isOpen={isTreatmentModalOpen}
-                onClose={() => setIsTreatmentModalOpen(false)}
-                onSave={handleSaveTreatment}
-                initialData={newTreatment}
-                isEditing={!!editingTreatmentId}
-                procedures={procedures}
+                patient={patient}
                 selectedToothCondition={selectedToothCondition}
                 setSelectedToothCondition={setSelectedToothCondition}
                 selectedTeeth={selectedTeeth}
@@ -998,7 +984,7 @@ export default function PatientDetails() {
                                     tooth_number: '',
                                     default_price_list_id: patient?.default_price_list_id,
                                 });
-                                setIsTreatmentModalOpen(true);
+                                setIsTreatmentSheetOpen(true);
                                 setIsToothSelectModalOpen(false);
                             }}
                             className="min-h-11 w-full rounded-xl bg-slate-100 px-4 py-2.5 font-bold text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"

@@ -40,7 +40,7 @@ describe('useTreatmentOperations', () => {
     let refetchHistory;
     let refetchTeeth;
     let refetchWorkspace;
-    let setIsTreatmentModalOpen;
+    let setIsTreatmentSheetOpen;
     let setEditingTreatmentId;
 
     const createWrapper = () => {
@@ -62,7 +62,7 @@ describe('useTreatmentOperations', () => {
         refetchHistory = vi.fn().mockResolvedValue({});
         refetchTeeth = vi.fn().mockResolvedValue({});
         refetchWorkspace = vi.fn().mockResolvedValue({});
-        setIsTreatmentModalOpen = vi.fn();
+        setIsTreatmentSheetOpen = vi.fn();
         setEditingTreatmentId = vi.fn();
     });
 
@@ -77,7 +77,7 @@ describe('useTreatmentOperations', () => {
                     refetchHistory,
                     refetchTeeth,
                     refetchWorkspace,
-                    setIsTreatmentModalOpen,
+                    setIsTreatmentSheetOpen,
                     setEditingTreatmentId,
                     editingTreatmentId: null,
                     selectedToothCondition: 'Healthy',
@@ -101,7 +101,7 @@ describe('useTreatmentOperations', () => {
         expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
             queryKey: queryKeys.patientClinicalWorkspace(101),
         });
-        expect(setIsTreatmentModalOpen).toHaveBeenCalledWith(false);
+        expect(setIsTreatmentSheetOpen).toHaveBeenCalledWith(false);
     });
 
     it('refetches workspace and invalidates query when saving treatment without tooth (continue without tooth)', async () => {
@@ -114,7 +114,7 @@ describe('useTreatmentOperations', () => {
                     refetchHistory,
                     refetchTeeth,
                     refetchWorkspace,
-                    setIsTreatmentModalOpen,
+                    setIsTreatmentSheetOpen,
                     setEditingTreatmentId,
                     editingTreatmentId: null,
                     selectedToothCondition: 'Healthy',
@@ -137,7 +137,7 @@ describe('useTreatmentOperations', () => {
         expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
             queryKey: queryKeys.patientClinicalWorkspace(101),
         });
-        expect(setIsTreatmentModalOpen).toHaveBeenCalledWith(false);
+        expect(setIsTreatmentSheetOpen).toHaveBeenCalledWith(false);
     });
 
     it('refetches workspace and invalidates query when updating existing treatment', async () => {
@@ -150,7 +150,7 @@ describe('useTreatmentOperations', () => {
                     refetchHistory,
                     refetchTeeth,
                     refetchWorkspace,
-                    setIsTreatmentModalOpen,
+                    setIsTreatmentSheetOpen,
                     setEditingTreatmentId,
                     editingTreatmentId: 22,
                     selectedToothCondition: 'Healthy',
@@ -188,7 +188,7 @@ describe('useTreatmentOperations', () => {
                     refetchHistory,
                     refetchTeeth,
                     refetchWorkspace,
-                    setIsTreatmentModalOpen,
+                    setIsTreatmentSheetOpen,
                     setEditingTreatmentId,
                     editingTreatmentId: null,
                     selectedToothCondition: null,
@@ -222,7 +222,7 @@ describe('useTreatmentOperations', () => {
                     refetchHistory,
                     refetchTeeth,
                     refetchWorkspace,
-                    setIsTreatmentModalOpen,
+                    setIsTreatmentSheetOpen,
                     setEditingTreatmentId,
                     editingTreatmentId: null,
                     selectedToothCondition: 'Decayed',
@@ -253,7 +253,7 @@ describe('useTreatmentOperations', () => {
                     refetchHistory,
                     refetchTeeth,
                     refetchWorkspace,
-                    setIsTreatmentModalOpen,
+                    setIsTreatmentSheetOpen,
                     setEditingTreatmentId,
                     editingTreatmentId: null,
                     selectedToothCondition: null,
@@ -281,7 +281,7 @@ describe('useTreatmentOperations', () => {
                     refetchHistory,
                     refetchTeeth,
                     refetchWorkspace,
-                    setIsTreatmentModalOpen,
+                    setIsTreatmentSheetOpen,
                     setEditingTreatmentId,
                     editingTreatmentId: null,
                     selectedToothCondition: null,

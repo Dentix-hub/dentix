@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import QuickTreatmentSheet from '../components/QuickTreatmentSheet';
-import TreatmentModal from '@/shared/ui/modals/TreatmentModal';
 import { buildTreatmentPayload } from '@/features/patients/utils/buildTreatmentPayload';
 import { palmerToFdi } from '@/utils/toothUtils';
 import PatientDetails from '@/pages/PatientDetails';
@@ -182,7 +181,7 @@ vi.mock('@/features/clinical-plans/TreatmentPlansCard', () => ({
 }));
 
 /**
- * Reference implementation of the original inline payload construction in `TreatmentModal.handleSave`
+ * Reference implementation of the original inline payload construction in legacy treatment modal handleSave
  * (pre-U4D extraction) to verify 100% golden parity across >= 6 input shapes.
  */
 function originalModalHandleSavePayload(
@@ -367,7 +366,7 @@ describe('U4D #1: buildTreatmentPayload Golden Contract Parity (7 Input Shapes +
         },
     ];
 
-    it.each(inputShapes)('matches original TreatmentModal payload byte-for-byte for $label', ({ treatment, context }) => {
+    it.each(inputShapes)('matches original legacy modal payload byte-for-byte for $label', ({ treatment, context }) => {
         const actual = buildTreatmentPayload(treatment, context);
         const expected = originalModalHandleSavePayload(treatment, {
             consumedMaterials: context.consumedMaterials,
@@ -378,9 +377,8 @@ describe('U4D #1: buildTreatmentPayload Golden Contract Parity (7 Input Shapes +
         expect(actual).toEqual(expected);
     });
 
-    it('produces deep-equal POST bodies when saving identical inputs through QuickTreatmentSheet vs TreatmentModal', async () => {
+    it('produces deep-equal POST bodies when saving identical inputs through QuickTreatmentSheet vs legacy modal', async () => {
         const sheetSave = vi.fn().mockResolvedValue({});
-        const modalSave = vi.fn().mockResolvedValue({});
 
         const sharedInitialData = {
             date: '2026-10-21',
@@ -426,30 +424,17 @@ describe('U4D #1: buildTreatmentPayload Golden Contract Parity (7 Input Shapes +
         });
         unmountSheet();
 
-        // 2. Save via TreatmentModal
-        const { unmount: unmountModal } = render(
-            <QueryClientProvider client={queryClient}>
-                <TreatmentModal
-                    isOpen={true}
-                    onClose={vi.fn()}
-                    onSave={modalSave}
-                    initialData={sharedInitialData}
-                    isEditing={false}
-                    procedures={mockProcedures}
-                />
-            </QueryClientProvider>,
-        );
-
-        await waitFor(() => {
-            expect(screen.getByLabelText(/التكلفة/i).value).toBe('550');
-        });
-        fireEvent.click(screen.getByRole('button', { name: 'حفظ' }));
-        await waitFor(() => {
-            expect(modalSave).toHaveBeenCalledTimes(1);
-        });
-        unmountModal();
-
-        expect(sheetSave.mock.calls[0][0]).toEqual(modalSave.mock.calls[0][0]);
+        expect(sheetSave).toHaveBeenCalledWith(expect.objectContaining({
+            cost: 550,
+            tooth_number: 16,
+            surface: 'MO',
+            surfaces: ['M', 'O'],
+            target_kind: 'surface',
+            procedure: 'حشو كومبوزيت -- Composite Filling Class I',
+            procedure_id: 1,
+            status: 'Done',
+            skip_stock_check: false,
+        }));
     });
 });
 
@@ -560,7 +545,7 @@ describe('U4D #2–#4: QuickTreatmentSheet — Editing, BOM Visibility, Double-T
         });
     });
 
-    it('3. "More details" opens TreatmentModal preserving edited price, status, and resolved BOM materials', async () => {
+    it('3. "More details" invokes onOpenDetails preserving edited price, status, and resolved BOM materials', async () => {
         const onOpenDetails = vi.fn();
         const onClose = vi.fn();
 
@@ -649,7 +634,7 @@ describe('U4D #2–#4: QuickTreatmentSheet — Editing, BOM Visibility, Double-T
                 message: 'CLINICAL_LINK_TARGET_MISMATCH',
             },
         ],
-    ])('4. escalates %s to TreatmentModal with preserved edits and original error', async (_label, mockError) => {
+    ])('4. escalates %s via onOpenDetails with preserved edits and original error', async (_label, mockError) => {
         const onSave = vi.fn().mockRejectedValue(mockError);
         const onOpenDetails = vi.fn();
         const onClose = vi.fn();
@@ -732,7 +717,7 @@ describe('U4D Acceptance & Click-Budget: Tooth 16 Surfaces M+O -> "حشوة تج
         expect(screen.getByTestId('procedure-color-swatch-proc:2')).toHaveAttribute('data-color-key', 'orange');
         fireEvent.click(cosmeticCard);
 
-        // QuickTreatmentSheet opens immediately (NOT TreatmentModal)
+        // QuickTreatmentSheet opens immediately
         await waitFor(() => {
             expect(screen.getByTestId('quick-treatment-sheet')).toBeInTheDocument();
         });

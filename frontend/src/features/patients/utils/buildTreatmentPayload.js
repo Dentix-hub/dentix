@@ -1,9 +1,9 @@
 import { palmerToFdi } from '@/utils/toothUtils';
 
 /**
- * Shared treatment payload builder extracted mechanically from `TreatmentModal.handleSave` (U4D #1).
- * Used identically by both `TreatmentModal` and `QuickTreatmentSheet` so that quick chairside saves
- * produce the exact same POST/PUT body as the full modal.
+ * Shared treatment payload builder extracted from legacy modal handleSave (U4D #1).
+ * Used by `QuickTreatmentSheet` so that treatment saves
+ * produce consistent, validated POST/PUT bodies.
  *
  * @param {Object} treatment - Current treatment state object
  * @param {Object} [context={}] - Context options

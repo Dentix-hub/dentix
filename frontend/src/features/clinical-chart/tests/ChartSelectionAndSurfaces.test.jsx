@@ -29,7 +29,7 @@ vi.mock('@/features/patients/modals/EditPatientModal.jsx', () => ({
     default: () => null,
 }));
 
-vi.mock('@/shared/ui/modals/TreatmentModal', () => ({
+vi.mock('@/features/clinical-chart/components/QuickTreatmentSheet', () => ({
     default: ({ isOpen, initialData }) => (
         isOpen ? (
             <div data-testid="treatment-modal">
@@ -140,7 +140,7 @@ describe('Chart Selection, Multi-Select, and Direct Surface Interaction (S08)', 
         expect(inspector).toHaveTextContent('16');
     });
 
-    it('accumulates surfaces M and O on Tooth 16 and opens TreatmentModal pre-populated upon Record Treatment', () => {
+    it('accumulates surfaces M and O on Tooth 16 and opens QuickTreatmentSheet pre-populated upon Record Treatment', () => {
         const { container } = renderPatientDetails();
 
         // 1. Select tooth 16
@@ -167,7 +167,7 @@ describe('Chart Selection, Multi-Select, and Direct Surface Interaction (S08)', 
         const recordBtn = screen.getByTestId('record-treatment-button');
         fireEvent.click(recordBtn);
 
-        // TreatmentModal is open and pre-populated with Tooth 16 (Palmer UR6) and surfaces M, O
+        // QuickTreatmentSheet is open and pre-populated with Tooth 16 (Palmer UR6) and surfaces M, O
         expect(screen.getByTestId('treatment-modal')).toBeInTheDocument();
         expect(screen.getByTestId('treatment-modal-tooth')).toHaveTextContent('UR6');
         expect(screen.getByTestId('treatment-modal-surfaces')).toHaveTextContent('M,O');
