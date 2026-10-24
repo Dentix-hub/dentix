@@ -2427,6 +2427,16 @@
         "cancel_button": "Cancel",
         "more_details_button": "More details",
         "save_button": "Save",
-        "saving_button": "Saving..."
+        "saving_button": "Saving...",
+        "multi_teeth_count": "{{count}} teeth",
+        "unit_cost_label": "Unit cost",
+        "total_cost_label": "Total ({{count}} teeth):",
+        "save_all_button": "Save all ({{count}})",
+        "whole_tooth_short": "Whole",
+        "errors": {
+            "surfaces_required_for_teeth": "Please specify surfaces for the following teeth: {{teeth}}",
+            "tooth_prefix": "Tooth",
+            "save_failed": "Failed to save procedure"
+        }
     }
 }

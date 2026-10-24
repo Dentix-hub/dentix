@@ -2439,6 +2439,16 @@
         "cancel_button": "إلغاء",
         "more_details_button": "تفاصيل إضافية (More details)",
         "save_button": "حفظ",
-        "saving_button": "جاري الحفظ..."
+        "saving_button": "جاري الحفظ...",
+        "multi_teeth_count": "{{count}} أسنان",
+        "unit_cost_label": "سعر السن الواحد",
+        "total_cost_label": "الإجمالي ({{count}} أسنان):",
+        "save_all_button": "حفظ للكل ({{count}})",
+        "whole_tooth_short": "كامل",
+        "errors": {
+            "surfaces_required_for_teeth": "يرجى تحديد أسطح للأسنان التالية: {{teeth}}",
+            "tooth_prefix": "السن",
+            "save_failed": "فشل حفظ الإجراء"
+        }
     }
 }

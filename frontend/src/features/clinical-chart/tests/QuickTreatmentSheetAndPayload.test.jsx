@@ -11,12 +11,21 @@ import * as api from '@/api';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
-        t: (key, fallback) => {
-            if (typeof fallback === 'string') return fallback;
-            if (fallback && typeof fallback === 'object' && fallback.defaultValue) {
-                return fallback.defaultValue;
+        t: (key, fallback, options) => {
+            let str = (typeof fallback === 'string')
+                ? fallback
+                : (fallback && typeof fallback === 'object' && fallback.defaultValue)
+                    ? fallback.defaultValue
+                    : key;
+            const params = (options && typeof options === 'object')
+                ? options
+                : (fallback && typeof fallback === 'object' ? fallback : null);
+            if (params && typeof str === 'string') {
+                Object.entries(params).forEach(([k, v]) => {
+                    str = str.replace(new RegExp(`{{${k}}}`, 'g'), String(v));
+                });
             }
-            return key;
+            return str;
         },
         i18n: { language: 'ar' },
     }),
@@ -758,3 +767,245 @@ describe('U4D Acceptance & Click-Budget: Tooth 16 Surfaces M+O -> "حشوة تج
         );
     });
 });
+
+describe('N3: Multi-tooth quick treatment apply', () => {
+    const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+    });
+
+    const renderSheet = (props = {}) => {
+        return render(
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter>
+                    <QuickTreatmentSheet
+                        isOpen={true}
+                        onClose={props.onClose || vi.fn()}
+                        onSave={props.onSave || vi.fn()}
+                        onOpenDetails={props.onOpenDetails || vi.fn()}
+                        onSelectionChange={props.onSelectionChange || vi.fn()}
+                        initialData={props.initialData || {
+                            tooth_number: 'UR6',
+                            procedure: 'حشو كومبوزيت -- Composite Filling Class I',
+                            cost: 600,
+                            target_kind: 'surface',
+                            surfaces: ['O'],
+                        }}
+                        procedures={props.procedures || mockProcedures}
+                        selectedTeeth={props.selectedTeeth}
+                        selectedSurfacesByTooth={props.selectedSurfacesByTooth}
+                    />
+                </MemoryRouter>
+            </QueryClientProvider>
+        );
+    };
+
+    it('multi-tooth payload produces N calls with correct single-tooth payloads, displays count and total cost', async () => {
+        const onSave = vi.fn().mockResolvedValue({});
+        const onClose = vi.fn();
+        const onSelectionChange = vi.fn();
+
+        renderSheet({
+            onSave,
+            onClose,
+            onSelectionChange,
+            selectedTeeth: ['16', '17', '18'],
+            selectedSurfacesByTooth: {
+                '16': ['M', 'O'],
+                '17': ['O'],
+                '18': ['O'],
+            },
+            initialData: {
+                procedure: 'حشو كومبوزيت -- Composite Filling Class I',
+                cost: 600,
+                target_kind: 'surface',
+            },
+        });
+
+        // 1. Verify teeth chips and count badge
+        expect(screen.getByTestId('quick-treatment-multi-tooth-count')).toBeInTheDocument();
+        expect(screen.getByTestId('quick-treatment-multi-tooth-count')).toHaveTextContent('3');
+        expect(screen.getByTestId('quick-treatment-tooth-chip-16')).toBeInTheDocument();
+        expect(screen.getByTestId('quick-treatment-tooth-chip-17')).toBeInTheDocument();
+        expect(screen.getByTestId('quick-treatment-tooth-chip-18')).toBeInTheDocument();
+
+        // 2. Verify total cost summary (3 x 600 = 1800)
+        expect(screen.getByTestId('quick-treatment-total-cost-summary')).toHaveTextContent('1800');
+
+        // 3. Click Save
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+
+        // 4. Verify sequential single-tooth calls
+        await waitFor(() => {
+            expect(onSave).toHaveBeenCalledTimes(3);
+        });
+
+        // Tooth 16
+        expect(onSave).toHaveBeenNthCalledWith(
+            1,
+            expect.objectContaining({
+                tooth_number: 16,
+                surfaces: ['M', 'O'],
+                target_kind: 'surface',
+                cost: 600,
+            })
+        );
+        // Tooth 17
+        expect(onSave).toHaveBeenNthCalledWith(
+            2,
+            expect.objectContaining({
+                tooth_number: 17,
+                surfaces: ['O'],
+                target_kind: 'surface',
+                cost: 600,
+            })
+        );
+        // Tooth 18
+        expect(onSave).toHaveBeenNthCalledWith(
+            3,
+            expect.objectContaining({
+                tooth_number: 18,
+                surfaces: ['O'],
+                target_kind: 'surface',
+                cost: 600,
+            })
+        );
+
+        // Clears selection and closes
+        expect(onSelectionChange).toHaveBeenCalledWith([]);
+        expect(onClose).toHaveBeenCalled();
+    });
+
+    it('stops at the first failure and returns remaining teeth', async () => {
+        const onSave = vi.fn()
+            .mockResolvedValueOnce({})
+            .mockRejectedValueOnce(new Error('Tooth 17 conflict'));
+        const onClose = vi.fn();
+        const onSelectionChange = vi.fn();
+
+        renderSheet({
+            onSave,
+            onClose,
+            onSelectionChange,
+            selectedTeeth: ['16', '17', '18'],
+            selectedSurfacesByTooth: {
+                '16': ['O'],
+                '17': ['O'],
+                '18': ['O'],
+            },
+            initialData: {
+                procedure: 'حشو كومبوزيت -- Composite Filling Class I',
+                cost: 600,
+                target_kind: 'surface',
+            },
+        });
+
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+
+        await waitFor(() => {
+            expect(onSave).toHaveBeenCalledTimes(2);
+        });
+
+        // Stops at tooth 17 failure, tooth 18 is never called
+        expect(onSave).toHaveBeenCalledTimes(2);
+        // Returns remaining teeth [17, 18] so user can retry
+        expect(onSelectionChange).toHaveBeenCalledWith(['17', '18']);
+        // Does not close sheet
+        expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('blocks save when procedure requires surfaces and some selected teeth have no surfaces', async () => {
+        const onSave = vi.fn();
+        const onClose = vi.fn();
+
+        renderSheet({
+            onSave,
+            onClose,
+            selectedTeeth: ['16', '17'],
+            selectedSurfacesByTooth: {
+                '16': ['O'],
+                '17': [], // missing surfaces!
+            },
+            initialData: {
+                procedure: 'حشو كومبوزيت -- Composite Filling Class I',
+                cost: 600,
+                target_kind: 'surface',
+            },
+        });
+
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+
+        // Save blocked
+        expect(onSave).not.toHaveBeenCalled();
+        expect(onClose).not.toHaveBeenCalled();
+        // Tooth 17 highlighted as invalid
+        await waitFor(() => {
+            expect(screen.getByTestId('quick-treatment-tooth-chip-17')).toHaveAttribute('data-invalid', 'true');
+        });
+    });
+
+    it('caps multi-tooth selection at 32 teeth', async () => {
+        const onSave = vi.fn().mockResolvedValue({});
+        const onClose = vi.fn();
+        const onSelectionChange = vi.fn();
+
+        // 35 teeth
+        const thirtyFiveTeeth = Array.from({ length: 35 }, (_, i) => String(i + 1));
+
+        renderSheet({
+            onSave,
+            onClose,
+            onSelectionChange,
+            selectedTeeth: thirtyFiveTeeth,
+            initialData: {
+                procedure: 'طقم مرن غير مسعر',
+                cost: 100,
+                target_kind: 'tooth',
+            },
+        });
+
+        // Displays count 32 (capped)
+        expect(screen.getByTestId('quick-treatment-multi-tooth-count')).toHaveTextContent('32');
+        // Total cost is 32 * 100 = 3200
+        expect(screen.getByTestId('quick-treatment-total-cost-summary')).toHaveTextContent('3200');
+
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+
+        await waitFor(() => {
+            expect(onSave).toHaveBeenCalledTimes(32);
+        });
+        expect(onClose).toHaveBeenCalled();
+    });
+
+    it('single-tooth selection behaves identically to today', async () => {
+        const onSave = vi.fn().mockResolvedValue({});
+        const onClose = vi.fn();
+
+        renderSheet({
+            onSave,
+            onClose,
+            selectedTeeth: ['16'],
+            selectedSurfacesByTooth: {
+                '16': ['O'],
+            },
+            initialData: {
+                tooth_number: 'UR6',
+                procedure: 'حشو كومبوزيت -- Composite Filling Class I',
+                cost: 600,
+                target_kind: 'surface',
+                surfaces: ['O'],
+            },
+        });
+
+        expect(screen.queryByTestId('quick-treatment-multi-tooth-count')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('quick-treatment-total-cost-summary')).not.toBeInTheDocument();
+        expect(screen.getByTestId('quick-treatment-tooth-chip')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+
+        await waitFor(() => {
+            expect(onSave).toHaveBeenCalledTimes(1);
+        });
+        expect(onClose).toHaveBeenCalled();
+    });
+});
+

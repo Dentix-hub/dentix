@@ -13,6 +13,7 @@ import Modal from '@/shared/ui/Modal';
 import logger from '@/utils/logger';
 import { resolveProcedureSelection } from '@/features/patients/utils/resolveProcedureSelection';
 import { buildTreatmentPayload } from '@/features/patients/utils/buildTreatmentPayload';
+import { palmerToFdi, fdiToPalmer } from '@/utils/toothUtils';
 
 const CLINICAL_SURFACES = [
     { code: 'M', label: 'M', description: 'Mesial (أنسي)' },
@@ -64,7 +65,10 @@ export default function TreatmentModal({
     isEditing = false,
     procedures = [],
     selectedToothCondition,
-    setSelectedToothCondition
+    setSelectedToothCondition,
+    selectedTeeth = [],
+    selectedSurfacesByTooth = {},
+    onSelectionChange,
 }) {
     const { t } = useTranslation();
     const [treatment, setTreatment] = useState(() => normalizeTreatmentData(initialData) || initialData);
@@ -392,6 +396,103 @@ export default function TreatmentModal({
     const handleSave = async (e, forceSkipStock = false) => {
         if (e) e.preventDefault();
         if (isSavingRef.current) return;
+
+        // Cap at 32 teeth (full adult dentition)
+        const rawTeeth = (Array.isArray(selectedTeeth) && selectedTeeth.length > 0)
+            ? selectedTeeth
+            : (Array.isArray(treatment?.selectedTeeth) && treatment.selectedTeeth.length > 0)
+                ? treatment.selectedTeeth
+                : (Array.isArray(initialData?.selectedTeeth) && initialData.selectedTeeth.length > 0)
+                    ? initialData.selectedTeeth
+                    : (treatment?.tooth_number ? [treatment.tooth_number] : []);
+
+        const effectiveTeeth = rawTeeth.slice(0, 32);
+        const isMulti = !isEditing && effectiveTeeth.length > 1;
+
+        if (isMulti) {
+            const procedureRequiresSurfaces = treatment?.target_kind === 'surface';
+            if (procedureRequiresSurfaces) {
+                const invalidTeeth = effectiveTeeth.filter((t) => {
+                    const strKey = String(t);
+                    const fdi = palmerToFdi(t) || t;
+                    const strFdi = fdi != null ? String(fdi) : null;
+                    const surfs = (selectedSurfacesByTooth && (selectedSurfacesByTooth[strKey] || (strFdi && selectedSurfacesByTooth[strFdi]))) ||
+                                  (treatment?.selectedSurfacesByTooth && (treatment.selectedSurfacesByTooth[strKey] || (strFdi && treatment.selectedSurfacesByTooth[strFdi]))) ||
+                                  [];
+                    return surfs.length === 0;
+                });
+                if (invalidTeeth.length > 0) {
+                    const displayTeeth = invalidTeeth.map((t) => palmerToFdi(t) || t).join(', ');
+                    toast.error(
+                        t(
+                            'quick_treatment_sheet.errors.surfaces_required_for_teeth',
+                            'يرجى تحديد أسطح للأسنان التالية: {{teeth}}',
+                            { teeth: displayTeeth }
+                        )
+                    );
+                    return;
+                }
+            }
+
+            isSavingRef.current = true;
+            setIsSaving(true);
+
+            let failedIndex = -1;
+            let lastError = null;
+
+            for (let i = 0; i < effectiveTeeth.length; i++) {
+                const toothKey = effectiveTeeth[i];
+                const strKey = String(toothKey);
+                const toothFdi = palmerToFdi(toothKey) || toothKey;
+                const strFdi = toothFdi != null ? String(toothFdi) : null;
+                const toothSurfaces = (selectedSurfacesByTooth && (selectedSurfacesByTooth[strKey] || (strFdi && selectedSurfacesByTooth[strFdi]))) ||
+                                      (treatment?.selectedSurfacesByTooth && (treatment.selectedSurfacesByTooth[strKey] || (strFdi && treatment.selectedSurfacesByTooth[strFdi]))) ||
+                                      [];
+                const toothPalmer = fdiToPalmer(toothFdi) || String(toothKey);
+                const targetKind = toothSurfaces.length > 0 ? 'surface' : (treatment?.target_kind || 'tooth');
+
+                const singleTreatment = {
+                    ...(treatment || {}),
+                    tooth_number: toothPalmer,
+                    surfaces: toothSurfaces,
+                    surface: toothSurfaces.join(''),
+                    target_kind: targetKind,
+                };
+                delete singleTreatment.escalated_from_quick_sheet;
+                delete singleTreatment.escalation_error;
+
+                const singlePayload = buildTreatmentPayload(singleTreatment, {
+                    consumedMaterials,
+                    procedures: safeProcedures,
+                    isEditing: false,
+                    forceSkipStock,
+                });
+
+                try {
+                    await onSave(singlePayload);
+                } catch (error) {
+                    failedIndex = i;
+                    lastError = error;
+                    break;
+                }
+            }
+
+            try {
+                if (failedIndex !== -1) {
+                    const remainingTeeth = effectiveTeeth.slice(failedIndex);
+                    onSelectionChange?.(remainingTeeth);
+                    handleSaveError(lastError, forceSkipStock);
+                } else {
+                    onSelectionChange?.([]);
+                    onClose?.();
+                }
+            } finally {
+                isSavingRef.current = false;
+                setIsSaving(false);
+            }
+            return;
+        }
+
         isSavingRef.current = true;
         setIsSaving(true);
         

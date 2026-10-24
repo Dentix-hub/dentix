@@ -524,6 +524,8 @@ export default function PatientDetails() {
             baseTreatment: getInitialTreatment(),
             source: 'quick_launcher',
             toothKey: primaryTooth,
+            selectedTeeth: toothKeys && toothKeys.length > 0 ? toothKeys : (primaryTooth ? [primaryTooth] : []),
+            selectedSurfacesByTooth: actionData.selectedSurfacesByTooth || selectedSurfacesByTooth || {},
             surfaces,
             targetKind,
             procedureName: item.name,
@@ -532,7 +534,7 @@ export default function PatientDetails() {
         setNewTreatment(prefill);
         setIsQuickTreatmentSheetOpen(true);
         return true;
-    }, [id, resolvedActiveTooth, isNativeWritesEnabled, patient, getInitialTreatment, refetchWorkspace, refetchTeeth, refetchHistory, queryClient, t]);
+    }, [id, resolvedActiveTooth, isNativeWritesEnabled, patient, getInitialTreatment, refetchWorkspace, refetchTeeth, refetchHistory, queryClient, t, selectedSurfacesByTooth]);
 
     const handlePerformPlanItem = useCallback(({ item, plan, toothKey, surfaces }) => {
         const workItemId = item.work_item?.id || item.work_item_id;
@@ -946,6 +948,9 @@ export default function PatientDetails() {
                 }}
                 initialData={newTreatment}
                 procedures={procedures}
+                selectedTeeth={selectedTeeth}
+                selectedSurfacesByTooth={selectedSurfacesByTooth}
+                onSelectionChange={setSelectedTeeth}
             />
 
             <TreatmentModal
@@ -957,6 +962,9 @@ export default function PatientDetails() {
                 procedures={procedures}
                 selectedToothCondition={selectedToothCondition}
                 setSelectedToothCondition={setSelectedToothCondition}
+                selectedTeeth={selectedTeeth}
+                selectedSurfacesByTooth={selectedSurfacesByTooth}
+                onSelectionChange={setSelectedTeeth}
             />
 
             <PrescriptionModal
