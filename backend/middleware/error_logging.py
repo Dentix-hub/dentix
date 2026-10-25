@@ -86,7 +86,9 @@ async def _persist_system_error(
     level: ErrorLevel = ErrorLevel.ERROR,
 ) -> None:
     sanitized_msg = sanitize_text(error_msg, max_length=4000) or "Unknown error"
-    sanitized_trace = sanitize_stack_trace(stack_trace, max_length=12000)
+    sanitized_trace = sanitize_stack_trace(stack_trace, max_length=12000) or ""
+    if level == ErrorLevel.ERROR and not sanitized_trace.strip():
+        sanitized_trace = "".join(traceback.format_stack())
     # Query strings can carry patient search terms or other sensitive input.
     sanitized_path = sanitize_text(request.url.path, max_length=2048)
 
@@ -128,6 +130,58 @@ async def _persist_with_timeout(**kwargs) -> None:
         )
 
 
+def _extract_short_reason(request: Request, status_code: int) -> str:
+    """Extract a short, safe error reason or code without sensitive data."""
+    code = getattr(request.state, "error_code", None)
+    detail = getattr(request.state, "error_detail", None)
+
+    short_reason = ""
+    if code and isinstance(code, str) and code.strip():
+        short_reason = code.strip()
+    elif detail:
+        if isinstance(detail, str):
+            short_reason = detail.strip()
+        elif isinstance(detail, dict):
+            short_reason = (
+                detail.get("code")
+                or detail.get("error_code")
+                or detail.get("message")
+                or detail.get("detail")
+                or ""
+            )
+            if not isinstance(short_reason, str):
+                short_reason = str(short_reason)
+        elif isinstance(detail, (list, tuple)) and len(detail) > 0:
+            first = detail[0]
+            if isinstance(first, dict):
+                short_reason = first.get("msg") or first.get("message") or "validation_error"
+            else:
+                short_reason = str(first)
+
+    if not short_reason:
+        if status_code == 400:
+            short_reason = "bad_request"
+        elif status_code == 401:
+            short_reason = "unauthorized"
+        elif status_code == 403:
+            short_reason = "forbidden"
+        elif status_code == 404:
+            short_reason = "not_found"
+        elif status_code == 409:
+            short_reason = "conflict"
+        elif status_code == 422:
+            short_reason = "validation_error"
+
+    sanitized = sanitize_text(short_reason, max_length=120) or ""
+    if any(s in sanitized.lower() for s in ["password", "token", "secret", "authorization", "bearer"]):
+        sanitized = re.sub(
+            r'(?i)(password|token|secret|authorization|bearer)\s*[:=]\s*\S+',
+            r'\1=[REDACTED]',
+            sanitized,
+        )
+    return " ".join(sanitized.split())
+
+
 async def persist_handled_response_error(request: Request, status_code: int) -> None:
     """Persist safe metadata for rejected/failed writes without request content."""
     method = request.method.upper()
@@ -145,14 +199,27 @@ async def persist_handled_response_error(request: Request, status_code: int) -> 
         return
 
     trace_id = get_trace_id()
-    message = f"HTTP {status_code} response"
+    short_reason = _extract_short_reason(request, status_code)
+    if short_reason:
+        message = f"HTTP {status_code} ({short_reason}) response"
+    else:
+        message = f"HTTP {status_code} response"
+
     if trace_id and _SAFE_TRACE_ID_PATTERN.fullmatch(trace_id):
         message = f"{message}; trace_id={trace_id}"
+
+    stack_trace = getattr(request.state, "stack_trace", None) or ""
+    if status_code >= 500 and not stack_trace.strip():
+        tb = traceback.format_exc()
+        if tb and "NoneType: None" not in tb:
+            stack_trace = tb
+        else:
+            stack_trace = "".join(traceback.format_stack())
 
     await _persist_with_timeout(
         request=request,
         error_msg=message,
-        stack_trace="",
+        stack_trace=stack_trace,
         user_id=user_id,
         tenant_id=tenant_id,
         level=ErrorLevel.WARNING if status_code < 500 else ErrorLevel.ERROR,
