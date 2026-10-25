@@ -29,6 +29,7 @@ export default function OverviewPage() {
         allTimeOutstanding,
         doctorDuesTotal,
         staffDuesTotal,
+        labDebtTotal,
         timeline,
         recentActivity,
         isLoading,
@@ -93,6 +94,7 @@ export default function OverviewPage() {
                 allTimeOutstanding={allTimeOutstanding}
                 doctorDuesTotal={doctorDuesTotal}
                 staffDuesTotal={staffDuesTotal}
+                labDebtTotal={labDebtTotal}
                 isLoading={isLoading}
             />
 

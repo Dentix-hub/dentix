@@ -22,7 +22,7 @@ import DentixBottomSheet from '@/shared/ui/DentixBottomSheet';
 import { toast } from '@/shared/ui';
 import logger from '@/utils/logger';
 import { getMaterials, getStockSummary } from '@/api/inventory';
-import { addTreatmentSession, getLaboratories, getPatientLabOrders } from '@/api';
+import { addTreatmentSession, getLaboratories, getPatientLabOrders, createLabPayment } from '@/api';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
 import { EnhancedMaterialConsumption } from '@/features/inventory/components/EnhancedMaterialConsumption';
 import MaterialConsumptionPanel from '@/features/inventory/MaterialConsumptionPanel';
@@ -161,7 +161,13 @@ export default function QuickTreatmentSheet({
         delivery_date: '',
         notes: '',
         cost: '',
+        paid_now: '',
     });
+    const [isRecordingPayment, setIsRecordingPayment] = useState(false);
+    const [paymentAmount, setPaymentAmount] = useState('');
+    const [paymentNotes, setPaymentNotes] = useState('');
+    const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+    const [paymentError, setPaymentError] = useState('');
 
     // Sessions section state (legacy path D4)
     const [isAddingSession, setIsAddingSession] = useState(false);
@@ -298,6 +304,19 @@ export default function QuickTreatmentSheet({
         setShowAdvanced(false);
         setIsAddingSession(false);
         setNewSessionData({ notes: '', next_session_date: '', status: 'completed' });
+        setLabData({
+            laboratory_id: '',
+            shade: '',
+            material: '',
+            delivery_date: '',
+            notes: '',
+            cost: '',
+            paid_now: '',
+        });
+        setIsRecordingPayment(false);
+        setPaymentAmount('');
+        setPaymentNotes('');
+        setPaymentError('');
 
         const initialCondition = initialData?.explicit_tooth_condition || initialData?.diagnosis || selectedToothCondition || 'Healthy';
         setExplicitToothCondition(initialCondition);
@@ -594,6 +613,52 @@ export default function QuickTreatmentSheet({
         }
     };
 
+    const handleRecordLabPayment = async (e) => {
+        if (e && typeof e.preventDefault === 'function') e.preventDefault();
+        setPaymentError('');
+        if (!linkedLabOrder) return;
+        const remaining = linkedLabOrder.remaining_amount != null
+            ? Number(linkedLabOrder.remaining_amount)
+            : Math.max(0, (Number(linkedLabOrder.cost) || 0) - (Number(linkedLabOrder.paid_amount) || 0));
+        const amt = parseFloat(paymentAmount);
+        if (isNaN(amt) || amt <= 0) {
+            const msg = t('labs.details.payments.messages.invalid_amount', 'يرجى إدخال مبلغ صحيح أكبر من الصفر');
+            setPaymentError(msg);
+            toast.error(msg);
+            return;
+        }
+        if (amt > remaining) {
+            const msg = t('labs.details.payments.messages.overpay', 'المبلغ المدفوع يتجاوز المتبقي للطلب');
+            setPaymentError(msg);
+            toast.error(msg);
+            return;
+        }
+        setIsSubmittingPayment(true);
+        try {
+            await createLabPayment(linkedLabOrder.laboratory_id, {
+                lab_order_id: linkedLabOrder.id,
+                amount: amt,
+                notes: paymentNotes || undefined,
+            });
+            toast.success(t('quick_treatment_sheet.payment_success', 'تم تسجيل الدفعة بنجاح'));
+            setIsRecordingPayment(false);
+            setPaymentAmount('');
+            setPaymentNotes('');
+            const patientId = patient?.id || initialData?.patient_id;
+            if (patientId) {
+                const res = await getPatientLabOrders(patientId);
+                setPatientLabOrdersList(Array.isArray(res?.data) ? res.data : []);
+            }
+        } catch (err) {
+            const detail = err.response?.data?.detail;
+            const msg = typeof detail === 'string' ? detail : t('labs.details.payments.messages.add_fail', 'فشل تسجيل الدفعة');
+            setPaymentError(msg);
+            toast.error(msg);
+        } finally {
+            setIsSubmittingPayment(false);
+        }
+    };
+
     const handleSave = async (e, forceSkipStock = false) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
         if (isSavingRef.current) return;
@@ -611,6 +676,15 @@ export default function QuickTreatmentSheet({
                         { teeth: displayTeeth }
                     )
                 );
+                return;
+            }
+        }
+
+        if (isProsthetic && labData.laboratory_id) {
+            const numCost = parseFloat(labData.cost) || 0;
+            const numPaid = parseFloat(labData.paid_now) || 0;
+            if (numPaid > numCost) {
+                toast.error(t('quick_treatment_sheet.paid_now_exceeds_cost', 'المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب'));
                 return;
             }
         }
@@ -1466,19 +1540,27 @@ export default function QuickTreatmentSheet({
                                 </h4>
                                 {linkedLabOrder && (
                                     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                                        linkedLabOrder.status === 'completed'
-                                            ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200'
-                                            : linkedLabOrder.status === 'cancelled'
-                                                ? 'bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200'
-                                                : 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200'
+                                        linkedLabOrder.status === 'cancelled'
+                                            ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                            : linkedLabOrder.payment_status === 'paid' || (linkedLabOrder.remaining_amount != null && Number(linkedLabOrder.remaining_amount) <= 0)
+                                                ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200'
+                                                : linkedLabOrder.payment_status === 'partial' || Number(linkedLabOrder.paid_amount) > 0
+                                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200'
+                                                    : 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200'
                                     }`}>
-                                        {linkedLabOrder.status}
+                                        {linkedLabOrder.status === 'cancelled'
+                                            ? t('labs.details.orders.status_cancelled', 'ملغي')
+                                            : linkedLabOrder.payment_status === 'paid' || (linkedLabOrder.remaining_amount != null && Number(linkedLabOrder.remaining_amount) <= 0)
+                                                ? t('labs.details.orders.status_paid', 'مدفوع')
+                                                : linkedLabOrder.payment_status === 'partial' || Number(linkedLabOrder.paid_amount) > 0
+                                                    ? t('labs.details.orders.status_partial', 'جزئي')
+                                                    : t('labs.details.orders.status_unpaid', 'غير مدفوع')}
                                     </span>
                                 )}
                             </div>
 
                             {linkedLabOrder ? (
-                                <div className="space-y-2 rounded-xl bg-white p-3 border border-teal-100 text-xs dark:bg-slate-900 dark:border-teal-900/40">
+                                <div className="space-y-3 rounded-xl bg-white p-3 border border-teal-100 text-xs dark:bg-slate-900 dark:border-teal-900/40">
                                     <div className="flex items-center justify-between">
                                         <span className="font-bold text-slate-700 dark:text-slate-200">
                                             {linkedLabOrder.laboratory_name || laboratories.find((l) => l.id === linkedLabOrder.laboratory_id)?.name || t('quick_treatment_sheet.lab_order_linked', 'طلب معمل مرتبط')}
@@ -1493,6 +1575,107 @@ export default function QuickTreatmentSheet({
                                     </div>
                                     {linkedLabOrder.notes && (
                                         <p className="text-[11px] text-slate-500 dark:text-slate-400 italic">{linkedLabOrder.notes}</p>
+                                    )}
+
+                                    {/* Read-only financial summary: cost / paid / remaining */}
+                                    <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-center">
+                                        <div className="rounded-lg bg-slate-50 p-2 dark:bg-slate-800/50">
+                                            <div className="text-[10px] text-slate-500">{t('quick_treatment_sheet.lab_cost_label', 'تكلفة المعمل')}</div>
+                                            <div className="font-mono font-bold text-slate-800 dark:text-slate-200">{Number(linkedLabOrder.cost || 0)}</div>
+                                        </div>
+                                        <div className="rounded-lg bg-emerald-50/50 p-2 dark:bg-emerald-950/30">
+                                            <div className="text-[10px] text-emerald-700 dark:text-emerald-400">{t('quick_treatment_sheet.lab_paid_amount', 'المسدد')}</div>
+                                            <div className="font-mono font-bold text-emerald-600 dark:text-emerald-300">{Number(linkedLabOrder.paid_amount || 0)}</div>
+                                        </div>
+                                        <div className="rounded-lg bg-amber-50/50 p-2 dark:bg-amber-950/30">
+                                            <div className="text-[10px] text-amber-700 dark:text-amber-400">{t('quick_treatment_sheet.lab_remaining_amount', 'المتبقي')}</div>
+                                            <div className="font-mono font-bold text-amber-600 dark:text-amber-300">
+                                                {linkedLabOrder.remaining_amount != null
+                                                    ? Number(linkedLabOrder.remaining_amount)
+                                                    : Math.max(0, (Number(linkedLabOrder.cost) || 0) - (Number(linkedLabOrder.paid_amount) || 0))}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Small Record Payment form instead of paid_now */}
+                                    {linkedLabOrder.status !== 'cancelled' && (
+                                        linkedLabOrder.remaining_amount == null || Number(linkedLabOrder.remaining_amount) > 0 || (Number(linkedLabOrder.cost || 0) > Number(linkedLabOrder.paid_amount || 0))
+                                    ) && (
+                                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                                            {!isRecordingPayment ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const rem = linkedLabOrder.remaining_amount != null
+                                                            ? Number(linkedLabOrder.remaining_amount)
+                                                            : Math.max(0, (Number(linkedLabOrder.cost) || 0) - (Number(linkedLabOrder.paid_amount) || 0));
+                                                        setPaymentAmount(rem > 0 ? String(rem) : '');
+                                                        setPaymentNotes('');
+                                                        setPaymentError('');
+                                                        setIsRecordingPayment(true);
+                                                    }}
+                                                    className="w-full rounded-xl bg-teal-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-teal-700 shadow-sm"
+                                                >
+                                                    {t('quick_treatment_sheet.record_payment', 'تسجيل دفعة')}
+                                                </button>
+                                            ) : (
+                                                <div className="space-y-2 rounded-xl bg-teal-50/80 p-3 border border-teal-200 dark:bg-teal-950/40 dark:border-teal-900/60">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="font-bold text-teal-800 dark:text-teal-300 text-xs">
+                                                            {t('quick_treatment_sheet.record_payment', 'تسجيل دفعة')}
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setIsRecordingPayment(false)}
+                                                            className="text-slate-400 hover:text-slate-600 text-xs font-bold"
+                                                        >
+                                                            {t('common.cancel', 'إلغاء')}
+                                                        </button>
+                                                    </div>
+                                                    {paymentError && (
+                                                        <div className="text-[11px] text-red-600 dark:text-red-400 font-semibold">{paymentError}</div>
+                                                    )}
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                        <div>
+                                                            <label htmlFor="quick-sheet-payment-amount" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                                                {t('labs.details.payments.form.amount', 'المبلغ')}
+                                                            </label>
+                                                            <input
+                                                                id="quick-sheet-payment-amount"
+                                                                type="number"
+                                                                step="0.01"
+                                                                min="0.01"
+                                                                value={paymentAmount}
+                                                                onChange={(e) => setPaymentAmount(e.target.value)}
+                                                                placeholder="0.00"
+                                                                className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label htmlFor="quick-sheet-payment-notes" className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">
+                                                                {t('labs.details.payments.form.notes', 'ملاحظات')}
+                                                            </label>
+                                                            <input
+                                                                id="quick-sheet-payment-notes"
+                                                                type="text"
+                                                                value={paymentNotes}
+                                                                onChange={(e) => setPaymentNotes(e.target.value)}
+                                                                placeholder="ملاحظات الدفعة..."
+                                                                className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        disabled={isSubmittingPayment}
+                                                        onClick={handleRecordLabPayment}
+                                                        className="w-full rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-teal-700 disabled:opacity-50"
+                                                    >
+                                                        {isSubmittingPayment ? t('common.saving', 'جاري الحفظ...') : t('quick_treatment_sheet.record_payment', 'تسجيل الدفعة')}
+                                                    </button>
+                                                </div>
+                                            )}
+                                        </div>
                                     )}
                                 </div>
                             ) : (
@@ -1514,6 +1697,52 @@ export default function QuickTreatmentSheet({
                                             ))}
                                         </select>
                                     </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <label htmlFor="quick-treatment-lab-cost" className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                {t('quick_treatment_sheet.lab_cost_label', 'تكلفة المعمل')}
+                                            </label>
+                                            <input
+                                                id="quick-treatment-lab-cost"
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                value={labData.cost}
+                                                onChange={(e) => setLabData((prev) => ({ ...prev, cost: e.target.value }))}
+                                                placeholder="0.00"
+                                                className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                            />
+                                        </div>
+                                        {parseFloat(labData.cost) > 0 && (
+                                            <div>
+                                                <label htmlFor="quick-treatment-lab-paid-now" className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                                                    {t('quick_treatment_sheet.paid_now_label', 'دفعت الآن')}
+                                                </label>
+                                                <input
+                                                    id="quick-treatment-lab-paid-now"
+                                                    type="number"
+                                                    min="0"
+                                                    max={labData.cost}
+                                                    step="0.01"
+                                                    value={labData.paid_now}
+                                                    onChange={(e) => setLabData((prev) => ({ ...prev, paid_now: e.target.value }))}
+                                                    placeholder="0.00"
+                                                    className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {parseFloat(labData.cost) > 0 && parseFloat(labData.paid_now) > parseFloat(labData.cost) && (
+                                        <p className="text-[11px] text-red-600 dark:text-red-400 font-semibold">
+                                            {t('quick_treatment_sheet.paid_now_exceeds_cost', 'المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب')}
+                                        </p>
+                                    )}
+
+                                    <p className="text-[11px] text-teal-700 dark:text-teal-300 font-medium">
+                                        {t('quick_treatment_sheet.lab_accounting_hint', 'التكلفة بتتسجل مديونية على المعمل، والمبلغ المدفوع بيتسجل كمصروف')}
+                                    </p>
 
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>

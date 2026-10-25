@@ -129,7 +129,7 @@ async def get_comprehensive_stats(
         )
         total_expenses = await service.get_total_expenses(start, end)
 
-    total_lab_costs = await service.get_total_lab_costs(
+    total_lab_costs = await service.get_total_lab_payments(
         start,
         end,
         patient_id=patient_id,

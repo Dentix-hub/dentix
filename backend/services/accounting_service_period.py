@@ -208,6 +208,30 @@ class AccountingService(LegacyAccountingService):
             stmt = stmt.where(models.LabOrder.patient_id == patient_id)
         return float((await self.db.execute(stmt)).scalar() or 0.0)
 
+    async def get_total_lab_payments(
+        self, start: datetime, end: datetime, patient_id: Optional[int] = None
+    ) -> float:
+        start, end = await self._normalize_utc_range(start, end)
+        if patient_id:
+            stmt = (
+                select(func.sum(models.LabPayment.amount))
+                .join(models.LabOrder, models.LabPayment.lab_order_id == models.LabOrder.id)
+                .where(
+                    models.LabPayment.tenant_id == self.tenant_id,
+                    models.LabOrder.tenant_id == self.tenant_id,
+                    models.LabOrder.patient_id == patient_id,
+                    models.LabPayment.date >= start,
+                    models.LabPayment.date <= end,
+                )
+            )
+        else:
+            stmt = select(func.sum(models.LabPayment.amount)).where(
+                models.LabPayment.tenant_id == self.tenant_id,
+                models.LabPayment.date >= start,
+                models.LabPayment.date <= end,
+            )
+        return float((await self.db.execute(stmt)).scalar() or 0.0)
+
     async def get_doctor_revenue_analytics(
         self, start: datetime, end: datetime, patient_id: Optional[int] = None
     ) -> List[Dict[str, Any]]:

@@ -550,6 +550,9 @@
         "tooth": "السن",
         "shade": "اللون",
         "status": "الحالة",
+        "payment_status": "حالة السداد",
+        "cost": "تكلفة المعمل",
+        "paid": "المدفوع",
         "price": "السعر",
         "actions": "تحكم"
       },
@@ -560,6 +563,11 @@
         "pending": "معلق",
         "cancelled": "ملغي"
       },
+      "status_cancelled": "ملغي",
+      "status_paid": "مدفوع",
+      "status_partial": "جزئي",
+      "status_unpaid": "غير مدفوع",
+      "paid_now_exceeds_cost": "المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب",
       "empty": "لا توجد طلبات تركيبات مسجلة",
       "add_empty": "+ إضافة طلب تركيبة",
       "modal": {
@@ -598,6 +606,8 @@
           "other": "أخرى"
         },
         "cost_label": "تكلفة المعمل",
+        "paid_now_label": "دفعت الآن للمعمل",
+        "accounting_hint": "التكلفة بتتسجل مديونية على المعمل، والمبلغ المدفوع بيتسجل كمصروف",
         "price_label": "السعر للمريض",
         "status_label": "الحالة",
         "notes_label": "ملاحظات",
@@ -1543,7 +1553,8 @@
       "overview": {
         "total_cost": "إجمالي التكلفة",
         "paid": "المدفوع",
-        "balance": "المتبقي",
+        "balance": "المستحق للمعمل (مديونية)",
+        "clinic_credit": "رصيد لصالح العيادة",
         "order_status": "حالة الطلبات",
         "status_pending": "معلق",
         "status_completed": "مكتمل"
@@ -1553,11 +1564,19 @@
         "filter_pending": "معلق (Pending)",
         "filter_in_progress": "جاري التنفيذ (In Progress)",
         "filter_completed": "مكتمل (Completed)",
+        "status_unpaid": "غير مدفوع",
+        "status_partial": "جزئي",
+        "status_paid": "مدفوع",
+        "status_cancelled": "ملغي",
+        "record_payment": "تسجيل دفعة",
         "table": {
           "patient": "المريض",
           "work": "العمل",
           "status": "الحالة",
           "cost": "التكلفة",
+          "paid": "المدفوع",
+          "remaining": "المتبقي",
+          "actions": "إجراءات",
           "date": "تاريخ الطلب",
           "empty": "لا توجد طلبات"
         }
@@ -1566,6 +1585,9 @@
         "title": "سجل المدفوعات",
         "add_button": "إضافة دفعة",
         "cancel_button": "إلغاء",
+        "allocated_to_order": "دفعة مخصصة للطلب",
+        "clear_allocation": "إلغاء التخصيص (على الحساب)",
+        "on_account": "على الحساب",
         "form": {
           "amount": "المبلغ",
           "method": "طريقة الدفع",
@@ -1576,11 +1598,14 @@
           "date": "التاريخ",
           "amount": "المبلغ",
           "method": "الطريقة",
+          "linked_order": "الطلب المرتبط",
           "notes": "ملاحظات",
           "empty": "لا توجد مدفوعات مسجلة"
         },
         "messages": {
-          "add_fail": "فشل إضافة الدفعة"
+          "add_fail": "فشل إضافة الدفعة",
+          "invalid_amount": "يرجى إدخال مبلغ صحيح أكبر من الصفر",
+          "overpay": "المبلغ المدفوع يتجاوز المتبقي للطلب"
         }
       }
     }
@@ -2985,7 +3010,7 @@
     "expenses": {
       "title": "المصروفات والتشغيل",
       "description": "إدارة نفقات العيادة التشغيلية والمشتريات",
-      "lab_total": "تكاليف المعمل",
+      "lab_total": "مدفوعات المعامل",
       "item_name_required": "يرجى إدخال اسم أو بيان المصروف",
       "cost_invalid": "يرجى إدخال قيمة صحيحة للمصروف أكبر من صفر",
       "add_drawer_title": "تسجيل مصروف جديد",
@@ -3007,7 +3032,7 @@
       "source_manual": "يدوي",
       "manual_total": "المصروفات التشغيلية المباشرة",
       "manual_total_sub": "المصروفات اليومية والمستلزمات المسجلة",
-      "lab_total_sub": "إجمالي مطالبات المعامل الخاصة بحالات المرضى",
+      "lab_total_sub": "إجمالي المدفوعات المسجلة للمعامل للفترة",
       "deductions_sub": "تشمل المصروفات + المعامل + أتعاب الأطباء والرواتب",
       "add_btn": "تسجيل مصروف",
       "search_placeholder": "البحث في بيان المصروفات والملاحظات...",
@@ -3015,7 +3040,11 @@
       "category_general": "عام / متنوع",
       "records_count": "سجل",
       "total_expenses": "إجمالي المصروفات المباشرة",
-      "direct_total": "المصروفات التشغيلية المباشرة"
+      "direct_total": "المصروفات التشغيلية المباشرة",
+      "lab_hint": "مدفوعات المعامل تتسجل من صفحة المعامل، مش من المصروفات.",
+      "go_to_labs": "صفحة المعامل",
+      "lab_payments_note": "مدفوعات المعامل تظهر في سجل المعاملات",
+      "view_activity": "عرض سجل المعاملات"
     },
     "compensation": {
       "doctors": "مستحقات الأطباء",
@@ -3188,7 +3217,7 @@
       "net_invoiced_sub": "القيمة الصافية المستحقة بعد الخصم",
       "collected_sub": "المبالغ النقدية المقبوضة فعلياً في العيادة",
       "expenses_sub": "إيجار، فواتير، مستلزمات، صيانة",
-      "labs_sub": "مطالبات وتكاليف معامل الأسنان للفترة",
+      "labs_sub": "مدفوعات معامل الأسنان المسددة خلال الفترة",
       "doctor_dues_sub": "نسب الأطباء ورواتبهم المعتمدة",
       "staff_dues_sub": "رواتب طاقم الاستقبال والمساعدين",
       "total_deductions_sub": "مجموع (المصروفات + المعامل + الأطباء + الموظفين)",
@@ -3227,6 +3256,9 @@
       "staff_dues": "التزامات رواتب الموظفين",
       "staff_dues_desc": "رواتب وبدلات طاقم التمريض والاستقبال والإدارة",
       "view_payroll": "مسير الرواتب",
+      "lab_debt": "مستحقات المعامل (مديونية)",
+      "lab_debt_desc": "إجمالي مديونية المعامل غير المسددة",
+      "view_labs": "عرض المعامل",
       "title": "الالتزامات والمستحقات القائمة",
       "section_title": "الالتزامات والذمم المالية القائمة",
       "actionable_hint": "مؤشرات قابلة للمتابعة الفورية",
@@ -3411,6 +3443,14 @@
     "lab_notes_label": "ملاحظات المعمل",
     "lab_order_linked": "طلب معمل مرتبط",
     "lab_order_status": "حالة الطلب",
+    "paid_now_label": "دفعت الآن",
+    "paid_now_exceeds_cost": "المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب",
+    "lab_accounting_hint": "التكلفة بتتسجل مديونية على المعمل، والمبلغ المدفوع بيتسجل كمصروف",
+    "lab_cost_label": "تكلفة المعمل",
+    "lab_paid_amount": "المسدد",
+    "lab_remaining_amount": "المتبقي",
+    "record_payment": "تسجيل دفعة",
+    "payment_success": "تم تسجيل الدفعة بنجاح",
     "sessions_section_title": "سجل الجلسات (Sessions)",
     "add_session": "إضافة جلسة",
     "session_notes_placeholder": "ماذا تم في هذه الجلسة؟",

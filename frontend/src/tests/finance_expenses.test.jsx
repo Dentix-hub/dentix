@@ -103,7 +103,8 @@ describe('Finance Expenses V2', () => {
 
             await waitFor(() => {
                 expect(screen.getByText('المصروفات التشغيلية المباشرة')).toBeDefined();
-                expect(screen.getByText('تكاليف المعامل والتركيبات')).toBeDefined();
+                expect(screen.getByText('مدفوعات المعامل')).toBeDefined();
+                expect(screen.getByText('مدفوعات المعامل تظهر في سجل المعاملات')).toBeDefined();
                 expect(screen.getAllByText('شراء قفازات وكمامات').length).toBeGreaterThan(0);
                 expect(screen.getAllByText('فاتورة الكهرباء الشهرية').length).toBeGreaterThan(0);
             });
@@ -139,6 +140,102 @@ describe('Finance Expenses V2', () => {
                 expect(screen.getAllByText('مصروف الصفحة الثانية').length).toBeGreaterThan(0);
             });
         });
+
+        it('keeps Laboratory in category filter options for viewing historical expenses', async () => {
+            billingApi.getExpenses.mockResolvedValueOnce({
+                data: {
+                    data: {
+                        total: 0,
+                        source: 'manual_expense',
+                        items: [],
+                    },
+                },
+            });
+            financialsApi.getFinanceSummary.mockResolvedValueOnce({
+                data: {
+                    data: {
+                        deductions: {
+                            expenses: 0,
+                            lab_costs: 0,
+                            total_deductions: 0,
+                        },
+                    },
+                },
+            });
+
+            const queryClient = createTestQueryClient();
+            render(
+                <QueryClientProvider client={queryClient}>
+                    <MemoryRouter initialEntries={['/finance/expenses?from=2026-08-01&to=2026-08-31']}>
+                        <ExpensesPage />
+                    </MemoryRouter>
+                </QueryClientProvider>
+            );
+
+            await waitFor(() => {
+                expect(screen.getByText('تسجيل مصروف')).toBeDefined();
+            });
+
+            const labFilterOption = screen.queryByRole('option', { name: /معامل \(Laboratory\)/ });
+            expect(labFilterOption).not.toBeNull();
+            expect(labFilterOption?.value).toBe('Laboratory');
+        });
+
+        it('defaults to current month preset when date range is empty, fetches summary, and shows period scope badge (L5 fix)', async () => {
+            billingApi.getExpenses.mockResolvedValueOnce({
+                data: {
+                    data: {
+                        total: 1,
+                        source: 'manual_expense',
+                        items: [
+                            {
+                                id: 99,
+                                item_name: 'شراء شاش طبي',
+                                cost: 250,
+                                category: 'Supplies',
+                                date: '2026-10-25',
+                                source: 'manual_expense',
+                            },
+                        ],
+                    },
+                },
+            });
+
+            financialsApi.getFinanceSummary.mockResolvedValueOnce({
+                data: {
+                    data: {
+                        deductions: {
+                            expenses: 250,
+                            lab_costs: 100,
+                            total_deductions: 350,
+                        },
+                    },
+                },
+            });
+
+            const queryClient = createTestQueryClient();
+            render(
+                <QueryClientProvider client={queryClient}>
+                    <MemoryRouter initialEntries={['/finance/expenses']}>
+                        <ExpensesPage />
+                    </MemoryRouter>
+                </QueryClientProvider>
+            );
+
+            // financialsApi.getFinanceSummary MUST be called even without query parameters
+            await waitFor(() => {
+                expect(financialsApi.getFinanceSummary).toHaveBeenCalled();
+            });
+
+            // Summary cards must display the real fetched amount (250), not 0
+            await waitFor(() => {
+                expect(screen.getAllByLabelText('250 EGP').length).toBeGreaterThan(0);
+            });
+
+            // Scope badge must reflect the period, not misleading all_time
+            expect(screen.queryAllByText('الفترة المحددة').length).toBeGreaterThan(0);
+            expect(screen.queryByText('الرصيد التراكمي (الكل)')).toBeNull();
+        });
     });
 
     describe('<AddExpenseDrawer />', () => {
@@ -147,12 +244,14 @@ describe('Finance Expenses V2', () => {
             const onClose = vi.fn();
 
             render(
-                <AddExpenseDrawer
-                    isOpen={true}
-                    onClose={onClose}
-                    onSubmit={onSubmit}
-                    isSubmitting={false}
-                />
+                <MemoryRouter>
+                    <AddExpenseDrawer
+                        isOpen={true}
+                        onClose={onClose}
+                        onSubmit={onSubmit}
+                        isSubmitting={false}
+                    />
+                </MemoryRouter>
             );
 
             expect(screen.getByText('تسجيل مصروف جديد')).toBeDefined();
@@ -175,6 +274,34 @@ describe('Finance Expenses V2', () => {
                     })
                 );
             });
+        });
+
+        it('does not offer Laboratory category and shows a hint pointing to /labs (L3 guard)', () => {
+            const onSubmit = vi.fn().mockResolvedValue({});
+            const onClose = vi.fn();
+
+            render(
+                <MemoryRouter>
+                    <AddExpenseDrawer
+                        isOpen={true}
+                        onClose={onClose}
+                        onSubmit={onSubmit}
+                        isSubmitting={false}
+                    />
+                </MemoryRouter>
+            );
+
+            // Verify Laboratory option is NOT in the category select
+            const options = screen.getAllByRole('option');
+            const optionValues = options.map((opt) => opt.value);
+            expect(optionValues).not.toContain('Laboratory');
+            expect(screen.queryByText(/معامل وتركيبات خارجية/)).toBeNull();
+
+            // Verify hint text and link pointing to /labs
+            expect(screen.getByText(/مدفوعات المعامل تتسجل من صفحة المعامل/)).toBeDefined();
+            const labsLink = screen.getByRole('link', { name: /صفحة المعامل/ });
+            expect(labsLink).toBeDefined();
+            expect(labsLink.getAttribute('href')).toBe('/labs');
         });
     });
 

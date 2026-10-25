@@ -68,10 +68,10 @@ export default function FinancialSummaryReportView({ data, isLoading, isError, o
         },
         {
             id: 'lab_costs',
-            category: t('finance.expenses.lab_total', 'تكاليف المعامل وتركيبات الأسنان'),
+            category: t('finance.expenses.lab_total', 'مدفوعات المعامل'),
             type: 'deduction',
             amount: labCosts,
-            note: t('finance.reports.labs_sub', 'مطالبات وتكاليف معامل الأسنان للفترة'),
+            note: t('finance.reports.labs_sub', 'مدفوعات معامل الأسنان المسددة خلال الفترة'),
         },
         {
             id: 'doctor_dues',
