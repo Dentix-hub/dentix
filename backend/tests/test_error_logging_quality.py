@@ -118,7 +118,7 @@ async def test_persist_handled_response_error_populates_stack_trace_on_500(monke
 
 @pytest.mark.asyncio
 async def test_persist_system_error_guarantees_nonempty_stack_trace_for_error_level(monkeypatch):
-    """Even if stack_trace is passed empty to _persist_system_error with level ERROR, it populates it."""
+    """When stack_trace is empty for level ERROR and no exception is active, store 'no traceback available'."""
     added_errors = []
 
     class FakeSessionScope:
@@ -145,6 +145,22 @@ async def test_persist_system_error_guarantees_nonempty_stack_trace_for_error_le
     assert len(added_errors) == 1
     error_row = added_errors[0]
     assert error_row.level == ErrorLevel.ERROR
-    assert error_row.stack_trace != ""
-    assert error_row.stack_trace is not None
-    assert len(error_row.stack_trace.strip()) > 0
+    assert error_row.stack_trace == "no traceback available"
+
+
+@pytest.mark.asyncio
+async def test_persist_handled_response_error_no_traceback_fallback(monkeypatch):
+    """When a 500 response has no traceback on state or in sys.exc_info, record 'no traceback available'."""
+    persisted_kwargs = {}
+
+    async def fake_persist(**kwargs):
+        persisted_kwargs.update(kwargs)
+
+    monkeypatch.setattr("backend.middleware.error_logging._persist_system_error", fake_persist)
+
+    # 500 with NO stack trace on state and no active exception
+    req = _make_request()
+    await persist_handled_response_error(req, 500)
+
+    assert persisted_kwargs["level"] == ErrorLevel.ERROR
+    assert persisted_kwargs["stack_trace"] == "no traceback available"

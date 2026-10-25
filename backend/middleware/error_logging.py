@@ -88,7 +88,7 @@ async def _persist_system_error(
     sanitized_msg = sanitize_text(error_msg, max_length=4000) or "Unknown error"
     sanitized_trace = sanitize_stack_trace(stack_trace, max_length=12000) or ""
     if level == ErrorLevel.ERROR and not sanitized_trace.strip():
-        sanitized_trace = "".join(traceback.format_stack())
+        sanitized_trace = "no traceback available"
     # Query strings can carry patient search terms or other sensitive input.
     sanitized_path = sanitize_text(request.url.path, max_length=2048)
 
@@ -214,7 +214,7 @@ async def persist_handled_response_error(request: Request, status_code: int) -> 
         if tb and "NoneType: None" not in tb:
             stack_trace = tb
         else:
-            stack_trace = "".join(traceback.format_stack())
+            stack_trace = "no traceback available"
 
     await _persist_with_timeout(
         request=request,
