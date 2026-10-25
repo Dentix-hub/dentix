@@ -199,25 +199,53 @@ class TreatmentService:
         if not treatment.patient_id or not treatment.tooth_number:
             return None
 
-        if not treatment.procedure or not str(treatment.procedure).strip():
-            return None
-
         tooth_key = str(treatment.tooth_number)
         from backend.models.clinical_core import FDI_TOOTH_KEYS, SURFACE_CODES
         if tooth_key not in FDI_TOOTH_KEYS:
             return None
 
-        from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES
+        from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES, ProcedureCode
         from backend.clinical.legacy_mapping import LEGACY_PROCEDURE_ALLOWLIST
 
-        raw_proc = str(treatment.procedure).strip()
-        if raw_proc in CANONICAL_PROCEDURE_CODES:
-            canonical_code = raw_proc
-        elif raw_proc in LEGACY_PROCEDURE_ALLOWLIST:
-            canonical_code = LEGACY_PROCEDURE_ALLOWLIST[raw_proc]
-        elif treatment.procedure in LEGACY_PROCEDURE_ALLOWLIST:
-            canonical_code = LEGACY_PROCEDURE_ALLOWLIST[treatment.procedure]
-        else:
+        canonical_code = None
+        raw_proc = str(treatment.procedure or "").strip()
+        if raw_proc:
+            if raw_proc in CANONICAL_PROCEDURE_CODES:
+                canonical_code = raw_proc
+            elif raw_proc in LEGACY_PROCEDURE_ALLOWLIST:
+                canonical_code = LEGACY_PROCEDURE_ALLOWLIST[raw_proc]
+            else:
+                raw_lower = raw_proc.lower()
+                for k, v in LEGACY_PROCEDURE_ALLOWLIST.items():
+                    if k.lower() == raw_lower:
+                        canonical_code = v
+                        break
+
+                if not canonical_code:
+                    if any(w in raw_lower for w in ["composite", "filling", "حشو"]):
+                        if "عصب" in raw_lower or "root" in raw_lower:
+                            canonical_code = ProcedureCode.ENDO_RCT.value
+                        else:
+                            canonical_code = ProcedureCode.REST_COMPOSITE.value
+                    elif any(w in raw_lower for w in ["rct", "root canal", "عصب", "endo"]):
+                        canonical_code = ProcedureCode.ENDO_RCT.value
+                    elif any(w in raw_lower for w in ["crown", "تاج", "طربوش", "كراون"]):
+                        canonical_code = ProcedureCode.PROS_CROWN.value
+                    elif any(w in raw_lower for w in ["bridge", "جسر", "كباري"]):
+                        canonical_code = ProcedureCode.PROS_BRIDGE.value
+                    elif any(w in raw_lower for w in ["extract", "خلع"]):
+                        canonical_code = ProcedureCode.SURG_EXTRACTION.value
+                    elif any(w in raw_lower for w in ["implant", "زراعة"]):
+                        canonical_code = ProcedureCode.IMPLANT_FIXTURE.value
+                    elif any(w in raw_lower for w in ["denture", "طقم"]):
+                        canonical_code = ProcedureCode.PROS_DENTURE.value
+
+        if not canonical_code or not str(canonical_code).strip():
+            logger.warning(
+                "Skipping clinical work item projection for treatment %s: no valid procedure code could be derived from '%s'",
+                getattr(treatment, "id", None),
+                treatment.procedure,
+            )
             return None
 
         status_raw = (treatment.status or "Done").lower()
@@ -563,6 +591,9 @@ class TreatmentService:
             return work_item
 
         canonical_code, status, tooth_key, valid_surfs = mapping
+        if not canonical_code or not str(canonical_code).strip():
+            logger.warning("Skipping clinical work item projection update: empty code for treatment %s", treatment.id)
+            return None
 
         work_item.code = canonical_code
         work_item.status = status
@@ -967,9 +998,15 @@ class TreatmentService:
         )
 
         # 4.6. Synchronize updated treatment with shadow ClinicalWorkItem / ClinicalEvent
-        await self._sync_clinical_work_item_update(
-            updated_treatment, surfaces=surfaces
-        )
+        try:
+            await self._sync_clinical_work_item_update(
+                updated_treatment, surfaces=surfaces
+            )
+        except Exception as exc:
+            logger.warning(
+                "Skipping shadow clinical work item update for treatment %s due to error: %s",
+                treatment_id, exc, exc_info=True
+            )
 
         # 5. Commit transaction
         await self.db.commit()
