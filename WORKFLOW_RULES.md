@@ -34,7 +34,7 @@ docker compose -f docker-compose.dev.yml down
 # Backend dependency sync / tests
 uv sync --frozen
 uv run pytest <relevant paths> -q
-# full suite only when explicitly requested: uv run pytest backend/tests/ -q
+# full suite only when explicitly requested (see DEVELOPMENT_WORKFLOW §4 Plan-Level Full Run): uv run pytest backend/tests/ -q
 
 # Frontend development
 cd frontend && npm run dev
