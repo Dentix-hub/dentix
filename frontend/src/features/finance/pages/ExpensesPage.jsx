@@ -211,7 +211,7 @@ export default function ExpensesPage() {
                 <MetricCard
                     title={t('finance.expenses.manual_total', 'المصروفات التشغيلية المباشرة')}
                     amount={manualExpensesTotal}
-                    scope={from && to ? 'period' : 'all_time'}
+                    scope="period"
                     subtitle={t('finance.expenses.manual_total_sub', 'المصروفات اليومية والمستلزمات المسجلة')}
                     icon={Receipt}
                     colored
@@ -220,7 +220,7 @@ export default function ExpensesPage() {
                 <MetricCard
                     title={t('finance.expenses.lab_total', 'مدفوعات المعامل')}
                     amount={labExpensesTotal}
-                    scope={from && to ? 'period' : 'all_time'}
+                    scope="period"
                     subtitle={t('finance.expenses.lab_total_sub', 'إجمالي المدفوعات المسجلة للمعامل للفترة')}
                     icon={FlaskConical}
                     isLoading={isLoading}
@@ -228,7 +228,7 @@ export default function ExpensesPage() {
                 <MetricCard
                     title={t('finance.metrics.deductions', 'إجمالي الخصومات والالتزامات')}
                     amount={totalDeductions}
-                    scope={from && to ? 'period' : 'all_time'}
+                    scope="period"
                     subtitle={t('finance.expenses.deductions_sub', 'تشمل المصروفات + المعامل + أتعاب الأطباء والرواتب')}
                     icon={PieChart}
                     isLoading={isLoading}

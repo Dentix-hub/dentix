@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { getExpenses, createExpense, deleteExpense } from '@/api/billing';
 import { getFinanceSummary } from '@/api/financials';
 import { financeKeys } from '../../queryKeys';
+import { getPresetDates } from '../../utils/datePresets';
 
 /**
  * Hook for managing Expenses V2 data, server search, category filters, and targeted invalidation.
@@ -11,10 +12,11 @@ export function useExpenses(pageSize = 25) {
     const queryClient = useQueryClient();
     const [searchParams, setSearchParams] = useSearchParams();
 
+    const defaultDates = getPresetDates('this_month');
     const search = searchParams.get('q') || '';
     const category = searchParams.get('category') || '';
-    const from = searchParams.get('from') || '';
-    const to = searchParams.get('to') || '';
+    const from = searchParams.get('from') || defaultDates.from;
+    const to = searchParams.get('to') || defaultDates.to;
     const pageParam = parseInt(searchParams.get('page') || '1', 10);
     const currentPage = isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
 

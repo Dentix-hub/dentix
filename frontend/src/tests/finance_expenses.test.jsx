@@ -180,6 +180,62 @@ describe('Finance Expenses V2', () => {
             expect(labFilterOption).not.toBeNull();
             expect(labFilterOption?.value).toBe('Laboratory');
         });
+
+        it('defaults to current month preset when date range is empty, fetches summary, and shows period scope badge (L5 fix)', async () => {
+            billingApi.getExpenses.mockResolvedValueOnce({
+                data: {
+                    data: {
+                        total: 1,
+                        source: 'manual_expense',
+                        items: [
+                            {
+                                id: 99,
+                                item_name: 'شراء شاش طبي',
+                                cost: 250,
+                                category: 'Supplies',
+                                date: '2026-10-25',
+                                source: 'manual_expense',
+                            },
+                        ],
+                    },
+                },
+            });
+
+            financialsApi.getFinanceSummary.mockResolvedValueOnce({
+                data: {
+                    data: {
+                        deductions: {
+                            expenses: 250,
+                            lab_costs: 100,
+                            total_deductions: 350,
+                        },
+                    },
+                },
+            });
+
+            const queryClient = createTestQueryClient();
+            render(
+                <QueryClientProvider client={queryClient}>
+                    <MemoryRouter initialEntries={['/finance/expenses']}>
+                        <ExpensesPage />
+                    </MemoryRouter>
+                </QueryClientProvider>
+            );
+
+            // financialsApi.getFinanceSummary MUST be called even without query parameters
+            await waitFor(() => {
+                expect(financialsApi.getFinanceSummary).toHaveBeenCalled();
+            });
+
+            // Summary cards must display the real fetched amount (250), not 0
+            await waitFor(() => {
+                expect(screen.getAllByLabelText('250 EGP').length).toBeGreaterThan(0);
+            });
+
+            // Scope badge must reflect the period, not misleading all_time
+            expect(screen.queryAllByText('الفترة المحددة').length).toBeGreaterThan(0);
+            expect(screen.queryByText('الرصيد التراكمي (الكل)')).toBeNull();
+        });
     });
 
     describe('<AddExpenseDrawer />', () => {
