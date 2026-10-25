@@ -3034,7 +3034,9 @@
       "category_general": "Category General",
       "records_count": "Records Count",
       "total_expenses": "Total Expenses",
-      "direct_total": "Direct Total"
+      "direct_total": "Direct Total",
+      "lab_hint": "Laboratory payments are recorded on the Labs page, not in Expenses.",
+      "go_to_labs": "Labs Page"
     },
     "compensation": {
       "doctors": "Doctor Compensation",
