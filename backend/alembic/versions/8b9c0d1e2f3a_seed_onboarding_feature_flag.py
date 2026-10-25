@@ -19,6 +19,10 @@ depends_on = None
 
 def upgrade() -> None:
     bind = op.get_bind()
+    tables = sa.inspect(bind).get_table_names()
+    if "feature_flags" not in tables:
+        return
+
     metadata = sa.MetaData()
     feature_flags = sa.Table(
         "feature_flags",
@@ -48,4 +52,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DELETE FROM feature_flags WHERE key = 'onboarding_checklist'")
+    bind = op.get_bind()
+    tables = sa.inspect(bind).get_table_names()
+    if "feature_flags" in tables:
+        op.execute("DELETE FROM feature_flags WHERE key = 'onboarding_checklist'")
