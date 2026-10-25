@@ -1,5 +1,6 @@
 """Laboratory and lab-order management."""
 
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,11 +9,17 @@ from sqlalchemy.orm import selectinload
 from .. import models, schemas
 from ..cache import cache_response, invalidate_cache
 from backend.clinical.catalog import _PROCEDURE_DEFINITIONS
+from backend.core.money import as_decimal, quantize_money
 from backend.core.permissions import DOCTOR_ROLES, Permission, require_permission
 from backend.core.response import success_response
 from backend.database import get_async_db
 from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
 from backend.services.feature_service import FeatureFlagService
+from backend.services.lab_service import (
+    format_lab_order_dict,
+    get_order_payment_map,
+    get_unpaid_orders_count,
+)
 from backend.services.patient_access_service import (
     ensure_patient_visible,
     visible_patient_ids_query,
@@ -218,12 +225,18 @@ async def get_lab_orders(
     stmt = stmt.order_by(models.LabOrder.order_date.desc())
     orders = (await db.execute(stmt)).scalars().all()
 
-    result = []
-    for order in orders:
-        order_dict = schemas.LabOrder.model_validate(order).model_dump()
-        order_dict["patient_name"] = order.patient.name if order.patient else None
-        order_dict["laboratory_name"] = order.laboratory.name if order.laboratory else None
-        result.append(order_dict)
+    order_ids = [o.id for o in orders]
+    payment_map = await get_order_payment_map(db, current_user.tenant_id, order_ids)
+
+    result = [
+        format_lab_order_dict(
+            order,
+            paid_amount=payment_map.get(order.id, Decimal("0.00")),
+            patient_name=order.patient.name if order.patient else None,
+            laboratory_name=order.laboratory.name if order.laboratory else None,
+        )
+        for order in orders
+    ]
     return success_response(result)
 
 
@@ -259,6 +272,14 @@ async def create_lab_order(
     ).scalars().first()
     if not lab:
         raise HTTPException(status_code=404, detail="Laboratory not found")
+
+    paid_now_d = quantize_money(as_decimal(getattr(order, "paid_now", 0)))
+    cost_d = quantize_money(as_decimal(order.cost))
+    if paid_now_d > 0 and paid_now_d > cost_d:
+        raise HTTPException(
+            status_code=400,
+            detail="المبلغ المدفوع لا يمكن أن يتجاوز تكلفة الطلب",
+        )
 
     if order.work_item_id is not None:
         if not await FeatureFlagService.is_feature_enabled(
@@ -296,10 +317,14 @@ async def create_lab_order(
         )
         existing_order = (await db.execute(stmt_existing)).scalars().first()
         if existing_order:
-            result = schemas.LabOrder.model_validate(existing_order).model_dump()
-            result["patient_name"] = existing_order.patient.name if existing_order.patient else patient.name
-            result["laboratory_name"] = existing_order.laboratory.name if existing_order.laboratory else lab.name
-            result["is_existing"] = True
+            payment_map = await get_order_payment_map(db, current_user.tenant_id, [existing_order.id])
+            result = format_lab_order_dict(
+                existing_order,
+                paid_amount=payment_map.get(existing_order.id, Decimal("0.00")),
+                patient_name=existing_order.patient.name if existing_order.patient else patient.name,
+                laboratory_name=existing_order.laboratory.name if existing_order.laboratory else lab.name,
+                is_existing=True,
+            )
             return success_response(result)
 
     if order.treatment_id is not None:
@@ -309,7 +334,7 @@ async def create_lab_order(
                     models.Treatment.id == order.treatment_id,
                     models.Treatment.tenant_id == current_user.tenant_id,
                     models.Treatment.patient_id == order.patient_id,
-                    models.Treatment.is_deleted == False,
+                    models.Treatment.is_deleted == False,  # noqa: E712
                 )
             )
         ).scalars().first()
@@ -332,20 +357,36 @@ async def create_lab_order(
         )
         existing_order = (await db.execute(stmt_existing)).scalars().first()
         if existing_order:
-            result = schemas.LabOrder.model_validate(existing_order).model_dump()
-            result["patient_name"] = existing_order.patient.name if existing_order.patient else patient.name
-            result["laboratory_name"] = existing_order.laboratory.name if existing_order.laboratory else lab.name
-            result["is_existing"] = True
+            payment_map = await get_order_payment_map(db, current_user.tenant_id, [existing_order.id])
+            result = format_lab_order_dict(
+                existing_order,
+                paid_amount=payment_map.get(existing_order.id, Decimal("0.00")),
+                patient_name=existing_order.patient.name if existing_order.patient else patient.name,
+                laboratory_name=existing_order.laboratory.name if existing_order.laboratory else lab.name,
+                is_existing=True,
+            )
             return success_response(result)
 
     provider_id = await _resolve_lab_provider_id(db, current_user, patient)
     db_order = models.LabOrder(
-        **order.model_dump(),
+        **order.model_dump(exclude={"paid_now"}),
         tenant_id=current_user.tenant_id,
         doctor_id=provider_id,
     )
     db.add(db_order)
     await db.flush()
+
+    if paid_now_d > 0:
+        payment = models.LabPayment(
+            laboratory_id=order.laboratory_id,
+            lab_order_id=db_order.id,
+            amount=paid_now_d,
+            method="Cash",
+            notes=f"دفعة طلب معمل #{db_order.id}",
+            tenant_id=current_user.tenant_id,
+        )
+        db.add(payment)
+        await db.flush()
 
     # G12-M08 & G12-M09 / R06 / D3: Decouple lab price from synthetic treatment creation.
     # When linked to a clinical work item or existing treatment, create 0 synthetic treatments!
@@ -374,10 +415,13 @@ async def create_lab_order(
     await db.commit()
     await db.refresh(db_order)
 
-    result = schemas.LabOrder.model_validate(db_order).model_dump()
-    result["patient_name"] = patient.name
-    result["laboratory_name"] = lab.name
-    result["is_existing"] = False
+    result = format_lab_order_dict(
+        db_order,
+        paid_amount=paid_now_d,
+        patient_name=patient.name,
+        laboratory_name=lab.name,
+        is_existing=False,
+    )
     return success_response(result)
 
 
@@ -412,11 +456,12 @@ async def get_lab_orders_stats(
         )
     ) or 0
     total_cost = await db.scalar(
-        select(func.sum(models.LabOrder.cost))
+        select(func.coalesce(func.sum(models.LabOrder.cost), 0))
         .join(models.Patient, models.LabOrder.patient_id == models.Patient.id)
         .where(
             models.LabOrder.tenant_id == current_user.tenant_id,
             models.Patient.is_deleted == False,  # noqa: E712
+            models.LabOrder.status != "cancelled",
         )
     ) or 0
     total_revenue = await db.scalar(
@@ -433,6 +478,7 @@ async def get_lab_orders_stats(
             models.Laboratory.is_active == True,  # noqa: E712
         )
     ) or 0
+    unpaid_orders_count = await get_unpaid_orders_count(db, current_user.tenant_id)
     return success_response(
         {
             "total_orders": total_orders,
@@ -443,6 +489,7 @@ async def get_lab_orders_stats(
             "total_revenue": total_revenue,
             "profit": total_revenue - total_cost,
             "total_labs": total_labs,
+            "unpaid_orders_count": unpaid_orders_count,
         }
     )
 
@@ -470,9 +517,13 @@ async def get_lab_order(
         raise HTTPException(status_code=404, detail="Lab order not found")
     await ensure_patient_visible(db, current_user, order.patient_id, detail="Lab order not found")
 
-    result = schemas.LabOrder.model_validate(order).model_dump()
-    result["patient_name"] = order.patient.name if order.patient else None
-    result["laboratory_name"] = order.laboratory.name if order.laboratory else None
+    payment_map = await get_order_payment_map(db, current_user.tenant_id, [order.id])
+    result = format_lab_order_dict(
+        order,
+        paid_amount=payment_map.get(order.id, Decimal("0.00")),
+        patient_name=order.patient.name if order.patient else None,
+        laboratory_name=order.laboratory.name if order.laboratory else None,
+    )
     return success_response(result)
 
 
@@ -551,7 +602,7 @@ async def update_lab_order(
                     models.Treatment.id == update_data["treatment_id"],
                     models.Treatment.tenant_id == current_user.tenant_id,
                     models.Treatment.patient_id == order.patient_id,
-                    models.Treatment.is_deleted == False,
+                    models.Treatment.is_deleted == False,  # noqa: E712
                 )
             )
         ).scalars().first()
@@ -574,6 +625,22 @@ async def update_lab_order(
 
     if update_data.get("status") == "completed" and order.status != "completed":
         update_data["received_date"] = utc_now_naive()
+
+    if "cost" in update_data and update_data["cost"] is not None:
+        total_paid = await db.scalar(
+            select(func.coalesce(func.sum(models.LabPayment.amount), 0)).where(
+                models.LabPayment.tenant_id == current_user.tenant_id,
+                models.LabPayment.lab_order_id == order.id,
+            )
+        )
+        total_paid_d = quantize_money(as_decimal(total_paid))
+        new_cost_d = quantize_money(as_decimal(update_data["cost"]))
+        if new_cost_d < total_paid_d:
+            raise HTTPException(
+                status_code=400,
+                detail=f"لا يمكن تقليل تكلفة الطلب ({new_cost_d}) إلى أقل من المبلغ المدفوع بالفعل ({total_paid_d})",
+            )
+
     for key, value in update_data.items():
         setattr(order, key, value)
 
@@ -631,9 +698,13 @@ async def update_lab_order(
     await db.commit()
     await db.refresh(order)
 
-    result = schemas.LabOrder.model_validate(order).model_dump()
-    result["patient_name"] = patient_name
-    result["laboratory_name"] = lab_name
+    payment_map = await get_order_payment_map(db, current_user.tenant_id, [order.id])
+    result = format_lab_order_dict(
+        order,
+        paid_amount=payment_map.get(order.id, Decimal("0.00")),
+        patient_name=patient_name,
+        laboratory_name=lab_name,
+    )
     return success_response(result)
 
 
@@ -654,6 +725,18 @@ async def delete_lab_order(
     if not order:
         raise HTTPException(status_code=404, detail="Lab order not found")
     await ensure_patient_visible(db, current_user, order.patient_id, detail="Lab order not found")
+
+    has_payments = await db.scalar(
+        select(func.count(models.LabPayment.id)).where(
+            models.LabPayment.tenant_id == current_user.tenant_id,
+            models.LabPayment.lab_order_id == order.id,
+        )
+    )
+    if has_payments and has_payments > 0:
+        raise HTTPException(
+            status_code=409,
+            detail="الطلب عليه دفعات، الغِ الطلب بدل حذفه",
+        )
 
     linked_treatment = (
         await db.execute(_linked_treatment_stmt(current_user.tenant_id, order_id))
@@ -696,12 +779,18 @@ async def get_patient_lab_orders(
         )
     ).scalars().all()
 
-    result = []
-    for order in orders:
-        order_dict = schemas.LabOrder.model_validate(order).model_dump()
-        order_dict["patient_name"] = patient.name
-        order_dict["laboratory_name"] = order.laboratory.name if order.laboratory else None
-        result.append(order_dict)
+    order_ids = [o.id for o in orders]
+    payment_map = await get_order_payment_map(db, current_user.tenant_id, order_ids)
+
+    result = [
+        format_lab_order_dict(
+            order,
+            paid_amount=payment_map.get(order.id, Decimal("0.00")),
+            patient_name=patient.name,
+            laboratory_name=order.laboratory.name if order.laboratory else None,
+        )
+        for order in orders
+    ]
     return success_response(result)
 
 
@@ -741,6 +830,7 @@ async def get_lab_stats(
         select(func.sum(models.LabOrder.cost)).where(
             models.LabOrder.laboratory_id == lab_id,
             models.LabOrder.tenant_id == current_user.tenant_id,
+            models.LabOrder.status != "cancelled",
         )
     ) or 0.0
     total_revenue = await db.scalar(
@@ -755,6 +845,7 @@ async def get_lab_stats(
             models.LabPayment.tenant_id == current_user.tenant_id,
         )
     ) or 0.0
+    unpaid_orders_count = await get_unpaid_orders_count(db, current_user.tenant_id, lab_id)
     return {
         "lab_id": lab_id,
         "lab_name": lab.name,
@@ -765,6 +856,7 @@ async def get_lab_stats(
         "total_revenue": total_revenue,
         "total_paid": total_paid,
         "balance": total_cost - total_paid,
+        "unpaid_orders_count": unpaid_orders_count,
     }
 
 
@@ -785,6 +877,41 @@ async def create_lab_payment(
     ).scalars().first()
     if not lab:
         raise HTTPException(status_code=404, detail="Laboratory not found")
+
+    if payment.lab_order_id is not None:
+        stmt = select(models.LabOrder).where(
+            models.LabOrder.id == payment.lab_order_id,
+            models.LabOrder.tenant_id == current_user.tenant_id,
+        )
+        bind = db.bind or db.get_bind()
+        if bind and bind.dialect.name == "postgresql":
+            stmt = stmt.with_for_update()
+
+        order = (await db.execute(stmt)).scalars().first()
+        if not order:
+            raise HTTPException(status_code=404, detail="طلب المعمل غير موجود")
+        if order.laboratory_id != lab_id:
+            raise HTTPException(status_code=400, detail="الطلب لا يتبع هذا المعمل")
+        if (order.status or "").lower() == "cancelled":
+            raise HTTPException(status_code=400, detail="لا يمكن تسجيل دفعة لطلب معمل ملغي")
+
+        existing_paid = await db.scalar(
+            select(func.coalesce(func.sum(models.LabPayment.amount), 0)).where(
+                models.LabPayment.tenant_id == current_user.tenant_id,
+                models.LabPayment.lab_order_id == order.id,
+            )
+        )
+        existing_paid_d = quantize_money(as_decimal(existing_paid))
+        order_cost_d = quantize_money(as_decimal(order.cost))
+        remaining_d = max(Decimal("0.00"), order_cost_d - existing_paid_d)
+
+        payment_amount_d = quantize_money(as_decimal(payment.amount))
+        if payment_amount_d > remaining_d:
+            raise HTTPException(
+                status_code=400,
+                detail=f"المبلغ المدفوع ({payment_amount_d}) يتجاوز المبلغ المتبقي للطلب ({remaining_d})",
+            )
+
     payload = payment.model_dump()
     payload["laboratory_id"] = lab_id
     db_payment = models.LabPayment(**payload, tenant_id=current_user.tenant_id)
@@ -896,9 +1023,14 @@ async def create_clinical_lab_handoff(
     )
     existing_order = (await db.execute(stmt_existing)).scalars().first()
     if existing_order:
-        result = schemas.LabOrder.model_validate(existing_order).model_dump()
-        result["patient_name"] = existing_order.patient.name if existing_order.patient else patient.name
-        result["laboratory_name"] = existing_order.laboratory.name if existing_order.laboratory else lab.name
+        payment_map = await get_order_payment_map(db, current_user.tenant_id, [existing_order.id])
+        result = format_lab_order_dict(
+            existing_order,
+            paid_amount=payment_map.get(existing_order.id, Decimal("0.00")),
+            patient_name=existing_order.patient.name if existing_order.patient else patient.name,
+            laboratory_name=existing_order.laboratory.name if existing_order.laboratory else lab.name,
+            is_existing=True,
+        )
         return success_response(result)
 
     # Smart pre-population of tooth number and work type
@@ -943,9 +1075,12 @@ async def create_clinical_lab_handoff(
     await db.commit()
     await db.refresh(db_order)
 
-    result = schemas.LabOrder.model_validate(db_order).model_dump()
-    result["patient_name"] = patient.name
-    result["laboratory_name"] = lab.name
-    result["is_existing"] = False
+    result = format_lab_order_dict(
+        db_order,
+        paid_amount=Decimal("0.00"),
+        patient_name=patient.name,
+        laboratory_name=lab.name,
+        is_existing=False,
+    )
     return success_response(result)
 
