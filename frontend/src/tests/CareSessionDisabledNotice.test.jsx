@@ -169,4 +169,36 @@ describe('Care Session 404 Disabled State UI Handling', () => {
             'ميزة الجلسات الجديدة غير مفعّلة لهذه العيادة',
         );
     });
+
+    it('does NOT show the disabled notice when 404 has a different detail', async () => {
+        mockToastError.mockClear();
+        mockMutateAsync.mockRejectedValueOnce({
+            response: {
+                status: 404,
+                data: { detail: 'Patient or session not found' },
+            },
+        });
+
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+        });
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter>
+                    <PatientDetails />
+                </MemoryRouter>
+            </QueryClientProvider>,
+        );
+
+        const resumeBtn = screen.getByRole('button', { name: /استئناف العلاج|Resume Treatment/i });
+        fireEvent.click(resumeBtn);
+
+        await waitFor(() => {
+            expect(mockToastError).toHaveBeenCalledWith('Patient or session not found');
+        });
+
+        // The banner should NOT be rendered in the DOM
+        expect(screen.queryByTestId('care-session-disabled-notice')).toBeNull();
+    });
 });

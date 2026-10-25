@@ -75,6 +75,21 @@ const PatientBilling = lazy(() => import('@/features/patients/PatientTabs/Patien
 const LabOrdersTab = lazy(() => import('@/features/lab/LabOrdersTab'));
 const PatientTimeline = lazy(() => import('@/features/patients/PatientTabs/PatientTimeline'));
 
+const isNativeWritesDisabledError = (err) => {
+    if (err?.response?.status !== 404) return false;
+    const detail = err?.response?.data?.detail;
+    if (typeof detail === 'string') {
+        return detail.includes('Clinical native writes are disabled');
+    }
+    if (detail && typeof detail === 'object') {
+        return (
+            (typeof detail.message === 'string' && detail.message.includes('Clinical native writes are disabled')) ||
+            (typeof detail.detail === 'string' && detail.detail.includes('Clinical native writes are disabled'))
+        );
+    }
+    return false;
+};
+
 export default function PatientDetails() {
     let authUser = null;
     try {
@@ -261,7 +276,7 @@ export default function PatientDetails() {
                 toast.success(t('care_session.rct_started', 'RCT care session started successfully'));
             }
         } catch (err) {
-            if (err?.response?.status === 404) {
+            if (isNativeWritesDisabledError(err)) {
                 const disabledMsg = t('care_session.disabled_message', 'ميزة الجلسات الجديدة غير مفعّلة لهذه العيادة');
                 toast.error(disabledMsg);
                 setCareSessionDisabledNotice(disabledMsg);
@@ -302,7 +317,7 @@ export default function PatientDetails() {
             setIsRctWorkflowOpen(true);
             toast.success(t('care_session.resumed_success', 'Treatment resumed successfully'));
         } catch (err) {
-            if (err?.response?.status === 404) {
+            if (isNativeWritesDisabledError(err)) {
                 const disabledMsg = t('care_session.disabled_message', 'ميزة الجلسات الجديدة غير مفعّلة لهذه العيادة');
                 toast.error(disabledMsg);
                 setCareSessionDisabledNotice(disabledMsg);
