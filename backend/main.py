@@ -212,6 +212,7 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+import traceback
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from backend.core.logging_sanitizer import sanitize_text, sanitize_dict
@@ -220,6 +221,10 @@ from backend.core.logging import get_trace_id
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     detail = exc.detail
+    request.state.error_detail = detail
+    request.state.error_code = getattr(exc, "error_code", None)
+    if exc.status_code >= 500:
+        request.state.stack_trace = traceback.format_exc()
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -234,6 +239,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     sanitized_errors = [sanitize_dict(err) if isinstance(err, dict) else sanitize_text(str(err)) for err in exc.errors()]
+    request.state.error_detail = "validation_error"
     return JSONResponse(
         status_code=422,
         content={
@@ -246,7 +252,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    formatted_trace = traceback.format_exc()
     logger.error("Unhandled server exception: %s", sanitize_text(str(exc)), exc_info=True)
+    request.state.error_detail = str(exc)
+    request.state.stack_trace = formatted_trace
     return JSONResponse(
         status_code=500,
         content={

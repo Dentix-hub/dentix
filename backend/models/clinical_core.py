@@ -42,7 +42,7 @@ from sqlalchemy import (
     text,
     true,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from .base import Base
 
@@ -148,6 +148,12 @@ class ClinicalWorkItem(Base):
     next_visit_requests = relationship("NextVisitRequest", back_populates="work_item")
     attachment_links = relationship("ClinicalAttachmentLink", back_populates="work_item")
     lab_orders = relationship("LabOrder", back_populates="work_item", lazy="selectin")
+
+    @validates("code")
+    def validate_code(self, key, value):
+        if value is None or not str(value).strip():
+            raise ValueError("ClinicalWorkItem.code cannot be empty or whitespace")
+        return value
 
     @property
     def latest_active_lab_order(self):

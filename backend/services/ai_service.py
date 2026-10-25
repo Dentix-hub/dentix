@@ -49,6 +49,14 @@ class AIService:
                     "content": f"{prompt}\n\nIMPORTANT: Respond in Arabic language only.",
                 },
             ]
+            # Release database connection back to the pool before slow external model call
+            if hasattr(self.db, "commit"):
+                try:
+                    await self.db.commit()
+                except Exception:
+                    if hasattr(self.db, "rollback"):
+                        await self.db.rollback()
+
             response = await self.agent._call_llm_safe(
                 "llama-3.1-8b-instant",
                 messages,
@@ -94,6 +102,14 @@ class AIService:
             intent_response = self._detect_intent(safe_text)
             if intent_response:
                 return intent_response
+
+            # Release database connection back to the pool before slow external model call
+            if hasattr(self.db, "commit"):
+                try:
+                    await self.db.commit()
+                except Exception:
+                    if hasattr(self.db, "rollback"):
+                        await self.db.rollback()
 
             ai_result = await self.agent.process(
                 user_input=safe_text,

@@ -199,25 +199,30 @@ class TreatmentService:
         if not treatment.patient_id or not treatment.tooth_number:
             return None
 
-        if not treatment.procedure or not str(treatment.procedure).strip():
-            return None
-
         tooth_key = str(treatment.tooth_number)
         from backend.models.clinical_core import FDI_TOOTH_KEYS, SURFACE_CODES
         if tooth_key not in FDI_TOOTH_KEYS:
             return None
 
-        from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES
+        from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES, ProcedureCode
         from backend.clinical.legacy_mapping import LEGACY_PROCEDURE_ALLOWLIST
 
-        raw_proc = str(treatment.procedure).strip()
-        if raw_proc in CANONICAL_PROCEDURE_CODES:
-            canonical_code = raw_proc
-        elif raw_proc in LEGACY_PROCEDURE_ALLOWLIST:
-            canonical_code = LEGACY_PROCEDURE_ALLOWLIST[raw_proc]
-        elif treatment.procedure in LEGACY_PROCEDURE_ALLOWLIST:
-            canonical_code = LEGACY_PROCEDURE_ALLOWLIST[treatment.procedure]
-        else:
+        canonical_code = None
+        raw_proc = str(treatment.procedure or "").strip()
+        if raw_proc:
+            if raw_proc in CANONICAL_PROCEDURE_CODES:
+                canonical_code = raw_proc
+            elif raw_proc in LEGACY_PROCEDURE_ALLOWLIST:
+                canonical_code = LEGACY_PROCEDURE_ALLOWLIST[raw_proc]
+            elif treatment.procedure in LEGACY_PROCEDURE_ALLOWLIST:
+                canonical_code = LEGACY_PROCEDURE_ALLOWLIST[treatment.procedure]
+
+        if not canonical_code or not str(canonical_code).strip():
+            logger.warning(
+                "Skipping clinical work item projection for treatment %s: procedure '%s' not in canonical catalog or legacy allowlist",
+                getattr(treatment, "id", None),
+                treatment.procedure,
+            )
             return None
 
         status_raw = (treatment.status or "Done").lower()
@@ -563,6 +568,9 @@ class TreatmentService:
             return work_item
 
         canonical_code, status, tooth_key, valid_surfs = mapping
+        if not canonical_code or not str(canonical_code).strip():
+            logger.warning("Skipping clinical work item projection update: empty code for treatment %s", treatment.id)
+            return None
 
         work_item.code = canonical_code
         work_item.status = status
@@ -769,13 +777,23 @@ class TreatmentService:
         # 5.5. Synchronize ClinicalWorkItem / ClinicalEvent for odontogram projection
         clinical_work_item_id = getattr(treatment_data, "clinical_work_item_id", None)
         if clinical_work_item_id is not None:
+            # Explicit U2 link — must NOT be swallowed; the 409 conflict is intentional.
             await self._link_existing_clinical_work_item(
                 created_treatment,
                 work_item_id=clinical_work_item_id,
                 surfaces=surfaces,
             )
         else:
-            await self._sync_clinical_work_item(created_treatment, surfaces=surfaces)
+            # Shadow projection — wrapped in SAVEPOINT so a DB error (e.g.
+            # CheckViolationError on empty code) rolls back only the projection.
+            try:
+                async with self.db.begin_nested():
+                    await self._sync_clinical_work_item(created_treatment, surfaces=surfaces)
+            except Exception as exc:
+                logger.warning(
+                    "Skipping shadow clinical work item creation for treatment %s due to error: %s",
+                    created_treatment.id, exc, exc_info=True
+                )
 
         # 6. Consume stock (post-creation) — skip if requested
         if not skip_stock:
@@ -967,9 +985,18 @@ class TreatmentService:
         )
 
         # 4.6. Synchronize updated treatment with shadow ClinicalWorkItem / ClinicalEvent
-        await self._sync_clinical_work_item_update(
-            updated_treatment, surfaces=surfaces
-        )
+        # Wrapped in a nested transaction (SAVEPOINT) so that any DB error (e.g. CheckViolationError)
+        # rolls back only the shadow projection and does not poison the outer transaction.
+        try:
+            async with self.db.begin_nested():
+                await self._sync_clinical_work_item_update(
+                    updated_treatment, surfaces=surfaces
+                )
+        except Exception as exc:
+            logger.warning(
+                "Skipping shadow clinical work item update for treatment %s due to error: %s",
+                treatment_id, exc, exc_info=True
+            )
 
         # 5. Commit transaction
         await self.db.commit()
