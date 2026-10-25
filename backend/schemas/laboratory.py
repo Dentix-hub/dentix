@@ -98,6 +98,7 @@ class LabOrder(LabOrderBase):
     received_date: Optional[datetime] = None
     patient_name: Optional[str] = None
     laboratory_name: Optional[str] = None
+    is_existing: Optional[bool] = None
 
     model_config = ConfigDict(from_attributes=True)
 

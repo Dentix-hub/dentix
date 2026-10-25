@@ -1041,6 +1041,8 @@
     "alerts": {
       "tooth_update_fail": "فشل تحديث حالة السن على المخطط",
       "treatment_save_success": "تم حفظ العلاج وخصم المواد بنجاح",
+      "treatment_saved_lab_failed": "تم حفظ الإجراء بنجاح ولكن تعذر إنشاء طلب المعمل. يمكنك إعادة المحاولة من تفاصيل العلاج.",
+      "lab_order_already_exists": "يوجد طلب معمل نشط بالفعل لهذا العلاج.",
       "treatment_save_fail": "فشل حفظ العلاج",
       "payment_save_fail": "فشل حفظ الدفع",
       "delete_treatment_confirm": "هل أنت متأكد من حذف هذا العلاج؟",

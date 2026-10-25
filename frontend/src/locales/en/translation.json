@@ -1041,6 +1041,8 @@
     "alerts": {
       "tooth_update_fail": "Failed to update tooth status",
       "treatment_save_success": "Treatment saved and stock deducted",
+      "treatment_saved_lab_failed": "Procedure saved successfully, but creating the lab order failed. You can retry from the treatment details.",
+      "lab_order_already_exists": "An active lab order already exists for this treatment.",
       "treatment_save_fail": "Failed to save treatment",
       "payment_save_fail": "Failed to save payment",
       "delete_treatment_confirm": "Are you sure you want to delete this treatment?",

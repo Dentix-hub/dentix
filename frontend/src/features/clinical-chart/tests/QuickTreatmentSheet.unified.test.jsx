@@ -428,4 +428,35 @@ describe('QuickTreatmentSheet Unified Specification (D1–D4 & F1–F10)', () =>
             }));
         });
     });
+
+    it('14. reopening sheet in edit mode for prosthetic treatment without linked lab order displays lab section for retry', async () => {
+        getPatientLabOrders.mockResolvedValue({ data: [] });
+        const onSave = vi.fn().mockResolvedValue(undefined);
+        renderSheet({
+            isEditing: true,
+            onSave,
+            initialData: {
+                ...initialData,
+                id: 88,
+                procedure: 'Crown PFM',
+                cost: '1200',
+            },
+        });
+
+        expect(await screen.findByText('بيانات المعمل')).toBeInTheDocument();
+        expect(screen.getByLabelText('اختر المعمل')).toBeInTheDocument();
+
+        // Select lab and save again
+        fireEvent.change(screen.getByLabelText('اختر المعمل'), { target: { value: '101' } });
+        fireEvent.click(screen.getByRole('button', { name: 'حفظ' }));
+
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
+            id: 88,
+            procedure: 'Crown PFM',
+            lab_order: expect.objectContaining({
+                laboratory_id: '101',
+            }),
+        }));
+    });
 });

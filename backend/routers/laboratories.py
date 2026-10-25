@@ -299,6 +299,7 @@ async def create_lab_order(
             result = schemas.LabOrder.model_validate(existing_order).model_dump()
             result["patient_name"] = existing_order.patient.name if existing_order.patient else patient.name
             result["laboratory_name"] = existing_order.laboratory.name if existing_order.laboratory else lab.name
+            result["is_existing"] = True
             return success_response(result)
 
     if order.treatment_id is not None:
@@ -334,6 +335,7 @@ async def create_lab_order(
             result = schemas.LabOrder.model_validate(existing_order).model_dump()
             result["patient_name"] = existing_order.patient.name if existing_order.patient else patient.name
             result["laboratory_name"] = existing_order.laboratory.name if existing_order.laboratory else lab.name
+            result["is_existing"] = True
             return success_response(result)
 
     provider_id = await _resolve_lab_provider_id(db, current_user, patient)
@@ -375,6 +377,7 @@ async def create_lab_order(
     result = schemas.LabOrder.model_validate(db_order).model_dump()
     result["patient_name"] = patient.name
     result["laboratory_name"] = lab.name
+    result["is_existing"] = False
     return success_response(result)
 
 
@@ -512,6 +515,11 @@ async def update_lab_order(
             raise HTTPException(status_code=404, detail="Laboratory not found")
 
     if update_data.get("work_item_id") is not None:
+        if order.treatment_id is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot link work item to a treatment lab order",
+            )
         if not await FeatureFlagService.is_feature_enabled(
             db, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, current_user.tenant_id
         ):
@@ -530,6 +538,39 @@ async def update_lab_order(
         ).scalars().first()
         if not work_item:
             raise HTTPException(status_code=404, detail="Clinical work item not found")
+
+    if update_data.get("treatment_id") is not None:
+        if order.work_item_id is not None or update_data.get("work_item_id") is not None:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot link treatment to a work item lab order",
+            )
+        treatment = (
+            await db.execute(
+                select(models.Treatment).where(
+                    models.Treatment.id == update_data["treatment_id"],
+                    models.Treatment.tenant_id == current_user.tenant_id,
+                    models.Treatment.patient_id == order.patient_id,
+                    models.Treatment.is_deleted == False,
+                )
+            )
+        ).scalars().first()
+        if not treatment:
+            raise HTTPException(status_code=404, detail="Treatment not found")
+
+        if update_data["treatment_id"] != order.treatment_id:
+            stmt_conflict = select(models.LabOrder).where(
+                models.LabOrder.tenant_id == current_user.tenant_id,
+                models.LabOrder.treatment_id == update_data["treatment_id"],
+                models.LabOrder.status != "cancelled",
+                models.LabOrder.id != order.id,
+            )
+            conflict = (await db.execute(stmt_conflict)).scalars().first()
+            if conflict:
+                raise HTTPException(
+                    status_code=409,
+                    detail="An active lab order already exists for this treatment",
+                )
 
     if update_data.get("status") == "completed" and order.status != "completed":
         update_data["received_date"] = utc_now_naive()
@@ -555,6 +596,8 @@ async def update_lab_order(
         await db.execute(_linked_treatment_stmt(current_user.tenant_id, order_id))
     ).scalars().first()
     active_lab = target_lab or order.laboratory
+    patient_name = order.patient.name if order.patient else None
+    lab_name = active_lab.name if active_lab else None
 
     if linked_treatment:
         linked_treatment.cost = order.price_to_patient or 0
@@ -569,12 +612,12 @@ async def update_lab_order(
                 tooth_num = int(order.tooth_number.split(",")[0].strip())
             except (ValueError, AttributeError):
                 pass
-        lab_name = active_lab.name if active_lab else "معمل"
+        db_lab_name = active_lab.name if active_lab else "معمل"
         db.add(
             models.Treatment(
                 patient_id=order.patient_id,
                 tooth_number=tooth_num,
-                diagnosis=f"تركيبة معملية - {lab_name}",
+                diagnosis=f"تركيبة معملية - {db_lab_name}",
                 procedure=_get_lab_procedure_name(order.work_type, order.material),
                 doctor_id=order.doctor_id,
                 cost=order.price_to_patient,
@@ -589,8 +632,8 @@ async def update_lab_order(
     await db.refresh(order)
 
     result = schemas.LabOrder.model_validate(order).model_dump()
-    result["patient_name"] = order.patient.name if order.patient else None
-    result["laboratory_name"] = active_lab.name if active_lab else None
+    result["patient_name"] = patient_name
+    result["laboratory_name"] = lab_name
     return success_response(result)
 
 
@@ -903,5 +946,6 @@ async def create_clinical_lab_handoff(
     result = schemas.LabOrder.model_validate(db_order).model_dump()
     result["patient_name"] = patient.name
     result["laboratory_name"] = lab.name
+    result["is_existing"] = False
     return success_response(result)
 

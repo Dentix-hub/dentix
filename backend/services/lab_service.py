@@ -196,6 +196,31 @@ class LabService:
             raise ValueError("Lab order not found")
 
         update_data = data.model_dump(exclude_unset=True)
+        if "treatment_id" in update_data and update_data["treatment_id"] is not None:
+            if order.work_item_id is not None or update_data.get("work_item_id") is not None:
+                raise ValueError("Cannot link treatment to a work item lab order")
+
+            stmt_treat = select(models.Treatment).where(
+                models.Treatment.id == update_data["treatment_id"],
+                models.Treatment.tenant_id == self.tenant_id,
+                models.Treatment.patient_id == order.patient_id,
+                models.Treatment.is_deleted == False,
+            )
+            treatment = (await self.db.execute(stmt_treat)).scalars().first()
+            if not treatment:
+                raise ValueError("Treatment not found")
+
+            if update_data["treatment_id"] != order.treatment_id:
+                stmt_conflict = select(models.LabOrder).where(
+                    models.LabOrder.tenant_id == self.tenant_id,
+                    models.LabOrder.treatment_id == update_data["treatment_id"],
+                    models.LabOrder.status != "cancelled",
+                    models.LabOrder.id != order.id,
+                )
+                conflict = (await self.db.execute(stmt_conflict)).scalars().first()
+                if conflict:
+                    raise ValueError("An active lab order already exists for this treatment")
+
         if update_data.get("status") == "completed" and order.status != "completed":
             update_data["received_date"] = utc_now_naive()
 

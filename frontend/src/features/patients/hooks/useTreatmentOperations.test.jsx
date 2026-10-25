@@ -3,15 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useTreatmentOperations } from './useTreatmentOperations';
 import { queryKeys } from '@/lib/queryClient';
+import { toast } from '@/shared/ui';
 
 const mockCreateTreatment = vi.fn();
 const mockUpdateTreatment = vi.fn();
 const mockUpdateToothStatus = vi.fn();
+const mockCreateLabOrder = vi.fn();
 
 vi.mock('@/api', () => ({
     createTreatment: (...args) => mockCreateTreatment(...args),
     updateTreatment: (...args) => mockUpdateTreatment(...args),
     updateToothStatus: (...args) => mockUpdateToothStatus(...args),
+    createLabOrder: (...args) => mockCreateLabOrder(...args),
 }));
 
 vi.mock('@/utils/logger', () => ({
@@ -32,6 +35,7 @@ vi.mock('@/shared/ui', () => ({
     toast: {
         success: vi.fn(),
         error: vi.fn(),
+        info: vi.fn(),
     },
 }));
 
@@ -296,5 +300,131 @@ describe('useTreatmentOperations', () => {
         expect(mockCreateTreatment).not.toHaveBeenCalled();
         expect(refetchHistory).toHaveBeenCalledTimes(1);
         expect(refetchWorkspace).toHaveBeenCalledTimes(1);
+    });
+
+    it('lab order failure shows error toast and does not roll back treatment', async () => {
+        mockCreateTreatment.mockResolvedValue({ id: 99, procedure: 'Crown' });
+        mockCreateLabOrder.mockRejectedValue(new Error('Lab service unavailable'));
+
+        const { result } = renderHook(
+            () =>
+                useTreatmentOperations({
+                    patientId: 101,
+                    refetchHistory,
+                    refetchTeeth,
+                    refetchWorkspace,
+                    setIsTreatmentSheetOpen,
+                    setEditingTreatmentId,
+                    editingTreatmentId: null,
+                    selectedToothCondition: null,
+                }),
+            { wrapper: createWrapper() }
+        );
+
+        let saved = null;
+        await act(async () => {
+            saved = await result.current.handleSaveTreatment({
+                procedure: 'Crown',
+                tooth_number: '16',
+                cost: 1200,
+                lab_order: {
+                    laboratory_id: 5,
+                    shade: 'A2',
+                    material: 'Zirconia',
+                    cost: 300,
+                },
+            });
+        });
+
+        expect(mockCreateTreatment).toHaveBeenCalledTimes(1);
+        expect(mockCreateLabOrder).toHaveBeenCalledWith(expect.objectContaining({
+            patient_id: 101,
+            treatment_id: 99,
+            laboratory_id: 5,
+            work_type: 'Crown',
+            tooth_number: '16',
+            shade: 'A2',
+            material: 'Zirconia',
+            cost: 300,
+        }));
+        expect(saved).toEqual({ id: 99, procedure: 'Crown' });
+        expect(toast.error).toHaveBeenCalledWith('patient_details.alerts.treatment_saved_lab_failed');
+        expect(toast.success).not.toHaveBeenCalled();
+        expect(setIsTreatmentSheetOpen).toHaveBeenCalledWith(false);
+        expect(refetchHistory).toHaveBeenCalledTimes(1);
+    });
+
+    it('existing-order response (is_existing: true) shows info message', async () => {
+        mockCreateTreatment.mockResolvedValue({ id: 99, procedure: 'Crown' });
+        mockCreateLabOrder.mockResolvedValue({ data: { id: 201, is_existing: true } });
+
+        const { result } = renderHook(
+            () =>
+                useTreatmentOperations({
+                    patientId: 101,
+                    refetchHistory,
+                    refetchTeeth,
+                    refetchWorkspace,
+                    setIsTreatmentSheetOpen,
+                    setEditingTreatmentId,
+                    editingTreatmentId: null,
+                    selectedToothCondition: null,
+                }),
+            { wrapper: createWrapper() }
+        );
+
+        await act(async () => {
+            await result.current.handleSaveTreatment({
+                procedure: 'Crown',
+                tooth_number: '16',
+                cost: 1200,
+                lab_order: {
+                    laboratory_id: 5,
+                },
+            });
+        });
+
+        expect(mockCreateTreatment).toHaveBeenCalledTimes(1);
+        expect(mockCreateLabOrder).toHaveBeenCalledTimes(1);
+        expect(toast.info).toHaveBeenCalledWith('patient_details.alerts.lab_order_already_exists');
+        expect(toast.success).toHaveBeenCalledWith('patient_details.alerts.treatment_save_success');
+        expect(toast.error).not.toHaveBeenCalled();
+    });
+
+    it('normal success shows no extra message (only success toast)', async () => {
+        mockCreateTreatment.mockResolvedValue({ id: 99, procedure: 'Crown' });
+        mockCreateLabOrder.mockResolvedValue({ data: { id: 202, is_existing: false } });
+
+        const { result } = renderHook(
+            () =>
+                useTreatmentOperations({
+                    patientId: 101,
+                    refetchHistory,
+                    refetchTeeth,
+                    refetchWorkspace,
+                    setIsTreatmentSheetOpen,
+                    setEditingTreatmentId,
+                    editingTreatmentId: null,
+                    selectedToothCondition: null,
+                }),
+            { wrapper: createWrapper() }
+        );
+
+        await act(async () => {
+            await result.current.handleSaveTreatment({
+                procedure: 'Crown',
+                tooth_number: '16',
+                cost: 1200,
+                lab_order: {
+                    laboratory_id: 5,
+                },
+            });
+        });
+
+        expect(mockCreateTreatment).toHaveBeenCalledTimes(1);
+        expect(mockCreateLabOrder).toHaveBeenCalledTimes(1);
+        expect(toast.info).not.toHaveBeenCalled();
+        expect(toast.error).not.toHaveBeenCalled();
+        expect(toast.success).toHaveBeenCalledWith('patient_details.alerts.treatment_save_success');
     });
 });

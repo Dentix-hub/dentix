@@ -84,9 +84,11 @@ export const useTreatmentOperations = ({
             const targetTreatmentId = savedTreatment?.id || editingTreatmentId;
 
             // 2. Create linked lab order if specified (D2, D3)
+            let labOrderError = null;
+            let labOrderExisting = false;
             if (labOrderData?.laboratory_id && targetTreatmentId) {
                 try {
-                    await createLabOrder({
+                    const labRes = await createLabOrder({
                         patient_id: parseInt(patientId, 10),
                         treatment_id: targetTreatmentId,
                         laboratory_id: parseInt(labOrderData.laboratory_id, 10),
@@ -99,8 +101,13 @@ export const useTreatmentOperations = ({
                         price_to_patient: 0,
                         notes: labOrderData.notes || undefined,
                     });
+                    const labBody = labRes?.data || labRes;
+                    if (labBody?.is_existing) {
+                        labOrderExisting = true;
+                    }
                 } catch (labErr) {
                     logger.error("Failed to create linked lab order:", labErr);
+                    labOrderError = labErr;
                 }
             }
 
@@ -140,7 +147,14 @@ export const useTreatmentOperations = ({
                 await refetchClinicalData();
             }
             if (!skipToast) {
-                toast.success(t('patient_details.alerts.treatment_save_success'));
+                if (labOrderError) {
+                    toast.error(t('patient_details.alerts.treatment_saved_lab_failed'));
+                } else {
+                    if (labOrderExisting) {
+                        toast.info(t('patient_details.alerts.lab_order_already_exists'));
+                    }
+                    toast.success(t('patient_details.alerts.treatment_save_success'));
+                }
             }
             return savedTreatment;
         } catch (err) {
