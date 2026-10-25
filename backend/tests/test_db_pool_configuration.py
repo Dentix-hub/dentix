@@ -7,14 +7,16 @@ from backend import database
 
 @pytest.fixture(autouse=True)
 def _restore_database_module():
-    """Ensure database module is restored with clean test environment after reloads."""
+    """Ensure database module is restored with original references after reloads."""
     orig_env = os.environ.copy()
+    orig_dict = database.__dict__.copy()
     try:
         yield
     finally:
         os.environ.clear()
         os.environ.update(orig_env)
-        importlib.reload(database)
+        database.__dict__.clear()
+        database.__dict__.update(orig_dict)
 
 
 def test_pooler_url_defaults(monkeypatch):
@@ -132,6 +134,7 @@ async def test_ai_query_releases_db_connection_before_agent_process(monkeypatch)
     from backend import models
 
     mock_db = AsyncMock()
+    mock_db.add = MagicMock()
     # Mock quota check scalar
     mock_db.scalar = AsyncMock(return_value=0)
     mock_db.commit = AsyncMock()

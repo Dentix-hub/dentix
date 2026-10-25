@@ -91,7 +91,7 @@ async def test_persist_handled_response_warning_includes_short_reason(monkeypatc
     await persist_handled_response_error(req, 404)
 
     assert persisted_kwargs["level"] == ErrorLevel.WARNING
-    assert "HTTP 404 (Patient not found) response" in persisted_kwargs["error_msg"]
+    assert "HTTP 404 response (Patient not found)" in persisted_kwargs["error_msg"]
 
 
 @pytest.mark.asyncio

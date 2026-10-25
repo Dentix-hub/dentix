@@ -201,7 +201,7 @@ async def persist_handled_response_error(request: Request, status_code: int) -> 
     trace_id = get_trace_id()
     short_reason = _extract_short_reason(request, status_code)
     if short_reason:
-        message = f"HTTP {status_code} ({short_reason}) response"
+        message = f"HTTP {status_code} response ({short_reason})"
     else:
         message = f"HTTP {status_code} response"
 
