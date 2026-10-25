@@ -93,6 +93,12 @@ describe('Login Component', () => {
         expect(screen.getByText('auth.login.errors.session_mismatch')).toBeInTheDocument();
     });
 
+    it('shows a localized explanation after a session expired redirect', () => {
+        renderLoginAt('/login?reason=session_expired');
+
+        expect(screen.getByText('auth.login.errors.session_expired')).toBeInTheDocument();
+    });
+
     it('renders footer terms and privacy links', () => {
         renderLogin();
         expect(screen.getByText('auth.login.terms')).toBeInTheDocument();

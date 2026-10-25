@@ -15,8 +15,11 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
     const [show2FA, setShow2FA] = useState(false);
     const [twoFACode, setTwoFACode] = useState('');
     const [tempToken, setTempToken] = useState('');
-    const sessionMismatchMessage = searchParams.get('reason') === 'session_mismatch'
+    const reason = searchParams.get('reason');
+    const sessionNoticeMessage = reason === 'session_mismatch'
         ? t('auth.login.errors.session_mismatch')
+        : reason === 'session_expired'
+        ? t('auth.login.errors.session_expired', 'انتهت صلاحية الجلسة. يرجى تسجيل الدخول مرة أخرى.')
         : '';
 
     const handleLogin = async (e) => {
@@ -90,9 +93,9 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
                     </button>
                 </div>
-                {(error || sessionMismatchMessage) && (
-                    <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-2xl text-sm font-bold mb-6 animate-shake">
-                        {error || sessionMismatchMessage}
+                {(error || sessionNoticeMessage) && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-2xl text-sm font-bold mb-6 animate-shake" role="alert">
+                        {error || sessionNoticeMessage}
                     </div>
                 )}
                 {!show2FA ? (

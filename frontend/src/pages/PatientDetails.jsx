@@ -239,6 +239,7 @@ export default function PatientDetails() {
 
     const [isRctWorkflowOpen, setIsRctWorkflowOpen] = useState(false);
     const [isFinishSheetOpen, setIsFinishSheetOpen] = useState(false);
+    const [careSessionDisabledNotice, setCareSessionDisabledNotice] = useState(null);
 
     const handleStartRctSession = useCallback(async (targetToothKey) => {
         try {
@@ -260,6 +261,12 @@ export default function PatientDetails() {
                 toast.success(t('care_session.rct_started', 'RCT care session started successfully'));
             }
         } catch (err) {
+            if (err?.response?.status === 404) {
+                const disabledMsg = t('care_session.disabled_message', 'ميزة الجلسات الجديدة غير مفعّلة لهذه العيادة');
+                toast.error(disabledMsg);
+                setCareSessionDisabledNotice(disabledMsg);
+                return;
+            }
             toast.error(err?.response?.data?.detail?.message || err?.response?.data?.detail || t('care_session.start_error', 'Failed to start care session'));
         }
     }, [id, resolvedActiveTooth, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
@@ -295,6 +302,12 @@ export default function PatientDetails() {
             setIsRctWorkflowOpen(true);
             toast.success(t('care_session.resumed_success', 'Treatment resumed successfully'));
         } catch (err) {
+            if (err?.response?.status === 404) {
+                const disabledMsg = t('care_session.disabled_message', 'ميزة الجلسات الجديدة غير مفعّلة لهذه العيادة');
+                toast.error(disabledMsg);
+                setCareSessionDisabledNotice(disabledMsg);
+                return;
+            }
             toast.error(err?.response?.data?.detail?.message || err?.response?.data?.detail || t('care_session.resume_error', 'Failed to resume treatment'));
         }
     }, [id, transitionCareSessionMutation, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
@@ -788,6 +801,23 @@ export default function PatientDetails() {
                                     </section>
                                 ) : (
                                     <>
+                                        {careSessionDisabledNotice && (
+                                            <div
+                                                data-testid="care-session-disabled-notice"
+                                                className="mb-3 p-3.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 flex items-center justify-between text-sm shadow-sm"
+                                                role="alert"
+                                            >
+                                                <span className="font-medium">{careSessionDisabledNotice}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCareSessionDisabledNotice(null)}
+                                                    className="text-amber-700 hover:text-amber-900 text-sm font-bold px-2 py-0.5 rounded"
+                                                    aria-label="Close"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        )}
                                         {activeCareSession ? (
                                             <div className="mb-3">
                                                 <CareSessionActiveBanner

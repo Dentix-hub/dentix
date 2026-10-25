@@ -3,6 +3,7 @@ import { logger } from '../utils/logger';
 import { useAuthStore } from '../store/auth.store';
 import { queryClient } from '../lib/queryClient';
 import { resolveApiBaseUrl } from './apiOrigin';
+import { clearSessionCookieHint } from './authSession';
 import {
     CONNECTION_STATES,
     useConnectivityStore,
@@ -263,19 +264,45 @@ api.interceptors.response.use(
                     sessionStorage.removeItem('dentix_impersonation_scope');
                     sessionStorage.removeItem('admin_token');
                     sessionStorage.removeItem('print_rx_data');
+                    clearSessionCookieHint();
                     useAuthStore.getState().clearAuth();
-                    window.location.replace('/login?reason=session_mismatch');
+                    if (typeof window !== 'undefined' && window.location) {
+                        window.location.replace('/login?reason=session_mismatch');
+                    }
                     return Promise.reject(err);
                 }
 
                 // The in-memory user can outlive expired/revoked httpOnly cookies.
                 // Clear it immediately so authenticated polling components unmount
                 // instead of continuing to send requests with a stale session.
+                try {
+                    await queryClient.cancelQueries();
+                } catch (queryCancellationError) {
+                    logger.warn('[API] Query cancellation failed during session cleanup', queryCancellationError);
+                }
+                queryClient.clear();
+
+                try {
+                    const { useTenantStore } = await import('../store/tenant.store');
+                    useTenantStore.getState().clearTenant();
+                } catch (tenantCleanupError) {
+                    logger.warn('[API] Tenant cleanup failed after session expiration', tenantCleanupError);
+                }
+
+                sessionStorage.removeItem('dentix_impersonation_token');
+                sessionStorage.removeItem('dentix_impersonation_tenant');
+                sessionStorage.removeItem('dentix_impersonation_user');
+                sessionStorage.removeItem('dentix_impersonation_scope');
+                sessionStorage.removeItem('admin_token');
+                sessionStorage.removeItem('print_rx_data');
+                clearSessionCookieHint();
                 useAuthStore.getState().clearAuth();
                 if (originalRequest._silentAuth) {
                     return Promise.reject(err);
                 }
-                window.location.href = '/';
+                if (typeof window !== 'undefined' && window.location) {
+                    window.location.replace('/login?reason=session_expired');
+                }
                 return Promise.reject(err);
             } finally {
                 isRefreshing = false;
@@ -287,9 +314,29 @@ api.interceptors.response.use(
         // Stop authenticated polling instead of retrying forever while the UI
         // still believes the user is signed in.
         if (error.response?.status === 401 && originalRequest?._retry && !isAuthRequest) {
+            try {
+                queryClient.cancelQueries();
+            } catch (cancelError) {
+                logger.warn('[API] Query cancellation failed on terminal 401', cancelError);
+            }
+            queryClient.clear();
+
+            import('../store/tenant.store').then(({ useTenantStore }) => {
+                useTenantStore.getState().clearTenant?.();
+            }).catch((tenantError) => {
+                logger.warn('[API] Tenant clearing failed on terminal 401', tenantError);
+            });
+
+            sessionStorage.removeItem('dentix_impersonation_token');
+            sessionStorage.removeItem('dentix_impersonation_tenant');
+            sessionStorage.removeItem('dentix_impersonation_user');
+            sessionStorage.removeItem('dentix_impersonation_scope');
+            sessionStorage.removeItem('admin_token');
+            sessionStorage.removeItem('print_rx_data');
+            clearSessionCookieHint();
             useAuthStore.getState().clearAuth();
-            if (!originalRequest._silentAuth) {
-                window.location.href = '/';
+            if (!originalRequest._silentAuth && typeof window !== 'undefined' && window.location) {
+                window.location.replace('/login?reason=session_expired');
             }
         }
 

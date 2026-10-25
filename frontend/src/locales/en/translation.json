@@ -1862,6 +1862,7 @@
       "errors": {
         "server": "Server Error",
         "session_mismatch": "Your session ended because this account was signed in on another device. Please sign in again.",
+        "session_expired": "Your session has expired. Please log in again.",
         "connection": "Connection Failed. Ensure server is running.",
         "unknown": "Unknown Error"
       }
@@ -3324,6 +3325,7 @@
     "running": "Running"
   },
   "care_session": {
+    "disabled_message": "Care sessions feature is not enabled for this clinic.",
     "active_banner_title": "Active Care Session",
     "active_session_btn": "RCT Steps",
     "canal_notes_placeholder": "Notes (e.g. curvature, calcification, apical tugback)...",
