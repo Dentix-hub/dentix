@@ -91,7 +91,7 @@ async def record_onboarding_event(
     """
     if not current_user.tenant_id:
         raise HTTPException(status_code=400, detail="User must belong to a tenant")
-    state = await OnboardingService.record_event(
+    await OnboardingService.record_event(
         db, current_user.tenant_id, current_user.id, payload.event_key
     )
     return {"status": "success", "event_key": payload.event_key}
