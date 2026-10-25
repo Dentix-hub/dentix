@@ -1060,6 +1060,7 @@
     "fallback_desc": "Displaying clinical records with legacy fallback contribution.",
     "warnings": "Warnings",
     "legacy_review_needed": "{{count}} legacy records need review",
+    "status_notes": "Clinical system status notes",
     "technical_details": "Technical details",
     "empty_workspace": "No clinical events or work items recorded for this patient yet.",
     "coverage_status": {
