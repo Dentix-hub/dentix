@@ -206,6 +206,9 @@ async def backup_auth_callback_get(
         if user.role != state_role or user.tenant_id != state_tenant_id:
             raise HTTPException(status_code=400, detail="OAuth identity context changed")
 
+        # Commit existing read transaction so connection is not held across external HTTP fetch
+        await db.commit()
+
         token_data = get_drive_client().fetch_token(code=code)
         refresh_token = token_data.get("refresh_token")
         if not refresh_token:
@@ -423,6 +426,8 @@ async def export_tenant_backup(
     try:
         tenant_name = current_user.tenant.name or f"tenant_{tenant_id}"
         json_content = await export_tenant_to_json(db, tenant_id)
+        # Release DB connection immediately before formatting response
+        await db.close()
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         slug = re.sub(r"[^a-zA-Z0-9_-]+", "_", tenant_name.strip()).lower().strip("_") or f"tenant_{tenant_id}"
@@ -481,6 +486,8 @@ async def export_tenant_backup_xlsx(
             tenant_id=tenant_id,
         )
         await db.commit()
+        # Release DB connection before streaming so file transfer doesn't hold connection
+        await db.close()
 
         def iterfile():
             while chunk := buffer.read(65536):

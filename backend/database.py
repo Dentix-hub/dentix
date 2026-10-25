@@ -182,28 +182,27 @@ sync_pool_args = {}
 async_pool_args = {}
 
 if "sqlite" not in SQLALCHEMY_DATABASE_URL:
-    if is_supabase_pooler:
-        # PgBouncer manages its own pool — use minimal SQLAlchemy pool
-        # Large pool_size + PgBouncer = connection exhaustion / circuit breaker
-        sync_pool_args = {
-            "pool_size": _get_int_setting("DB_POOL_SIZE", 3, minimum=1),
-            "max_overflow": _get_int_setting("DB_POOL_MAX_OVERFLOW", 2),
-            "pool_recycle": _get_int_setting("DB_POOL_RECYCLE", 300, minimum=1),
-            "pool_timeout": _get_float_setting("DB_POOL_TIMEOUT", 15.0, minimum=0.1),
-        }
-    else:
-        # Direct PostgreSQL connection — can use larger pool
-        sync_pool_args = {
-            "pool_size": _get_int_setting("DB_POOL_SIZE", 10, minimum=1),
-            "max_overflow": _get_int_setting("DB_POOL_MAX_OVERFLOW", 5),
-            "pool_recycle": _get_int_setting("DB_POOL_RECYCLE", 1800, minimum=1),
-            "pool_timeout": _get_float_setting("DB_POOL_TIMEOUT", 20.0, minimum=0.1),
-        }
+    # pool_size, max_overflow, pool_timeout configurable via env vars (DB_POOL_SIZE, DB_MAX_OVERFLOW, DB_POOL_TIMEOUT)
+    # Kept below provider's connection limit: Supabase allows 60 direct connections; 1-2 workers x (10+5) = 15-30 connections.
+    default_pool_size = 10
+    default_max_overflow = 5
+    default_timeout = 30.0 if is_supabase_pooler else 20.0
+    default_recycle = 300 if is_supabase_pooler else 1800
+
+    sync_pool_args = {
+        "pool_size": _get_int_setting("DB_POOL_SIZE", default_pool_size, minimum=1),
+        "max_overflow": _get_int_setting(
+            "DB_MAX_OVERFLOW",
+            _get_int_setting("DB_POOL_MAX_OVERFLOW", default_max_overflow, minimum=0),
+            minimum=0,
+        ),
+        "pool_recycle": _get_int_setting("DB_POOL_RECYCLE", default_recycle, minimum=1),
+        "pool_timeout": _get_float_setting("DB_POOL_TIMEOUT", default_timeout, minimum=0.1),
+    }
     async_pool_args = sync_pool_args.copy()
 
-# PgBouncer (Supabase pooler) should NOT use pool_pre_ping —
-# it causes spurious reconnects that trip the circuit breaker.
-_pre_ping = not is_supabase_pooler
+# Add pool_pre_ping=True to verify connection liveness before checkout
+_pre_ping = os.getenv("DB_POOL_PRE_PING", "true").lower() in ("true", "1", "yes")
 
 from pydantic import BaseModel
 from rls.register_rls import register_rls

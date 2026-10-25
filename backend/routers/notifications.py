@@ -59,6 +59,8 @@ async def get_notifications(
     )
     result_read = await db.execute(stmt_read)
     user_interactions = result_read.scalars().all()
+    # Release DB connection immediately before formatting response
+    await db.close()
 
     read_ids = {r.notification_id for r in user_interactions}
     deleted_ids = {r.notification_id for r in user_interactions if r.is_deleted}
