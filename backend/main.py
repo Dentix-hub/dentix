@@ -445,6 +445,7 @@ from backend.routers import (
     attachments,
     system_logs,  # Price Lists, Insurance, Attachments, System Logs
     inventory,  # Inventory System
+    onboarding,
     inventory_smart,  # Smart Inventory Suggestions
     financials,  # Smart Costing & Financials
     metrics,  # Metrics & Profitability
@@ -543,6 +544,8 @@ from backend.routers import upload
 
 app.include_router(upload.router, prefix=API_V1_STR)
 app.include_router(inventory.router, prefix=API_V1_STR)
+app.include_router(onboarding.router, prefix=API_V1_STR)
+app.include_router(onboarding.router)
 app.include_router(inventory_smart.router, prefix=API_V1_STR)
 app.include_router(financials.router, prefix=API_V1_STR)
 app.include_router(metrics.router, prefix=API_V1_STR)

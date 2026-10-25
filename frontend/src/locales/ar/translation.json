@@ -2702,7 +2702,16 @@
       "joined": "تاريخ الانضمام",
       "last_activity": "آخر نشاط",
       "no_activity": "لا يوجد نشاط مسجل",
-      "close": "إغلاق"
+      "close": "إغلاق",
+      "features_title": "ميزات العيادة ومسار البداية",
+      "onboarding_checklist": "دليل البداية وقائمة المهام",
+      "effective_status": "الحالة الفعلية",
+      "status_enabled": "مفعل",
+      "status_disabled": "معطل",
+      "inherited": "موروث من الإعداد العام",
+      "inherit": "تلقائي (وراثة)",
+      "force_on": "تفعيل إجباري",
+      "force_off": "تعطيل إجباري"
     },
     "two_factor": {
       "invalid_setup_payload": "بيانات إعداد المصادقة الثنائية غير صحيحة",
@@ -3490,6 +3499,28 @@
     "notes_placeholder": "مثال: حافة تحت اللثة على السطح الدهليزي، فحص نقطة التماس مع سن 22...",
     "submitting": "جاري الإرسال للمعمل...",
     "submit_button": "إرسال للمعمل (بنقرة واحدة)"
+  },
+  "onboarding": {
+    "dismissed_notice": "قائمة البداية السريعة مخفية",
+    "restore": "إظهار الدليل",
+    "widget_title": "دليل البداية السريعة",
+    "widget_subtitle": "أكمل هذه الخطوات السريعة لتجهيز عيادتك والبدء بكفاءة",
+    "all_completed_title": "أحسنت! اكتملت جميع خطوات الإعداد",
+    "all_completed_desc": "عيادتك جاهزة بالكامل للعمل اليومي المتقدم",
+    "expand": "توسيع",
+    "collapse": "طي",
+    "dismiss": "إخفاء القائمة",
+    "progress_label": "مستوى الإنجاز",
+    "of": "من",
+    "steps": "خطوات",
+    "highlight_badge": "مهم للمخطط",
+    "go_to_step": "الانتقال للخطوة",
+    "tip_badge": "تلميح مفيد",
+    "tip_understood": "فهمت",
+    "new_tip": "تلميح جديد",
+    "chart_click_tip": "انقر على أي سن لتحديد حالته أو بدء علاج جديد",
+    "procedure_color_tip": "يمكنك تخصيص شكل ولون كل إجراء ليظهر بوضوح على المخطط السني",
+    "appointment_reschedule_tip": "انقر على الموعد لتعديل وقته أو تأجيله وسيتم تحديث الخطوة تلقائياً"
   },
   "nav": {
     "home": "الرئيسية",

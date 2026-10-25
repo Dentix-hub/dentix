@@ -26,6 +26,8 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
     const [selectedUser, setSelectedUser] = useState('');
     const [reason, setReason] = useState('');
     const [loading, setLoading] = useState(true);
+    const [onboardingFeature, setOnboardingFeature] = useState(null);
+    const [overrideLoading, setOverrideLoading] = useState(false);
 
     useEffect(() => {
         if (!tenantId) return;
@@ -37,12 +39,14 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                     api.get(`/api/v1/admin/tenants/${tenantId}/users`),
                 ]);
                 setData(detailsRes.data);
+                setOnboardingFeature(detailsRes.data?.tenant?.onboarding_feature || null);
                 setUsers(usersRes.data.users || []);
                 setSelectedUser('');
                 setReason('');
             } catch (error) {
                 logger.error(error);
                 setData(null);
+                setOnboardingFeature(null);
                 setUsers([]);
             } finally {
                 setLoading(false);
@@ -57,6 +61,32 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
         if (!reason || reason.trim().length < 5) return;
         onImpersonate(data?.tenant?.id || tenantId, selectedUser, reason.trim(), 'read_only');
     };
+
+    const handleSetOverride = async (target) => {
+        try {
+            setOverrideLoading(true);
+            if (target === 'inherit') {
+                await api.delete('/api/v1/admin/features/override', {
+                    params: { tenant_id: tenantId, feature_key: 'onboarding_checklist' },
+                });
+            } else {
+                await api.post('/api/v1/admin/features/override', {
+                    tenant_id: tenantId,
+                    feature_key: 'onboarding_checklist',
+                    is_enabled: target === 'on',
+                });
+            }
+            const updated = await api.get(`/api/v1/admin/features/tenant/${tenantId}/onboarding_checklist`);
+            setOnboardingFeature(updated.data);
+        } catch (err) {
+            logger.error(err);
+        } finally {
+            setOverrideLoading(false);
+        }
+    };
+
+    const overrideState = onboardingFeature?.override === true ? 'on' : onboardingFeature?.override === false ? 'off' : 'inherit';
+    const effectiveState = onboardingFeature?.effective ?? false;
 
     const unavailable = t('super_admin.tenant_detail.unavailable');
 
@@ -233,6 +263,67 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                                             ? format(new Date(data.stats.last_activity), 'dd MMM HH:mm', { locale: dateLocale })
                                             : t('super_admin.tenant_detail.no_activity')}
                                     </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
+                                {t('super_admin.tenant_detail.features_title', 'ميزات العيادة ومسار البداية')}
+                            </h4>
+                            <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+                                <div>
+                                    <span className="text-sm font-bold text-slate-800 dark:text-white block">
+                                        {t('super_admin.tenant_detail.onboarding_checklist', 'دليل البداية وقائمة المهام')}
+                                    </span>
+                                    <span className="text-xs text-slate-500">
+                                        {t('super_admin.tenant_detail.effective_status', 'الحالة الفعلية')}:{' '}
+                                        <strong className={effectiveState ? 'text-emerald-500 font-bold' : 'text-slate-400 font-bold'}>
+                                            {effectiveState
+                                                ? t('super_admin.tenant_detail.status_enabled', 'مفعل')
+                                                : t('super_admin.tenant_detail.status_disabled', 'معطل')}
+                                        </strong>
+                                        {overrideState === 'inherit' && ` (${t('super_admin.tenant_detail.inherited', 'موروث من الإعداد العام')})`}
+                                    </span>
+                                </div>
+
+                                <div className="flex rounded-xl bg-slate-100 dark:bg-slate-700/60 p-1 gap-1 text-xs font-bold">
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSetOverride('inherit')}
+                                        disabled={overrideLoading}
+                                        className={`flex-1 py-1.5 rounded-lg transition-colors ${
+                                            overrideState === 'inherit'
+                                                ? 'bg-white dark:bg-slate-800 text-slate-800 dark:text-white shadow-xs'
+                                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        {t('super_admin.tenant_detail.inherit', 'تلقائي (وراثة)')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSetOverride('on')}
+                                        disabled={overrideLoading}
+                                        className={`flex-1 py-1.5 rounded-lg transition-colors ${
+                                            overrideState === 'on'
+                                                ? 'bg-emerald-500 text-white shadow-xs'
+                                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        {t('super_admin.tenant_detail.force_on', 'تفعيل إجباري')}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => handleSetOverride('off')}
+                                        disabled={overrideLoading}
+                                        className={`flex-1 py-1.5 rounded-lg transition-colors ${
+                                            overrideState === 'off'
+                                                ? 'bg-rose-500 text-white shadow-xs'
+                                                : 'text-slate-500 hover:text-slate-800 dark:hover:text-white'
+                                        }`}
+                                    >
+                                        {t('super_admin.tenant_detail.force_off', 'تعطيل إجباري')}
+                                    </button>
                                 </div>
                             </div>
                         </div>

@@ -471,6 +471,15 @@ async def update_appointment(
         tenant_id=tenant_id,
     )
 
+    if date_changed and current_user and getattr(current_user, "id", None):
+        try:
+            from backend.services.onboarding_service import OnboardingService
+            await OnboardingService.record_event(
+                db, tenant_id=tenant_id, user_id=current_user.id, event_key="appointment_rescheduled", auto_commit=False
+            )
+        except Exception:
+            pass
+
     try:
         await db.commit()
         await db.refresh(db_appt)

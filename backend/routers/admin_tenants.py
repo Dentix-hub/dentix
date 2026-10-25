@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from backend import models, schemas
 from backend.database import get_async_db, system_session_scope
 from backend.services.admin_service import AdminService
+from backend.services.feature_service import FeatureFlagService
 from backend.services.subscription_renewal_service import (
     SubscriptionRenewalError,
     renew_subscription,
@@ -247,6 +248,14 @@ async def get_tenant_details(
 
     stats = await service.get_tenant_detailed_stats(tenant_id)
 
+    onboarding_status = None
+    try:
+        onboarding_status = await FeatureFlagService.get_tenant_feature_status(
+            db, tenant_id, "onboarding_checklist"
+        )
+    except Exception:
+        pass
+
     return success_response(data={
         "tenant": {
             "id": tenant.id,
@@ -257,7 +266,8 @@ async def get_tenant_details(
             "subscription_end_date": tenant.subscription_end_date,
             "is_active": tenant.is_active,
             "contact_phone": tenant.contact_phone,
-            "admin_email": next((u.email for u in tenant.users if u.role == "admin"), None)
+            "admin_email": next((u.email for u in tenant.users if u.role == "admin"), None),
+            "onboarding_feature": onboarding_status,
         },
         "stats": stats
     })
