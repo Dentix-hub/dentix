@@ -30,6 +30,7 @@ import { useAppointments } from '@/hooks/useAppointments';
 import { useAuth } from '@/auth/useAuth';
 import { Card, Button, Modal, PageHeader, toast, AdvancedTable } from '@/shared/ui';
 import DashboardQuickActions from '@/features/dashboard/DashboardQuickActions';
+import OnboardingChecklistWidget from '@/features/onboarding/components/OnboardingChecklistWidget';
 import PatientModal from '@/features/patients/modals/PatientModal.jsx';
 import { selectAppointmentsForBusinessDate } from '@/utils/dateTime';
 
@@ -183,6 +184,8 @@ export default function Dashboard() {
                 subtitle={t('dashboard.clinic_overview_today')}
                 breadcrumbs={[{ label: t('sidebar.dashboard'), icon: Home }]}
             />
+
+            <OnboardingChecklistWidget />
 
             <DashboardQuickActions onAddPatient={() => setIsPatientModalOpen(true)} />
 

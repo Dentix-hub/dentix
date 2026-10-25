@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
@@ -20,6 +20,7 @@ import {
     exportMaterialMarginReport,
     exportPeriodComparisonReport,
 } from '@/api/financials';
+import { recordOnboardingEvent } from '@/api/onboarding';
 import Money from '../components/Money';
 import { useFinancePermissions } from '../useFinancePermissions';
 import { useReportInsights } from '../reports/hooks/useReportInsights';
@@ -97,6 +98,10 @@ export default function ReportsPage() {
     const locale = isRtl ? 'ar' : 'en';
     const [exporting, setExporting] = useState(null);
     const [exportError, setExportError] = useState('');
+
+    useEffect(() => {
+        recordOnboardingEvent('daily_report_viewed').catch(() => {});
+    }, []);
     const {
         canViewOverview,
         canViewPatientAccounts,

@@ -49,6 +49,7 @@ from .system import (
     TenantFeature,
     DailySystemStats,
     BackgroundJob,
+    UserOnboardingState,
 )
 from .inventory import (
     Warehouse,

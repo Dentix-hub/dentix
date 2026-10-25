@@ -2723,7 +2723,16 @@
       "joined": "Joined Date",
       "last_activity": "Last Activity",
       "no_activity": "No activity recorded",
-      "close": "Close"
+      "close": "Close",
+      "features_title": "Clinic Features & Onboarding",
+      "onboarding_checklist": "Onboarding Checklist",
+      "effective_status": "Effective status",
+      "status_enabled": "Enabled",
+      "status_disabled": "Disabled",
+      "inherited": "Inherited from global setting",
+      "inherit": "Inherit",
+      "force_on": "Force ON",
+      "force_off": "Force OFF"
     },
     "two_factor": {
       "invalid_setup_payload": "Invalid two-factor setup data",
@@ -3491,6 +3500,28 @@
     "notes_placeholder": "e.g. Subgingival margin on buccal, check contact with tooth 22...",
     "submitting": "Dispatching to lab...",
     "submit_button": "Send to Lab (1-Tap)"
+  },
+  "onboarding": {
+    "dismissed_notice": "Quick start checklist is hidden",
+    "restore": "Show checklist",
+    "widget_title": "Quick Start Guide",
+    "widget_subtitle": "Complete these quick steps to prepare your clinic and get started efficiently",
+    "all_completed_title": "Great job! All setup steps completed",
+    "all_completed_desc": "Your clinic is fully ready for daily clinical operations",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "dismiss": "Hide checklist",
+    "progress_label": "Progress",
+    "of": "of",
+    "steps": "steps",
+    "highlight_badge": "Important for Chart",
+    "go_to_step": "Go to step",
+    "tip_badge": "Helpful Tip",
+    "tip_understood": "Got it",
+    "new_tip": "New tip",
+    "chart_click_tip": "Click any tooth to set its condition or record a treatment",
+    "procedure_color_tip": "You can customize the shape and color of each procedure for the dental chart",
+    "appointment_reschedule_tip": "Click an appointment to edit its time or reschedule it"
   },
   "nav": {
     "home": "Home",

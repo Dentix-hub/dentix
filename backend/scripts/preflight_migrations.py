@@ -123,6 +123,7 @@ RLS_TABLES = (
     *CLINICAL_G1_TABLES,
     "clinical_projection_coverages",
     "clinical_charges",
+    "user_onboarding_state",
 )
 
 CHILD_TENANT_RELATIONSHIPS = (
@@ -179,6 +180,8 @@ CHILD_TENANT_RELATIONSHIPS = (
     ("clinical_charges", "care_session_id", "care_sessions", True),
     ("clinical_charges", "doctor_id", "users", True),
     ("clinical_charges", "legacy_treatment_id", "treatments", True),
+    # Onboarding Checklist State User Link
+    ("user_onboarding_state", "user_id", "users", False),
 )
 
 # Phase G14 / S32: direct parent-patient checks for clinical_charges (kept separate from

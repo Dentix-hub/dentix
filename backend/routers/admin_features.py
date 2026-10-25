@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List
+from typing import List, Optional
 from backend import models, schemas
 from backend.database import get_async_db
 from backend.services.feature_service import FeatureFlagService
@@ -52,6 +52,34 @@ async def set_tenant_override(
     return await FeatureFlagService.set_tenant_override(
         db, override.tenant_id, override.feature_key, override.is_enabled
     )
+
+
+@router.delete("/override")
+async def delete_tenant_override(
+    tenant_id: Optional[int] = None,
+    feature_key: Optional[str] = None,
+    payload: Optional[schemas.TenantFeatureOverrideDelete] = None,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(get_super_admin),
+):
+    target_tenant_id = tenant_id if tenant_id is not None else (payload.tenant_id if payload else None)
+    target_key = feature_key if feature_key is not None else (payload.feature_key if payload else None)
+    if target_tenant_id is None or not target_key:
+        raise HTTPException(status_code=422, detail="tenant_id and feature_key are required")
+    deleted = await FeatureFlagService.delete_tenant_override(db, target_tenant_id, target_key)
+    return {"status": "success", "deleted": deleted}
+
+
+@router.get("/tenant/{tenant_id}/{feature_key}")
+async def get_tenant_feature_status(
+    tenant_id: int,
+    feature_key: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(get_super_admin),
+):
+    return await FeatureFlagService.get_tenant_feature_status(db, tenant_id, feature_key)
+
+
 
 
 @router.put("/{key}", response_model=schemas.FeatureFlag)

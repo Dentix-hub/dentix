@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/auth/useAuth';
@@ -13,6 +13,8 @@ import { useProcedures } from '@/shared/context/ProceduresContext';
 import PrescriptionModal from '@/shared/ui/modals/PrescriptionModal';
 import PaymentModal from '@/shared/ui/modals/PaymentModal';
 import EditPatientModal from '@/features/patients/modals/EditPatientModal.jsx';
+import { recordOnboardingEvent } from '@/api/onboarding';
+import OnboardingTooltip from '@/features/onboarding/components/OnboardingTooltip';
 import { Breadcrumb, Modal, TabGroup, toast } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 import { useHotkeys } from 'react-hotkeys-hook';
@@ -90,6 +92,12 @@ export default function PatientDetails() {
     const [searchParams, setSearchParams] = useSearchParams();
     const initialTab = searchParams.get('tab') || 'chart';
     const [activeTab, setActiveTab] = useState(initialTab);
+
+    useEffect(() => {
+        if (id) {
+            recordOnboardingEvent('patient_file_opened').catch(() => {});
+        }
+    }, [id]);
 
     const handleTabChange = (tabId) => {
         setActiveTab(tabId);
@@ -832,7 +840,9 @@ export default function PatientDetails() {
                                                 onToggleOverlay={handleTogglePlanOverlay}
                                                 t={t}
                                             />
-                                            <ClinicalChartRenderer input={adaptedChart.rendererInput} />
+                                            <OnboardingTooltip tipKey="chart_click_tip" content={t('onboarding.chart_click_tip')} side="top">
+                                                <ClinicalChartRenderer input={adaptedChart.rendererInput} />
+                                            </OnboardingTooltip>
                                         </div>
 
                                         {isQuickLauncherOpen && selectedTeeth.length === 0 && (
