@@ -301,6 +301,7 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
         "care_session_steps": {},
         "clinical_events": {},
         "treatments": {},
+        "lab_orders": {},
     }
 
     # 1. Import Users
@@ -567,26 +568,32 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
     imported_counts["attachments"] = len(data.get("attachments", []))
 
     for lo_data in data.get("lab_orders", []):
-        lo_data.pop("id", None)
+        old_id = lo_data.pop("id", None)
         lo_data["tenant_id"] = tenant_id
         lo_data["patient_id"] = id_maps["patients"].get(lo_data.get("patient_id"))
         lo_data["laboratory_id"] = id_maps["laboratories"].get(
             lo_data.get("laboratory_id")
         )
         lo_data["doctor_id"] = id_maps["users"].get(lo_data.get("doctor_id"))
+        lo_data["treatment_id"] = id_maps["treatments"].get(lo_data.get("treatment_id"))
         lo_data["order_date"] = parse_datetime(lo_data.get("order_date"))
         lo_data["delivery_date"] = parse_datetime(lo_data.get("delivery_date"))
         lo_data["received_date"] = parse_datetime(lo_data.get("received_date"))
         if lo_data["patient_id"]:
-            db.add(models.LabOrder(**lo_data))
+            lo = models.LabOrder(**lo_data)
+            db.add(lo)
+            await db.flush()
+            if old_id:
+                id_maps["lab_orders"][old_id] = lo.id
     imported_counts["lab_orders"] = len(data.get("lab_orders", []))
 
     for lp_data in data.get("lab_payments", []):
-        lp_data.pop("id", None)
+        old_id = lp_data.pop("id", None)
         lp_data["tenant_id"] = tenant_id
         lp_data["laboratory_id"] = id_maps["laboratories"].get(
             lp_data.get("laboratory_id")
         )
+        lp_data["lab_order_id"] = id_maps["lab_orders"].get(lp_data.get("lab_order_id"))
         lp_data["date"] = parse_datetime(lp_data.get("date"))
         if lp_data["laboratory_id"]:
             db.add(LabPayment(**lp_data))
