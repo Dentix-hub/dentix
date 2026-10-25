@@ -98,7 +98,7 @@ def test_period_comparison_infers_equal_previous_range(client, admin_headers):
     assert data["current_period"]["end"] == "2026-08-14"
     assert data["comparison_period"]["start"] == "2026-08-01"
     assert data["comparison_period"]["end"] == "2026-08-07"
-    assert data["definition_version"] == "finance-summary-v1"
+    assert data["definition_version"] == "finance-summary-v2"
     assert len(data["metrics"]) == 8
 
 

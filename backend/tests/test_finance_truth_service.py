@@ -157,7 +157,7 @@ async def test_summary_uses_one_period_contract_and_legacy_patient_ownership(
         "end": "2026-08-31",
         "timezone": "Africa/Cairo",
     }
-    assert summary["definition_version"] == "finance-summary-v1"
+    assert summary["definition_version"] == "finance-summary-v2"
     assert summary["income"]["gross_revenue"] == 1200.0
     assert summary["income"]["total_discounts"] == 200.0
     assert summary["income"]["net_revenue"] == 1000.0
@@ -272,6 +272,14 @@ async def test_manual_expense_and_lab_cost_are_counted_once_by_provenance(
                 price_to_patient=Decimal("0.00"),
                 order_date=datetime(2026, 8, 12, 10, 0),
                 tenant_id=None,
+            ),
+            models.LabPayment(
+                id=2065,
+                tenant_id=tenant_id,
+                laboratory_id=laboratory.id,
+                lab_order_id=2064,
+                amount=Decimal("200.00"),
+                date=datetime(2026, 8, 15, 10, 0),
             ),
         ]
     )
