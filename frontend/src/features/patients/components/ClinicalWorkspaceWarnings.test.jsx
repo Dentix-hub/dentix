@@ -24,7 +24,7 @@ const mockT = (key, fallback, options = {}) => {
 
 describe('Clinical Workspace Warnings & Status Chips (D4 / A5)', () => {
     it('component test: visible text contains Arabic letters and NOT the raw code; raw code only in collapsed details', () => {
-        useAuthStore.setState({ user: { id: 1, role: 'admin' } });
+        useAuthStore.setState({ user: { id: 1, role: 'super_admin' } });
 
         const sampleChart = {
             coverage: { teeth: 'COMPLETE' },
@@ -39,7 +39,7 @@ describe('Clinical Workspace Warnings & Status Chips (D4 / A5)', () => {
             isEmpty: false,
         };
 
-        render(
+        const { container } = render(
             <ClinicalWorkspaceStatusBanner adaptedChart={sampleChart} t={mockT} />
         );
 
@@ -53,10 +53,11 @@ describe('Clinical Workspace Warnings & Status Chips (D4 / A5)', () => {
         expect(/[\u0600-\u06FF]/.test(friendlyText.textContent)).toBe(true);
         expect(friendlyText.textContent).not.toContain('UNKNOWN_PROCEDURE_CODE');
 
-        // Collapsed details element exists and contains technical code
+        // Collapsed details element exists and contains technical code as data attribute only
         const details = screen.getByTestId('clinical-workspace-technical-details');
         expect(details).toBeInTheDocument();
-        expect(details.textContent).toContain('UNKNOWN_PROCEDURE_CODE');
+        expect(details.textContent).not.toContain('UNKNOWN_PROCEDURE_CODE');
+        expect(container.querySelector('[data-code="UNKNOWN_PROCEDURE_CODE"]')).toBeInTheDocument();
     });
 
     it('contract test: every backend warning code has a translation in ar and en; unknown codes render generic Arabic', () => {

@@ -7,6 +7,27 @@
  * - Handles unknown or future warning codes gracefully with a generic friendly message.
  */
 
+export const INFORMATIONAL_CLINICAL_WARNING_CODES = [
+    'FALLBACK_DATA_ACTIVE',
+    'LEGACY_WRITE_COMPATIBILITY_ACTIVE',
+];
+
+export function isInformationalClinicalWarning(warning) {
+    if (!warning) return false;
+    const code = typeof warning === 'string' ? warning : warning.code;
+    return INFORMATIONAL_CLINICAL_WARNING_CODES.includes(code);
+}
+
+export function getRealClinicalWarnings(warnings) {
+    if (!Array.isArray(warnings)) return [];
+    return warnings.filter((w) => !isInformationalClinicalWarning(w));
+}
+
+export function getInformationalClinicalWarnings(warnings) {
+    if (!Array.isArray(warnings)) return [];
+    return warnings.filter((w) => isInformationalClinicalWarning(w));
+}
+
 export const KNOWN_CLINICAL_WARNING_CODES = [
     'FALLBACK_DATA_ACTIVE',
     'LEGACY_WRITE_COMPATIBILITY_ACTIVE',
