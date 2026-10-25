@@ -139,8 +139,15 @@ class ClinicalService:
         surfaces: Optional[List[str]] = None,
         notes: Optional[str] = None,
         payload_extra: Optional[Dict[str, Any]] = None,
-    ) -> models.ClinicalWorkItem:
+    ) -> Optional[models.ClinicalWorkItem]:
         """Helper to create ClinicalWorkItem and ClinicalEvent with proper targets."""
+        if not code or not str(code).strip():
+            logger.warning(
+                "Skipping ClinicalWorkItem creation for patient %s: empty code provided (kind=%s)",
+                patient_id, kind
+            )
+            return None
+
         work_item = models.ClinicalWorkItem(
             tenant_id=self.tenant_id,
             patient_id=patient_id,
@@ -283,20 +290,26 @@ class ClinicalService:
             if tooth_key in FDI_TOOTH_KEYS:
                 from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES
                 from backend.clinical.legacy_mapping import LEGACY_PROCEDURE_ALLOWLIST
-                canonical_code = procedure
-                if canonical_code not in CANONICAL_PROCEDURE_CODES:
-                    canonical_code = LEGACY_PROCEDURE_ALLOWLIST.get(procedure, procedure)
+                canonical_code = None
+                raw_proc = str(procedure or "").strip()
+                if raw_proc in CANONICAL_PROCEDURE_CODES:
+                    canonical_code = raw_proc
+                elif raw_proc in LEGACY_PROCEDURE_ALLOWLIST:
+                    canonical_code = LEGACY_PROCEDURE_ALLOWLIST[raw_proc]
+                elif procedure in LEGACY_PROCEDURE_ALLOWLIST:
+                    canonical_code = LEGACY_PROCEDURE_ALLOWLIST[procedure]
 
-                await self._sync_work_item(
-                    patient_id=patient.id,
-                    kind="procedure",
-                    code=canonical_code,
-                    status="completed",
-                    tooth_key=tooth_key,
-                    surfaces=valid_surfs,
-                    notes=treatment.notes,
-                    payload_extra={"treatment_id": treatment.id},
-                )
+                if canonical_code:
+                    await self._sync_work_item(
+                        patient_id=patient.id,
+                        kind="procedure",
+                        code=canonical_code,
+                        status="completed",
+                        tooth_key=tooth_key,
+                        surfaces=valid_surfs,
+                        notes=treatment.notes,
+                        payload_extra={"treatment_id": treatment.id},
+                    )
 
         await self.db.commit()
         await self.db.refresh(treatment)
