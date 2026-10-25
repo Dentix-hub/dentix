@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useAuth } from '@/auth/useAuth';
+import { useAuthStore } from '@/store/auth.store';
 import ClinicalChartRenderer from '@/features/clinical-chart/components/ClinicalChartRenderer';
 import ChartStickyToolBanner from '@/features/clinical-chart/components/ChartStickyToolBanner';
 import ChartQuickActionLauncher from '@/features/clinical-chart/components/ChartQuickActionLauncher';
@@ -72,6 +74,15 @@ const LabOrdersTab = lazy(() => import('@/features/lab/LabOrdersTab'));
 const PatientTimeline = lazy(() => import('@/features/patients/PatientTabs/PatientTimeline'));
 
 export default function PatientDetails() {
+    let authUser = null;
+    try {
+        const auth = useAuth();
+        authUser = auth?.user;
+    } catch {
+        authUser = useAuthStore.getState?.()?.user || null;
+    }
+    const isSuperAdmin = authUser?.role === 'super_admin';
+
     const queryClient = useQueryClient();
     const { t, i18n } = useTranslation();
     const navigate = useNavigate();
@@ -685,7 +696,7 @@ export default function PatientDetails() {
                                     <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <h3 className="break-words font-bold text-slate-800 dark:text-white">{t('patient_details.chart.title')}</h3>
-                                            {!workspaceLoading && !workspaceIsError && (
+                                            {!workspaceLoading && !workspaceIsError && isSuperAdmin && (
                                                 <span
                                                     data-testid="clinical-workspace-read-mode"
                                                     data-read-mode={adaptedChart.readMode}
