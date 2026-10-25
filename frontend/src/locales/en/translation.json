@@ -550,6 +550,9 @@
         "tooth": "Tooth",
         "shade": "Shade",
         "status": "Status",
+        "payment_status": "Payment Status",
+        "cost": "Lab Cost",
+        "paid": "Paid",
         "price": "Price",
         "actions": "Actions"
       },
@@ -560,6 +563,11 @@
         "pending": "Pending",
         "cancelled": "Cancelled"
       },
+      "status_cancelled": "Cancelled",
+      "status_paid": "Paid",
+      "status_partial": "Partial",
+      "status_unpaid": "Unpaid",
+      "paid_now_exceeds_cost": "Paid amount cannot exceed order cost",
       "empty": "No lab orders recorded",
       "add_empty": "+ Add Lab Order",
       "modal": {
@@ -598,6 +606,8 @@
           "other": "Other"
         },
         "cost_label": "Lab Cost",
+        "paid_now_label": "Paid Now to Lab",
+        "accounting_hint": "Cost is recorded as lab debt, and paid amount is recorded as an expense",
         "price_label": "Patient Price",
         "status_label": "Status",
         "notes_label": "Notes",
@@ -1543,7 +1553,8 @@
       "overview": {
         "total_cost": "Total Cost",
         "paid": "Paid",
-        "balance": "Balance",
+        "balance": "Due to Lab (Debt)",
+        "clinic_credit": "Credit in Favor of Clinic",
         "order_status": "Order Status",
         "status_pending": "Pending",
         "status_completed": "Completed"
@@ -1553,11 +1564,19 @@
         "filter_pending": "Pending",
         "filter_in_progress": "In Progress",
         "filter_completed": "Completed",
+        "status_unpaid": "Unpaid",
+        "status_partial": "Partial",
+        "status_paid": "Paid",
+        "status_cancelled": "Cancelled",
+        "record_payment": "Record Payment",
         "table": {
           "patient": "Patient",
           "work": "Work",
           "status": "Status",
           "cost": "Cost",
+          "paid": "Paid",
+          "remaining": "Remaining",
+          "actions": "Actions",
           "date": "Order Date",
           "empty": "No orders found"
         }
@@ -1566,6 +1585,9 @@
         "title": "Payment History",
         "add_button": "Add Payment",
         "cancel_button": "Cancel",
+        "allocated_to_order": "Allocated to Order",
+        "clear_allocation": "Clear Allocation (On Account)",
+        "on_account": "On Account",
         "form": {
           "amount": "Amount",
           "method": "Payment Method",
@@ -1576,11 +1598,14 @@
           "date": "Date",
           "amount": "Amount",
           "method": "Method",
+          "linked_order": "Linked Order",
           "notes": "Notes",
           "empty": "No payments recorded"
         },
         "messages": {
-          "add_fail": "Failed to add payment"
+          "add_fail": "Failed to add payment",
+          "invalid_amount": "Please enter a valid amount greater than zero",
+          "overpay": "Payment amount exceeds remaining balance for order"
         }
       }
     }
@@ -3036,7 +3061,9 @@
       "total_expenses": "Total Expenses",
       "direct_total": "Direct Total",
       "lab_hint": "Laboratory payments are recorded on the Labs page, not in Expenses.",
-      "go_to_labs": "Labs Page"
+      "go_to_labs": "Labs Page",
+      "lab_payments_note": "Lab payments appear in the transaction activity log",
+      "view_activity": "View Activity Log"
     },
     "compensation": {
       "doctors": "Doctor Compensation",
@@ -3248,6 +3275,9 @@
       "staff_dues": "Staff Dues",
       "staff_dues_desc": "Staff Dues Desc",
       "view_payroll": "View Payroll",
+      "lab_debt": "Lab Dues (Debt)",
+      "lab_debt_desc": "Total outstanding lab debt",
+      "view_labs": "View Labs",
       "title": "Obligations Title",
       "section_title": "Section Title",
       "actionable_hint": "Actionable Hint",
@@ -3431,6 +3461,14 @@
     "lab_notes_label": "Lab Notes",
     "lab_order_linked": "Linked Lab Order",
     "lab_order_status": "Order Status",
+    "paid_now_label": "Paid Now",
+    "paid_now_exceeds_cost": "Paid amount cannot exceed order cost",
+    "lab_accounting_hint": "Cost is recorded as lab debt, and paid amount is recorded as an expense",
+    "lab_cost_label": "Lab Cost",
+    "lab_paid_amount": "Paid",
+    "lab_remaining_amount": "Remaining",
+    "record_payment": "Record Payment",
+    "payment_success": "Payment recorded successfully",
     "sessions_section_title": "Treatment Sessions",
     "add_session": "Add Session",
     "session_notes_placeholder": "What was done in this session?",

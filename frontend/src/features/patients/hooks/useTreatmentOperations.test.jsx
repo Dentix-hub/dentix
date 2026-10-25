@@ -427,4 +427,51 @@ describe('useTreatmentOperations', () => {
         expect(toast.error).not.toHaveBeenCalled();
         expect(toast.success).toHaveBeenCalledWith('patient_details.alerts.treatment_save_success');
     });
+
+    it('sends paid_now to createLabOrder and surfaces backend Arabic error in toast (L4)', async () => {
+        mockCreateTreatment.mockResolvedValue({ id: 100, procedure: 'Bridge' });
+        const backendError = new Error('Bad Request');
+        backendError.response = {
+            data: {
+                detail: 'المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب',
+            },
+        };
+        mockCreateLabOrder.mockRejectedValue(backendError);
+
+        const { result } = renderHook(
+            () =>
+                useTreatmentOperations({
+                    patientId: 101,
+                    refetchHistory,
+                    refetchTeeth,
+                    refetchWorkspace,
+                    setIsTreatmentSheetOpen,
+                    setEditingTreatmentId,
+                    editingTreatmentId: null,
+                    selectedToothCondition: null,
+                }),
+            { wrapper: createWrapper() }
+        );
+
+        await act(async () => {
+            await result.current.handleSaveTreatment({
+                procedure: 'Bridge',
+                tooth_number: '11',
+                cost: 2000,
+                lab_order: {
+                    laboratory_id: 3,
+                    shade: 'A1',
+                    cost: 500,
+                    paid_now: 250,
+                },
+            });
+        });
+
+        expect(mockCreateLabOrder).toHaveBeenCalledWith(expect.objectContaining({
+            cost: 500,
+            paid_now: 250,
+            laboratory_id: 3,
+        }));
+        expect(toast.error).toHaveBeenCalledWith('المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب');
+    });
 });

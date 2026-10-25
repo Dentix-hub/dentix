@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import {
     Receipt,
     Plus,
@@ -7,6 +8,7 @@ import {
     FlaskConical,
     PieChart,
     Tag,
+    Info,
 } from 'lucide-react';
 import { exportExpensesReport } from '@/api/financials';
 import { useExpenses } from '../expenses/hooks/useExpenses';
@@ -216,10 +218,10 @@ export default function ExpensesPage() {
                     isLoading={isLoading}
                 />
                 <MetricCard
-                    title={t('finance.expenses.lab_total', 'تكاليف المعامل والتركيبات')}
+                    title={t('finance.expenses.lab_total', 'مدفوعات المعامل')}
                     amount={labExpensesTotal}
                     scope={from && to ? 'period' : 'all_time'}
-                    subtitle={t('finance.expenses.lab_total_sub', 'إجمالي مطالبات المعامل الخاصة بحالات المرضى')}
+                    subtitle={t('finance.expenses.lab_total_sub', 'إجمالي المدفوعات المسجلة للمعامل للفترة')}
                     icon={FlaskConical}
                     isLoading={isLoading}
                 />
@@ -231,6 +233,16 @@ export default function ExpensesPage() {
                     icon={PieChart}
                     isLoading={isLoading}
                 />
+            </div>
+
+            <div className="flex items-center gap-2 rounded-xl bg-surface-subtle p-3 text-xs text-text-secondary border border-border/40">
+                <Info size={16} className="shrink-0 text-brand" />
+                <span>
+                    {t('finance.expenses.lab_payments_note', 'مدفوعات المعامل تظهر في سجل المعاملات')}
+                </span>
+                <Link to="/finance/cash-movements/activity" className="font-semibold text-brand hover:underline ms-1">
+                    {t('finance.expenses.view_activity', 'عرض سجل المعاملات')}
+                </Link>
             </div>
 
             <div className="space-y-3">

@@ -103,7 +103,8 @@ describe('Finance Expenses V2', () => {
 
             await waitFor(() => {
                 expect(screen.getByText('المصروفات التشغيلية المباشرة')).toBeDefined();
-                expect(screen.getByText('تكاليف المعامل والتركيبات')).toBeDefined();
+                expect(screen.getByText('مدفوعات المعامل')).toBeDefined();
+                expect(screen.getByText('مدفوعات المعامل تظهر في سجل المعاملات')).toBeDefined();
                 expect(screen.getAllByText('شراء قفازات وكمامات').length).toBeGreaterThan(0);
                 expect(screen.getAllByText('فاتورة الكهرباء الشهرية').length).toBeGreaterThan(0);
             });
