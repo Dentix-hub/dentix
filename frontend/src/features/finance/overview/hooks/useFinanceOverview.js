@@ -120,6 +120,7 @@ export function useFinanceOverview() {
     const statsData = statsQuery.data;
     const income = statsData?.income || {};
     const deductions = statsData?.deductions || {};
+    const obligations = statsData?.obligations || {};
 
     const netInvoiced = Number(income.net_revenue ?? income.total_revenue ?? 0);
     const collected = Number(income.total_collected ?? 0);
@@ -133,6 +134,7 @@ export function useFinanceOverview() {
     const periodBalance = Number(income.period_balance ?? 0);
     const doctorDuesTotal = Number(deductions.doctor_dues?.total ?? 0);
     const staffDuesTotal = Number(deductions.staff_dues?.total ?? 0);
+    const labDebtTotal = Number(obligations.lab_debt ?? 0);
 
     return {
         from,
@@ -149,6 +151,7 @@ export function useFinanceOverview() {
         periodBalance,
         doctorDuesTotal,
         staffDuesTotal,
+        labDebtTotal,
         timeline: trendQuery.data?.timeline || [],
         recentActivity,
         isLoading: statsQuery.isLoading,

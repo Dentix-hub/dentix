@@ -14,7 +14,8 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
     const [orderStatus, setOrderStatus] = useState('');
     // Payment Form
     const [showPaymentForm, setShowPaymentForm] = useState(false);
-    const [paymentData, setPaymentData] = useState({ amount: '', notes: '', method: 'Cash' });
+    const [paymentData, setPaymentData] = useState({ amount: '', notes: '', method: 'Cash', lab_order_id: null });
+    const [selectedOrderForPayment, setSelectedOrderForPayment] = useState(null);
     const labId = lab?.id;
     const loadData = useCallback(async () => {
         if (!labId) return;
@@ -59,15 +60,43 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
     }, [activeTab, labId, loadOrders]);
     const handleAddPayment = async (e) => {
         e.preventDefault();
-        if (!paymentData.amount) return;
+        const amt = parseFloat(paymentData.amount);
+        if (!amt || amt <= 0) return;
         try {
-            await createLabPayment(lab.id, paymentData);
-            setPaymentData({ amount: '', notes: '', method: 'Cash' });
+            const payload = {
+                amount: amt,
+                method: paymentData.method,
+                notes: paymentData.notes || undefined,
+            };
+            if (paymentData.lab_order_id) {
+                payload.lab_order_id = paymentData.lab_order_id;
+            }
+            await createLabPayment(lab.id, payload);
+            setPaymentData({ amount: '', notes: '', method: 'Cash', lab_order_id: null });
+            setSelectedOrderForPayment(null);
             setShowPaymentForm(false);
-            loadData(); // Reload all to update balance
+            loadData(); // Reload all to update balance and orders
         } catch (error) {
-            alert(t('labs.details.payments.messages.add_fail'));
+            const detail = error.response?.data?.detail;
+            alert(typeof detail === 'string' ? detail : t('labs.details.payments.messages.add_fail'));
         }
+    };
+
+    const handleOpenPayOrder = (order) => {
+        const cost = Number(order.cost || 0);
+        const paid = Number(order.paid_amount || 0);
+        const rem = order.remaining_amount != null
+            ? Number(order.remaining_amount)
+            : Math.max(0, cost - paid);
+        setPaymentData({
+            amount: rem > 0 ? String(rem) : '',
+            notes: '',
+            method: 'Cash',
+            lab_order_id: order.id,
+        });
+        setSelectedOrderForPayment(order);
+        setActiveTab('payments');
+        setShowPaymentForm(true);
     };
     if (!isOpen || !lab) return null;
     return (
@@ -131,9 +160,13 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                             <div className="text-2xl font-bold text-emerald-600">{stats.total_paid}</div>
                                         </div>
                                         <div className={`bg-white p-4 rounded-xl border shadow-sm ${stats.balance > 0 ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}>
-                                            <div className="text-sm text-slate-500 mb-1">{t('labs.details.overview.balance')}</div>
+                                            <div className="text-sm text-slate-500 mb-1">
+                                                {stats.balance < 0
+                                                    ? t('labs.details.overview.clinic_credit', 'رصيد لصالح العيادة')
+                                                    : t('labs.details.overview.balance', 'المستحق للمعمل (مديونية)')}
+                                            </div>
                                             <div className={`text-2xl font-bold ${stats.balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
-                                                {stats.balance}
+                                                {stats.balance < 0 ? Math.abs(stats.balance) : stats.balance}
                                             </div>
                                         </div>
                                         <div className="bg-white p-4 rounded-xl border shadow-sm">
@@ -166,36 +199,74 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                         <table className="w-full text-sm text-right">
                                             <thead className="bg-slate-50 border-b text-slate-500">
                                                 <tr>
-                                                    <th className="p-3 font-medium">{t('labs.details.orders.table.patient')}</th>
-                                                    <th className="p-3 font-medium">{t('labs.details.orders.table.work')}</th>
-                                                    <th className="p-3 font-medium">{t('labs.details.orders.table.status')}</th>
-                                                    <th className="p-3 font-medium">{t('labs.details.orders.table.cost')}</th>
-                                                    <th className="p-3 font-medium">{t('labs.details.orders.table.date')}</th>
+                                                    <th className="p-3 font-medium">{t('labs.details.orders.table.patient', 'المريض')}</th>
+                                                    <th className="p-3 font-medium">{t('labs.details.orders.table.work', 'العمل')}</th>
+                                                    <th className="p-3 font-medium">{t('labs.details.orders.table.status', 'الحالة')}</th>
+                                                    <th className="p-3 font-medium">{t('labs.details.orders.table.cost', 'التكلفة')}</th>
+                                                    <th className="p-3 font-medium">{t('labs.details.orders.table.paid', 'المدفوع')}</th>
+                                                    <th className="p-3 font-medium">{t('labs.details.orders.table.remaining', 'المتبقي')}</th>
+                                                    <th className="p-3 font-medium">{t('labs.details.orders.table.date', 'التاريخ')}</th>
+                                                    <th className="p-3 font-medium text-center">{t('labs.details.orders.table.actions', 'إجراءات')}</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y">
-                                                {orders.map(order => (
-                                                    <tr key={order.id} className="hover:bg-slate-50/50">
-                                                        <td className="p-3 font-bold text-slate-700">{order.patient_name}</td>
-                                                        <td className="p-3">
-                                                            <div className="font-medium">{order.work_type}</div>
-                                                            <div className="text-xs text-slate-500">{order.material} {order.shade && `(${order.shade})`}</div>
-                                                        </td>
-                                                        <td className="p-3">
-                                                            <span className={`px-2 py-1 rounded text-xs font-bold 
-                                                                ${order.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                                                                    order.status === 'pending' ? 'bg-amber-100 text-amber-700' :
-                                                                        'bg-blue-100 text-blue-700'}`}>
-                                                                {order.status}
-                                                            </span>
-                                                        </td>
-                                                        <td className="p-3 font-mono">{order.cost}</td>
-                                                        <td className="p-3 text-slate-500">{new Date(order.order_date).toLocaleDateString('ar-EG')}</td>
-                                                    </tr>
-                                                ))}
+                                                {orders.map((order) => {
+                                                    const paid = Number(order.paid_amount || 0);
+                                                    const cost = Number(order.cost || 0);
+                                                    const remaining = order.remaining_amount != null
+                                                        ? Number(order.remaining_amount)
+                                                        : Math.max(0, cost - paid);
+                                                    const isCancelled = order.status === 'cancelled';
+                                                    const isPaid = order.payment_status === 'paid' || (cost > 0 && remaining <= 0);
+                                                    const isPartial = order.payment_status === 'partial' || paid > 0;
+
+                                                    return (
+                                                        <tr key={order.id} className="hover:bg-slate-50/50">
+                                                            <td className="p-3 font-bold text-slate-700">{order.patient_name}</td>
+                                                            <td className="p-3">
+                                                                <div className="font-medium">{order.work_type}</div>
+                                                                <div className="text-xs text-slate-500">{order.material} {order.shade && `(${order.shade})`}</div>
+                                                            </td>
+                                                            <td className="p-3">
+                                                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold inline-flex items-center ${
+                                                                    isCancelled
+                                                                        ? 'bg-slate-100 text-slate-700'
+                                                                        : isPaid
+                                                                            ? 'bg-emerald-100 text-emerald-700'
+                                                                            : isPartial
+                                                                                ? 'bg-amber-100 text-amber-700'
+                                                                                : 'bg-rose-100 text-rose-700'
+                                                                }`}>
+                                                                    {isCancelled
+                                                                        ? t('labs.details.orders.status_cancelled', 'ملغي')
+                                                                        : isPaid
+                                                                            ? t('labs.details.orders.status_paid', 'مدفوع')
+                                                                            : isPartial
+                                                                                ? t('labs.details.orders.status_partial', 'جزئي')
+                                                                                : t('labs.details.orders.status_unpaid', 'غير مدفوع')}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-3 font-mono">{cost}</td>
+                                                            <td className="p-3 font-mono text-emerald-600 font-medium">{paid}</td>
+                                                            <td className="p-3 font-mono text-amber-600 font-bold">{remaining}</td>
+                                                            <td className="p-3 text-slate-500">{new Date(order.order_date).toLocaleDateString('ar-EG')}</td>
+                                                            <td className="p-3 text-center">
+                                                                {!isCancelled && remaining > 0 && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleOpenPayOrder(order)}
+                                                                        className="px-2.5 py-1 text-xs font-bold bg-teal-50 text-teal-700 hover:bg-teal-100 rounded-lg transition-colors border border-teal-200"
+                                                                    >
+                                                                        {t('labs.details.orders.record_payment', 'تسجيل دفعة')}
+                                                                    </button>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
                                                 {orders.length === 0 && (
                                                     <tr>
-                                                        <td colSpan="5" className="p-8 text-center text-slate-500">{t('labs.details.orders.table.empty')}</td>
+                                                        <td colSpan="8" className="p-8 text-center text-slate-500">{t('labs.details.orders.table.empty')}</td>
                                                     </tr>
                                                 )}
                                             </tbody>
@@ -217,12 +288,33 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                         </button>
                                     </div>
                                     {showPaymentForm && (
-                                        <form onSubmit={handleAddPayment} className="bg-indigo-50 p-4 rounded-xl mb-4 border border-indigo-100 animate-in fade-in slide-in-from-top-2">
+                                        <form onSubmit={handleAddPayment} className="bg-indigo-50 p-4 rounded-xl mb-4 border border-indigo-100 animate-in fade-in slide-in-from-top-2 space-y-3">
+                                            {paymentData.lab_order_id && (
+                                                <div className="flex items-center justify-between bg-white/80 p-2.5 rounded-lg border border-indigo-200 text-xs">
+                                                    <span className="font-bold text-indigo-900">
+                                                        {t('labs.details.payments.allocated_to_order', 'دفعة مخصصة للطلب')}: #{paymentData.lab_order_id}
+                                                        {selectedOrderForPayment ? ` — ${selectedOrderForPayment.work_type} (${selectedOrderForPayment.patient_name})` : ''}
+                                                    </span>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setPaymentData((prev) => ({ ...prev, lab_order_id: null }));
+                                                            setSelectedOrderForPayment(null);
+                                                        }}
+                                                        className="text-indigo-600 hover:underline font-bold text-[11px]"
+                                                    >
+                                                        {t('labs.details.payments.clear_allocation', 'إلغاء التخصيص (على الحساب)')}
+                                                    </button>
+                                                </div>
+                                            )}
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                                                 <div>
-                                                    <label className="block text-xs font-bold text-indigo-800 mb-1">{t('labs.details.payments.form.amount')}</label>
+                                                    <label htmlFor="lab-payment-amount" className="block text-xs font-bold text-indigo-800 mb-1">{t('labs.details.payments.form.amount')}</label>
                                                     <input
+                                                        id="lab-payment-amount"
                                                         type="number"
+                                                        step="0.01"
+                                                        min="0.01"
                                                         value={paymentData.amount}
                                                         onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
                                                         className="w-full p-2 rounded border focus:ring-2 focus:ring-indigo-500 outline-none"
@@ -264,21 +356,40 @@ const LabDetailsModal = ({ lab, isOpen, onClose }) => {
                                                     <th className="p-3 font-medium">{t('labs.details.payments.table.date')}</th>
                                                     <th className="p-3 font-medium">{t('labs.details.payments.table.amount')}</th>
                                                     <th className="p-3 font-medium">{t('labs.details.payments.table.method')}</th>
+                                                    <th className="p-3 font-medium">{t('labs.details.payments.table.linked_order', 'الطلب المرتبط')}</th>
                                                     <th className="p-3 font-medium">{t('labs.details.payments.table.notes')}</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y">
-                                                {payments.map(payment => (
-                                                    <tr key={payment.id} className="hover:bg-slate-50/50">
-                                                        <td className="p-3 text-slate-600">{new Date(payment.date).toLocaleDateString('ar-EG')}</td>
-                                                        <td className="p-3 font-bold text-emerald-600">{payment.amount}</td>
-                                                        <td className="p-3 text-slate-500">{payment.method}</td>
-                                                        <td className="p-3 text-slate-500 text-xs">{payment.notes || '-'}</td>
-                                                    </tr>
-                                                ))}
+                                                {payments.map(payment => {
+                                                    const linkedOrder = payment.lab_order_id
+                                                        ? orders.find(o => o.id === payment.lab_order_id)
+                                                        : null;
+                                                    return (
+                                                        <tr key={payment.id} className="hover:bg-slate-50/50">
+                                                            <td className="p-3 text-slate-600">{new Date(payment.date).toLocaleDateString('ar-EG')}</td>
+                                                            <td className="p-3 font-bold text-emerald-600">{payment.amount}</td>
+                                                            <td className="p-3 text-slate-500">{payment.method}</td>
+                                                            <td className="p-3 text-xs">
+                                                                {linkedOrder ? (
+                                                                    <span className="font-medium text-slate-700">
+                                                                        {linkedOrder.work_type} ({linkedOrder.patient_name})
+                                                                    </span>
+                                                                ) : payment.lab_order_id ? (
+                                                                    <span className="font-mono text-slate-500">#{payment.lab_order_id}</span>
+                                                                ) : (
+                                                                    <span className="text-slate-400 italic">
+                                                                        {t('labs.details.payments.on_account', 'على الحساب')}
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-3 text-slate-500 text-xs">{payment.notes || '-'}</td>
+                                                        </tr>
+                                                    );
+                                                })}
                                                 {payments.length === 0 && (
                                                     <tr>
-                                                        <td colSpan="4" className="p-8 text-center text-slate-500">{t('labs.details.payments.table.empty')}</td>
+                                                        <td colSpan="5" className="p-8 text-center text-slate-500">{t('labs.details.payments.table.empty')}</td>
                                                     </tr>
                                                 )}
                                             </tbody>

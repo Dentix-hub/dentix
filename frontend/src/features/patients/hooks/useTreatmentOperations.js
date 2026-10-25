@@ -98,6 +98,7 @@ export const useTreatmentOperations = ({
                         material: labOrderData.material || undefined,
                         delivery_date: labOrderData.delivery_date || undefined,
                         cost: parseFloat(labOrderData.cost) || 0,
+                        paid_now: parseFloat(labOrderData.paid_now) || 0,
                         price_to_patient: 0,
                         notes: labOrderData.notes || undefined,
                     });
@@ -148,7 +149,14 @@ export const useTreatmentOperations = ({
             }
             if (!skipToast) {
                 if (labOrderError) {
-                    toast.error(t('patient_details.alerts.treatment_saved_lab_failed'));
+                    const res = labOrderError.response?.data;
+                    const detail = res?.detail;
+                    const envelope = res?.error;
+                    const backendMsg = (typeof detail === 'string' && detail) ||
+                        envelope?.details?.message ||
+                        envelope?.message ||
+                        (typeof res?.message === 'string' && res.message);
+                    toast.error(backendMsg || t('patient_details.alerts.treatment_saved_lab_failed'));
                 } else {
                     if (labOrderExisting) {
                         toast.info(t('patient_details.alerts.lab_order_already_exists'));

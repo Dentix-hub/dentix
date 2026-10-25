@@ -55,7 +55,7 @@ const METRIC_LABELS = {
     net_invoiced: 'صافي المحتسب',
     collected: 'التحصيلات',
     manual_expenses: 'المصروفات التشغيلية',
-    lab_costs: 'تكاليف المعامل',
+    lab_costs: 'مدفوعات المعامل',
     doctor_dues: 'مستحقات الأطباء',
     staff_dues: 'مستحقات الموظفين',
     total_deductions: 'إجمالي الاستقطاعات',
