@@ -29,7 +29,7 @@ vi.mock('@/features/patients/modals/EditPatientModal.jsx', () => ({
     default: () => null,
 }));
 
-vi.mock('@/shared/ui/modals/TreatmentModal', () => ({
+vi.mock('@/features/clinical-chart/components/QuickTreatmentSheet', () => ({
     default: ({ isOpen, initialData }) => (
         isOpen ? <div data-testid="treatment-modal-tooth">{initialData?.tooth_number}</div> : null
     ),

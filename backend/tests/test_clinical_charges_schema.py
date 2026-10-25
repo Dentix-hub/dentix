@@ -274,7 +274,8 @@ def test_legacy_finance_tables_unchanged():
 def test_alembic_single_head_is_s32():
     alembic_cfg_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
     script_dir = ScriptDirectory.from_config(Config(alembic_cfg_path))
-    assert script_dir.get_heads() == ["5e6f7a8b9c0d"]
+    assert script_dir.get_heads() == ["6f7a8b9c0d1e"]
+    assert script_dir.get_revision("6f7a8b9c0d1e").down_revision == "5e6f7a8b9c0d"
     assert script_dir.get_revision("5e6f7a8b9c0d").down_revision == "4d5e6f7a8b9c"
 
 

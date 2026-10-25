@@ -18,7 +18,10 @@ vi.mock('./SmartMaterialRow', () => ({
     ),
 }));
 
-vi.mock('react-hot-toast', () => ({ default: { error: vi.fn(), success: vi.fn() } }));
+vi.mock('react-hot-toast', () => {
+    const mock = { error: vi.fn(), success: vi.fn() };
+    return { default: mock, toast: mock };
+});
 
 function renderModal(overrides = {}) {
     const queryClient = new QueryClient({

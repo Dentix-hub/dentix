@@ -17,7 +17,7 @@ The scorecard does **not** treat the current Vercel staging build-rate-limit sta
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|---|---|
 | Patients | 9 | 8 | 7 | 7 | 8 | 8 | 8 | 8 | 9 | 9 | Very high | Very high | Recent Patient Workspace V2 is strong, but patient details remains a broad multi-workflow surface and was listed among local overlay migration candidates. |
 | Appointments | 8 | 6 | 6 | 5 | 7 | 6 | 6 | 7 | 8 | 8 | Very high | Very high | `Appointments.jsx` remains large; FullCalendar has a separate style system; date/time overlays require strict timezone/mobile/keyboard regression. |
-| Clinical / Dental | 7 | 5 | 5 | 4 | 6 | 5 | 5 | 6 | 8 | 7 | Very high | Very high | `TreatmentModal` is a large, business-heavy workflow with nested overlays; clinical capability is distributed and only PARTIAL in inventory. |
+| Clinical / Dental | 7 | 5 | 5 | 4 | 6 | 5 | 5 | 6 | 8 | 7 | Very high | Very high | `QuickTreatmentSheet` is a large, business-heavy workflow with nested overlays; clinical capability is distributed and only PARTIAL in inventory. |
 | Finance / Billing / Expenses | 9 | 8 | 8 | 7 | 8 | 7 | 7 | 8 | 9 | 9 | High | Very high | Finance V2 and financial truth tests provide a strong baseline; a small number of feature-local drawers/modals remain migration candidates. |
 | Dashboard | 8 | 6 | 5 | 5 | 7 | 6 | 6 | 7 | 8 | 7 | High | High | Large page and decorative/card-heavy legacy patterns may compete with operational hierarchy; metric semantics must remain backend-owned. |
 | Analytics | 7 | 6 | 5 | 5 | 6 | 6 | 6 | 7 | 8 | 6 | Medium | Medium | Capability and metric inventory are PARTIAL; performance/readability need direct evidence. |

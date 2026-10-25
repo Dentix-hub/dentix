@@ -9,7 +9,7 @@ This matrix satisfies the Plan 02 requirement to validate representative forms w
 |---|---|---|---|
 | Patient | `features/patients/modals/PatientModal.jsx` | VALIDATED | Already consumes shared `Modal`, `Button`, `Input`; submit mapping remains unchanged. Raw select/textarea styling remains staged debt. |
 | Appointment | `pages/Appointments.jsx` | VALIDATED | Uses shared `Modal`, `PatientSelect`, `DateTimePicker`, `Button`, `Input`; appointment tests remain green. Raw select/textarea controls remain staged debt. |
-| Treatment | `shared/ui/modals/TreatmentModal.jsx` | VALIDATED / MIGRATION QUEUED | Business-heavy workflow inventoried; Plan 02 makes no treatment payload/rule change. Presentation migration should follow dedicated regression coverage. |
+| Treatment | `shared/ui/modals/QuickTreatmentSheet.jsx` | VALIDATED / MIGRATION QUEUED | Business-heavy workflow inventoried; Plan 02 makes no treatment payload/rule change. Presentation migration should follow dedicated regression coverage. |
 | Payment | `shared/ui/modals/PaymentModal.jsx` | MIGRATED + TESTED | Raw fullscreen overlay replaced by shared primitives. Exact payload regression proves amount, notes and `yyyy-MM-ddT00:00:00` behavior are preserved. |
 | Expense | Finance `AddExpenseDrawer` | VALIDATED / MIGRATION QUEUED | Existing finance regression validates required inputs and submitted expense data. Raw drawer implementation remains explicit overlay debt. |
 | Inventory | inventory modal/session surfaces | VALIDATED / MIGRATION QUEUED | Overlay/form implementations inventoried; no inventory consumption/cost/business rule altered. |

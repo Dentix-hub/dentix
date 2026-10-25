@@ -10,7 +10,7 @@ export function usePatientChartSelection({
     isTouchScrollingRef,
     executeClinicalActionRef,
     setNewTreatment,
-    setIsTreatmentModalOpen,
+    setIsTreatmentSheetOpen,
     setSelectedToothCondition,
     getInitialTreatment,
 }) {
@@ -80,8 +80,8 @@ export function usePatientChartSelection({
             defaultPriceListId: patient?.default_price_list_id,
         });
         setNewTreatment(prefill);
-        setIsTreatmentModalOpen(true);
-    }, [isPediatric, patient, effectiveTeethStatusRef, setSelectedToothCondition, setNewTreatment, getInitialTreatment, setIsTreatmentModalOpen]);
+        setIsTreatmentSheetOpen(true);
+    }, [isPediatric, patient, effectiveTeethStatusRef, setSelectedToothCondition, setNewTreatment, getInitialTreatment, setIsTreatmentSheetOpen]);
 
     const handleToothClick = useCallback((number, notation = 'universal') => {
         if (isTouchScrollingRef?.current) {
@@ -215,8 +215,8 @@ export function usePatientChartSelection({
             defaultPriceListId: patient?.default_price_list_id,
         });
         setNewTreatment(prefill);
-        setIsTreatmentModalOpen(true);
-    }, [resolvedActiveTooth, selectedTeeth, selectedSurfacesByTooth, patient, setNewTreatment, getInitialTreatment, setIsTreatmentModalOpen]);
+        setIsTreatmentSheetOpen(true);
+    }, [resolvedActiveTooth, selectedTeeth, selectedSurfacesByTooth, patient, setNewTreatment, getInitialTreatment, setIsTreatmentSheetOpen]);
 
     const handleClearSelection = useCallback(() => {
         setSelectedTeeth([]);

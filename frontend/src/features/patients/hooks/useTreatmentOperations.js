@@ -3,7 +3,7 @@ import { QueryClientContext } from '@tanstack/react-query';
 import { invalidatePatientClinicalQueries } from '../utils/invalidatePatientClinicalQueries';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
-import { createTreatment, updateTreatment, updateToothStatus } from '@/api';
+import { createTreatment, updateTreatment, updateToothStatus, createLabOrder } from '@/api';
 import { palmerToFdi } from '@/utils/toothUtils';
 import { toast } from '@/shared/ui';
 
@@ -12,7 +12,7 @@ export const useTreatmentOperations = ({
     refetchHistory,
     refetchTeeth,
     refetchWorkspace,
-    setIsTreatmentModalOpen,
+    setIsTreatmentSheetOpen,
     setEditingTreatmentId,
     editingTreatmentId,
     selectedToothCondition: _selectedToothCondition
@@ -62,6 +62,8 @@ export const useTreatmentOperations = ({
             delete cleanData.escalated_from_quick_sheet;
             delete cleanData.escalation_error;
             delete cleanData.explicit_tooth_condition;
+            const labOrderData = cleanData.lab_order;
+            delete cleanData.lab_order;
 
             const payload = {
                 ...cleanData,
@@ -70,13 +72,46 @@ export const useTreatmentOperations = ({
             };
 
             // 1. Save Treatment
+            let savedTreatment = null;
             if (editingTreatmentId) {
-                await updateTreatment(editingTreatmentId, payload);
+                const res = await updateTreatment(editingTreatmentId, payload);
+                savedTreatment = res?.data || res || { id: editingTreatmentId, ...payload };
             } else {
-                await createTreatment(payload);
+                const res = await createTreatment(payload);
+                savedTreatment = res?.data || res;
             }
 
-            // 2. Update Tooth Status ONLY if user explicitly changed the condition in TreatmentModal
+            const targetTreatmentId = savedTreatment?.id || editingTreatmentId;
+
+            // 2. Create linked lab order if specified (D2, D3)
+            let labOrderError = null;
+            let labOrderExisting = false;
+            if (labOrderData?.laboratory_id && targetTreatmentId) {
+                try {
+                    const labRes = await createLabOrder({
+                        patient_id: parseInt(patientId, 10),
+                        treatment_id: targetTreatmentId,
+                        laboratory_id: parseInt(labOrderData.laboratory_id, 10),
+                        work_type: data.procedure || 'Crown',
+                        tooth_number: data.tooth_number ? String(data.tooth_number) : '',
+                        shade: labOrderData.shade || undefined,
+                        material: labOrderData.material || undefined,
+                        delivery_date: labOrderData.delivery_date || undefined,
+                        cost: parseFloat(labOrderData.cost) || 0,
+                        price_to_patient: 0,
+                        notes: labOrderData.notes || undefined,
+                    });
+                    const labBody = labRes?.data || labRes;
+                    if (labBody?.is_existing) {
+                        labOrderExisting = true;
+                    }
+                } catch (labErr) {
+                    logger.error("Failed to create linked lab order:", labErr);
+                    labOrderError = labErr;
+                }
+            }
+
+            // 3. Update Tooth Status ONLY if user explicitly changed the condition in QuickTreatmentSheet
             const conditionToUpdate = data.explicit_tooth_condition;
             if (data.tooth_number && conditionToUpdate) {
                 try {
@@ -106,14 +141,22 @@ export const useTreatmentOperations = ({
                 }
             }
 
-            setIsTreatmentModalOpen(false);
+            setIsTreatmentSheetOpen?.(false);
             setEditingTreatmentId(null);
             if (!skipRefetch) {
                 await refetchClinicalData();
             }
             if (!skipToast) {
-                toast.success(t('patient_details.alerts.treatment_save_success'));
+                if (labOrderError) {
+                    toast.error(t('patient_details.alerts.treatment_saved_lab_failed'));
+                } else {
+                    if (labOrderExisting) {
+                        toast.info(t('patient_details.alerts.lab_order_already_exists'));
+                    }
+                    toast.success(t('patient_details.alerts.treatment_save_success'));
+                }
             }
+            return savedTreatment;
         } catch (err) {
             logger.error(err);
             const res = err.response?.data;
@@ -121,10 +164,10 @@ export const useTreatmentOperations = ({
             const envelope = res?.error;
             const msg = envelope?.details?.message || envelope?.message || detail || res?.message;
 
-            // SPECIAL HANDLING: Rethrow specific errors so TreatmentModal can handle them.
-            // 1. CONFIRM_OPEN_REQUIRED — TreatmentModal shows session tracking modal
-            // 2. Stock validation errors — TreatmentModal shows "save without stock" option
-            // 3. CLINICAL_LINK_* — TreatmentModal shows localized plan item link error banner
+            // SPECIAL HANDLING: Rethrow specific errors so QuickTreatmentSheet can handle them.
+            // 1. CONFIRM_OPEN_REQUIRED — QuickTreatmentSheet shows session tracking modal
+            // 2. Stock validation errors — QuickTreatmentSheet shows "save without stock" option
+            // 3. CLINICAL_LINK_* — QuickTreatmentSheet shows localized plan item link error banner
             const isConfirmOpen = (
                 detail?.code === "CONFIRM_OPEN_REQUIRED" ||
                 envelope?.details?.code === "CONFIRM_OPEN_REQUIRED" ||
@@ -140,7 +183,7 @@ export const useTreatmentOperations = ({
             );
 
             if (isConfirmOpen || isStockError || isClinicalLink) {
-                throw err; // Let TreatmentModal handle with specialized UI
+                throw err; // Let QuickTreatmentSheet handle with specialized UI
             }
 
             const finalMsg = typeof msg === 'object' ? JSON.stringify(msg) : (msg || t('patient_details.alerts.treatment_save_fail'));
@@ -148,7 +191,7 @@ export const useTreatmentOperations = ({
             err.alreadyNotified = true;
             throw err;
         }
-    }, [patientId, editingTreatmentId, refetchTeeth, refetchClinicalData, setIsTreatmentModalOpen, setEditingTreatmentId, t]);
+    }, [patientId, editingTreatmentId, refetchTeeth, refetchClinicalData, setIsTreatmentSheetOpen, setEditingTreatmentId, t]);
 
     return { handleSaveTreatment, refetchClinicalData };
 };

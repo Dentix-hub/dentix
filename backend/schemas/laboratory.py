@@ -46,6 +46,7 @@ class LabOrderBase(BaseModel):
     patient_id: Optional[int] = None
     laboratory_id: Optional[int] = None
     work_item_id: Optional[int] = None
+    treatment_id: Optional[int] = None
     work_type: str
     tooth_number: Optional[str] = None
     shade: Optional[str] = None
@@ -78,6 +79,7 @@ class LabHandoffCreate(BaseModel):
 class LabOrderUpdate(BaseModel):
     laboratory_id: Optional[int] = None
     work_item_id: Optional[int] = None
+    treatment_id: Optional[int] = None
     work_type: Optional[str] = None
     tooth_number: Optional[str] = None
     shade: Optional[str] = None
@@ -96,6 +98,7 @@ class LabOrder(LabOrderBase):
     received_date: Optional[datetime] = None
     patient_name: Optional[str] = None
     laboratory_name: Optional[str] = None
+    is_existing: Optional[bool] = None
 
     model_config = ConfigDict(from_attributes=True)
 

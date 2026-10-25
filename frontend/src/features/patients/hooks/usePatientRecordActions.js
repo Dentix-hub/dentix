@@ -25,7 +25,7 @@ export function usePatientRecordActions({
     deletePaymentMutate,
     setIsEditPatientOpen,
     setIsPaymentModalOpen,
-    setIsTreatmentModalOpen,
+    setIsTreatmentSheetOpen,
     setIsRxModalOpen,
     setEditingTreatmentId,
     setNewTreatment,
@@ -95,8 +95,8 @@ export function usePatientRecordActions({
             target_kind: 'tooth',
             default_price_list_id: patient?.default_price_list_id,
         });
-        setIsTreatmentModalOpen(true);
-    }, [patient, setEditingTreatmentId, setNewTreatment, getInitialTreatment, setIsTreatmentModalOpen]);
+        setIsTreatmentSheetOpen(true);
+    }, [patient, setEditingTreatmentId, setNewTreatment, getInitialTreatment, setIsTreatmentSheetOpen]);
 
     const handleEditTreatment = useCallback((item) => {
         setEditingTreatmentId(item.id);
@@ -132,10 +132,11 @@ export function usePatientRecordActions({
             notes: item.notes || '',
             status: item.status || 'Done',
             consumedMaterials: item.consumedMaterials || [],
+            treatment_sessions: item.treatment_sessions || [],
             default_price_list_id: patient?.default_price_list_id,
         });
-        setIsTreatmentModalOpen(true);
-    }, [patient, setEditingTreatmentId, setNewTreatment, setIsTreatmentModalOpen]);
+        setIsTreatmentSheetOpen(true);
+    }, [patient, setEditingTreatmentId, setNewTreatment, setIsTreatmentSheetOpen]);
 
     const handleDeleteTreatment = useCallback(async (treatmentId) => {
         if (!window.confirm(t('patient_details.alerts.delete_treatment_confirm'))) return;

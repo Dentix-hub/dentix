@@ -85,7 +85,7 @@ Placeholder text is not a label.
 |---|---|---|---|
 | Patient | create/edit patient, patient details edits | mixed raw/shared inputs; permission-sensitive fields | shared field semantics without changing doctor/receptionist visibility/edit rules |
 | Appointment | appointment create/edit + DateTimePicker | date/time semantics, patient combobox, mobile overlay | preserve appointment payload/conflict rules |
-| Treatment | `TreatmentModal`, sessions/material consumption | complex nested workflow, double-submit, units | container migration only after overlay stack; preserve clinical/inventory mutations |
+| Treatment | `QuickTreatmentSheet`, sessions/material consumption | complex nested workflow, double-submit, units | container migration only after overlay stack; preserve clinical/inventory mutations |
 | Payment | PaymentModal + Finance V2 payment forms | money parsing/date semantics, duplicate implementations | canonical money/date/button patterns; preserve payment API |
 | Expense | Finance V2 add/delete expense | money/date/category validation | shared field/actions + canonical destructive confirmation |
 | Inventory | warehouse/material/session forms | units/quantity/batches/nested overlays | explicit units and canonical drawer/dialog; preserve stock semantics |
