@@ -102,11 +102,16 @@ async def create_expense(
     current_user: schemas.User = Depends(require_permission(Permission.EXPENSE_MANAGE)),
 ):
     tenant_id = require_tenant_id(current_user)
+    if expense.category and expense.category.strip().lower() == "laboratory":
+        raise HTTPException(
+            status_code=400,
+            detail="مدفوعات المعامل تتسجل من صفحة المعامل، مش من المصروفات",
+        )
     service = ExpenseService(db, tenant_id)
     try:
         result = await service.create_expense(expense, commit=False)
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     log_admin_action(
         db=db,
         admin_user=current_user,
@@ -114,6 +119,39 @@ async def create_expense(
         entity_type="expense",
         entity_id=result.id if hasattr(result, "id") else None,
         details=f"Expense: {expense.item_name} - {expense.cost}",
+    )
+    await db.commit()
+    await db.refresh(result)
+    return success_response(_manual_expense_payload(result))
+
+
+@router.put("/{expense_id}")
+async def update_expense(
+    expense_id: int,
+    expense_data: schemas.ExpenseUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: schemas.User = Depends(require_permission(Permission.EXPENSE_MANAGE)),
+):
+    tenant_id = require_tenant_id(current_user)
+    if expense_data.category and expense_data.category.strip().lower() == "laboratory":
+        raise HTTPException(
+            status_code=400,
+            detail="مدفوعات المعامل تتسجل من صفحة المعامل، مش من المصروفات",
+        )
+    service = ExpenseService(db, tenant_id)
+    try:
+        result = await service.update_expense(expense_id, expense_data, commit=False)
+    except ValueError as exc:
+        if str(exc) == "Expense not found":
+            raise HTTPException(status_code=404, detail="Expense not found") from exc
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    log_admin_action(
+        db=db,
+        admin_user=current_user,
+        action="update",
+        entity_type="expense",
+        entity_id=expense_id,
+        details=f"Updated expense #{expense_id}",
     )
     await db.commit()
     await db.refresh(result)
