@@ -775,22 +775,25 @@ class TreatmentService:
         )
 
         # 5.5. Synchronize ClinicalWorkItem / ClinicalEvent for odontogram projection
-        try:
-            async with self.db.begin_nested():
-                clinical_work_item_id = getattr(treatment_data, "clinical_work_item_id", None)
-                if clinical_work_item_id is not None:
-                    await self._link_existing_clinical_work_item(
-                        created_treatment,
-                        work_item_id=clinical_work_item_id,
-                        surfaces=surfaces,
-                    )
-                else:
-                    await self._sync_clinical_work_item(created_treatment, surfaces=surfaces)
-        except Exception as exc:
-            logger.warning(
-                "Skipping shadow clinical work item creation for treatment %s due to error: %s",
-                created_treatment.id, exc, exc_info=True
+        clinical_work_item_id = getattr(treatment_data, "clinical_work_item_id", None)
+        if clinical_work_item_id is not None:
+            # Explicit U2 link — must NOT be swallowed; the 409 conflict is intentional.
+            await self._link_existing_clinical_work_item(
+                created_treatment,
+                work_item_id=clinical_work_item_id,
+                surfaces=surfaces,
             )
+        else:
+            # Shadow projection — wrapped in SAVEPOINT so a DB error (e.g.
+            # CheckViolationError on empty code) rolls back only the projection.
+            try:
+                async with self.db.begin_nested():
+                    await self._sync_clinical_work_item(created_treatment, surfaces=surfaces)
+            except Exception as exc:
+                logger.warning(
+                    "Skipping shadow clinical work item creation for treatment %s due to error: %s",
+                    created_treatment.id, exc, exc_info=True
+                )
 
         # 6. Consume stock (post-creation) — skip if requested
         if not skip_stock:
