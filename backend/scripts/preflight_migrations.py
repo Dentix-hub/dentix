@@ -174,6 +174,8 @@ CHILD_TENANT_RELATIONSHIPS = (
     # Phase G12 / S27: Lab Order Work Item Link
     ("lab_orders", "work_item_id", "clinical_work_items", True),
     ("lab_orders", "treatment_id", "treatments", True),
+    # Lab Debt vs Paid: Lab Payment Order Link (Slice L1)
+    ("lab_payments", "lab_order_id", "lab_orders", True),
     # Phase G14 / S32: Clinical Charges
     ("clinical_charges", "patient_id", "patients", False),
     ("clinical_charges", "work_item_id", "clinical_work_items", False),

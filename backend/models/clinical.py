@@ -392,6 +392,7 @@ class LabOrder(Base):
     doctor = relationship("User", back_populates="lab_orders")
     work_item = relationship("ClinicalWorkItem", back_populates="lab_orders")
     treatment = relationship("Treatment", back_populates="lab_orders", foreign_keys=[treatment_id])
+    payments = relationship("LabPayment", back_populates="lab_order")
 
 
 class Procedure(Base):

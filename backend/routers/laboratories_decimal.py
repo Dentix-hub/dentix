@@ -11,6 +11,8 @@ from backend.core.money import as_decimal, quantize_money
 from backend.core.permissions import Permission, require_permission
 from backend.database import get_async_db
 
+from backend.services.lab_service import get_unpaid_orders_count
+
 _base = import_module("backend.routers.laboratories")
 
 router = _base.router
@@ -27,7 +29,7 @@ def _money_json(value) -> float:
     return float(quantize_money(as_decimal(value)))
 
 
-def build_lab_stats_payload(*, lab_id: int, lab_name: str, total_orders: int, pending_orders: int, completed_orders: int, total_cost, total_revenue, total_paid) -> dict:
+def build_lab_stats_payload(*, lab_id: int, lab_name: str, total_orders: int, pending_orders: int, completed_orders: int, total_cost, total_revenue, total_paid, unpaid_orders_count: int = 0) -> dict:
     total_cost_d = as_decimal(total_cost)
     total_revenue_d = as_decimal(total_revenue)
     total_paid_d = as_decimal(total_paid)
@@ -41,6 +43,7 @@ def build_lab_stats_payload(*, lab_id: int, lab_name: str, total_orders: int, pe
         "total_revenue": _money_json(total_revenue_d),
         "total_paid": _money_json(total_paid_d),
         "balance": _money_json(total_cost_d - total_paid_d),
+        "unpaid_orders_count": int(unpaid_orders_count),
     }
 
 
@@ -67,6 +70,7 @@ async def get_lab_stats(
     total_cost = as_decimal(await db.scalar(select(func.sum(models.LabOrder.cost)).where(
         models.LabOrder.laboratory_id == lab_id,
         models.LabOrder.tenant_id == current_user.tenant_id,
+        models.LabOrder.status != "cancelled",
     )))
     total_revenue = as_decimal(await db.scalar(select(func.sum(models.LabOrder.price_to_patient)).where(
         models.LabOrder.laboratory_id == lab_id,
@@ -76,6 +80,7 @@ async def get_lab_stats(
         models.LabPayment.laboratory_id == lab_id,
         models.LabPayment.tenant_id == current_user.tenant_id,
     )))
+    unpaid_orders_count = await get_unpaid_orders_count(db, current_user.tenant_id, lab_id)
     return build_lab_stats_payload(
         lab_id=lab_id,
         lab_name=lab.name,
@@ -85,6 +90,7 @@ async def get_lab_stats(
         total_cost=total_cost,
         total_revenue=total_revenue,
         total_paid=total_paid,
+        unpaid_orders_count=unpaid_orders_count,
     )
 
 

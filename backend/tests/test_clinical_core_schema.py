@@ -635,7 +635,10 @@ def test_alembic_single_head_is_f4a5b6c7d8e9():
 
     heads = script_dir.get_heads()
     assert len(heads) == 1, f"Expected exactly 1 Alembic head revision, found {heads}"
-    assert heads[0] == "8b9c0d1e2f3a", f"Expected head revision 8b9c0d1e2f3a, got {heads[0]}"
+    assert heads[0] == "9c0d1e2f3a4b", f"Expected head revision 9c0d1e2f3a4b, got {heads[0]}"
+
+    lab_pay_rev = script_dir.get_revision("9c0d1e2f3a4b")
+    assert lab_pay_rev.down_revision == "8b9c0d1e2f3a", f"Expected parent revision 8b9c0d1e2f3a, got {lab_pay_rev.down_revision}"
 
     head_rev = script_dir.get_revision("8b9c0d1e2f3a")
     assert head_rev.down_revision == "7a8b9c0d1e2f", f"Expected parent revision 7a8b9c0d1e2f, got {head_rev.down_revision}"
@@ -643,8 +646,8 @@ def test_alembic_single_head_is_f4a5b6c7d8e9():
     state_rev = script_dir.get_revision("7a8b9c0d1e2f")
     assert state_rev.down_revision == "6f7a8b9c0d1e", f"Expected parent revision 6f7a8b9c0d1e, got {state_rev.down_revision}"
 
-    new_rev = script_dir.get_revision("6f7a8b9c0d1e")
-    assert new_rev.down_revision == "5e6f7a8b9c0d", f"Expected parent revision 5e6f7a8b9c0d, got {new_rev.down_revision}"
+    lab_rev = script_dir.get_revision("6f7a8b9c0d1e")
+    assert lab_rev.down_revision == "5e6f7a8b9c0d", f"Expected parent revision 5e6f7a8b9c0d, got {lab_rev.down_revision}"
 
     s32_rev = script_dir.get_revision("5e6f7a8b9c0d")
     assert s32_rev.down_revision == "4d5e6f7a8b9c", f"Expected parent revision 4d5e6f7a8b9c, got {s32_rev.down_revision}"

@@ -316,6 +316,8 @@ class TestLabStats:
 
         assert isinstance(result, dict)
         assert "total_orders" in result
+        assert "unpaid_orders_count" in result
+        assert result["unpaid_orders_count"] == 0
 
     async def test_get_lab_stats(self, lab_service, mock_db, sample_laboratory):
         """Should return stats for specific lab."""
@@ -333,12 +335,15 @@ class TestLabStats:
             mock_result_stats,
             mock_result_stats,
             mock_result_stats,
+            mock_result_stats,
         ]
 
         result = await lab_service.get_lab_stats(1)
 
         assert isinstance(result, dict)
         assert "lab_id" in result
+        assert "unpaid_orders_count" in result
+        assert result["unpaid_orders_count"] == 0
 
 
 # ============================================

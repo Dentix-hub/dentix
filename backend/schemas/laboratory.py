@@ -59,7 +59,7 @@ class LabOrderBase(BaseModel):
 
 
 class LabOrderCreate(LabOrderBase):
-    pass
+    paid_now: NonNegativeMoney = Decimal("0.00")
 
 
 class LabHandoffCreate(BaseModel):
@@ -99,12 +99,16 @@ class LabOrder(LabOrderBase):
     patient_name: Optional[str] = None
     laboratory_name: Optional[str] = None
     is_existing: Optional[bool] = None
+    paid_amount: NonNegativeMoney = Decimal("0.00")
+    remaining_amount: NonNegativeMoney = Decimal("0.00")
+    payment_status: str = "unpaid"
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class LabPaymentBase(BaseModel):
     laboratory_id: Optional[int] = None
+    lab_order_id: Optional[int] = None
     amount: PositiveMoney
     date: datetime = Field(default_factory=utc_now_naive)
     notes: Optional[str] = None

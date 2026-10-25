@@ -265,6 +265,7 @@ jobs:
             backend/ci_tests/test_lab_shade_material_postgres.py \
             backend/ci_tests/test_patient_delete_postgres.py \
             backend/ci_tests/test_appointment_concurrency_postgres.py \
+            backend/ci_tests/test_lab_payment_concurrency_postgres.py \
             -v \
             --tb=short \
             --confcutdir=backend/ci_tests
