@@ -10,8 +10,8 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 - Decisions: D1 (endo/Fractured aliases mapped), D3 (dashboard cache task isolated session), D4 (plain Arabic clinical warnings & collapsed technical codes).
 - Polish fixes: A6 (restore FK order & error sanitization), A7 (material stock eager loading & UI state), A8 (reception queue graceful fallback), A9 (SW precache deduplication & cache v2).
 - Last merged PR: #304
-- Current brief: Lab settlement per case (mobile UX) - PR-1: Backend payment allocation & unallocated stats.
-- PR-1 status: READY (POST /payments/{id}/allocate, DELETE /allocation, unallocated stats, PostgreSQL concurrency lock).
+- Current brief: Pre-production polish (2026-10-26) - PR2: fix/pwa-install-reliability.
+- PR2 status: READY (PWA install reliability: stale installed flag cleanup, Android manual instructions fallback, and in-app browser redirect card).
 - Open decisions (Eslam): none recorded
 - Promotion to main: All 37 slices (S00–S36) complete. Blocked until staging smoke test and the mandatory stronger-model final review are done (DEVELOPMENT_WORKFLOW §6). Final review: PENDING.
 

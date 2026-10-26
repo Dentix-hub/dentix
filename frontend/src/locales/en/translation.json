@@ -3357,7 +3357,18 @@
         "step3": "Keep \"Open as Web App\" enabled",
         "step4": "Tap \"Add\"",
         "action": "Got it"
+      },
+      "android_manual": {
+        "title": "Install DENTIX on Android",
+        "step1": "Open the browser menu (⋮)",
+        "step2": "Choose \"Install app\" or \"Add to Home screen\"",
+        "action": "Got it"
       }
+    },
+    "in_app": {
+      "title": "Open in standard browser",
+      "description": "To install DENTIX and use all features, please open this link in Chrome or Safari.",
+      "action": "Got it"
     }
   },
   "connectivity": {

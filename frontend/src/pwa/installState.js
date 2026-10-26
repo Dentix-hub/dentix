@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { isStandalone } from './platform';
 
 const DISMISSAL_KEY = 'dentix:pwa:install-dismissed-at';
 const INSTALLED_KEY = 'dentix:pwa:app-installed';
@@ -27,16 +28,34 @@ function writeTimestamp(key, value) {
     }
 }
 
+export function syncInstalledStatus() {
+    const raw = readTimestamp(INSTALLED_KEY);
+    if (raw !== null) {
+        if (!isStandalone()) {
+            writeTimestamp(INSTALLED_KEY, null);
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
 /**
  * Client state for the install manager (plan §9.1).
  * Persisted bits: last dismissal per surface + appinstalled receipt.
  */
 export const useInstallStore = create((set, get) => ({
     promptAvailable: false,
-    installed: readTimestamp(INSTALLED_KEY) !== null,
+    installed: syncInstalledStatus(),
     androidDismissedAt: readTimestamp(`${DISMISSAL_KEY}:android`),
     iosDismissedAt: readTimestamp(`${DISMISSAL_KEY}:ios`),
+    inAppDismissedAt: readTimestamp(`${DISMISSAL_KEY}:inapp`),
 
+    syncInstalledState: () => {
+        const installed = syncInstalledStatus();
+        set({ installed });
+        return installed;
+    },
     markPromptAvailable: () => set({ promptAvailable: true }),
     markInstalled: () => {
         writeTimestamp(INSTALLED_KEY, Date.now());
@@ -46,16 +65,21 @@ export const useInstallStore = create((set, get) => ({
         const at = Date.now();
         writeTimestamp(`${DISMISSAL_KEY}:${surface}`, at);
         if (surface === 'ios') set({ iosDismissedAt: at });
+        else if (surface === 'inapp') set({ inAppDismissedAt: at });
         else set({ androidDismissedAt: at });
     },
     resetForTests: () => set({
         promptAvailable: false,
-        installed: false,
+        installed: syncInstalledStatus(),
         androidDismissedAt: null,
         iosDismissedAt: null,
+        inAppDismissedAt: null,
     }),
     isDismissalCooldownActive: (surface) => {
-        const dismissedAt = surface === 'ios' ? get().iosDismissedAt : get().androidDismissedAt;
+        let dismissedAt;
+        if (surface === 'ios') dismissedAt = get().iosDismissedAt;
+        else if (surface === 'inapp') dismissedAt = get().inAppDismissedAt;
+        else dismissedAt = get().androidDismissedAt;
         if (!dismissedAt) return false;
         return Date.now() - dismissedAt < INSTALL_DISMISSAL_COOLDOWN_MS;
     },
