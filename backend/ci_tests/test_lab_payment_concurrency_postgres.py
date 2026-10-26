@@ -28,45 +28,49 @@ LAB_ID = 998403
 async def _seed() -> models.User:
     async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
         async with session.bypass_rls() as db:
-            user = await db.get(models.User, USER_ID)
-            if user is not None:
-                return user
+            tenant = await db.get(models.Tenant, TENANT_ID)
+            if tenant is None:
+                tenant = models.Tenant(id=TENANT_ID, name="Lab Concurrency Postgres Tenant", is_active=True)
+                db.add(tenant)
+                await db.flush()
 
-            tenant = models.Tenant(id=TENANT_ID, name="Lab Concurrency Postgres Tenant", is_active=True)
-            db.add(tenant)
-            await db.flush()
+            admin = await db.get(models.User, USER_ID)
+            if admin is None:
+                admin = models.User(
+                    id=USER_ID,
+                    tenant_id=TENANT_ID,
+                    username="lab_concurrency_admin",
+                    email="lab_concurrency_admin@example.com",
+                    hashed_password="fakepassword",
+                    role="admin",
+                    is_active=True,
+                )
+                db.add(admin)
+                await db.flush()
 
-            admin = models.User(
-                id=USER_ID,
-                tenant_id=TENANT_ID,
-                username="lab_concurrency_admin",
-                email="lab_concurrency_admin@example.com",
-                hashed_password="fakepassword",
-                role="admin",
-                is_active=True,
-            )
-            db.add(admin)
-            await db.flush()
+            patient = await db.get(models.Patient, PATIENT_ID)
+            if patient is None:
+                patient = models.Patient(
+                    id=PATIENT_ID,
+                    tenant_id=TENANT_ID,
+                    name="Lab Concurrency Patient",
+                    age=32,
+                    medical_history="None",
+                    notes="",
+                    phone="01099840001",
+                )
+                db.add(patient)
 
-            patient = models.Patient(
-                id=PATIENT_ID,
-                tenant_id=TENANT_ID,
-                name="Lab Concurrency Patient",
-                age=32,
-                medical_history="None",
-                notes="",
-                phone="01099840001",
-            )
-            db.add(patient)
-
-            lab = models.Laboratory(
-                id=LAB_ID,
-                tenant_id=TENANT_ID,
-                name="Postgres Concurrency Lab",
-                phone="01099840002",
-                is_active=True,
-            )
-            db.add(lab)
+            lab = await db.get(models.Laboratory, LAB_ID)
+            if lab is None:
+                lab = models.Laboratory(
+                    id=LAB_ID,
+                    tenant_id=TENANT_ID,
+                    name="Postgres Concurrency Lab",
+                    phone="01099840002",
+                    is_active=True,
+                )
+                db.add(lab)
             await db.commit()
             return admin
 

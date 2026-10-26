@@ -124,7 +124,8 @@ describe('QuickTreatmentSheet Lab Cost & Payment UI (L4)', () => {
 
         renderSheet();
 
-        // Verify status chip rendered
+        // Verify both status chips rendered: order status + payment status
+        expect(await screen.findByText('قيد التنفيذ')).toBeInTheDocument();
         expect(await screen.findByText('جزئي')).toBeInTheDocument();
 
         // Verify read-only values

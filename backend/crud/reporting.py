@@ -181,30 +181,49 @@ async def get_financial_stats(
     total_received = float(payment_row.total_received or 0.0)
     today_received = float(payment_row.today_received or 0.0)
 
-    lab_stmt = (
-        select(
-            func.sum(models.LabOrder.cost).label("total_lab"),
+    if doctor_patient_scope_id is None:
+        lab_stmt = select(
+            func.sum(models.LabPayment.amount).label("total_lab"),
             func.sum(
                 case(
                     (
                         and_(
-                            models.LabOrder.order_date >= utc_start,
-                            models.LabOrder.order_date < utc_end,
+                            models.LabPayment.date >= utc_start,
+                            models.LabPayment.date < utc_end,
                         ),
-                        models.LabOrder.cost,
+                        models.LabPayment.amount,
                     ),
                     else_=0,
                 )
             ).label("today_lab"),
+        ).where(
+            models.LabPayment.tenant_id == tenant_id,
         )
-        .join(models.Patient, models.LabOrder.patient_id == models.Patient.id)
-        .where(
-            models.LabOrder.tenant_id == tenant_id,
-            models.Patient.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,  # noqa: E712
+    else:
+        lab_stmt = (
+            select(
+                func.sum(models.LabOrder.cost).label("total_lab"),
+                func.sum(
+                    case(
+                        (
+                            and_(
+                                models.LabOrder.order_date >= utc_start,
+                                models.LabOrder.order_date < utc_end,
+                            ),
+                            models.LabOrder.cost,
+                        ),
+                        else_=0,
+                    )
+                ).label("today_lab"),
+            )
+            .join(models.Patient, models.LabOrder.patient_id == models.Patient.id)
+            .where(
+                models.LabOrder.tenant_id == tenant_id,
+                models.Patient.tenant_id == tenant_id,
+                models.Patient.is_deleted == False,  # noqa: E712
+            )
         )
-    )
-    lab_stmt = _legacy._patient_scope(lab_stmt, doctor_patient_scope_id)
+        lab_stmt = _legacy._patient_scope(lab_stmt, doctor_patient_scope_id)
     lab_row = (await db.execute(lab_stmt)).first()
     total_lab_costs = float(lab_row.total_lab or 0.0)
     today_lab_costs = float(lab_row.today_lab or 0.0)
