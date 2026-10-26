@@ -23,4 +23,12 @@ describe('deleteLegacyImageCache', () => {
         };
         await expect(deleteLegacyImageCache(unavailableCacheStorage)).resolves.toBe(false);
     });
+
+    it('returns false and does not hang when Cache Storage delete never resolves', async () => {
+        const hangingCacheStorage = {
+            delete: vi.fn().mockReturnValue(new Promise(() => {})), // Never resolves
+        };
+        // Use a short timeout for test
+        await expect(deleteLegacyImageCache(hangingCacheStorage, 50)).resolves.toBe(false);
+    });
 });

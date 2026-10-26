@@ -28,6 +28,42 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Script load error recovery for stale PWA cache generations
+      window.addEventListener('error', function(event) {
+        var root = document.getElementById('root');
+        var target = event.target;
+        if (target && target.tagName === 'SCRIPT' && root && !root.hasChildNodes()) {
+          try {
+            var reloaded = sessionStorage.getItem('dentix:script-recovery');
+            if (!reloaded) {
+              sessionStorage.setItem('dentix:script-recovery', '1');
+              var swCleanup = ('serviceWorker' in navigator)
+                ? navigator.serviceWorker.getRegistrations().then(function(regs) {
+                    return Promise.all(regs.map(function(r) { return r.unregister(); }));
+                  }).catch(function() {})
+                : Promise.resolve();
+              var cacheCleanup = ('caches' in window)
+                ? caches.keys().then(function(keys) {
+                    return Promise.all(keys.filter(function(k) {
+                      return k.indexOf('dentix-') === 0 || k.indexOf('workbox-') === 0;
+                    }).map(function(k) { return caches.delete(k); }));
+                  }).catch(function() {})
+                : Promise.resolve();
+              Promise.all([swCleanup, cacheCleanup]).finally(function() {
+                window.location.reload();
+              });
+              return;
+            }
+          } catch(e) {}
+          root.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;font-family:Cairo,sans-serif;background:#0f172a;color:#f8fafc;padding:20px;text-align:center;">'
+            + '<h2 style="margin-bottom:8px;">يتوفر تحديث جديد للتطبيق</h2>'
+            + '<p style="color:#94a3b8;margin-bottom:16px;">تم نشر نسخة جديدة. يرجى إعادة التحميل للمتابعة.</p>'
+            + '<button onclick="if(\'caches\' in window){caches.keys().then(function(k){return Promise.all(k.map(function(n){return caches.delete(n);}));}).finally(function(){location.reload();});}else{location.reload();}" style="background:#0ea5e9;color:white;border:none;padding:10px 24px;border-radius:12px;font-size:16px;font-weight:bold;cursor:pointer;">تحديث التطبيق</button>'
+            + '</div>';
+        }
+      }, true);
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

@@ -41,10 +41,12 @@ class DiagnosticErrorBoundary extends React.Component {
   }
 }
 
-async function renderApplication() {
-  await deleteLegacyImageCache();
+function renderApplication() {
+  // Fire-and-forget background cache cleanup; never block application mounting
+  void deleteLegacyImageCache().catch(() => {});
 
   const container = document.getElementById('root');
+  if (!container) return;
   const root = createRoot(container);
 
   root.render(
@@ -58,4 +60,4 @@ async function renderApplication() {
   );
 }
 
-void renderApplication();
+renderApplication();

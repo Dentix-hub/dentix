@@ -12,10 +12,7 @@ import { useLocation } from 'react-router-dom';
 export const isPerfDiagnosticsEnabled = () => {
     if (typeof window === 'undefined') return false;
     try {
-        const isFlag = window.localStorage?.getItem('PERF_DIAGNOSTICS') === '1';
-        const isStaging = typeof window.location?.hostname === 'string' && window.location.hostname.includes('staging');
-        const isDev = Boolean(import.meta?.env?.DEV) && import.meta?.env?.MODE !== 'test';
-        return isFlag || isStaging || isDev;
+        return window.localStorage?.getItem('PERF_DIAGNOSTICS') === '1';
     } catch {
         return false;
     }
