@@ -635,7 +635,10 @@ def test_alembic_single_head_is_f4a5b6c7d8e9():
 
     heads = script_dir.get_heads()
     assert len(heads) == 1, f"Expected exactly 1 Alembic head revision, found {heads}"
-    assert heads[0] == "9c0d1e2f3a4b", f"Expected head revision 9c0d1e2f3a4b, got {heads[0]}"
+    assert heads[0] == "0d1e2f3a4b5c", f"Expected head revision 0d1e2f3a4b5c, got {heads[0]}"
+
+    proc_rev = script_dir.get_revision("0d1e2f3a4b5c")
+    assert proc_rev.down_revision == "9c0d1e2f3a4b", f"Expected parent revision 9c0d1e2f3a4b, got {proc_rev.down_revision}"
 
     lab_pay_rev = script_dir.get_revision("9c0d1e2f3a4b")
     assert lab_pay_rev.down_revision == "8b9c0d1e2f3a", f"Expected parent revision 8b9c0d1e2f3a, got {lab_pay_rev.down_revision}"

@@ -443,8 +443,8 @@ class Procedure(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
-    code = Column(String(64), nullable=True, index=True)
-    category = Column(String(64), nullable=True, index=True)
+    code = Column(String(64), nullable=True)
+    category = Column(String(64), nullable=True)
     price = Column(Numeric(14, 2))
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
