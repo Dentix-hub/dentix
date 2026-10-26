@@ -140,6 +140,41 @@ describe('custom service worker contract (plan §11)', () => {
         await vi.waitFor(() => expect(stubs.cacheStub.put).toHaveBeenCalled());
     });
 
+    it('returns a 503 offline fallback for SPA navigations when shell is missing and fetch rejects', async () => {
+        stubs.cachesStub.match.mockResolvedValue(undefined);
+        stubs.fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+
+        const navEvent = {
+            request: { url: 'https://www.dentixs.app/appointments', mode: 'navigate', method: 'GET' },
+            respondWith: vi.fn(),
+        };
+        stubs.listeners.fetch(navEvent);
+        expect(navEvent.respondWith).toHaveBeenCalled();
+
+        const response = await navEvent.respondWith.mock.calls[0][0];
+        expect(response).toBeInstanceOf(Response);
+        expect(response.status).toBe(503);
+        const html = await response.text();
+        expect(html).toContain('تعذر الاتصال بالخادم');
+    });
+
+    it('returns a 504 gateway timeout for build assets when network fails and asset is uncached', async () => {
+        stubs.cachesStub.match.mockResolvedValue(undefined);
+        stubs.fetchMock.mockRejectedValue(new TypeError('Failed to fetch'));
+
+        const assetEvent = {
+            request: new Request('https://www.dentixs.app/assets/missing-chunk.js'),
+            respondWith: vi.fn(),
+        };
+        stubs.listeners.fetch(assetEvent);
+        expect(assetEvent.respondWith).toHaveBeenCalled();
+
+        const response = await assetEvent.respondWith.mock.calls[0][0];
+        expect(response).toBeInstanceOf(Response);
+        expect(response.status).toBe(504);
+        expect(await response.text()).toBe('Asset unavailable offline');
+    });
+
     it('activates updates only on the explicit SKIP_WAITING message', () => {
         stubs.listeners.message({ data: { type: 'OTHER' } });
         expect(stubs.selfStub.skipWaiting).not.toHaveBeenCalled();

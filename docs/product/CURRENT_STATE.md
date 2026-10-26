@@ -4,8 +4,8 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 
 - Plan: Odontogram & Clinical VNext (docs/product/ODONTOGRAM_EXECUTION_QUEUE.md)
 - Baseline: staging @ 1907061 (PR #291).
-- Current task: Staging Log Review (2026-10-25) fixes across Items 1-7 (PR #300 on fix/log-review-2026-10-25).
-- Log review fixes: Item 1 (configurable DB pool & prompt session closure), Items 2-4 verified on staging, Item 5 (legacy treatment clinical projection safety), Item 6 (care session 404 UX & expired session redirect), Item 7 (4xx log reason & error stack traces).
+- Current task: Upload error detail surfacing & service worker navigation fallback hardening (fix/upload-error-and-sw-fallback).
+- Fixes: Surface backend error detail (file size/type) on upload failure; graceful offline/sleep navigation fallback in custom SW (preventing unhandled fetch rejection).
 - P1 status: PARTIAL (resolver ready; build-info stamping pending Part B merge on main).
 - Decisions: D1 (endo/Fractured aliases mapped), D3 (dashboard cache task isolated session), D4 (plain Arabic clinical warnings & collapsed technical codes).
 - Polish fixes: A6 (restore FK order & error sanitization), A7 (material stock eager loading & UI state), A8 (reception queue graceful fallback), A9 (SW precache deduplication & cache v2).
