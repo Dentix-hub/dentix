@@ -119,6 +119,10 @@ class LabPaymentCreate(LabPaymentBase):
     pass
 
 
+class LabPaymentAllocate(BaseModel):
+    lab_order_id: int
+
+
 class LabPayment(LabPaymentBase):
     id: int
 
