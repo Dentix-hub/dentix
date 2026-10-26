@@ -9,8 +9,9 @@ export const INSTALL_DISMISSAL_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 export const INSTALL_ENGAGEMENT_DELAY_MS = 20 * 1000;
 
 function readTimestamp(key) {
+    if (typeof window === 'undefined') return null;
     try {
-        const raw = window.localStorage.getItem(key);
+        const raw = window.localStorage?.getItem(key);
         if (!raw) return null;
         const value = Number(raw);
         return Number.isFinite(value) ? value : null;
@@ -20,9 +21,10 @@ function readTimestamp(key) {
 }
 
 function writeTimestamp(key, value) {
+    if (typeof window === 'undefined') return;
     try {
-        if (value === null) window.localStorage.removeItem(key);
-        else window.localStorage.setItem(key, String(value));
+        if (value === null) window.localStorage?.removeItem(key);
+        else window.localStorage?.setItem(key, String(value));
     } catch {
         // Storage may be unavailable (private mode); state stays in memory.
     }

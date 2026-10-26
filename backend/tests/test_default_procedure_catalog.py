@@ -228,3 +228,29 @@ async def test_backfill_apply_updates_without_altering_price(async_db_session: A
     assert re_proc.code == "ENDO_RCT"
     assert re_proc.category == "Endodontic"
     assert re_proc.price == custom_price, "Backfill must preserve clinic price"
+
+
+@pytest.mark.asyncio
+async def test_existing_empty_tenant_lazily_gets_default_catalog_on_read(async_db_session: AsyncSession):
+    """An existing tenant with 0 procedures automatically receives the 34 default procedures on first get_procedures call."""
+    from backend import crud
+
+    t_existing = models.Tenant(name="Pre-existing Empty Clinic", is_active=True)
+    async_db_session.add(t_existing)
+    await async_db_session.commit()
+
+    # Before read: 0 procedures
+    before_count = (
+        await async_db_session.execute(
+            select(func.count(models.Procedure.id)).where(models.Procedure.tenant_id == t_existing.id)
+        )
+    ).scalar_one()
+    assert before_count == 0
+
+    # First read via crud.get_procedures lazily seeds the 34 default procedures
+    procs = await crud.get_procedures(async_db_session, t_existing.id)
+    assert len(procs) == 34
+
+    # Subsequent read does not duplicate rows
+    procs_second = await crud.get_procedures(async_db_session, t_existing.id)
+    assert len(procs_second) == 34
