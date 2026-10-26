@@ -414,12 +414,21 @@ class Procedure(Base):
             "tenant_id", "name",
             unique=True,
             postgresql_where=text("tenant_id IS NOT NULL"),
+            sqlite_where=text("tenant_id IS NOT NULL"),
         ),
         Index(
             "uq_procedures_global_name",
             "name",
             unique=True,
             postgresql_where=text("tenant_id IS NULL"),
+            sqlite_where=text("tenant_id IS NULL"),
+        ),
+        Index(
+            "uq_procedures_tenant_code",
+            "tenant_id", "code",
+            unique=True,
+            postgresql_where=text("code IS NOT NULL"),
+            sqlite_where=text("code IS NOT NULL"),
         ),
         CheckConstraint("price >= 0", name="ck_procedures_price_nonnegative"),
     )
@@ -434,6 +443,8 @@ class Procedure(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    code = Column(String(64), nullable=True, index=True)
+    category = Column(String(64), nullable=True, index=True)
     price = Column(Numeric(14, 2))
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 

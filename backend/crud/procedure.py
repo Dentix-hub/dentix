@@ -60,6 +60,38 @@ async def update_procedure(
     return db_procedure
 
 
+async def seed_tenant_default_procedures(db: AsyncSession, tenant_id: int) -> list[models.Procedure]:
+    """Copy default procedure catalog and chart styles for a new tenant.
+
+    Each new tenant receives its own catalog entries at price 0, along with
+    initial chart styles, within the caller's transaction boundary.
+    """
+    from backend.data.default_procedures import DEFAULT_PROCEDURE_CATALOG
+
+    created_procedures = []
+    for entry in DEFAULT_PROCEDURE_CATALOG:
+        proc = models.Procedure(
+            name=entry.name,
+            code=entry.code,
+            category=entry.category,
+            price=entry.default_price,
+            tenant_id=tenant_id,
+        )
+        db.add(proc)
+        created_procedures.append(proc)
+
+        if entry.chart_template and entry.chart_template != "NONE":
+            style = models.ProcedureChartStyle(
+                tenant_id=tenant_id,
+                procedure_name=entry.name,
+                template=entry.chart_template,
+                color_key=entry.color_key,
+            )
+            db.add(style)
+
+    return created_procedures
+
+
 async def delete_procedure(db: AsyncSession, procedure_id: int, tenant_id: int):
     """Delete one tenant-owned procedure and only this tenant's references."""
     stmt = select(models.Procedure).where(

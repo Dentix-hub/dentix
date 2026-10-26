@@ -24,6 +24,8 @@ async def _get_cached_procedures(db: AsyncSession, tenant_id: int, skip: int, li
         {
             "id": p.id,
             "name": p.name,
+            "code": p.code,
+            "category": p.category,
             "price": float(p.price) if p.price is not None else 0.0,
             "tenant_id": p.tenant_id,
         }
@@ -52,6 +54,8 @@ async def get_procedures(
         schemas.Procedure(
             id=p["id"],
             name=p["name"],
+            code=p.get("code"),
+            category=p.get("category"),
             price=p["price"],
             tenant_id=p["tenant_id"],
             canonical_code=map_legacy_procedure(p["name"])[0],

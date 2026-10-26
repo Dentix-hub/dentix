@@ -8,43 +8,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")
 
 from backend.database import system_session_scope
 from backend.models.clinical import Procedure
-
-PROCEDURES_LIST = [
-    "حشو كومبوزيت -- Composite Filling Class I",
-    "حشو كومبوزيت -- Composite Filling Class II",
-    "حشو كومبوزيت -- Composite Filling Class III",
-    "حشو كومبوزيت -- Composite Filling Class IV",
-    "حشو كومبوزيت -- Composite Filling Class V",
-    "حشو أملجم -- Amalgam Filling Class I",
-    "حشو أملجم -- Amalgam Filling Class II",
-    "حشو مؤقت – Temporary Filling",
-    "إعادة حشو – Re-filling",
-    "حشو تجميلي أمامي – Anterior Aesthetic Filling",
-    "حشو عصب – Root Canal Treatment",
-    "إعادة حشو عصب – Retreatment Root Canal",
-    "خلع عادي – Simple Extraction",
-    "خلع جراحي – Surgical Extraction",
-    "خلع ضرس عقل – Wisdom Tooth Extraction",
-    "خلع ضرس عقل مطمور جزئي – Partially Impacted Wisdom Tooth Extraction",
-    "خلع ضرس عقل مطمور كلي – Fully Impacted Wisdom Tooth Extraction",
-    "خلع سن لبني – Primary Tooth Extraction",
-    "خلع بقايا جذور – Root Remnants Extraction",
-    "تاج بورسلين – Porcelain Crown",
-    "تاج زيركون – Zirconia Crown",
-    "تاج -- E-max Crown",
-    "تاج معدن – Metal Crown",
-    "تاج مؤقت – Temporary Crown",
-    "جسر ثابت – Fixed Bridge",
-    "إعادة تثبيت تاج – Crown Recementation",
-    "طقم كامل أكريليك – Complete Acrylic Denture",
-    "طقم جزئي أكريليك – Partial Acrylic Denture",
-    "طقم جزئي معدني – Partial Metal Denture",
-    "طقم مرن – Flexible Denture",
-    "تنظيف جير – Scaling",
-    "كشف – Examination",
-    "جلسة متابعة – Follow-up Session",
-    "بوست وبناء لب – Post and Core Buildup",
-]
+from backend.data.default_procedures import DEFAULT_PROCEDURE_CATALOG
 
 
 async def seed_procedures():
@@ -55,22 +19,32 @@ async def seed_procedures():
             existing_count = 0
 
             print("Checking procedures...")
-            for proc_name in PROCEDURES_LIST:
+            for entry in DEFAULT_PROCEDURE_CATALOG:
                 # Only a GLOBAL procedure satisfies this seed. A tenant-owned row
                 # with the same name is an override and must remain tenant-owned.
                 res = await db.execute(
                     select(Procedure).filter(
-                        Procedure.name == proc_name,
+                        Procedure.name == entry.name,
                         Procedure.tenant_id.is_(None),
                     )
                 )
                 exists = res.scalars().first()
                 if exists:
+                    # Update code/category if missing
+                    if exists.code != entry.code or exists.category != entry.category:
+                        exists.code = entry.code
+                        exists.category = entry.category
                     existing_count += 1
                     continue
 
                 # Create new global catalog entry
-                new_proc = Procedure(name=proc_name, price=0.0, tenant_id=tenant_id)
+                new_proc = Procedure(
+                    name=entry.name,
+                    code=entry.code,
+                    category=entry.category,
+                    price=entry.default_price,
+                    tenant_id=tenant_id,
+                )
                 db.add(new_proc)
                 added_count += 1
 
