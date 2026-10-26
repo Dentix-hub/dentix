@@ -247,6 +247,7 @@ from .laboratory import (
     LabOrder,
     LabPaymentBase,
     LabPaymentCreate,
+    LabPaymentAllocate,
     LabPayment,
 )
 
@@ -394,6 +395,7 @@ __all__ = [
     "LabOrder",
     "LabPaymentBase",
     "LabPaymentCreate",
+    "LabPaymentAllocate",
     "LabPayment",
     # System
     "AuditLog",

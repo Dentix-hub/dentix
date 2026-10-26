@@ -139,6 +139,23 @@ async def get_unpaid_orders_count(
     return res.scalar() or 0
 
 
+async def get_unallocated_payments_stats(
+    db: AsyncSession, tenant_id: int, laboratory_id: int | None = None
+) -> tuple[Decimal, int]:
+    """Return (unallocated_payments_total, unallocated_payments_count) where lab_order_id IS NULL."""
+    stmt = select(
+        func.coalesce(func.sum(models.LabPayment.amount), 0),
+        func.count(models.LabPayment.id),
+    ).where(
+        models.LabPayment.tenant_id == tenant_id,
+        models.LabPayment.lab_order_id.is_(None),
+    )
+    if laboratory_id is not None:
+        stmt = stmt.where(models.LabPayment.laboratory_id == laboratory_id)
+    row = (await db.execute(stmt)).one()
+    return quantize_money(as_decimal(row[0])), int(row[1] or 0)
+
+
 def _get_lab_procedure_name(work_type: str, material: str = None) -> str:
     """Generate procedure name for lab work treatment."""
     if material:
@@ -620,6 +637,9 @@ class LabService:
         total_paid = (await self.db.execute(stmt_paid)).scalar() or 0.0
 
         unpaid_orders_count = await get_unpaid_orders_count(self.db, self.tenant_id, lab_id)
+        unallocated_total, unallocated_count = await get_unallocated_payments_stats(
+            self.db, self.tenant_id, lab_id
+        )
 
         return {
             "lab_id": lab_id,
@@ -632,6 +652,8 @@ class LabService:
             "total_paid": float(total_paid),
             "balance": float(total_cost - total_paid),
             "unpaid_orders_count": unpaid_orders_count,
+            "unallocated_payments_total": float(unallocated_total),
+            "unallocated_payments_count": unallocated_count,
         }
 
     # --- Payments ---
@@ -697,6 +719,91 @@ class LabService:
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    async def allocate_payment(
+        self, lab_id: int, payment_id: int, lab_order_id: int
+    ) -> models.LabPayment:
+        lab = await self.get_laboratory(lab_id)
+        if not lab:
+            raise ValueError("Laboratory not found")
+
+        stmt_payment = select(models.LabPayment).where(
+            models.LabPayment.id == payment_id,
+            models.LabPayment.laboratory_id == lab_id,
+            models.LabPayment.tenant_id == self.tenant_id,
+        )
+        bind = self.db.bind or self.db.get_bind()
+        if bind and bind.dialect.name == "postgresql":
+            stmt_payment = stmt_payment.with_for_update()
+
+        payment = (await self.db.execute(stmt_payment)).scalars().first()
+        if not payment:
+            raise ValueError("الدفعة غير موجودة")
+        if payment.lab_order_id is not None:
+            raise ValueError("الدفعة مرتبطة بطلب بالفعل")
+
+        stmt_order = select(models.LabOrder).where(
+            models.LabOrder.id == lab_order_id,
+            models.LabOrder.tenant_id == self.tenant_id,
+        )
+        if bind and bind.dialect.name == "postgresql":
+            stmt_order = stmt_order.with_for_update()
+
+        order = (await self.db.execute(stmt_order)).scalars().first()
+        if not order:
+            raise ValueError("طلب المعمل غير موجود")
+        if order.laboratory_id != lab_id:
+            raise ValueError("الطلب لا يتبع هذا المعمل")
+        if (order.status or "").lower() == "cancelled":
+            raise ValueError("لا يمكن ربط دفعة بطلب معمل ملغي")
+
+        existing_paid = await self.db.scalar(
+            select(func.coalesce(func.sum(models.LabPayment.amount), 0)).where(
+                models.LabPayment.tenant_id == self.tenant_id,
+                models.LabPayment.lab_order_id == order.id,
+            )
+        )
+        existing_paid_d = quantize_money(as_decimal(existing_paid))
+        order_cost_d = quantize_money(as_decimal(order.cost))
+        remaining_d = max(Decimal("0.00"), order_cost_d - existing_paid_d)
+
+        payment_amount_d = quantize_money(as_decimal(payment.amount))
+        if payment_amount_d > remaining_d:
+            raise ValueError(
+                f"مبلغ الدفعة ({payment_amount_d}) يتجاوز المبلغ المتبقي للطلب ({remaining_d})"
+            )
+
+        payment.lab_order_id = lab_order_id
+        await self.db.commit()
+        await self.db.refresh(payment)
+        return payment
+
+    async def deallocate_payment(
+        self, lab_id: int, payment_id: int
+    ) -> models.LabPayment:
+        lab = await self.get_laboratory(lab_id)
+        if not lab:
+            raise ValueError("Laboratory not found")
+
+        stmt_payment = select(models.LabPayment).where(
+            models.LabPayment.id == payment_id,
+            models.LabPayment.laboratory_id == lab_id,
+            models.LabPayment.tenant_id == self.tenant_id,
+        )
+        bind = self.db.bind or self.db.get_bind()
+        if bind and bind.dialect.name == "postgresql":
+            stmt_payment = stmt_payment.with_for_update()
+
+        payment = (await self.db.execute(stmt_payment)).scalars().first()
+        if not payment:
+            raise ValueError("الدفعة غير موجودة")
+        if payment.lab_order_id is None:
+            raise ValueError("الدفعة غير مرتبطة بأي طلب")
+
+        payment.lab_order_id = None
+        await self.db.commit()
+        await self.db.refresh(payment)
+        return payment
 
 
 async def get_lab_service(db: AsyncSession, tenant_id: int) -> LabService:

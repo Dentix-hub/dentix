@@ -19,11 +19,13 @@ from backend.services.lab_service import (
     format_lab_order_dict,
     get_order_payment_map,
     get_unpaid_orders_count,
+    get_unallocated_payments_stats,
 )
 from backend.services.patient_access_service import (
     ensure_patient_visible,
     visible_patient_ids_query,
 )
+from backend.utils.audit_logger import log_admin_action
 from backend.utils.tenant_time import utc_now_naive
 
 router = APIRouter()
@@ -846,6 +848,9 @@ async def get_lab_stats(
         )
     ) or 0.0
     unpaid_orders_count = await get_unpaid_orders_count(db, current_user.tenant_id, lab_id)
+    unallocated_total, unallocated_count = await get_unallocated_payments_stats(
+        db, current_user.tenant_id, lab_id
+    )
     return {
         "lab_id": lab_id,
         "lab_name": lab.name,
@@ -857,6 +862,8 @@ async def get_lab_stats(
         "total_paid": total_paid,
         "balance": total_cost - total_paid,
         "unpaid_orders_count": unpaid_orders_count,
+        "unallocated_payments_total": float(unallocated_total),
+        "unallocated_payments_count": unallocated_count,
     }
 
 
@@ -938,6 +945,144 @@ async def get_lab_payments(
         )
     ).scalars().all()
     return success_response(payments)
+
+
+@router.post("/laboratories/{lab_id}/payments/{payment_id}/allocate")
+async def allocate_lab_payment(
+    lab_id: int,
+    payment_id: int,
+    payload: schemas.LabPaymentAllocate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
+):
+    lab = (
+        await db.execute(
+            select(models.Laboratory).where(
+                models.Laboratory.id == lab_id,
+                models.Laboratory.tenant_id == current_user.tenant_id,
+            )
+        )
+    ).scalars().first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Laboratory not found")
+
+    stmt_pay = select(models.LabPayment).where(
+        models.LabPayment.id == payment_id,
+        models.LabPayment.laboratory_id == lab_id,
+        models.LabPayment.tenant_id == current_user.tenant_id,
+    )
+    bind = db.bind or db.get_bind()
+    if bind and bind.dialect.name == "postgresql":
+        stmt_pay = stmt_pay.with_for_update()
+
+    payment = (await db.execute(stmt_pay)).scalars().first()
+    if not payment:
+        raise HTTPException(status_code=404, detail="الدفعة غير موجودة")
+    if payment.lab_order_id is not None:
+        raise HTTPException(status_code=409, detail="الدفعة مرتبطة بطلب بالفعل")
+
+    stmt_order = select(models.LabOrder).where(
+        models.LabOrder.id == payload.lab_order_id,
+        models.LabOrder.tenant_id == current_user.tenant_id,
+    )
+    if bind and bind.dialect.name == "postgresql":
+        stmt_order = stmt_order.with_for_update()
+
+    order = (await db.execute(stmt_order)).scalars().first()
+    if not order:
+        raise HTTPException(status_code=404, detail="طلب المعمل غير موجود")
+    if order.laboratory_id != lab_id:
+        raise HTTPException(status_code=400, detail="الطلب لا يتبع هذا المعمل")
+    if (order.status or "").lower() == "cancelled":
+        raise HTTPException(status_code=400, detail="لا يمكن ربط دفعة بطلب معمل ملغي")
+
+    existing_paid = await db.scalar(
+        select(func.coalesce(func.sum(models.LabPayment.amount), 0)).where(
+            models.LabPayment.tenant_id == current_user.tenant_id,
+            models.LabPayment.lab_order_id == order.id,
+        )
+    )
+    existing_paid_d = quantize_money(as_decimal(existing_paid))
+    order_cost_d = quantize_money(as_decimal(order.cost))
+    remaining_d = max(Decimal("0.00"), order_cost_d - existing_paid_d)
+
+    payment_amount_d = quantize_money(as_decimal(payment.amount))
+    if payment_amount_d > remaining_d:
+        raise HTTPException(
+            status_code=400,
+            detail=f"مبلغ الدفعة ({payment_amount_d}) يتجاوز المبلغ المتبقي للطلب ({remaining_d})",
+        )
+
+    payment.lab_order_id = payload.lab_order_id
+
+    log_admin_action(
+        db=db,
+        admin_user=current_user,
+        action="allocate",
+        entity_type="lab_payment",
+        entity_id=payment.id,
+        details=f"Allocated lab payment #{payment.id} to lab order #{order.id}",
+        old_value={"lab_order_id": None},
+        new_value={"lab_order_id": order.id},
+        tenant_id=current_user.tenant_id,
+    )
+
+    await db.commit()
+    await db.refresh(payment)
+    return success_response(payment)
+
+
+@router.delete("/laboratories/{lab_id}/payments/{payment_id}/allocation")
+async def deallocate_lab_payment(
+    lab_id: int,
+    payment_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.FINANCIAL_WRITE)),
+):
+    lab = (
+        await db.execute(
+            select(models.Laboratory).where(
+                models.Laboratory.id == lab_id,
+                models.Laboratory.tenant_id == current_user.tenant_id,
+            )
+        )
+    ).scalars().first()
+    if not lab:
+        raise HTTPException(status_code=404, detail="Laboratory not found")
+
+    stmt_pay = select(models.LabPayment).where(
+        models.LabPayment.id == payment_id,
+        models.LabPayment.laboratory_id == lab_id,
+        models.LabPayment.tenant_id == current_user.tenant_id,
+    )
+    bind = db.bind or db.get_bind()
+    if bind and bind.dialect.name == "postgresql":
+        stmt_pay = stmt_pay.with_for_update()
+
+    payment = (await db.execute(stmt_pay)).scalars().first()
+    if not payment:
+        raise HTTPException(status_code=404, detail="الدفعة غير موجودة")
+    if payment.lab_order_id is None:
+        raise HTTPException(status_code=404, detail="الدفعة غير مرتبطة بأي طلب")
+
+    old_order_id = payment.lab_order_id
+    payment.lab_order_id = None
+
+    log_admin_action(
+        db=db,
+        admin_user=current_user,
+        action="deallocate",
+        entity_type="lab_payment",
+        entity_id=payment.id,
+        details=f"Removed allocation to lab order #{old_order_id} from lab payment #{payment.id}",
+        old_value={"lab_order_id": old_order_id},
+        new_value={"lab_order_id": None},
+        tenant_id=current_user.tenant_id,
+    )
+
+    await db.commit()
+    await db.refresh(payment)
+    return success_response(payment)
 
 
 @router.post(
