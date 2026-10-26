@@ -3370,7 +3370,6 @@
       "description": "To install DENTIX and use all features, please open this link in Chrome or Safari.",
       "action": "Got it"
     }
-    }
   },
   "connectivity": {
     "offline": "No internet connection. Displayed data may be outdated; changes will not be sent until the connection returns.",
