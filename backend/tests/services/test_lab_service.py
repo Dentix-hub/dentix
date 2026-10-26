@@ -326,9 +326,11 @@ class TestLabStats:
 
         mock_result_stats = MagicMock()
         mock_result_stats.scalar.return_value = 0
+        mock_result_stats.one.return_value = (0, 0)
 
         mock_db.execute.side_effect = [
             mock_result_lab,
+            mock_result_stats,
             mock_result_stats,
             mock_result_stats,
             mock_result_stats,
@@ -344,6 +346,10 @@ class TestLabStats:
         assert "lab_id" in result
         assert "unpaid_orders_count" in result
         assert result["unpaid_orders_count"] == 0
+        assert "unallocated_payments_total" in result
+        assert "unallocated_payments_count" in result
+        assert result["unallocated_payments_total"] == 0.0
+        assert result["unallocated_payments_count"] == 0
 
 
 # ============================================
