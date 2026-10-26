@@ -65,6 +65,16 @@ async def lifespan(app: FastAPI):
     # connection may carry BYPASSRLS.
     await database.verify_system_database_role()
 
+    # Performance Diagnostics (PR4) - safe startup pool settings log & event setup
+    from backend.core.perf_diagnostics import (
+        is_perf_enabled,
+        log_effective_pool_settings,
+        setup_sqlalchemy_perf_events,
+    )
+    log_effective_pool_settings()
+    if is_perf_enabled():
+        setup_sqlalchemy_perf_events(database.async_engine, database.system_async_engine)
+
     # ================================================================
     # PRODUCTION SAFETY: Schema mutation and seeding are BLOCKED
     # in production. Use Alembic via the deployment entrypoint script.
@@ -277,6 +287,8 @@ app.add_middleware(TenantMiddleware)
 origins = get_cors_origins()
 logger.debug("[CONFIG] Loaded CORS Origins: %s", origins)
 # Add Middleware (Order matters: ErrorLogging should be high up to catch everything)
+from backend.core.perf_diagnostics import PerfDiagnosticsMiddleware
+app.add_middleware(PerfDiagnosticsMiddleware)
 app.add_middleware(ErrorLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -285,6 +297,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Trace-ID", "Accept", "Idempotency-Key", "X-CSRF-Token"],
+    expose_headers=["Server-Timing", "X-Trace-ID"],
 )
 
 # 6. CSRF Protection Middleware (for httpOnly cookie-based auth)
