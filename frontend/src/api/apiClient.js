@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { setupApiPerfInterceptor } from '../utils/perfDiagnostics';
 import { logger } from '../utils/logger';
 import { useAuthStore } from '../store/auth.store';
 import { queryClient } from '../lib/queryClient';
@@ -41,6 +42,8 @@ export const api = axios.create({
     timeout: 30000,
     withCredentials: true,
 });
+
+setupApiPerfInterceptor(api);
 
 // CSRF Token handling - read from cookie and add to state-changing requests
 function getCsrfTokenFromCookie() {

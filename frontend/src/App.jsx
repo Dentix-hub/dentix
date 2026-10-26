@@ -10,6 +10,7 @@ import ToastProvider from '@/shared/ui/ToastProvider';
 // Components
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import { ProceduresProvider } from '@/shared/context/ProceduresContext';
+import { RoutePerfDiagnostics } from '@/utils/perfDiagnostics';
 const Layout = lazy(() => import('@/layouts/Layout'));
 import BackgroundWrapper from '@/shared/ui/BackgroundWrapper';
 import RootErrorBoundary from '@/shared/ui/ErrorBoundary';
@@ -142,6 +143,7 @@ function AppRoutes() {
     return (
         <ProceduresProvider>
             <>
+                <RoutePerfDiagnostics />
                 <ImpersonationBar />
                 <BackgroundWrapper />
                 <NetworkStatusBanner />

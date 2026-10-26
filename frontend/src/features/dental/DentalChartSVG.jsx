@@ -536,7 +536,7 @@ export default memo(function DentalChartSVG({
 
             <div
                 aria-label={chartTitle}
-                className="min-w-0 overflow-x-auto overscroll-x-contain rounded-xl outline-none touch-pan-x focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                className="min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl outline-none touch-pan-x touch-pan-y focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                 data-chart-scroll-viewport
                 role="region"
                 tabIndex={0}

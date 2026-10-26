@@ -351,6 +351,8 @@ class ToothClinicalRecordResponse(BaseModel):
 class ProcedureBase(BaseModel):
     name: str
     price: NonNegativeMoney
+    code: Optional[str] = None
+    category: Optional[str] = None
 
 
 class ProcedureCreate(ProcedureBase):
