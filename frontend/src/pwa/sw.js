@@ -71,9 +71,25 @@ function isApiUrl(url) {
 async function handleRequest(request) {
     if (request.mode === 'navigate') {
         // SPA navigation fallback: serve the precached app shell offline.
-        const shell = await caches.match(new URL('/index.html', self.location.origin));
+        const shell = await caches.match(new URL('/index.html', self.location.origin))
+            || await caches.match('/index.html');
         if (shell) return shell;
-        return fetch(request);
+        try {
+            return await fetch(request);
+        } catch {
+            // Network failed and shell wasn't in precache (e.g. initial install in flight, offline, or server restarting)
+            const fallback = await caches.match('/index.html', { ignoreSearch: true })
+                || await caches.match(request);
+            if (fallback) return fallback;
+            return new Response(
+                '<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>DENTIX — غير متصل</title><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f172a;color:#f8fafc;text-align:center;padding:1rem;"><div><h1 style="font-size:1.5rem;margin-bottom:0.5rem;">تعذر الاتصال بالخادم</h1><p style="color:#94a3b8;margin-bottom:1.5rem;">يرجى التحقق من اتصال الإنترنت أو الانتظار ريثما يستيقظ الخادم.</p><button onclick="location.reload()" style="background:#0ea5e9;color:white;border:none;padding:0.75rem 1.5rem;border-radius:0.5rem;font-weight:bold;cursor:pointer;">إعادة المحاولة</button></div></body></html>',
+                {
+                    status: 503,
+                    statusText: 'Service Unavailable',
+                    headers: { 'Content-Type': 'text/html; charset=utf-8' },
+                }
+            );
+        }
     }
     const cached = await caches.match(request);
     if (cached) return cached;
@@ -82,12 +98,22 @@ async function handleRequest(request) {
     // cache for repeat use. These are public, content-hashed, non-PHI files.
     const url = new URL(request.url);
     if (url.pathname.startsWith('/assets/')) {
-        const response = await fetch(request);
-        if (response && response.ok) {
-            const runtimeCache = await caches.open(RUNTIME_ASSET_CACHE);
-            runtimeCache.put(request, response.clone()).catch(() => {});
+        try {
+            const response = await fetch(request);
+            if (response && response.ok) {
+                const runtimeCache = await caches.open(RUNTIME_ASSET_CACHE);
+                runtimeCache.put(request, response.clone()).catch(() => {});
+            }
+            return response;
+        } catch {
+            const fallbackAsset = await caches.match(request);
+            if (fallbackAsset) return fallbackAsset;
+            return new Response('Asset unavailable offline', {
+                status: 504,
+                statusText: 'Gateway Timeout',
+                headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+            });
         }
-        return response;
     }
 
     // Everything else goes straight to the network and is never cached
