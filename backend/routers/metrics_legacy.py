@@ -97,7 +97,7 @@ async def get_profitability(
             models.Patient.is_deleted == False,  # noqa: E712
         )
     )
-    revenue = revenue_result.scalar() or 0.0
+    revenue = float(revenue_result.scalar() or 0.0)
 
     expenses_result = await db.execute(
         select(func.sum(models.Expense.cost)).where(
@@ -105,15 +105,15 @@ async def get_profitability(
             models.Expense.tenant_id == tenant_id,
         )
     )
-    expenses = expenses_result.scalar() or 0.0
+    expenses = float(expenses_result.scalar() or 0.0)
 
     lab_costs_result = await db.execute(
-        select(func.sum(models.LabOrder.cost)).where(
-            models.LabOrder.order_date >= start_date,
-            models.LabOrder.tenant_id == tenant_id,
+        select(func.sum(models.LabPayment.amount)).where(
+            models.LabPayment.date >= start_date,
+            models.LabPayment.tenant_id == tenant_id,
         )
     )
-    lab_costs = lab_costs_result.scalar() or 0.0
+    lab_costs = float(lab_costs_result.scalar() or 0.0)
 
     material_costs = await inventory_service.get_cogs_summary(
         start_date=start_date,

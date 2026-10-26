@@ -115,9 +115,9 @@ async def get_profitability(
     lab_costs = as_decimal(
         (
             await db.execute(
-                select(func.sum(models.LabOrder.cost)).where(
-                    models.LabOrder.order_date >= start_date,
-                    models.LabOrder.tenant_id == tenant_id,
+                select(func.sum(models.LabPayment.amount)).where(
+                    models.LabPayment.date >= start_date,
+                    models.LabPayment.tenant_id == tenant_id,
                 )
             )
         ).scalar()

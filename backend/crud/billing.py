@@ -579,24 +579,36 @@ async def get_financial_stats(db: AsyncSession, tenant_id: int, doctor_id: int =
     # Query 3: Lab costs + Expenses — all-time and today
     # (Expenses are skipped when filtering by doctor_id; lab orders join Patient)
     # ------------------------------------------------------------------
-    lab_base = (
-        select(
-            func.sum(models.LabOrder.cost).label("total_lab"),
+    if doctor_id:
+        lab_base = (
+            select(
+                func.sum(models.LabOrder.cost).label("total_lab"),
+                func.sum(
+                    case(
+                        (models.LabOrder.order_date >= today_start, models.LabOrder.cost),
+                        else_=0,
+                    )
+                ).label("today_lab"),
+            )
+            .join(models.Patient)
+            .where(
+                models.LabOrder.tenant_id == tenant_id,
+                models.Patient.is_deleted == False,  # noqa: E712
+                models.LabOrder.doctor_id == doctor_id,
+            )
+        )
+    else:
+        lab_base = select(
+            func.sum(models.LabPayment.amount).label("total_lab"),
             func.sum(
                 case(
-                    (models.LabOrder.order_date >= today_start, models.LabOrder.cost),
+                    (models.LabPayment.date >= today_start, models.LabPayment.amount),
                     else_=0,
                 )
             ).label("today_lab"),
+        ).where(
+            models.LabPayment.tenant_id == tenant_id,
         )
-        .join(models.Patient)
-        .where(
-            models.LabOrder.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,  # noqa: E712
-        )
-    )
-    if doctor_id:
-        lab_base = lab_base.where(models.LabOrder.doctor_id == doctor_id)
 
     l_row = (await db.execute(lab_base)).first()
     total_lab_costs = float(l_row.total_lab or 0.0)

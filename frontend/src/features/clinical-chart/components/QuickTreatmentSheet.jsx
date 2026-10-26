@@ -1539,23 +1539,38 @@ export default function QuickTreatmentSheet({
                                     <span>{t('quick_treatment_sheet.lab_section_title', 'بيانات المعمل')}</span>
                                 </h4>
                                 {linkedLabOrder && (
-                                    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                                        linkedLabOrder.status === 'cancelled'
-                                            ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                                            : linkedLabOrder.payment_status === 'paid' || (linkedLabOrder.remaining_amount != null && Number(linkedLabOrder.remaining_amount) <= 0)
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                                            linkedLabOrder.status === 'completed'
                                                 ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200'
-                                                : linkedLabOrder.payment_status === 'partial' || Number(linkedLabOrder.paid_amount) > 0
-                                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200'
-                                                    : 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200'
-                                    }`}>
-                                        {linkedLabOrder.status === 'cancelled'
-                                            ? t('labs.details.orders.status_cancelled', 'ملغي')
-                                            : linkedLabOrder.payment_status === 'paid' || (linkedLabOrder.remaining_amount != null && Number(linkedLabOrder.remaining_amount) <= 0)
-                                                ? t('labs.details.orders.status_paid', 'مدفوع')
-                                                : linkedLabOrder.payment_status === 'partial' || Number(linkedLabOrder.paid_amount) > 0
-                                                    ? t('labs.details.orders.status_partial', 'جزئي')
-                                                    : t('labs.details.orders.status_unpaid', 'غير مدفوع')}
-                                    </span>
+                                                : linkedLabOrder.status === 'cancelled'
+                                                    ? 'bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-200'
+                                                    : 'bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200'
+                                        }`}>
+                                            {linkedLabOrder.status === 'completed'
+                                                ? t('quick_treatment_sheet.order_status_completed', 'مكتمل')
+                                                : linkedLabOrder.status === 'cancelled'
+                                                    ? t('quick_treatment_sheet.order_status_cancelled', 'ملغي')
+                                                    : t('quick_treatment_sheet.order_status_in_progress', 'قيد التنفيذ')}
+                                        </span>
+                                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-bold ${
+                                            linkedLabOrder.status === 'cancelled'
+                                                ? 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
+                                                : linkedLabOrder.payment_status === 'paid' || (linkedLabOrder.remaining_amount != null && Number(linkedLabOrder.remaining_amount) <= 0)
+                                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200'
+                                                    : linkedLabOrder.payment_status === 'partial' || Number(linkedLabOrder.paid_amount) > 0
+                                                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200'
+                                                        : 'bg-rose-100 text-rose-800 dark:bg-rose-900/60 dark:text-rose-200'
+                                        }`}>
+                                            {linkedLabOrder.status === 'cancelled'
+                                                ? t('labs.details.orders.status_cancelled', 'ملغي')
+                                                : linkedLabOrder.payment_status === 'paid' || (linkedLabOrder.remaining_amount != null && Number(linkedLabOrder.remaining_amount) <= 0)
+                                                    ? t('labs.details.orders.status_paid', 'مدفوع')
+                                                    : linkedLabOrder.payment_status === 'partial' || Number(linkedLabOrder.paid_amount) > 0
+                                                        ? t('labs.details.orders.status_partial', 'جزئي')
+                                                        : t('labs.details.orders.status_unpaid', 'غير مدفوع')}
+                                        </span>
+                                    </div>
                                 )}
                             </div>
 

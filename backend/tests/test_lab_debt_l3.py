@@ -2,16 +2,16 @@
 
 Verifies:
 1. POST /api/v1/expenses with category "Laboratory" (case-insensitive, trimmed) is rejected
-   with Arabic message "مدفوعات المعامل تتسجل من صفحة المعامل، مش من المصروفات"
+   with 422 and Arabic message "مدفوعات المعامل تتسجل من صفحة المعامل، مش من المصروفات"
 2. Variations tested: "Laboratory", "laboratory", "  Laboratory  ", "LABORATORY"
-3. PUT /api/v1/expenses/{id} updating category to "Laboratory" is rejected with the same message
+3. PUT /api/v1/expenses/{id} returns 405 Method Not Allowed (unrequested mutation removed)
 4. Other categories ("Supplies", "Utilities", "Rent", "Maintenance", "Salaries", "Other") succeed
 5. Pre-existing Expense rows with category="Laboratory" are NOT deleted or broken:
    - Listed in GET /api/v1/expenses
    - Counted in finance summary deductions.expenses
    - Filterable by category="Laboratory"
-6. Schema-level validation: ExpenseCreate and ExpenseUpdate reject "Laboratory"
-7. ExpenseService create and update paths reject "Laboratory"
+6. Schema-level validation: ExpenseCreate rejects "Laboratory"
+7. ExpenseService create path rejects "Laboratory"
 """
 
 from datetime import date, datetime, timezone
@@ -50,15 +50,8 @@ def test_expense_create_schema_rejects_laboratory():
         assert FORBIDDEN_LAB_MESSAGE in str(excinfo.value)
 
 
-def test_expense_update_schema_rejects_laboratory():
-    for variant in ["Laboratory", "laboratory", "  Laboratory  ", "LABORATORY"]:
-        with pytest.raises(ValueError) as excinfo:
-            schemas.ExpenseUpdate(category=variant)
-        assert FORBIDDEN_LAB_MESSAGE in str(excinfo.value)
-
-
 # ---------------------------------------------------------------------------
-# 2. Endpoint: POST /api/v1/expenses rejects "Laboratory" variants
+# 2. Endpoint: POST /api/v1/expenses rejects "Laboratory" variants with 422
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize("category_variant", [
     "Laboratory",
@@ -75,15 +68,15 @@ def test_create_expense_endpoint_rejects_laboratory(auth_client, category_varian
         "notes": "Attempted manual lab expense",
     }
     response = auth_client.post("/api/v1/expenses", json=payload)
-    assert response.status_code in (400, 422), f"Expected 400 or 422, got {response.status_code}"
+    assert response.status_code == 422, f"Expected 422, got {response.status_code}"
     assert FORBIDDEN_LAB_MESSAGE in response.text
 
 
 # ---------------------------------------------------------------------------
-# 3. Endpoint: PUT /api/v1/expenses/{id} rejects updating to "Laboratory"
+# 3. Endpoint: PUT /api/v1/expenses/{id} does not exist (405 Method Not Allowed)
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
-async def test_update_expense_endpoint_rejects_laboratory(async_db_session, admin_user, auth_client):
+async def test_update_expense_endpoint_is_disallowed(async_db_session, admin_user, auth_client):
     tenant_id = admin_user.tenant_id
     expense = models.Expense(
         tenant_id=tenant_id,
@@ -96,13 +89,11 @@ async def test_update_expense_endpoint_rejects_laboratory(async_db_session, admi
     await async_db_session.commit()
     await async_db_session.refresh(expense)
 
-    for variant in ["Laboratory", "laboratory", "  Laboratory  "]:
-        response = auth_client.put(
-            f"/api/v1/expenses/{expense.id}",
-            json={"category": variant},
-        )
-        assert response.status_code in (400, 422), f"Expected 400 or 422 for variant {variant!r}, got {response.status_code}"
-        assert FORBIDDEN_LAB_MESSAGE in response.text
+    response = auth_client.put(
+        f"/api/v1/expenses/{expense.id}",
+        json={"category": "Supplies"},
+    )
+    assert response.status_code == 405
 
 
 # ---------------------------------------------------------------------------
@@ -170,7 +161,7 @@ async def test_legacy_laboratory_expense_rows_are_preserved_and_listed(
 
 
 # ---------------------------------------------------------------------------
-# 6. Service layer guards (create_expense & update_expense)
+# 6. Service layer guards (create_expense)
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
 async def test_expense_service_guards_reject_laboratory(async_db_session, admin_user):
@@ -186,18 +177,4 @@ async def test_expense_service_guards_reject_laboratory(async_db_session, admin_
     object.__setattr__(dummy, "category", "Laboratory")
     with pytest.raises(ValueError) as exc:
         await service.create_expense(dummy)
-    assert FORBIDDEN_LAB_MESSAGE in str(exc.value)
-
-    expense = await service.create_expense(
-        schemas.ExpenseCreate(
-            item_name="Valid Expense",
-            cost=Decimal("100.00"),
-            category="Supplies",
-            date=date(2026, 8, 1),
-        )
-    )
-    dummy_up = schemas.ExpenseUpdate()
-    object.__setattr__(dummy_up, "category", "Laboratory")
-    with pytest.raises(ValueError) as exc:
-        await service.update_expense(expense.id, dummy_up)
     assert FORBIDDEN_LAB_MESSAGE in str(exc.value)

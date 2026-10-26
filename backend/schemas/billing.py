@@ -75,19 +75,6 @@ class ExpenseCreate(ExpenseBase):
     )
 
 
-class ExpenseUpdate(BaseModel):
-    item_name: Optional[str] = None
-    cost: Optional[PositiveMoney] = None
-    category: Optional[str] = None
-    date: Optional[date] = None
-    notes: Optional[str] = None
-
-    @field_validator("category")
-    @classmethod
-    def validate_category(cls, value: Optional[str]) -> Optional[str]:
-        return validate_not_laboratory_category(value)
-
-
 class Expense(ExpenseBase):
     id: int
 
