@@ -57,6 +57,7 @@ from .procedure import (
     create_procedure,
     update_procedure,
     delete_procedure,
+    seed_tenant_default_procedures,
 )
 from .procedure_chart_style import (
     get_procedure_chart_styles,
