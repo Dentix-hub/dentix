@@ -16,3 +16,8 @@ export const getLabOrdersStats = () => api.get('/api/v1/lab-orders/stats/summary
 export const getLabStats = (labId) => api.get(`/api/v1/laboratories/${labId}/stats`);
 export const getLabPayments = (labId) => api.get(`/api/v1/laboratories/${labId}/payments`);
 export const createLabPayment = (labId, data) => api.post(`/api/v1/laboratories/${labId}/payments`, data);
+export const allocateLabPayment = (labId, paymentId, labOrderId) =>
+    api.post(`/api/v1/laboratories/${labId}/payments/${paymentId}/allocate`, { lab_order_id: labOrderId });
+export const deallocateLabPayment = (labId, paymentId) =>
+    api.delete(`/api/v1/laboratories/${labId}/payments/${paymentId}/allocation`);
+
