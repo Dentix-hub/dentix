@@ -1557,18 +1557,34 @@
         "clinic_credit": "رصيد لصالح العيادة",
         "order_status": "حالة الطلبات",
         "status_pending": "معلق",
-        "status_completed": "مكتمل"
+        "status_completed": "مكتمل",
+        "unallocated_alert": "عندك دفعات على الحساب لسه ما اتربطتش بحالات: {{amount}}",
+        "view_unallocated": "عرض المدفوعات"
       },
       "orders": {
         "filter_all": "كل الحالات",
         "filter_pending": "معلق (Pending)",
         "filter_in_progress": "جاري التنفيذ (In Progress)",
         "filter_completed": "مكتمل (Completed)",
+        "filter_payment_all": "كل حالات السداد",
+        "filter_payment_unpaid": "غير مدفوع",
+        "filter_payment_partial": "جزئي",
+        "filter_payment_paid": "مدفوع",
         "status_unpaid": "غير مدفوع",
         "status_partial": "جزئي",
         "status_paid": "مدفوع",
         "status_cancelled": "ملغي",
         "record_payment": "تسجيل دفعة",
+        "settle_remaining": "سدّدت المتبقي",
+        "partial_payment": "دفعة جزئية",
+        "settle_sheet": {
+          "title": "سداد المتبقي للطلب",
+          "confirm": "تأكيد السداد",
+          "cancel": "إلغاء",
+          "amount_label": "المبلغ المسدد",
+          "method_label": "طريقة الدفع",
+          "notes_label": "ملاحظات (اختياري)"
+        },
         "table": {
           "patient": "المريض",
           "work": "العمل",
@@ -1588,7 +1604,20 @@
         "allocated_to_order": "دفعة مخصصة للطلب",
         "clear_allocation": "إلغاء التخصيص (على الحساب)",
         "on_account": "على الحساب",
+        "allocate_button": "ربط بطلب",
+        "deallocate_button": "إلغاء الربط",
+        "confirm_deallocate": "هل أنت متأكد من إلغاء ربط هذه الدفعة بالطلب؟ ستصبح دفعة على الحساب.",
+        "allocate_modal": {
+          "title": "ربط الدفعة بطلب معمل",
+          "select_order_label": "اختر الطلب المراد ربط الدفعة به",
+          "no_eligible_orders": "لا توجد طلبات مؤهلة (متبقيها أكبر أو يساوي مبلغ الدفعة)",
+          "confirm": "تأكيد الربط",
+          "cancel": "إلغاء"
+        },
         "form": {
+          "order_label": "الطلب",
+          "unallocated_option": "على الحساب (غير مخصص)",
+          "order_option": "{{work_type}} — {{patient}} — متبقي {{remaining}}",
           "amount": "المبلغ",
           "method": "طريقة الدفع",
           "notes": "ملاحظات",

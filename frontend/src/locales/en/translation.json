@@ -1557,18 +1557,34 @@
         "clinic_credit": "Credit in Favor of Clinic",
         "order_status": "Order Status",
         "status_pending": "Pending",
-        "status_completed": "Completed"
+        "status_completed": "Completed",
+        "unallocated_alert": "You have unallocated payments on account: {{amount}}",
+        "view_unallocated": "View Payments"
       },
       "orders": {
         "filter_all": "All Statuses",
         "filter_pending": "Pending",
         "filter_in_progress": "In Progress",
         "filter_completed": "Completed",
+        "filter_payment_all": "All Payment Statuses",
+        "filter_payment_unpaid": "Unpaid",
+        "filter_payment_partial": "Partial",
+        "filter_payment_paid": "Paid",
         "status_unpaid": "Unpaid",
         "status_partial": "Partial",
         "status_paid": "Paid",
         "status_cancelled": "Cancelled",
         "record_payment": "Record Payment",
+        "settle_remaining": "Settle Remaining",
+        "partial_payment": "Partial Payment",
+        "settle_sheet": {
+          "title": "Settle Remaining for Order",
+          "confirm": "Confirm Settlement",
+          "cancel": "Cancel",
+          "amount_label": "Amount Settled",
+          "method_label": "Payment Method",
+          "notes_label": "Notes (Optional)"
+        },
         "table": {
           "patient": "Patient",
           "work": "Work",
@@ -1588,7 +1604,20 @@
         "allocated_to_order": "Allocated to Order",
         "clear_allocation": "Clear Allocation (On Account)",
         "on_account": "On Account",
+        "allocate_button": "Link to Order",
+        "deallocate_button": "Unlink",
+        "confirm_deallocate": "Are you sure you want to unlink this payment? It will become an unallocated payment on account.",
+        "allocate_modal": {
+          "title": "Link Payment to Lab Order",
+          "select_order_label": "Select Lab Order to Link",
+          "no_eligible_orders": "No eligible orders found (remaining balance >= payment amount)",
+          "confirm": "Confirm Link",
+          "cancel": "Cancel"
+        },
         "form": {
+          "order_label": "Order",
+          "unallocated_option": "On Account (Unallocated)",
+          "order_option": "{{work_type}} — {{patient}} — Remaining {{remaining}}",
           "amount": "Amount",
           "method": "Payment Method",
           "notes": "Notes",
