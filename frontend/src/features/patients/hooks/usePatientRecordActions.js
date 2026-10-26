@@ -34,13 +34,29 @@ export function usePatientRecordActions({
     const queryClient = useContext(QueryClientContext);
 
     const handleFileUpload = useCallback(async (event) => {
-        const file = event.target.files[0];
+        const file = event.target?.files?.[0];
         if (!file) return;
         try {
             await uploadAttachment(id, file);
             refetchAttachments();
-        } catch {
-            toast.error(t('patient_details.alerts.upload_fail'));
+        } catch (error) {
+            const detail = error?.response?.data?.detail;
+            const message = error?.response?.data?.message;
+            let displayMessage = t('patient_details.alerts.upload_fail');
+
+            if (typeof detail === 'string' && detail.trim()) {
+                displayMessage = detail.trim();
+            } else if (Array.isArray(detail) && detail[0]?.msg) {
+                displayMessage = detail[0].msg;
+            } else if (typeof message === 'string' && message.trim()) {
+                displayMessage = message.trim();
+            }
+
+            toast.error(displayMessage);
+        } finally {
+            if (event.target) {
+                event.target.value = '';
+            }
         }
     }, [id, refetchAttachments, t]);
 
