@@ -1960,6 +1960,7 @@
       "success": "Clinic registered successfully! Please login."
     },
     "forgot_password": {
+      "no_email_help": "If your account has no email address, ask your clinic administrator to set a new password.",
       "title": "Forgot Password?",
       "subtitle": "Enter your email and we'll send you a password reset link",
       "email": "Email",
