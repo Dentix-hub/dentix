@@ -11,6 +11,7 @@ from backend import models
 from backend.services.tenant_archive import ArchiveError, decode_archive
 from backend.services.tenant_archive_embedded_refs import validate_embedded_references
 from backend.services.tenant_archive_identity import resolve_staff_mapping
+from backend.services.tenant_archive_legacy import missing_legacy_sections
 from backend.services.tenant_archive_import import replace_clinic_business_data
 from backend.services.tenant_archive_registry import validate_archive_references, validate_archive_sections, validate_archive_values
 
@@ -47,6 +48,7 @@ async def run_confirmed_restore(db, *, tenant_id, operation_id, installation_id,
         header, payload = decode_archive(archive, tenant_id=tenant_id, installation_id=installation_id, keys=keys, max_bytes=max_bytes)
         if header.get('schema_revision') not in supported_revisions:
             raise ArchiveError('إصدار قاعدة بيانات النسخة الاحتياطية غير مدعوم')
+        missing = missing_legacy_sections(payload)
         data = validate_archive_sections(payload, tenant_id=tenant_id)
         validate_archive_values(data)
         external_ids = await known_global_references(db)
@@ -55,7 +57,7 @@ async def run_confirmed_restore(db, *, tenant_id, operation_id, installation_id,
         staff = await resolve_staff_mapping(db, tenant_id, data['staff_references'])
         if header.get('counts') != {name: len(rows) for name, rows in data.items()}:
             raise ArchiveError('أعداد سجلات النسخة الاحتياطية غير متطابقة')
-        counts, mapping = await replace_clinic_business_data(db, tenant_id=tenant_id, data=data, staff_mapping=staff, external_ids=external_ids)
+        counts, mapping = await replace_clinic_business_data(db, tenant_id=tenant_id, data=data, staff_mapping=staff, external_ids=external_ids, missing_sections=missing)
         operation.status = 'completed'
         operation.encrypted_payload = None
         operation.completed_at = datetime.now(timezone.utc)

@@ -46,13 +46,15 @@ def _convert(column, value):
     return value
 
 
-async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, external_ids=None):
+async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, external_ids=None, missing_sections=()):
     if db.bind.dialect.name != 'postgresql':
         raise ArchiveError('الاستعادة الآمنة تتطلب قاعدة بيانات PostgreSQL')
     # Every ordinary business write acquires a shared gate in a database
     # trigger; the exclusive transaction lock waits for all previous writers.
     await db.execute(text('SELECT pg_advisory_xact_lock(:namespace, :tenant)'),
                      {'namespace': GATE_NAMESPACE, 'tenant': tenant_id})
+    from backend.services.tenant_archive_legacy import ensure_missing_sections_empty
+    await ensure_missing_sections_empty(db, tenant_id=tenant_id, missing_sections=missing_sections)
     classes = _model_classes()
     order = _order()
     for name in reversed(order):

@@ -192,3 +192,37 @@ def test_serialized_references_are_rebound_and_unknown_values_fail_closed():
         remap_stock_reference('TREATMENT:999', mapping)
     with pytest.raises(ArchiveError):
         remap_event_payload({'unknown_patient_id': 42}, mapping)
+
+
+def test_legacy_adapter_discards_secrets_and_reports_missing_sections():
+    from backend.services.tenant_archive_legacy import adapt_legacy_json
+    source = {'version': '1.0', 'tenant_id': 7, 'exported_at': '2026-01-01', 'data': {
+        'users': [{'id': 1, 'tenant_id': 7, 'username': 'synthetic', 'role': 'admin',
+                   'hashed_password': 'synthetic-secret', 'otp_secret': 'synthetic-otp'}],
+        'tooth_statuses': [], 'patients': [],
+    }}
+    adapted = adapt_legacy_json(source, tenant_id=7)
+    assert adapted['legacy_unverified'] is True
+    assert 'material_sessions' in adapted['missing_sections']
+    assert adapted['data']['tooth_status'] == []
+    staff = adapted['data']['staff_references'][0]
+    assert 'hashed_password' not in staff and 'otp_secret' not in staff and 'role' not in staff
+    source['data']['users'][0]['role'] = 'super_admin'
+    with pytest.raises(ArchiveError):
+        adapt_legacy_json(source, tenant_id=7)
+    source['data']['users'][0]['role'] = 'admin'
+    source['data']['patients'] = [{'id': 2, 'tenant_id': 8}]
+    with pytest.raises(ArchiveError):
+        adapt_legacy_json(source, tenant_id=7)
+
+
+@pytest.mark.asyncio
+async def test_legacy_missing_sections_cannot_erase_existing_data(async_db_session, test_user):
+    from decimal import Decimal
+    from backend import models
+    from backend.services.tenant_archive_legacy import ensure_missing_sections_empty
+    async_db_session.add(models.Expense(tenant_id=test_user.tenant_id, item_name='Existing', cost=Decimal('4.00'), category='Other'))
+    await async_db_session.commit()
+    with pytest.raises(ArchiveError):
+        await ensure_missing_sections_empty(async_db_session, tenant_id=test_user.tenant_id, missing_sections=['expenses'])
+    await ensure_missing_sections_empty(async_db_session, tenant_id=test_user.tenant_id, missing_sections=['lab_payments'])
