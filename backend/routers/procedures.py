@@ -10,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .. import schemas, crud
 from ..cache import cache_response, invalidate_cache
 from backend.clinical.legacy_mapping import map_legacy_procedure
+from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES
+from backend.clinical.lab_choice import requires_laboratory
 from backend.database import get_async_db
 from backend.core.permissions import Permission, require_permission
 from backend.core.tenant_context import require_tenant_id
@@ -59,6 +61,10 @@ async def get_procedures(
             price=p["price"],
             tenant_id=p["tenant_id"],
             canonical_code=map_legacy_procedure(p["name"])[0],
+            requires_lab=requires_laboratory(
+                p.get("code") if p.get("code") in CANONICAL_PROCEDURE_CODES else p["name"],
+                custom_category=p.get("category"),
+            ),
             chart_style=styles_by_name.get(p["name"]),
         )
         for p in raw_procedures

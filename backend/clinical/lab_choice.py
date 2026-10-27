@@ -20,7 +20,7 @@ def requires_laboratory(procedure: str | None, *, custom_category: str | None = 
     canonical, _ = map_legacy_procedure(procedure)
     if canonical:
         return is_lab_required_procedure(canonical)
-    return custom_category == "prosthodontic"
+    return custom_category in {"prosthodontic", "prosthetics", "معامل وتركيبات", "معامل وتركيبات خارجية"}
 
 
 def validate_lab_choice(

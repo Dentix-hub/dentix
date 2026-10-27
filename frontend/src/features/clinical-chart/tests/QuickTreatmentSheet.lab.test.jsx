@@ -83,6 +83,20 @@ describe('QuickTreatmentSheet Lab Cost & Payment UI (L4)', () => {
         api.createLabPayment.mockResolvedValue({ data: { id: 777 } });
     });
 
+    it('requires an explicit choice and omits lab fields for in-clinic work', async () => {
+        const onSave = vi.fn().mockResolvedValue(undefined);
+        renderSheet({ isNativeWritesEnabled: true, onSave, procedures: [{ ...procedures[0], requires_lab: true }] });
+        const select = await screen.findByLabelText(/quick_treatment_sheet.lab_select|اختر المعمل/i);
+        const save = screen.getByTestId('quick-treatment-save-button');
+        expect(save).toBeDisabled();
+        fireEvent.change(select, { target: { value: 'in_clinic' } });
+        expect(screen.queryByLabelText(/quick_treatment_sheet.lab_cost_label|تكلفة المعمل/i)).toBeNull();
+        fireEvent.click(save);
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave.mock.calls[0][0]).toMatchObject({ lab_choice: 'in_clinic', idempotency_key: expect.any(String) });
+        expect(onSave.mock.calls[0][0].lab_order).toBeUndefined();
+    });
+
     it('renders lab cost and shows paid_now only when cost > 0 with accounting note', async () => {
         renderSheet();
 

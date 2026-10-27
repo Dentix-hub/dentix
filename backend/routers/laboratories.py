@@ -302,6 +302,8 @@ async def create_lab_order(
         ).scalars().first()
         if not work_item:
             raise HTTPException(status_code=404, detail="Clinical work item not found")
+        if work_item.lab_choice == "in_clinic":
+            raise HTTPException(status_code=422, detail="لا يمكن إضافة طلب معمل لعلاج داخل العيادة")
 
         # G12-M16: Handoff idempotency - return existing active lab order if present
         stmt_existing = (
@@ -342,6 +344,10 @@ async def create_lab_order(
         ).scalars().first()
         if not treatment:
             raise HTTPException(status_code=404, detail="Treatment not found")
+        if treatment.lab_choice == "in_clinic":
+            raise HTTPException(status_code=422, detail="لا يمكن إضافة طلب معمل لعلاج داخل العيادة")
+        if treatment.tooth_number is not None and order.tooth_number and str(treatment.tooth_number) != str(order.tooth_number):
+            raise HTTPException(status_code=422, detail="سن طلب المعمل لا يطابق العلاج")
 
         # D3 / Step 2: Idempotency - return existing active non-cancelled lab order if present
         stmt_existing = (

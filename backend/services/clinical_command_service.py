@@ -9,7 +9,7 @@ import json
 import logging
 from typing import List, Optional
 from fastapi import HTTPException
-from sqlalchemy import inspect, select, text
+from sqlalchemy import inspect, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import StaleDataError
@@ -241,6 +241,17 @@ class ClinicalCommandService:
                 detail=f"Invalid procedure code '{payload.code}'. Allowed: {CANONICAL_PROCEDURE_CODES}",
             )
 
+        if payload.kind == "procedure":
+            from backend.clinical.lab_choice import validate_lab_choice
+            validate_lab_choice(
+                procedure=payload.code, choice=payload.lab_choice,
+                lab_order=payload.lab_order.model_dump(exclude_unset=True) if payload.lab_order else None,
+            )
+            if payload.lab_order and not has_permission(user_role, Permission.CLINICAL_WRITE):
+                raise HTTPException(status_code=403, detail="لا تملك صلاحية إنشاء طلب معمل")
+        elif payload.lab_choice is not None or payload.lab_order is not None:
+            raise HTTPException(status_code=422, detail="بيانات المعمل لا تخص هذا السجل")
+
         try:
             validate_treatment_status(payload.status)
         except ValueError as e:
@@ -270,6 +281,7 @@ class ClinicalCommandService:
             patient_id=patient_id,
             kind=payload.kind,
             code=payload.code,
+            lab_choice=payload.lab_choice,
             status=payload.status,
             notes=payload.notes,
             created_by_user_id=self.current_user_id,
@@ -291,6 +303,19 @@ class ClinicalCommandService:
             )
         self.db.add(work_item)
         await self.db.flush()
+        if payload.lab_order is not None:
+            from backend.clinical.legacy_mapping import map_legacy_procedure
+            from backend.services.lab_service import LabService
+            order = payload.lab_order
+            order_code = order.work_type if order.work_type in CANONICAL_PROCEDURE_CODES else map_legacy_procedure(order.work_type)[0]
+            teeth = {str(target.tooth_key) for target in payload.targets if target.tooth_key}
+            if order.patient_id not in (None, patient_id) or order.treatment_id is not None or order.work_item_id is not None or order_code != payload.code or len(teeth) != 1 or (order.tooth_number is not None and order.tooth_number not in teeth):
+                raise HTTPException(status_code=422, detail="بيانات طلب المعمل لا تطابق العلاج")
+            order = order.model_copy(update={"patient_id": patient_id, "work_item_id": work_item.id, "tooth_number": next(iter(teeth))})
+            try:
+                await LabService(self.db, self.tenant_id).create_lab_order(order, doctor_id=self.current_user_id, commit=False)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail="تعذر حفظ طلب المعمل، تحقق من بيانات المعمل والدفعة") from exc
 
         # Atomically append corresponding recorded clinical event
         event_payload = {
@@ -360,6 +385,8 @@ class ClinicalCommandService:
                 "code": payload.code,
                 "status": payload.status,
                 "notes": payload.notes or "",
+                "lab_choice": payload.lab_choice,
+                "lab_order": payload.lab_order.model_dump(mode="json", exclude_unset=True) if payload.lab_order else None,
                 "targets": sorted(
                     [_normalize_target(t) for t in payload.targets],
                     key=lambda x: (x["target_kind"], x["tooth_key"], x["surface_code"] or "", x["root_id"] or "", x["canal_id"] or ""),
@@ -596,6 +623,8 @@ class ClinicalCommandService:
                 "code": payload.code,
                 "status": payload.status,
                 "notes": payload.notes or "",
+                "lab_choice": payload.lab_choice,
+                "lab_order": payload.lab_order.model_dump(mode="json", exclude_unset=True) if payload.lab_order else None,
                 "targets": sorted(
                     [_normalize_target(t) for t in payload.targets],
                     key=lambda x: (x["target_kind"], x["tooth_key"], x["surface_code"] or "", x["root_id"] or "", x["canal_id"] or ""),
@@ -618,6 +647,8 @@ class ClinicalCommandService:
         wi_create = schemas.ClinicalWorkItemCreate(
             kind="procedure",
             code=payload.code,
+            lab_choice=payload.lab_choice,
+            lab_order=payload.lab_order,
             status=payload.status,
             notes=payload.notes,
             targets=payload.targets,
@@ -672,6 +703,8 @@ class ClinicalCommandService:
                         "code": item.code,
                         "status": item.status,
                         "notes": item.notes or "",
+                        "lab_choice": item.lab_choice,
+                        "lab_order": item.lab_order.model_dump(mode="json", exclude_unset=True) if item.lab_order else None,
                         "targets": sorted(
                             [_normalize_target(t) for t in item.targets],
                             key=lambda x: (x["target_kind"], x["tooth_key"], x["surface_code"] or "", x["root_id"] or "", x["canal_id"] or ""),
@@ -706,6 +739,8 @@ class ClinicalCommandService:
                 wi_create = schemas.ClinicalWorkItemCreate(
                     kind="procedure",
                     code=item.code,
+                    lab_choice=item.lab_choice,
+                    lab_order=item.lab_order,
                     status=item.status,
                     notes=item.notes,
                     targets=item.targets,
@@ -762,7 +797,7 @@ class ClinicalCommandService:
             .where(
                 models.ClinicalWorkItem.id == work_item_id,
                 models.ClinicalWorkItem.tenant_id == self.tenant_id,
-            )
+            ).with_for_update()
         )
         res = await self.db.execute(stmt)
         work_item = res.scalar_one_or_none()
@@ -792,6 +827,54 @@ class ClinicalCommandService:
                 status_code=409,
                 detail=f"Stale version: expected {payload.expected_version_id}, found {work_item.version_id}",
             )
+
+        linked = (await self.db.execute(select(models.LabOrder).where(
+            models.LabOrder.tenant_id == self.tenant_id,
+            models.LabOrder.work_item_id == work_item.id,
+            or_(models.LabOrder.status.is_(None), models.LabOrder.status != "cancelled"),
+        ).with_for_update())).scalars().first()
+        selected = payload.lab_choice if "lab_choice" in payload.model_fields_set else work_item.lab_choice
+        if work_item.kind != "procedure" and (payload.lab_choice is not None or payload.lab_order is not None):
+            raise HTTPException(status_code=422, detail="بيانات المعمل لا تخص هذا السجل")
+        if linked:
+            from backend.clinical.legacy_mapping import map_legacy_procedure
+            linked_lab = (await self.db.execute(select(models.Laboratory.id).where(
+                models.Laboratory.id == linked.laboratory_id,
+                models.Laboratory.tenant_id == self.tenant_id,
+            ))).scalar_one_or_none()
+            linked_code = linked.work_type if linked.work_type in CANONICAL_PROCEDURE_CODES else map_legacy_procedure(linked.work_type)[0]
+            if linked_lab is None or linked_code != work_item.code:
+                raise HTTPException(status_code=422, detail="المعمل المرتبط بالعلاج غير صالح")
+            targets = payload.targets if payload.targets is not None else work_item.targets
+            teeth = {str(t.tooth_key) for t in targets if t.tooth_key}
+            if linked.patient_id != patient_id or (linked.tooth_number and linked.tooth_number not in teeth):
+                raise HTTPException(status_code=422, detail="بيانات طلب المعمل المرتبط لا تطابق العلاج")
+            if selected == "in_clinic" or payload.lab_order is not None:
+                raise HTTPException(status_code=422, detail="يجب تسوية طلب المعمل القائم قبل تغيير الاختيار")
+        if work_item.kind == "procedure":
+            from backend.clinical.lab_choice import validate_lab_choice
+            validate_lab_choice(procedure=work_item.code, choice=selected,
+                                lab_order=payload.lab_order.model_dump(exclude_unset=True) if payload.lab_order else None,
+                                has_valid_linked_order=linked is not None)
+            if payload.lab_order:
+                from backend.clinical.legacy_mapping import map_legacy_procedure
+                from backend.services.lab_service import LabService
+                if not has_permission(user_role, Permission.CLINICAL_WRITE):
+                    raise HTTPException(status_code=403, detail="لا تملك صلاحية إنشاء طلب معمل")
+                order = payload.lab_order
+                code = order.work_type if order.work_type in CANONICAL_PROCEDURE_CODES else map_legacy_procedure(order.work_type)[0]
+                targets = payload.targets if payload.targets is not None else work_item.targets
+                teeth = {str(t.tooth_key) for t in targets if t.tooth_key}
+                if order.patient_id not in (None, patient_id) or order.treatment_id is not None or order.work_item_id is not None or code != work_item.code or len(teeth) != 1 or (order.tooth_number is not None and order.tooth_number not in teeth):
+                    raise HTTPException(status_code=422, detail="بيانات طلب المعمل لا تطابق العلاج")
+                order = order.model_copy(update={"patient_id": patient_id, "work_item_id": work_item.id, "tooth_number": next(iter(teeth))})
+                work_item.lab_choice = selected
+                try:
+                    await LabService(self.db, self.tenant_id).create_lab_order(order, doctor_id=self.current_user_id, commit=False)
+                except ValueError as exc:
+                    raise HTTPException(status_code=422, detail="تعذر حفظ طلب المعمل، تحقق من بيانات المعمل والدفعة") from exc
+            else:
+                work_item.lab_choice = selected
 
         # Status transition checks
         old_status = work_item.status
@@ -990,6 +1073,8 @@ class ClinicalCommandService:
                 "replacement": {
                     "kind": payload.replacement.kind,
                     "code": payload.replacement.code,
+                    "lab_choice": payload.replacement.lab_choice,
+                    "lab_order": payload.replacement.lab_order.model_dump(mode="json", exclude_unset=True) if payload.replacement.lab_order else None,
                     "status": payload.replacement.status,
                     "notes": payload.replacement.notes or "",
                     "targets": sorted(

@@ -10,6 +10,7 @@ This removes business logic from the treatments router.
 """
 
 import json
+import hashlib
 import logging
 from decimal import Decimal
 from datetime import date, datetime, timezone
@@ -17,6 +18,7 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy import or_, select, delete
+from sqlalchemy.exc import IntegrityError
 
 from fastapi import HTTPException
 from backend import models, schemas
@@ -295,6 +297,7 @@ class TreatmentService:
             patient_id=treatment.patient_id,
             kind="procedure",
             code=canonical_code,
+            lab_choice=treatment.lab_choice,
             status=status,
             notes=treatment.notes,
             created_by_user_id=created_by_user_id,
@@ -573,6 +576,7 @@ class TreatmentService:
             return None
 
         work_item.code = canonical_code
+        work_item.lab_choice = treatment.lab_choice
         work_item.status = status
         work_item.notes = treatment.notes
 
@@ -708,6 +712,84 @@ class TreatmentService:
             treatment, surfaces=surfaces, provenance=provenance
         )
 
+    async def _find_treatment_request(self, key: str, fingerprint: str, patient_id: int):
+        existing = (await self.db.execute(select(models.Treatment).where(
+            models.Treatment.tenant_id == self.tenant_id,
+            models.Treatment.request_key == key,
+        ).options(selectinload(models.Treatment.treatment_sessions)))).scalars().first()
+        if existing and (existing.patient_id != patient_id or existing.request_fingerprint != fingerprint):
+            raise HTTPException(status_code=409, detail="مفتاح الطلب مستخدم لبيانات مختلفة")
+        return existing
+
+    async def _validate_lab_selection(self, data: schemas.TreatmentCreate, *, treatment_id: int | None = None):
+        """Validate the rollout-gated combined treatment/lab input."""
+        from backend.clinical.lab_choice import validate_lab_choice
+        from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES
+        from backend.core.permissions import Permission, has_permission
+        from backend.services.feature_service import FeatureFlagService
+
+        enabled = await FeatureFlagService.is_feature_enabled(self.db, "clinical_vnext_native_writes", self.tenant_id)
+        if not enabled:
+            if data.lab_choice is not None or data.lab_order is not None:
+                raise HTTPException(status_code=404, detail="ميزة اختيار المعمل غير مفعلة")
+            return None
+        existing = None
+        if treatment_id is not None:
+            existing = (await self.db.execute(select(models.LabOrder).where(
+                models.LabOrder.tenant_id == self.tenant_id,
+                models.LabOrder.treatment_id == treatment_id,
+                or_(models.LabOrder.status.is_(None), models.LabOrder.status != "cancelled"),
+            ).with_for_update())).scalars().first()
+            if existing:
+                lab_id = (await self.db.execute(select(models.Laboratory.id).where(
+                    models.Laboratory.id == existing.laboratory_id,
+                    models.Laboratory.tenant_id == self.tenant_id,
+                ))).scalar_one_or_none()
+                if lab_id is None:
+                    raise HTTPException(status_code=422, detail="المعمل المرتبط بالعلاج غير صالح")
+            if existing and (
+                existing.patient_id != data.patient_id
+                or (existing.tooth_number and existing.tooth_number != str(data.tooth_number))
+                or existing.work_type != data.procedure
+            ):
+                raise HTTPException(status_code=422, detail="بيانات طلب المعمل المرتبط لا تطابق العلاج")
+        if existing and data.lab_choice == "in_clinic":
+            raise HTTPException(status_code=422, detail="يجب تسوية طلب المعمل القائم قبل تغيير الاختيار")
+        if data.lab_order is not None and not has_permission(self.current_user.role, Permission.CLINICAL_WRITE):
+            raise HTTPException(status_code=403, detail="لا تملك صلاحية إنشاء طلب معمل")
+        procedure = (await self.db.execute(select(models.Procedure).where(
+            models.Procedure.name == data.procedure,
+            or_(models.Procedure.tenant_id == self.tenant_id, models.Procedure.tenant_id.is_(None)),
+        ).order_by(models.Procedure.tenant_id.desc().nullslast()))).scalars().first()
+        category = procedure.category if procedure is not None else None
+        if category in {"معامل وتركيبات", "معامل وتركيبات خارجية"}:
+            category = "prosthodontic"
+        order = data.lab_order.model_dump(exclude_unset=True) if data.lab_order is not None else None
+        procedure_code = procedure.code if procedure and procedure.code in CANONICAL_PROCEDURE_CODES else data.procedure
+        validate_lab_choice(procedure=procedure_code, choice=data.lab_choice, lab_order=order,
+                            custom_category=category, has_valid_linked_order=existing is not None)
+        if data.lab_order is not None:
+            if existing:
+                raise HTTPException(status_code=422, detail="يوجد طلب معمل مرتبط بالفعل بهذا العلاج")
+            if data.lab_order.patient_id not in (None, data.patient_id) or data.lab_order.treatment_id not in (None, treatment_id):
+                raise HTTPException(status_code=422, detail="بيانات طلب المعمل لا تطابق العلاج")
+            if data.lab_order.work_item_id is not None or data.lab_order.work_type != data.procedure:
+                raise HTTPException(status_code=422, detail="إجراء طلب المعمل لا يطابق العلاج")
+            if data.lab_order.tooth_number is not None and str(data.lab_order.tooth_number) != str(data.tooth_number):
+                raise HTTPException(status_code=422, detail="سن طلب المعمل لا يطابق العلاج")
+        return existing
+
+    async def _create_nested_lab_order(self, data: schemas.TreatmentCreate, treatment: models.Treatment):
+        if data.lab_order is None:
+            return
+        from backend.services.lab_service import LabService
+
+        order_data = data.lab_order.model_copy(update={"patient_id": data.patient_id, "treatment_id": treatment.id})
+        try:
+            await LabService(self.db, self.tenant_id).create_lab_order(order_data, doctor_id=treatment.doctor_id, commit=False)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="تعذر حفظ طلب المعمل، تحقق من بيانات المعمل والدفعة") from exc
+
     async def create_treatment(
         self,
         treatment_data: schemas.TreatmentCreate,
@@ -720,15 +802,28 @@ class TreatmentService:
         from fastapi import HTTPException
         from backend import crud
 
+        # Surface annotation below must not mutate the caller's retry payload.
+        treatment_data = treatment_data.model_copy(deep=True)
         if treatment_data.cost < 0 or treatment_data.discount < 0:
             raise HTTPException(status_code=422, detail="Treatment values cannot be negative")
         if treatment_data.discount > treatment_data.cost:
             raise HTTPException(status_code=422, detail="Discount cannot exceed treatment cost")
 
+        await self._validate_lab_selection(treatment_data)
+
         # 1. Verify patient exists
         patient = await crud.patient.get_patient(self.db, treatment_data.patient_id, self.tenant_id)
         if not patient:
             raise HTTPException(status_code=404, detail="Patient not found")
+
+        request_key = treatment_data.idempotency_key
+        request_fingerprint = None
+        if request_key:
+            raw_payload = treatment_data.model_dump(mode="json", exclude={"idempotency_key"}, exclude_unset=True)
+            request_fingerprint = hashlib.sha256(json.dumps(raw_payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()).hexdigest()
+            existing_request = await self._find_treatment_request(request_key, request_fingerprint, treatment_data.patient_id)
+            if existing_request is not None:
+                return existing_request
 
         # 1.5. Embed surfaces in notes if provided
         surfaces = getattr(treatment_data, "surfaces", None)
@@ -762,17 +857,40 @@ class TreatmentService:
         # 4. Auto-assign doctor if not provided
         doctor_id = treatment_data.doctor_id if treatment_data.doctor_id else self.current_user.id
 
-        # 5. Create treatment (deferred commit)
-        created_treatment = await crud.billing.create_treatment(
-            db=self.db,
-            treatment=treatment_data,
-            tenant_id=self.tenant_id,
-            doctor_id=doctor_id,
-            price_list_id=price_list_id,
-            unit_price=unit_price,
-            price_snapshot=price_snapshot,
-            commit=False,
-        )
+        # SQLite may not start a physical transaction for earlier reads. A
+        # first SAVEPOINT would then commit on release, defeating outer rollback.
+        connection = await self.db.connection()
+        if connection.dialect.name == "sqlite":
+            physical_transaction = await connection.run_sync(
+                lambda sync_connection: sync_connection.connection.driver_connection.in_transaction
+            )
+            if not physical_transaction:
+                await connection.exec_driver_sql("BEGIN")
+
+        # A savepoint isolates a concurrent unique-key conflict while keeping
+        # the outer treatment/order/payment transaction intact.
+        try:
+            async with self.db.begin_nested():
+                created_treatment = await crud.billing.create_treatment(
+                    db=self.db,
+                    treatment=treatment_data,
+                    tenant_id=self.tenant_id,
+                    doctor_id=doctor_id,
+                    price_list_id=price_list_id,
+                    unit_price=unit_price,
+                    price_snapshot=price_snapshot,
+                    commit=False,
+                    request_fingerprint=request_fingerprint,
+                )
+        except IntegrityError:
+            if not request_key:
+                raise
+            existing_request = await self._find_treatment_request(request_key, request_fingerprint, treatment_data.patient_id)
+            if existing_request is None:
+                raise
+            return existing_request
+
+        await self._create_nested_lab_order(treatment_data, created_treatment)
 
         # 5.5. Synchronize ClinicalWorkItem / ClinicalEvent for odontogram projection
         clinical_work_item_id = getattr(treatment_data, "clinical_work_item_id", None)
@@ -881,6 +999,9 @@ class TreatmentService:
                 tooth_number=multi_data.tooth_number,
                 tooth_key=multi_data.tooth_key,
                 procedure=proc.procedure,
+                lab_choice=proc.lab_choice,
+                lab_order=proc.lab_order,
+                idempotency_key=proc.idempotency_key,
                 cost=proc.cost,
                 discount=proc.discount,
                 diagnosis=proc.diagnosis,
@@ -932,6 +1053,8 @@ class TreatmentService:
         if treatment_data.discount > treatment_data.cost:
             raise HTTPException(status_code=422, detail="Discount cannot exceed treatment cost")
 
+        await self._validate_lab_selection(treatment_data, treatment_id=treatment_id)
+
         # Embed surfaces in notes if present
         surfaces = getattr(treatment_data, "surfaces", None)
         surface = getattr(treatment_data, "surface", None)
@@ -966,6 +1089,8 @@ class TreatmentService:
         updated_treatment = await crud.billing.update_treatment(
             self.db, treatment_id, treatment_data, self.tenant_id, commit=False
         )
+
+        await self._create_nested_lab_order(treatment_data, updated_treatment)
 
         # 4. Consume new stock (post-update) — skip if requested
         if not skip_stock:

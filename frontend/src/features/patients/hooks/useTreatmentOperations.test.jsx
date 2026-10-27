@@ -70,6 +70,24 @@ describe('useTreatmentOperations', () => {
         setEditingTreatmentId = vi.fn();
     });
 
+    it('sends an atomic lab order inside the treatment request without a second request', async () => {
+        mockCreateTreatment.mockResolvedValue({ id: 10 });
+        const { result } = renderHook(() => useTreatmentOperations({
+            patientId: 101, refetchHistory, refetchTeeth, refetchWorkspace,
+            setIsTreatmentSheetOpen, setEditingTreatmentId, editingTreatmentId: null,
+        }), { wrapper: createWrapper() });
+        await act(async () => result.current.handleSaveTreatment({
+            procedure: 'Crown', tooth_number: 'UR6', cost: 100,
+            lab_choice: 'external_lab', idempotency_key: 'stable-key',
+            lab_order: { laboratory_id: '7', cost: '0', paid_now: '0' },
+        }));
+        expect(mockCreateTreatment).toHaveBeenCalledWith(expect.objectContaining({
+            lab_choice: 'external_lab', idempotency_key: 'stable-key',
+            lab_order: expect.objectContaining({ laboratory_id: 7, work_type: 'Crown', cost: 0, paid_now: 0 }),
+        }));
+        expect(mockCreateLabOrder).not.toHaveBeenCalled();
+    });
+
     it('refetches workspace and invalidates clinical workspace query on treatment save with tooth number', async () => {
         mockCreateTreatment.mockResolvedValue({ id: 10 });
         mockUpdateToothStatus.mockResolvedValue({});

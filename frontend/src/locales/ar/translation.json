@@ -3486,6 +3486,8 @@
     "tooth_condition_label": "حالة السن",
     "lab_section_title": "بيانات المعمل",
     "lab_select": "اختر المعمل",
+    "in_clinic": "بدون معمل (داخل العيادة)",
+    "lab_choice_required": "يرجى اختيار معمل أو بدون معمل داخل العيادة",
     "shade_label": "درجة اللون (Shade)",
     "material_label": "المادة (Material)",
     "delivery_date_label": "موعد الاستلام المتوقع",

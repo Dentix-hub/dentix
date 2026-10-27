@@ -39,6 +39,7 @@ export const useTreatmentOperations = ({
         const {
             skipToast = false,
             skipRefetch = false,
+            keepSheetOpen = false,
         } = options;
 
         try {
@@ -71,6 +72,21 @@ export const useTreatmentOperations = ({
                 patient_id: parseInt(patientId, 10)
             };
 
+            const combinedLab = Boolean(data.lab_choice);
+            if (combinedLab && labOrderData?.laboratory_id) {
+                payload.lab_order = {
+                    laboratory_id: parseInt(labOrderData.laboratory_id, 10),
+                    work_type: data.procedure,
+                    tooth_number: fdiToothNumber == null ? undefined : String(fdiToothNumber),
+                    ...(labOrderData.shade ? { shade: labOrderData.shade } : {}),
+                    ...(labOrderData.material ? { material: labOrderData.material } : {}),
+                    ...(labOrderData.delivery_date ? { delivery_date: labOrderData.delivery_date } : {}),
+                    ...(labOrderData.notes ? { notes: labOrderData.notes } : {}),
+                    ...(labOrderData.cost !== '' && labOrderData.cost != null ? { cost: Number(labOrderData.cost) } : {}),
+                    ...(labOrderData.paid_now !== '' && labOrderData.paid_now != null ? { paid_now: Number(labOrderData.paid_now) } : {}),
+                };
+            }
+
             // 1. Save Treatment
             let savedTreatment = null;
             if (editingTreatmentId) {
@@ -86,7 +102,7 @@ export const useTreatmentOperations = ({
             // 2. Create linked lab order if specified (D2, D3)
             let labOrderError = null;
             let labOrderExisting = false;
-            if (labOrderData?.laboratory_id && targetTreatmentId) {
+            if (!combinedLab && labOrderData?.laboratory_id && targetTreatmentId) {
                 try {
                     const labRes = await createLabOrder({
                         patient_id: parseInt(patientId, 10),
@@ -142,8 +158,10 @@ export const useTreatmentOperations = ({
                 }
             }
 
-            setIsTreatmentSheetOpen?.(false);
-            setEditingTreatmentId(null);
+            if (!keepSheetOpen) {
+                setIsTreatmentSheetOpen?.(false);
+                setEditingTreatmentId(null);
+            }
             if (!skipRefetch) {
                 await refetchClinicalData();
             }

@@ -264,6 +264,22 @@ class LabService:
         if not lab:
             raise ValueError("Laboratory not found")
 
+        # Native work-item references require the same tenant, patient and gate
+        # even when callers bypass the HTTP router.
+        if data.work_item_id is not None:
+            from backend.services.feature_service import FeatureFlagService
+            if not await FeatureFlagService.is_feature_enabled(self.db, "clinical_vnext_native_writes", self.tenant_id):
+                raise ValueError("ميزة العمل السريري غير مفعلة")
+            work_item = (await self.db.execute(select(models.ClinicalWorkItem).where(
+                models.ClinicalWorkItem.id == data.work_item_id,
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                models.ClinicalWorkItem.patient_id == data.patient_id,
+            ))).scalars().first()
+            if not work_item:
+                raise ValueError("العلاج السريري غير موجود")
+            if work_item.lab_choice == "in_clinic":
+                raise ValueError("لا يمكن إضافة طلب معمل لعلاج داخل العيادة")
+
         # G12-M16: Handoff idempotency - return existing active lab order if one exists
         if data.work_item_id is not None:
             stmt_existing = (
@@ -289,6 +305,10 @@ class LabService:
             treatment = (await self.db.execute(stmt_treatment)).scalars().first()
             if not treatment:
                 raise ValueError("Treatment not found")
+            if treatment.lab_choice == "in_clinic":
+                raise ValueError("لا يمكن إضافة طلب معمل لعلاج داخل العيادة")
+            if treatment.tooth_number is not None and data.tooth_number and str(treatment.tooth_number) != str(data.tooth_number):
+                raise ValueError("سن طلب المعمل لا يطابق العلاج")
 
             # D3 / Step 2: Idempotency - return existing active non-cancelled lab order if present
             stmt_existing = (

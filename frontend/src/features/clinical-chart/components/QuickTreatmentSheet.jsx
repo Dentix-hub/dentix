@@ -114,6 +114,7 @@ export default function QuickTreatmentSheet({
     onOpenDetails,
     initialData,
     isEditing = false,
+    isNativeWritesEnabled = false,
     procedures = [],
     patient = null,
     selectedToothCondition = 'Healthy',
@@ -130,6 +131,15 @@ export default function QuickTreatmentSheet({
     const [consumedMaterials, setConsumedMaterials] = useState([]);
     const [isSaving, setIsSaving] = useState(false);
     const isSavingRef = useRef(false);
+    const requestKeys = useRef(new Map());
+    useEffect(() => {
+        if (!isOpen) requestKeys.current.clear();
+    }, [isOpen]);
+    const requestKeyFor = (tooth) => {
+        const key = String(tooth || 'no-tooth');
+        if (!requestKeys.current.has(key)) requestKeys.current.set(key, globalThis.crypto.randomUUID());
+        return requestKeys.current.get(key);
+    };
     const [highlightedInvalidTeeth, setHighlightedInvalidTeeth] = useState([]);
 
     // UI expansion & specialized states
@@ -202,12 +212,13 @@ export default function QuickTreatmentSheet({
     // Check if prosthetic / lab required
     const isProsthetic = useMemo(() => {
         if (!treatment?.procedure) return false;
+        if (isNativeWritesEnabled) return matchedProcedure?.requires_lab === true;
         if (chartBehavior?.requires_lab) return true;
         if (chartBehavior?.category === 'prosthodontic' || chartBehavior?.category === 'prosthetics') return true;
         if (matchedProcedure?.category === 'prosthodontic' || matchedProcedure?.category === 'prosthetics') return true;
         if (matchedProcedure?.canonical_code?.startsWith('PROS_')) return true;
         return /crown|bridge|veneer|inlay|onlay|denture|طربوش|تاج|جسر|تركيب/i.test(treatment.procedure);
-    }, [chartBehavior, matchedProcedure, treatment?.procedure]);
+    }, [chartBehavior, matchedProcedure, treatment?.procedure, isNativeWritesEnabled]);
 
     // Cap at 32 teeth (full adult dentition).
     const effectiveTeeth = useMemo(() => {
@@ -305,7 +316,7 @@ export default function QuickTreatmentSheet({
         setIsAddingSession(false);
         setNewSessionData({ notes: '', next_session_date: '', status: 'completed' });
         setLabData({
-            laboratory_id: '',
+            laboratory_id: initialData?.lab_choice === 'in_clinic' ? 'in_clinic' : '',
             shade: '',
             material: '',
             delivery_date: '',
@@ -680,7 +691,11 @@ export default function QuickTreatmentSheet({
             }
         }
 
-        if (isProsthetic && labData.laboratory_id) {
+        if (isNativeWritesEnabled && isProsthetic && !linkedLabOrder && !labData.laboratory_id) {
+            toast.error(t('quick_treatment_sheet.lab_choice_required', 'يرجى اختيار معمل أو بدون معمل داخل العيادة'));
+            return;
+        }
+        if (isProsthetic && labData.laboratory_id && labData.laboratory_id !== 'in_clinic') {
             const numCost = parseFloat(labData.cost) || 0;
             const numPaid = parseFloat(labData.paid_now) || 0;
             if (numPaid > numCost) {
@@ -699,7 +714,11 @@ export default function QuickTreatmentSheet({
             cleanTreatment.explicit_tooth_condition = explicitToothCondition;
         }
         if (isProsthetic && labData.laboratory_id) {
-            cleanTreatment.lab_order = labData;
+            if (isNativeWritesEnabled) cleanTreatment.lab_choice = labData.laboratory_id === 'in_clinic' ? 'in_clinic' : 'external_lab';
+            if (labData.laboratory_id !== 'in_clinic') cleanTreatment.lab_order = labData;
+        }
+        if (isNativeWritesEnabled && !isEditing && !isMultiTooth) {
+            cleanTreatment.idempotency_key = requestKeyFor(treatment.tooth_number);
         }
 
         if (!isMultiTooth) {
@@ -721,7 +740,7 @@ export default function QuickTreatmentSheet({
                 await onSave(payload);
                 onClose?.();
             } catch (error) {
-                if (typeof onOpenDetails === 'function') {
+                if (!isNativeWritesEnabled && typeof onOpenDetails === 'function') {
                     onOpenDetails({
                         ...cleanTreatment,
                         cost: treatment.cost,
@@ -757,6 +776,7 @@ export default function QuickTreatmentSheet({
 
             const singleTreatment = {
                 ...cleanTreatment,
+                ...(isNativeWritesEnabled ? { idempotency_key: requestKeyFor(toothFdi) } : {}),
                 tooth_number: toothPalmer,
                 surfaces: toothSurfaces,
                 surface: toothSurfaces.join(''),
@@ -775,7 +795,7 @@ export default function QuickTreatmentSheet({
             );
 
             try {
-                await onSave(singlePayload, { skipToast: true, skipRefetch: true });
+                await onSave(singlePayload, { skipToast: true, skipRefetch: true, keepSheetOpen: true });
                 successCount++;
             } catch (error) {
                 failedIndex = i;
@@ -1707,12 +1727,14 @@ export default function QuickTreatmentSheet({
                                             className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-bold text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                         >
                                             <option value="">{t('quick_treatment_sheet.lab_select', 'اختر المعمل...')}</option>
+                                            {isNativeWritesEnabled && <option value="in_clinic">{t('quick_treatment_sheet.in_clinic', 'بدون معمل (داخل العيادة)')}</option>}
                                             {laboratories.map((lab) => (
                                                 <option key={lab.id} value={lab.id}>{lab.name}</option>
                                             ))}
                                         </select>
                                     </div>
 
+                                    {labData.laboratory_id !== 'in_clinic' && (<>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
                                             <label htmlFor="quick-treatment-lab-cost" className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -1822,6 +1844,7 @@ export default function QuickTreatmentSheet({
                                             />
                                         </div>
                                     </div>
+                                    </>)}
                                 </div>
                             )}
                         </div>
@@ -1959,7 +1982,7 @@ export default function QuickTreatmentSheet({
                         <button
                             type="submit"
                             data-testid="quick-treatment-save-button"
-                            disabled={isSaving}
+                            disabled={isSaving || (isNativeWritesEnabled && isProsthetic && !linkedLabOrder && !labData.laboratory_id)}
                             className="inline-flex min-h-11 items-center gap-1.5 rounded-xl bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-xs hover:bg-blue-700 disabled:opacity-60"
                         >
                             <Check className="h-4 w-4" aria-hidden="true" />
@@ -2034,6 +2057,7 @@ QuickTreatmentSheet.propTypes = {
     onOpenDetails: PropTypes.func,
     initialData: PropTypes.object,
     isEditing: PropTypes.bool,
+    isNativeWritesEnabled: PropTypes.bool,
     procedures: PropTypes.arrayOf(PropTypes.object),
     patient: PropTypes.object,
     selectedToothCondition: PropTypes.string,

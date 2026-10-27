@@ -3506,6 +3506,8 @@
     "tooth_condition_label": "Tooth Condition",
     "lab_section_title": "Laboratory Order",
     "lab_select": "Select Laboratory",
+    "in_clinic": "No laboratory (in clinic)",
+    "lab_choice_required": "Please select a laboratory or choose treatment in clinic",
     "shade_label": "Shade",
     "material_label": "Material",
     "delivery_date_label": "Expected Delivery Date",

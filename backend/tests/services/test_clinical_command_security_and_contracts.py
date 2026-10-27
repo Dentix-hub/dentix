@@ -489,7 +489,7 @@ async def test_standard_response_contract_across_all_g7_endpoints(client, seed_s
     assert bulk_f_data["count"] == 1
 
     # 6. POST /clinical-procedures
-    proc_payload = {"code": ProcedureCode.PROS_CROWN.value, "tooth_key": "24"}
+    proc_payload = {"code": ProcedureCode.PROS_CROWN.value, "tooth_key": "24", "lab_choice": "in_clinic"}
     r = client.post(f"/api/v1/patients/{patient_1.id}/clinical-procedures", headers=headers, json=proc_payload)
     proc_data = assert_standard_response(r, 201)
     proc_id = proc_data["id"]
@@ -754,6 +754,7 @@ async def test_idempotency_correction_entered_in_error_and_supersede(client, see
             "kind": "procedure",
             "code": ProcedureCode.PROS_CROWN.value,
             "status": "planned",
+            "lab_choice": "in_clinic",
             "targets": [{"target_kind": "tooth", "tooth_key": "37"}],
         },
     }
@@ -1051,3 +1052,23 @@ async def test_session_health_after_stale_data_error_and_rollback(async_db_sessi
         schemas.ClinicalFindingCreate(code=FindingCode.CARIES.value, tooth_key="22"),
     )
     assert new_finding.id is not None
+
+@pytest.mark.asyncio
+async def test_native_lab_choice_required_and_retry_fingerprint(client, seed_security_data, async_db_session):
+    tenant = seed_security_data["tenant_1"].id
+    await enable_flags_for_tenants(async_db_session, [tenant])
+    patient = seed_security_data["patient_t1_doc1"]
+    headers = make_headers(seed_security_data["doctor_1"])
+    headers["Idempotency-Key"] = "native-crown-choice-001"
+    url = f"/api/v1/patients/{patient.id}/clinical-procedures"
+    payload = {"code": ProcedureCode.PROS_CROWN.value, "tooth_key": "24"}
+    assert client.post(url, headers=headers, json=payload).status_code == 422
+    payload["lab_choice"] = "in_clinic"
+    first = client.post(url, headers=headers, json=payload)
+    assert first.status_code == 201
+    assert first.json()["data"]["lab_choice"] == "in_clinic"
+    replay = client.post(url, headers=headers, json=payload)
+    assert replay.status_code == 201
+    assert replay.json()["data"]["id"] == first.json()["data"]["id"]
+    payload["lab_choice"] = "external_lab"
+    assert client.post(url, headers=headers, json=payload).status_code == 409
