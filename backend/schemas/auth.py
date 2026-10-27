@@ -55,6 +55,17 @@ class UserUpdate(BaseModel):
     patient_visibility_mode: Optional[str] = None
 
 
+class UserRegisterRequest(BaseModel):
+    """JSON body contract for tenant admin user registration."""
+
+    username: Optional[str] = None
+    password: Optional[str] = None
+    full_name: Optional[str] = None
+    role: Optional[str] = None
+    permissions: Optional[str] = None
+    patient_visibility_mode: Optional[str] = None
+
+
 class UserAdminView(BaseModel):
     id: int
     username: str

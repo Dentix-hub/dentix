@@ -3,10 +3,10 @@ Users Router
 Handles user management within a tenant.
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
-from typing import List
+from typing import List, Optional
 
 from .. import models, schemas, crud, auth
 from backend.database import get_async_db
@@ -132,19 +132,62 @@ async def list_doctors(
 
 @router.post("/register", response_model=StandardResponse[schemas.User])
 async def register_user(
-    username: str,
-    password: str,
-    full_name: str = None,
-    role: str = "doctor",
-    permissions: str = None,
+    payload: Optional[schemas.UserRegisterRequest] = Body(default=None),
+    username: Optional[str] = Query(
+        default=None,
+        deprecated=True,
+        description="Deprecated fallback: pass username in JSON body instead.",
+    ),
+    password: Optional[str] = Query(
+        default=None,
+        deprecated=True,
+        description="Deprecated fallback: pass password in JSON body instead.",
+    ),
+    full_name: Optional[str] = Query(default=None, deprecated=True),
+    role: Optional[str] = Query(default=None, deprecated=True),
+    permissions: Optional[str] = Query(default=None, deprecated=True),
+    patient_visibility_mode: Optional[str] = Query(default=None, deprecated=True),
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
     """Register a new user in the current tenant."""
     tenant_id = _require_tenant_user_admin(current_user)
-    _validate_tenant_role(role)
 
-    if await crud.get_user(db, username):
+    raw_username = (
+        payload.username
+        if (payload is not None and payload.username is not None)
+        else username
+    )
+    raw_password = (
+        payload.password
+        if (payload is not None and payload.password is not None)
+        else password
+    )
+    effective_full_name = (
+        payload.full_name
+        if (payload is not None and payload.full_name is not None)
+        else full_name
+    )
+    effective_role = (
+        payload.role
+        if (payload is not None and payload.role is not None)
+        else role
+    ) or "doctor"
+    effective_permissions = (
+        payload.permissions
+        if (payload is not None and payload.permissions is not None)
+        else permissions
+    )
+    effective_visibility_mode = (
+        payload.patient_visibility_mode
+        if (payload is not None and payload.patient_visibility_mode is not None)
+        else patient_visibility_mode
+    ) or "all_assigned"
+
+    _validate_tenant_role(effective_role)
+    clean_display_username = crud.validate_and_trim_username(raw_username)
+
+    if await crud.get_user(db, clean_display_username):
         raise HTTPException(status_code=400, detail="Username already registered")
 
     stmt = select(models.Tenant).where(models.Tenant.id == tenant_id)
@@ -162,12 +205,17 @@ async def register_user(
                     detail=f"لقد وصلت للحد الأقصى من المستخدمين ({max_users}) في خطتك الحالية. يرجى الترقية لإضافة المزيد.",
                 )
 
-    validate_password(password)
+    validate_password(raw_password or "")
 
-    hashed_password = auth.get_password_hash(password)
-    user_in = schemas.User(username=username, full_name=full_name, role=role)
-    if permissions:
-        user_in.permissions = permissions
+    hashed_password = auth.get_password_hash(raw_password)
+    user_in = schemas.User(
+        username=clean_display_username,
+        full_name=effective_full_name,
+        role=effective_role,
+        patient_visibility_mode=effective_visibility_mode,
+    )
+    if effective_permissions:
+        user_in.permissions = effective_permissions
 
     user = await crud.create_user(db, user_in, hashed_password, tenant_id)
     return success_response(data=user, message="User registered")
@@ -189,6 +237,13 @@ async def update_user(
         raise HTTPException(status_code=404, detail="User not found")
     if user.role == "super_admin":
         raise HTTPException(status_code=403, detail="Platform users cannot be managed here")
+
+    if "username" in user_update.model_fields_set or user_update.username is not None:
+        trimmed_username = crud.validate_and_trim_username(user_update.username)
+        existing_user = await crud.get_user(db, trimmed_username)
+        if existing_user and existing_user.id != user_id:
+            raise HTTPException(status_code=400, detail="Username already registered")
+        user_update.username = trimmed_username
 
     password_changed = False
     if user_update.password:

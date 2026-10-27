@@ -14,6 +14,38 @@ def normalize_username(username: str) -> str:
     return u
 
 
+def sql_normalize_username(column):
+    """Build a SQL expression equivalent to normalize_username(column)."""
+    expr = func.lower(func.trim(column))
+    for src, dst in (
+        ("أ", "ا"),
+        ("إ", "ا"),
+        ("آ", "ا"),
+        ("ة", "ه"),
+        ("ى", "ي"),
+    ):
+        expr = func.replace(expr, src, dst)
+    return expr
+
+
+def validate_and_trim_username(username: str | None) -> str:
+    """Validate and trim username without lowercasing or Arabic-normalizing the stored display value."""
+    from fastapi import HTTPException
+
+    if username is None or not username.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="اسم المستخدم لا يمكن أن يكون فارغاً",
+        )
+    trimmed = username.strip()
+    if any(ch.isspace() for ch in trimmed):
+        raise HTTPException(
+            status_code=400,
+            detail="اسم المستخدم لا يجب أن يحتوي على مسافات داخلية",
+        )
+    return trimmed
+
+
 # --- Tenant CRUD ---
 async def get_tenant_by_name(db: AsyncSession, name: str):
     stmt = select(models.Tenant).where(models.Tenant.name == name)
@@ -40,8 +72,8 @@ async def get_user(db: AsyncSession, username: str):
     stmt = (
         select(models.User)
         .where(
-            (func.lower(models.User.email) == clean_username)
-            | (func.lower(models.User.username) == clean_username)
+            (func.lower(func.trim(models.User.email)) == clean_username)
+            | (sql_normalize_username(models.User.username) == clean_username)
         )
         .options(selectinload(models.User.tenant))
     )
@@ -62,12 +94,14 @@ async def get_user_by_id(db: AsyncSession, user_id: int, tenant_id: int):
 
 
 async def create_user(db: AsyncSession, user: schemas.User, password_hash: str, tenant_id: int):
+    trimmed_username = validate_and_trim_username(user.username)
     db_user = models.User(
-        username=user.username,
+        username=trimmed_username,
         full_name=user.full_name,
         hashed_password=password_hash,
         role=user.role,
         permissions=user.permissions,
+        patient_visibility_mode=user.patient_visibility_mode or "all_assigned",
         tenant_id=tenant_id,
     )
     db.add(db_user)
@@ -97,6 +131,8 @@ async def update_user(
     db_user = result.scalars().first()
     if db_user:
         update_data = user_update.dict(exclude_unset=True)
+        if "username" in update_data:
+            update_data["username"] = validate_and_trim_username(update_data["username"])
         # Handle password hashing if provided
         if "password" in update_data and update_data["password"]:
             from backend.auth import get_password_hash
