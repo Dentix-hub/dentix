@@ -134,3 +134,86 @@ async def test_reset_delivery_and_login_under_rls(system_account, monkeypatch, c
         assert expired_session.status_code == 401
         new_login = await client.post('/api/v1/auth/token', data={'username': username, 'password': 'NewDental92'})
         assert new_login.status_code == 200, new_login.text
+
+
+@pytest.mark.asyncio
+async def test_reset_supersession_and_failed_delivery_scrub_payload(monkeypatch, caplog):
+    import httpx
+    from backend import email_service
+    from backend.core.security import get_encryption_manager
+    from backend.main import app
+    from backend.services.event_service import event_service
+    from backend.workers.handlers import on_password_reset_requested
+
+    suffix = uuid.uuid4().hex
+    email = 'supersede_' + suffix + '@example.com'
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        async with session.bypass_rls() as db:
+            tenant = models.Tenant(name='Reset queue test', timezone='Africa/Cairo')
+            db.add(tenant)
+            await db.flush()
+            user = models.User(username='supersede_' + suffix, email=email, role='admin', tenant_id=tenant.id, is_active=True, hashed_password='synthetic')
+            db.add(user)
+            await db.commit()
+            user_id = user.id
+    monkeypatch.setattr(email_service, 'send_password_reset_email', lambda *_args: False)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+        first = await client.post('/api/v1/auth/forgot-password', json={'email': email})
+        assert first.status_code == 200
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+            async with session.bypass_rls() as db:
+                event = (await db.execute(select(models.DomainEvent).where(models.DomainEvent.event_type == 'auth.password_reset.requested', models.DomainEvent.aggregate_id == str(user_id)))).scalar_one()
+                first_id = event.id
+                old_token = get_encryption_manager().decrypt(event.payload['encrypted_token'], allow_plaintext_fallback=False)
+        second = await client.post('/api/v1/auth/forgot-password', json={'email': email})
+        assert second.status_code == first.status_code
+        assert second.json()['message'] == first.json()['message']
+        assert (await client.get('/api/v1/auth/verify-reset-token', params={'token': old_token})).status_code == 400
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+            async with session.bypass_rls() as db:
+                events = (await db.execute(select(models.DomainEvent).where(models.DomainEvent.event_type == 'auth.password_reset.requested', models.DomainEvent.aggregate_id == str(user_id)).order_by(models.DomainEvent.id))).scalars().all()
+                assert len(events) == 2 and events[0].id == first_id and events[0].payload == {}
+                newest = events[1]
+                new_token = get_encryption_manager().decrypt(newest.payload['encrypted_token'], allow_plaintext_fallback=False)
+                with pytest.raises(RuntimeError, match='Password reset delivery failed'):
+                    await on_password_reset_requested(newest)
+                for _ in range(newest.max_attempts):
+                    await event_service.mark_failed(db, newest.id, 'Password reset delivery failed')
+                await db.refresh(newest)
+                assert newest.status == 'failed' and newest.payload == {}
+        assert old_token not in caplog.text and new_token not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_reset_preserves_2fa_and_scrubs_expired_delivery():
+    import httpx
+    from backend.auth import get_password_hash
+    from backend.main import app
+    from backend.services.event_service import event_service
+
+    suffix = uuid.uuid4().hex
+    raw = 'synthetic-' + suffix
+    digest = hashlib.sha256(raw.encode()).hexdigest()
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        async with session.bypass_rls() as db:
+            tenant = models.Tenant(name='Reset 2FA test', timezone='Africa/Cairo')
+            db.add(tenant)
+            await db.flush()
+            user = models.User(username='twofa_reset_' + suffix, email='twofa_' + suffix + '@example.com', role='admin', tenant_id=tenant.id, is_active=True, is_2fa_enabled=True, otp_secret='JBSWY3DPEHPK3PXP', hashed_password=get_password_hash('OldDental92'))
+            db.add(user)
+            await db.flush()
+            db.add(models.PasswordResetToken(user_id=user.id, token=digest, expires_at=datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(minutes=15)))
+            event = models.DomainEvent(tenant_id=tenant.id, event_type='auth.password_reset.requested', aggregate_type='password_reset', aggregate_id=str(user.id), payload={'encrypted_token': 'expired-synthetic-ciphertext'}, status='failed', created_at=datetime.now(timezone.utc) - timedelta(minutes=16))
+            db.add(event)
+            await db.commit()
+            user_id, event_id = user.id, event.id
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+        response = await client.post('/api/v1/auth/reset-password', json={'token': raw, 'new_password': 'NewDental92'})
+        assert response.status_code == 200, response.text
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        async with session.bypass_rls() as db:
+            user = (await db.execute(select(models.User).where(models.User.id == user_id))).scalar_one()
+            assert user.is_2fa_enabled is True and user.otp_secret == 'JBSWY3DPEHPK3PXP'
+            await event_service.get_pending_events(db, limit=1)
+            event = (await db.execute(select(models.DomainEvent).where(models.DomainEvent.id == event_id))).scalar_one()
+            assert event.payload == {}

@@ -58,6 +58,14 @@ async def forgot_password(
                 .where(models.PasswordResetToken.user_id == user.id, models.PasswordResetToken.used.is_(False))
                 .values(used=True)
             )
+            # Superseded delivery material must not remain in the outbox.
+            await scoped_db.execute(
+                update(models.DomainEvent)
+                .where(models.DomainEvent.event_type == "auth.password_reset.requested",
+                       models.DomainEvent.aggregate_id == str(user.id),
+                       models.DomainEvent.tenant_id.is_(None) if user.tenant_id is None else models.DomainEvent.tenant_id == user.tenant_id)
+                .values(payload={})
+            )
             token = secrets.token_urlsafe(32)
             token_hash = hashlib.sha256(token.encode()).hexdigest()
             expires_at = (datetime.now(timezone.utc) + timedelta(minutes=15)).replace(tzinfo=None)

@@ -74,6 +74,17 @@ class EventService:
         """
         now = datetime.now(timezone.utc)
 
+        # Reset links expire after 15 minutes. Scrub encrypted material from
+        # queued/failed events even if the worker was stopped past expiry.
+        await db.execute(
+            DomainEvent.__table__.update().where(
+                DomainEvent.event_type == "auth.password_reset.requested",
+                DomainEvent.created_at < now - timedelta(minutes=15),
+                DomainEvent.status != "processing",
+            ).values(payload={})
+        )
+        await db.commit()
+
         # Reclaim events abandoned by crashed workers before claiming new ones.
         await EventService.recover_stale_processing(db)
 
