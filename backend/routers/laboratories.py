@@ -304,6 +304,11 @@ async def create_lab_order(
             raise HTTPException(status_code=404, detail="Clinical work item not found")
         if work_item.lab_choice == "in_clinic":
             raise HTTPException(status_code=422, detail="لا يمكن إضافة طلب معمل لعلاج داخل العيادة")
+        from backend.clinical.lab_links import validate_work_item_lab_link
+        try:
+            await validate_work_item_lab_link(db, tenant_id=current_user.tenant_id, work_item=work_item, order=order)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
         # G12-M16: Handoff idempotency - return existing active lab order if present
         stmt_existing = (
@@ -346,8 +351,11 @@ async def create_lab_order(
             raise HTTPException(status_code=404, detail="Treatment not found")
         if treatment.lab_choice == "in_clinic":
             raise HTTPException(status_code=422, detail="لا يمكن إضافة طلب معمل لعلاج داخل العيادة")
-        if treatment.tooth_number is not None and order.tooth_number and str(treatment.tooth_number) != str(order.tooth_number):
-            raise HTTPException(status_code=422, detail="سن طلب المعمل لا يطابق العلاج")
+        from backend.clinical.lab_links import validate_treatment_lab_link
+        try:
+            validate_treatment_lab_link(treatment, order)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
         # D3 / Step 2: Idempotency - return existing active non-cancelled lab order if present
         stmt_existing = (

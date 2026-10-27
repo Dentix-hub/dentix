@@ -136,3 +136,58 @@ async def test_confirmed_restore_coordinator_preserves_outcome():
             assert outcome.status == 'completed' and outcome.encrypted_payload is None
     finally:
         clear_tenant_context(tenant_token=token)
+
+
+@pytest.mark.asyncio
+async def test_restore_preserves_lab_payment_inventory_and_embedded_links():
+    from datetime import date
+    from backend.services.tenant_archive_embedded_refs import validate_embedded_references
+    suffix = uuid.uuid4().hex
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        async with session.bypass_rls() as db:
+            tenant = models.Tenant(name='Archive finance clinic')
+            db.add(tenant)
+            await db.flush()
+            user = models.User(tenant_id=tenant.id, username='finance_' + suffix, email=suffix + '@example.com', hashed_password='synthetic', role='admin', is_active=True)
+            patient = models.Patient(tenant_id=tenant.id, name='Synthetic', age=30, phone='0', medical_history='', notes='')
+            lab = models.Laboratory(tenant_id=tenant.id, name='Synthetic lab')
+            warehouse = models.Warehouse(tenant_id=tenant.id, name='Synthetic warehouse')
+            material = models.Material(tenant_id=tenant.id, name='Synthetic material', type='DIVISIBLE', base_unit='g')
+            db.add_all([user, patient, lab, warehouse, material])
+            await db.flush()
+            treatment = models.Treatment(tenant_id=tenant.id, patient_id=patient.id, doctor_id=user.id, procedure='Crown', tooth_number=16, cost=Decimal('300'), discount=Decimal('10'), lab_choice='external_lab')
+            batch = models.Batch(tenant_id=tenant.id, material_id=material.id, batch_number='synthetic', expiry_date=date(2030, 1, 1), cost_per_unit=Decimal('2.50'))
+            db.add_all([treatment, batch])
+            await db.flush()
+            order = models.LabOrder(tenant_id=tenant.id, patient_id=patient.id, laboratory_id=lab.id, treatment_id=treatment.id, doctor_id=user.id, work_type='Crown', tooth_number='16', cost=Decimal('100'), price_to_patient=Decimal('0'))
+            stock = models.StockItem(tenant_id=tenant.id, warehouse_id=warehouse.id, batch_id=batch.id, quantity=8.5)
+            db.add_all([order, stock])
+            await db.flush()
+            db.add_all([
+                models.LabPayment(tenant_id=tenant.id, laboratory_id=lab.id, lab_order_id=order.id, amount=Decimal('25')),
+                models.StockMovement(tenant_id=tenant.id, stock_item_id=stock.id, change_amount=-1.5, reason='use', reference_id=f'TREATMENT:{treatment.id}', performed_by=user.id),
+                models.MaterialSession(tenant_id=tenant.id, stock_item_id=stock.id, patient_id=patient.id, doctor_id=user.id, remaining_est=0.5),
+            ])
+            await db.commit()
+            tenant_id, treatment_id = tenant.id, treatment.id
+    token = set_current_tenant_id(tenant_id)
+    try:
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=tenant_id)) as db:
+            data = validate_archive_sections(await export_clinic_archive_data(db, tenant_id), tenant_id=tenant_id)
+            validate_archive_values(data)
+            validate_archive_references(data, tenant_id=tenant_id)
+            validate_embedded_references(data, tenant_id=tenant_id)
+            staff = await resolve_staff_mapping(db, tenant_id, data['staff_references'])
+            counts, mapping = await replace_clinic_business_data(db, tenant_id=tenant_id, data=data, staff_mapping=staff)
+            await db.commit()
+            assert counts['lab_payments'] == counts['stock_movements'] == counts['material_sessions'] == 1
+            order = (await db.execute(select(models.LabOrder).where(models.LabOrder.tenant_id == tenant_id))).scalar_one()
+            payment = (await db.execute(select(models.LabPayment).where(models.LabPayment.tenant_id == tenant_id))).scalar_one()
+            movement = (await db.execute(select(models.StockMovement).where(models.StockMovement.tenant_id == tenant_id))).scalar_one()
+            stock = (await db.execute(select(models.StockItem).where(models.StockItem.tenant_id == tenant_id))).scalar_one()
+            assert order.treatment_id == mapping['treatments'][treatment_id]
+            assert payment.lab_order_id == order.id and payment.amount == Decimal('25')
+            assert movement.reference_id == f"TREATMENT:{mapping['treatments'][treatment_id]}"
+            assert stock.quantity == 8.5 and movement.change_amount == -1.5
+    finally:
+        clear_tenant_context(tenant_token=token)

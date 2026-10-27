@@ -97,3 +97,20 @@ async def test_multi_procedure_failure_rolls_back_prior_treatment_order_and_paym
     assert (await async_db_session.execute(select(func.count(models.Treatment.id)))).scalar_one() == before
     assert (await async_db_session.execute(select(func.count(models.LabOrder.id)))).scalar_one() == 0
     assert (await async_db_session.execute(select(func.count(models.LabPayment.id)))).scalar_one() == 0
+
+
+@pytest.mark.asyncio
+async def test_direct_lab_order_rejects_mismatched_procedure(async_db_session, test_user, test_patient):
+    from backend.routers.laboratories import create_lab_order
+    from backend.services.lab_service import LabService
+    lab = models.Laboratory(name='Mismatch Test Lab', tenant_id=test_user.tenant_id)
+    treatment = models.Treatment(patient_id=test_patient.id, tooth_number=16, procedure='Crown', cost=Decimal('500'), discount=0, tenant_id=test_user.tenant_id, doctor_id=test_user.id)
+    async_db_session.add_all([lab, treatment])
+    await async_db_session.commit()
+    order = schemas.LabOrderCreate(patient_id=test_patient.id, laboratory_id=lab.id, treatment_id=treatment.id, work_type='Bridge', tooth_number='16')
+    with pytest.raises(HTTPException) as exc:
+        await create_lab_order(order=order, db=async_db_session, current_user=test_user)
+    assert exc.value.status_code == 422
+    with pytest.raises(ValueError):
+        await LabService(async_db_session, test_user.tenant_id).create_lab_order(order, doctor_id=test_user.id)
+    assert (await async_db_session.execute(select(func.count(models.LabOrder.id)).where(models.LabOrder.treatment_id == treatment.id))).scalar_one() == 0

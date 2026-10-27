@@ -279,6 +279,8 @@ class LabService:
                 raise ValueError("العلاج السريري غير موجود")
             if work_item.lab_choice == "in_clinic":
                 raise ValueError("لا يمكن إضافة طلب معمل لعلاج داخل العيادة")
+            from backend.clinical.lab_links import validate_work_item_lab_link
+            await validate_work_item_lab_link(self.db, tenant_id=self.tenant_id, work_item=work_item, order=data)
 
         # G12-M16: Handoff idempotency - return existing active lab order if one exists
         if data.work_item_id is not None:
@@ -307,8 +309,8 @@ class LabService:
                 raise ValueError("Treatment not found")
             if treatment.lab_choice == "in_clinic":
                 raise ValueError("لا يمكن إضافة طلب معمل لعلاج داخل العيادة")
-            if treatment.tooth_number is not None and data.tooth_number and str(treatment.tooth_number) != str(data.tooth_number):
-                raise ValueError("سن طلب المعمل لا يطابق العلاج")
+            from backend.clinical.lab_links import validate_treatment_lab_link
+            validate_treatment_lab_link(treatment, data)
 
             # D3 / Step 2: Idempotency - return existing active non-cancelled lab order if present
             stmt_existing = (
