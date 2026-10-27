@@ -11,6 +11,7 @@ from sqlalchemy import select
 from backend import models
 from backend.services.tenant_archive import ArchiveError, decode_archive
 from backend.services.tenant_archive_identity import resolve_staff_mapping
+from backend.services.tenant_archive_embedded_refs import validate_embedded_references
 from backend.services.tenant_archive_registry import (
     validate_archive_references, validate_archive_sections, validate_archive_values,
 )
@@ -31,6 +32,7 @@ async def create_restore_preview(db, *, tenant_id, actor_id, archive, installati
     data = validate_archive_sections(payload, tenant_id=tenant_id)
     validate_archive_values(data)
     validate_archive_references(data, tenant_id=tenant_id, external_ids=external_ids)
+    validate_embedded_references(data, tenant_id=tenant_id, external_ids=external_ids)
     staff_mapping = await resolve_staff_mapping(db, tenant_id, data['staff_references'])
     counts = {name: len(rows) for name, rows in data.items()}
     if header.get('counts') != counts:
@@ -70,3 +72,17 @@ async def confirm_restore_preview(db, *, tenant_id, actor_id, operation_id, conf
     operation.status = 'confirmed'
     await db.commit()
     return operation
+
+
+async def expire_restore_previews(db, *, tenant_id):
+    """Remove expired encrypted input without exposing its contents."""
+    from sqlalchemy import update
+    stmt = (update(models.TenantDataOperation).where(
+        models.TenantDataOperation.tenant_id == tenant_id,
+        models.TenantDataOperation.kind == 'restore',
+        models.TenantDataOperation.status.in_(['previewed', 'confirmed']),
+        models.TenantDataOperation.expires_at <= _now(),
+    ).values(status='expired', encrypted_payload=None, completed_at=_now()))
+    result = await db.execute(stmt)
+    await db.commit()
+    return result.rowcount

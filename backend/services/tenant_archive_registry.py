@@ -53,7 +53,7 @@ ARCHIVE_COLUMNS = {
 STAFF_REFERENCE_SECTION = "staff_references"
 STAFF_REFERENCE_COLUMNS = frozenset({"id", "username", "full_name", "email", "commission_percent", "fixed_salary", "per_appointment_fee", "hire_date"})
 
-def validate_archive_sections(payload, *, tenant_id):
+def validate_archive_sections(payload, *, tenant_id, require_complete=True):
     """Reject unrecognized sections, columns, ownership and duplicate row IDs.
 
     Reference, type and live identity validation remain mandatory before any
@@ -73,7 +73,7 @@ def validate_archive_sections(payload, *, tenant_id):
             raise ArchiveError('بيانات النسخة الاحتياطية غير صالحة')
         ids = set()
         for row in rows:
-            if not isinstance(row, dict) or set(row) - allowed:
+            if not isinstance(row, dict) or set(row) - allowed or (require_complete and set(row) != allowed):
                 raise ArchiveError('تحتوي النسخة الاحتياطية على بيانات غير مدعومة')
             row_id = row.get('id')
             if not isinstance(row_id, int) or isinstance(row_id, bool) or row_id <= 0 or row_id in ids:
@@ -132,9 +132,7 @@ def validate_archive_values(data):
     from backend.services.tenant_archive import ArchiveError
 
     for name, rows in data.items():
-        if name == STAFF_REFERENCE_SECTION:
-            continue
-        table = models.Base.metadata.tables[name]
+        table = models.User.__table__ if name == STAFF_REFERENCE_SECTION else models.Base.metadata.tables[name]
         for row in rows:
             for key, value in row.items():
                 column = table.c[key]

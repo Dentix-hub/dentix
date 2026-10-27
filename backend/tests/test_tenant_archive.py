@@ -51,18 +51,18 @@ def test_registry_rejects_unknown_columns_and_cross_tenant_rows():
     payload = {'data': {name: [] for name in ARCHIVE_COLUMNS}}
     payload['data']['staff_references'] = []
     payload['data']['patients'] = [{'id': 1, 'tenant_id': 7, 'name': 'synthetic'}]
-    assert validate_archive_sections(payload, tenant_id=7)['patients'][0]['id'] == 1
+    assert validate_archive_sections(payload, tenant_id=7, require_complete=False)['patients'][0]['id'] == 1
     payload['data']['patients'][0]['tenant_id'] = 8
     with pytest.raises(ArchiveError):
-        validate_archive_sections(payload, tenant_id=7)
+        validate_archive_sections(payload, tenant_id=7, require_complete=False)
     payload['data']['patients'][0]['tenant_id'] = 7
     payload['data']['patients'][0]['unexpected'] = 'value'
     with pytest.raises(ArchiveError):
-        validate_archive_sections(payload, tenant_id=7)
+        validate_archive_sections(payload, tenant_id=7, require_complete=False)
     payload['data']['patients'][0].pop('unexpected')
     payload['data']['staff_references'] = [{'id': 2, 'hashed_password': 'forbidden'}]
     with pytest.raises(ArchiveError):
-        validate_archive_sections(payload, tenant_id=7)
+        validate_archive_sections(payload, tenant_id=7, require_complete=False)
 
 
 @pytest.mark.asyncio
@@ -93,7 +93,7 @@ def test_registry_rejects_missing_or_forged_foreign_references():
     payload['data']['staff_references'] = [{'id': 3, 'username': 'synthetic'}]
     payload['data']['patients'] = [{'id': 1, 'tenant_id': 7, 'assigned_doctor_id': 3}]
     payload['data']['treatments'] = [{'id': 4, 'tenant_id': 7, 'patient_id': 1, 'doctor_id': 3}]
-    data = validate_archive_sections(payload, tenant_id=7)
+    data = validate_archive_sections(payload, tenant_id=7, require_complete=False)
     validate_archive_references(data, tenant_id=7)
     data['treatments'][0]['patient_id'] = 99
     with pytest.raises(ArchiveError):
@@ -127,7 +127,7 @@ def test_registry_rejects_invalid_money_and_column_types():
     payload['data']['staff_references'] = []
     payload['data']['expenses'] = [{'id': 1, 'tenant_id': 7, 'item_name': 'synthetic', 'cost': '10.25'}]
     payload['data']['stock_items'] = [{'id': 2, 'tenant_id': 7, 'quantity': 1.25}]
-    data = validate_archive_sections(payload, tenant_id=7)
+    data = validate_archive_sections(payload, tenant_id=7, require_complete=False)
     validate_archive_values(data)
     data['expenses'][0]['cost'] = 'NaN'
     with pytest.raises(ArchiveError):
@@ -141,11 +141,13 @@ def test_registry_rejects_invalid_money_and_column_types():
 @pytest.mark.asyncio
 async def test_preview_confirmation_binds_actor_file_and_is_single_use(async_db_session, test_user):
     import hashlib
-    from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS
+    from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS, STAFF_REFERENCE_COLUMNS
     from backend.services.tenant_restore_preview import create_restore_preview, confirm_restore_preview
 
     data = {name: [] for name in ARCHIVE_COLUMNS}
-    data['staff_references'] = [{'id': test_user.id, 'username': test_user.username}]
+    from backend.services.tenant_archive_export import _serialize
+    staff = {column: _serialize(getattr(test_user, column)) for column in STAFF_REFERENCE_COLUMNS}
+    data['staff_references'] = [staff]
     archive = encode_archive({'data': data}, tenant_id=test_user.tenant_id,
                              installation_id='synthetic', schema_revision='revision', key_id='k', key=b'a' * 32)
     operation, confirmation, _, _, mapping = await create_restore_preview(
@@ -173,3 +175,20 @@ def test_restore_gate_covers_each_archived_business_table():
     from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS
     migration = importlib.import_module('backend.alembic.versions.d42a71e9bc83_restore_transaction_gate')
     assert set(ARCHIVE_COLUMNS) == set(migration.TENANT_TABLES) - {'users'} | {'price_list_items'}
+
+
+def test_serialized_references_are_rebound_and_unknown_values_fail_closed():
+    from backend.services.tenant_archive_embedded_refs import (
+        remap_event_payload, remap_price_snapshot, remap_stock_reference, remap_treatment_note,
+    )
+    mapping = {'treatments': {1: 101}, 'lab_orders': {2: 202}, 'clinical_work_items': {3: 303},
+               'price_lists': {4: 404}, 'care_sessions': {5: 505}}
+    assert remap_stock_reference('REVERSE:TREATMENT:1', mapping) == 'REVERSE:TREATMENT:101'
+    assert remap_stock_reference('CARE_SESSION:5', mapping) == 'CARE_SESSION:505'
+    assert remap_treatment_note('Link:LabOrder:2', mapping) == 'Link:LabOrder:202'
+    assert remap_event_payload({'treatment_id': 1, 'bulk_work_item_ids': [3]}, mapping) == {'treatment_id': 101, 'bulk_work_item_ids': [303]}
+    assert json.loads(remap_price_snapshot('{"list_id":4,"unit_price":"12.50"}', mapping)) == {'list_id': 404, 'unit_price': '12.50'}
+    with pytest.raises(ArchiveError):
+        remap_stock_reference('TREATMENT:999', mapping)
+    with pytest.raises(ArchiveError):
+        remap_event_payload({'unknown_patient_id': 42}, mapping)
