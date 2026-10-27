@@ -68,3 +68,29 @@ explicit blank-email clear behavior.
 
 No production database, email delivery, or deployed-client checks were performed.
 The report CLI prints counts only; matching username tuples remain internal.
+
+## Plan-level findings and targeted follow-up
+
+The single combined full run found six migration-test failures introduced by the
+new head: two pinned-head expectations and four partial SQLite fixtures that
+reached head without a `users` table. Fixtures now include a legacy NOT NULL
+email column and unique index; pinned-head checks assert the new revision and
+its parent while retaining every old lineage assertion. No domain/data assertions
+were removed, relaxed or skipped. The migration still fails on a truly missing
+production users table and still refuses unsafe downgrade.
+
+Targeted recheck of the five affected migration test files plus optional-email
+and lineage tests: **61 passed, 1 skipped**, exit 0. The sole skip is the existing
+live PostgreSQL clinical-trigger test; this recheck uses SQLite. The full suite
+was not repeated, as requested.
+
+Manual staging path after approval (under 15 minutes):
+1. As clinic admin, add two users without email, including `أحمد` or `فاطمة`.
+2. Log in with the typed usernames and passwords; confirm no lockout.
+3. Verify JSON registration preserves full name and patient visibility mode.
+4. Add a user with email, reject a duplicate, then clear the address on update.
+5. Set up TOTP for a no-email account; confirm the QR account label is its username.
+
+Rollback: revert application changes if needed. Schema downgrade requires all
+NULL addresses to be resolved with valid unique addresses first; never invent
+addresses or delete accounts just to make downgrade run.

@@ -60,6 +60,9 @@ def test_g13_m10_legacy_usage_rows_are_invariant_across_s26_migration(monkeypatc
         config.set_main_option("sqlalchemy.url", sqlite_url)
 
         with engine.connect() as conn:
+            # Head also migrates users.email; keep the legacy prerequisite schema realistic.
+            conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR NOT NULL)"))
+            conn.execute(sa.text("CREATE UNIQUE INDEX ix_users_email ON users(email)"))
             conn.execute(sa.text("CREATE TABLE tenants (id INTEGER PRIMARY KEY, name VARCHAR)"))
             conn.execute(sa.text("CREATE TABLE treatments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE materials (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
