@@ -85,3 +85,37 @@ async def test_registry_export_scopes_tenant_and_excludes_credentials(async_db_s
     assert all(row['tenant_id'] == test_user.tenant_id for row in data['expenses'])
     staff = next(row for row in data['staff_references'] if row['id'] == test_user.id)
     assert 'hashed_password' not in staff and 'role' not in staff and 'permissions' not in staff
+
+
+def test_registry_rejects_missing_or_forged_foreign_references():
+    from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS, validate_archive_references, validate_archive_sections
+    payload = {'data': {name: [] for name in ARCHIVE_COLUMNS}}
+    payload['data']['staff_references'] = [{'id': 3, 'username': 'synthetic'}]
+    payload['data']['patients'] = [{'id': 1, 'tenant_id': 7, 'assigned_doctor_id': 3}]
+    payload['data']['treatments'] = [{'id': 4, 'tenant_id': 7, 'patient_id': 1, 'doctor_id': 3}]
+    data = validate_archive_sections(payload, tenant_id=7)
+    validate_archive_references(data, tenant_id=7)
+    data['treatments'][0]['patient_id'] = 99
+    with pytest.raises(ArchiveError):
+        validate_archive_references(data, tenant_id=7)
+    data['treatments'][0]['patient_id'] = 1
+    data['treatments'][0]['doctor_id'] = 99
+    with pytest.raises(ArchiveError):
+        validate_archive_references(data, tenant_id=7)
+
+
+@pytest.mark.asyncio
+async def test_staff_mapping_uses_existing_tenant_identity_and_fails_closed(async_db_session, test_user):
+    from backend.services.tenant_archive_identity import resolve_staff_mapping
+    mapping = await resolve_staff_mapping(async_db_session, test_user.tenant_id, [
+        {'id': test_user.id, 'username': test_user.username},
+    ])
+    assert mapping == {test_user.id: test_user.id}
+    with pytest.raises(ArchiveError):
+        await resolve_staff_mapping(async_db_session, test_user.tenant_id, [
+            {'id': test_user.id, 'username': 'different-synthetic-user'},
+        ])
+    with pytest.raises(ArchiveError):
+        await resolve_staff_mapping(async_db_session, test_user.tenant_id + 99999, [
+            {'id': test_user.id, 'username': test_user.username},
+        ])

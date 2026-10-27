@@ -82,3 +82,37 @@ def validate_archive_sections(payload, *, tenant_id):
             if 'tenant_id' in allowed and row.get('tenant_id') != tenant_id:
                 raise ArchiveError('النسخة الاحتياطية لا تخص هذه العيادة')
     return data
+
+
+def validate_archive_references(data, *, tenant_id, external_ids=None):
+    """Validate declared SQL foreign keys before beginning a restore transaction.
+
+    External IDs must have been independently resolved against the current
+    installation; archive contents never authorize them. JSON clinical event
+    payload references also require format-specific validation before import.
+    """
+    from backend import models
+    from backend.services.tenant_archive import ArchiveError
+
+    external_ids = external_ids or {}
+    if set(external_ids) - {'material_categories', 'procedures'}:
+        raise ArchiveError('مرجع خارجي غير مدعوم في النسخة الاحتياطية')
+    ids = {name: {row['id'] for row in rows} for name, rows in data.items()}
+    ids['users'] = ids[STAFF_REFERENCE_SECTION]
+    ids['tenants'] = {tenant_id}
+    for name, rows in data.items():
+        if name == STAFF_REFERENCE_SECTION:
+            continue
+        table = models.Base.metadata.tables[name]
+        for column in table.columns:
+            if column.name not in ARCHIVE_COLUMNS[name]:
+                continue
+            for foreign in column.foreign_keys:
+                referenced = foreign.column.table.name
+                if foreign.column.name != 'id':
+                    raise ArchiveError('مرجع غير مدعوم في النسخة الاحتياطية')
+                allowed = ids.get(referenced, set()) | set(external_ids.get(referenced, ()))
+                for row in rows:
+                    value = row.get(column.name)
+                    if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value not in allowed):
+                        raise ArchiveError('تحتوي النسخة الاحتياطية على مرجع غير صالح')
