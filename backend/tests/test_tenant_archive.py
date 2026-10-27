@@ -44,3 +44,44 @@ def test_size_limit_rejects_input_and_output(archive_args):
     archive = encode_archive({'data': {}}, **archive_args)
     with pytest.raises(ArchiveError):
         decode_archive(archive, tenant_id=7, installation_id='synthetic-installation', keys={'current': b'a' * 32}, max_bytes=20)
+
+
+def test_registry_rejects_unknown_columns_and_cross_tenant_rows():
+    from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS, validate_archive_sections
+    payload = {'data': {name: [] for name in ARCHIVE_COLUMNS}}
+    payload['data']['staff_references'] = []
+    payload['data']['patients'] = [{'id': 1, 'tenant_id': 7, 'name': 'synthetic'}]
+    assert validate_archive_sections(payload, tenant_id=7)['patients'][0]['id'] == 1
+    payload['data']['patients'][0]['tenant_id'] = 8
+    with pytest.raises(ArchiveError):
+        validate_archive_sections(payload, tenant_id=7)
+    payload['data']['patients'][0]['tenant_id'] = 7
+    payload['data']['patients'][0]['unexpected'] = 'value'
+    with pytest.raises(ArchiveError):
+        validate_archive_sections(payload, tenant_id=7)
+    payload['data']['patients'][0].pop('unexpected')
+    payload['data']['staff_references'] = [{'id': 2, 'hashed_password': 'forbidden'}]
+    with pytest.raises(ArchiveError):
+        validate_archive_sections(payload, tenant_id=7)
+
+
+@pytest.mark.asyncio
+async def test_registry_export_scopes_tenant_and_excludes_credentials(async_db_session, test_user, test_patient):
+    from decimal import Decimal
+    from backend import models
+    from backend.services.tenant_archive_export import export_clinic_archive_data
+    from backend.services.tenant_archive_registry import validate_archive_sections
+
+    expense = models.Expense(tenant_id=test_user.tenant_id, item_name='Synthetic', cost=Decimal('123.45'), category='Other')
+    other = models.Tenant(name='Other archive tenant', domain='archive-other.invalid', is_active=True)
+    async_db_session.add_all([expense, other])
+    await async_db_session.flush()
+    async_db_session.add(models.Expense(tenant_id=other.id, item_name='Other tenant', cost=Decimal('999'), category='Other'))
+    await async_db_session.commit()
+    payload = await export_clinic_archive_data(async_db_session, test_user.tenant_id)
+    data = validate_archive_sections(payload, tenant_id=test_user.tenant_id)
+    assert any(row['id'] == test_patient.id for row in data['patients'])
+    assert next(row for row in data['expenses'] if row['id'] == expense.id)['cost'] == '123.45'
+    assert all(row['tenant_id'] == test_user.tenant_id for row in data['expenses'])
+    staff = next(row for row in data['staff_references'] if row['id'] == test_user.id)
+    assert 'hashed_password' not in staff and 'role' not in staff and 'permissions' not in staff
