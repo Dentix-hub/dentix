@@ -35,6 +35,7 @@ logger = logging.getLogger("smart_clinic.auth")
 # Reasons are fixed tokens so audit queries stay predictable.
 REASON_LOGIN = "login_credential_lookup"
 REASON_REFRESH = "refresh_token_exchange"
+REASON_2FA = "second_factor_lookup"
 REASON_SESSION_RESOLVE = "session_identity_resolution"
 
 SUPER_ADMIN_ROLE = "super_admin"

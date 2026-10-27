@@ -75,7 +75,22 @@ describe('Login Component', () => {
         fireEvent.change(screen.getByPlaceholderText('auth.login.username'), { target: { value: ' admin ' } });
         fireEvent.change(screen.getByPlaceholderText('auth.login.password'), { target: { value: 'pass123' } });
         fireEvent.click(screen.getByText('auth.login.submit'));
-        await waitFor(() => expect(loginMock).toHaveBeenCalledWith('admin', 'pass123'));
+        await waitFor(() => expect(loginMock).toHaveBeenCalledWith('admin', 'pass123', false));
+    });
+
+    it('toggles password visibility without submitting and sends remember-me', async () => {
+        renderLogin();
+        const password = screen.getByPlaceholderText('auth.login.password');
+        const checkbox = screen.getByRole('checkbox', { name: 'auth.login.remember_me' });
+        expect(checkbox).not.toBeChecked();
+        fireEvent.click(screen.getByRole('button', { name: 'auth.show_password' }));
+        expect(password).toHaveAttribute('type', 'text');
+        expect(loginMock).not.toHaveBeenCalled();
+        fireEvent.click(checkbox);
+        fireEvent.change(screen.getByPlaceholderText('auth.login.username'), { target: { value: 'admin' } });
+        fireEvent.change(password, { target: { value: 'pass123' } });
+        fireEvent.click(screen.getByText('auth.login.submit'));
+        await waitFor(() => expect(loginMock).toHaveBeenCalledWith('admin', 'pass123', true));
     });
 
     it('shows error message when login fails', async () => {

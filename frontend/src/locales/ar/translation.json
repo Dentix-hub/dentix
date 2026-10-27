@@ -2030,6 +2030,8 @@
     }
   },
   "auth": {
+    "show_password": "إظهار كلمة المرور",
+    "hide_password": "إخفاء كلمة المرور",
     "login": {
       "title": "Smart Clinic",
       "subtitle": "نظام إدارة العيادات الذكي",

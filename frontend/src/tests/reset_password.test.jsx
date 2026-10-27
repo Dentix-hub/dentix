@@ -31,6 +31,11 @@ describe('<ResetPassword /> contract', () => {
         expect(passwordInputs[0].getAttribute('minlength')).toBe('8');
         expect(passwordInputs[0].getAttribute('maxlength')).toBe('72');
 
+        fireEvent.click(screen.getByRole('button', { name: 'auth.show_password' }));
+        expect(screen.getByRole('button', { name: 'auth.hide_password' })).toHaveAttribute('aria-pressed', 'true');
+        expect(passwordInputs[0]).toHaveAttribute('type', 'text');
+        expect(resetPassword).not.toHaveBeenCalled();
+
         fireEvent.change(passwordInputs[0], { target: { value: '1234567' } });
         fireEvent.change(passwordInputs[1], { target: { value: '1234567' } });
         fireEvent.click(screen.getByText('auth.reset_password.submit'));

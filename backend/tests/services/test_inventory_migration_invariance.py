@@ -100,6 +100,10 @@ def test_g13_m10_legacy_usage_rows_are_invariant_across_s26_migration(monkeypatc
                 )
             conn.commit()
 
+        with engine.begin() as conn:
+            conn.execute(sa.text("CREATE TABLE user_sessions (id INTEGER PRIMARY KEY, user_id INTEGER, token_hash VARCHAR, ip_address VARCHAR, user_agent VARCHAR, device_info VARCHAR, last_active_at DATETIME, expires_at DATETIME, is_active BOOLEAN, created_at DATETIME)"))
+            conn.execute(sa.text("INSERT INTO user_sessions (id, user_id, token_hash, is_active) VALUES (1, 1, 'old-session', 1)"))
+
         command.stamp(config, PARENT_REVISION)
 
         with engine.connect() as conn:

@@ -109,7 +109,7 @@ async def get_current_user(
         payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
         username: str = payload.get("sub")
         tenant_id: int = payload.get("tenant_id")
-        if username is None:
+        if username is None or payload.get("scope") == "2fa_pending":
             raise credentials_exception
         _enforce_impersonation_scope(payload, request.method)
         token_data = schemas.TokenData(username=username, tenant_id=tenant_id)

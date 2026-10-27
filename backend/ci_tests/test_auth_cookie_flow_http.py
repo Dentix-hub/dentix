@@ -199,3 +199,64 @@ async def test_super_admin_login_transfers_bootstrap_row_to_system_write_scope()
         assert body["role"] == "super_admin"
         assert body["user"]["tenant_id"] is None
         assert body["session_id"]
+
+
+@pytest.mark.parametrize("remember_me", ["true", "false"])
+async def test_session_cookie_mode_survives_rotation_under_rls(remember_me):
+    import httpx
+    from backend.main import app
+
+    await _seed()
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        login = await client.post("/api/v1/auth/token", data={"username": USERNAME, "password": PASSWORD, "remember_me": remember_me})
+        assert login.status_code == 200, login.text
+        for response in (login, await client.post("/api/v1/auth/refresh")):
+            assert response.status_code == 200, response.text
+            for name in ("access_token", "refresh_token", "dentix_session_hint", "csrf_token"):
+                cookie = next(c for c in response.headers.get_list("set-cookie") if c.startswith(name + "="))
+                assert ("Max-Age=" in cookie) == (remember_me == "true")
+
+
+@pytest.mark.parametrize("remember_me", ["true", "false"])
+async def test_2fa_login_and_rotation_under_force_rls(remember_me):
+    import httpx
+    import pyotp
+    from backend import models
+    from backend.database import AsyncSessionLocal, RlsContext
+    from backend.main import app
+    from backend.services.auth_service import AuthService
+
+    await _seed()
+    secret = "JBSWY3DPEHPK3PXP"
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        async with session.bypass_rls() as db:
+            user = (await db.execute(select(models.User).where(models.User.id == USER_ID))).scalar_one()
+            user.is_2fa_enabled = True
+            user.otp_secret = secret
+            await db.commit()
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            first = await client.post("/api/v1/auth/token", data={"username": USERNAME, "password": PASSWORD, "remember_me": remember_me})
+            assert first.status_code == 200 and first.json()["user_status"] == "2fa_required"
+            assert not client.cookies.get("access_token")
+            pending_access = await client.get("/api/v1/auth/session", headers={"Authorization": "Bearer " + first.json()["access_token"]})
+            assert pending_access.status_code == 401
+            second = await client.post("/api/v1/auth/login/2fa", data={"code": pyotp.TOTP(secret).now()}, headers={"Authorization": "Bearer " + first.json()["access_token"]})
+            assert second.status_code == 200, second.text
+            rotated = await client.post("/api/v1/auth/refresh")
+            assert rotated.status_code == 200, rotated.text
+            for response in (second, rotated):
+                for name in ("access_token", "refresh_token", "dentix_session_hint", "csrf_token"):
+                    cookie = next(c for c in response.headers.get_list("set-cookie") if c.startswith(name + "="))
+                    assert ("Max-Age=" in cookie) == (remember_me == "true")
+            async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+                async with session.bypass_rls() as db:
+                    stored = await AuthService.get_session_by_token(db, rotated.json()["refresh_token"])
+                    assert stored.remember_me == (remember_me == "true")
+    finally:
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+            async with session.bypass_rls() as db:
+                user = (await db.execute(select(models.User).where(models.User.id == USER_ID))).scalar_one()
+                user.is_2fa_enabled = False
+                user.otp_secret = None
+                await db.commit()

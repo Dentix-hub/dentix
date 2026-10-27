@@ -3,10 +3,12 @@ import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
-import { Sun, Moon, Globe, Loader2 } from 'lucide-react';
+import { Sun, Moon, Globe, Loader2, Eye, EyeOff } from 'lucide-react';
 export default function Login({ isDarkMode, toggleDarkMode }) {
     const { t, i18n } = useTranslation();    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    const [rememberMe, setRememberMe] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
@@ -28,7 +30,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
         setIsSubmitting(true);
         setError('');
         try {
-            const data = await login(username.trim(), password);
+            const data = await login(username.trim(), password, rememberMe);
             
             if (data.user_status === '2fa_required') {
                 setTempToken(data.access_token);
@@ -112,15 +114,19 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         </div>
                         <div className="relative group">
                             <input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 placeholder={t('auth.login.password')}
-                                className={`w-full p-4 rounded-2xl border outline-none transition-all text-right bg-input border-border text-text-primary focus:border-primary focus:ring-1 focus:ring-primary`}
+                                className={`w-full p-4 ps-14 rounded-2xl border outline-none transition-all text-right bg-input border-border text-text-primary focus:border-primary focus:ring-1 focus:ring-primary`}
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                             />
+                            <button type="button" aria-label={t(showPassword ? 'auth.hide_password' : 'auth.show_password')} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} className="absolute start-1 top-1/2 -translate-y-1/2 min-w-11 min-h-11 flex items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:ring-primary">
+                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
                         </div>
                         <div className="flex items-center justify-between px-1">
+                            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />{t('auth.login.remember_me')}</label>
                             <Link
                                 to="/forgot-password"
                                 className={`text-sm font-bold hover:underline text-primary`}
