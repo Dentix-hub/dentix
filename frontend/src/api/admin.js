@@ -3,7 +3,16 @@ import { api } from './apiClient';
 export const getUsers = () => api.get('/api/v1/users');
 export const updateFcmToken = (token) => api.post('/api/v1/users/me/fcm-token', { token });
 export const getDoctors = () => api.get('/api/v1/users/doctors');
-export const registerUser = (data) => api.post('/api/v1/users/register', null, { params: { username: data.username, password: data.password, role: data.role || 'doctor', permissions: data.permissions || '' } });
+export const registerUser = (data) =>
+    api.post('/api/v1/users/register', {
+        username: data.username,
+        password: data.password,
+        email: data.email ?? null,
+        full_name: data.full_name ?? null,
+        role: data.role || 'doctor',
+        permissions: data.permissions || '',
+        patient_visibility_mode: data.patient_visibility_mode || 'all_assigned',
+    });
 export const updateUser = (id, data) => api.put(`/api/v1/users/${id}`, data);
 export const deleteUser = (id) => api.delete(`/api/v1/users/${id}`);
 

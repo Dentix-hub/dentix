@@ -635,7 +635,8 @@ def test_alembic_single_head_is_f4a5b6c7d8e9():
 
     heads = script_dir.get_heads()
     assert len(heads) == 1, f"Expected exactly 1 Alembic head revision, found {heads}"
-    assert heads[0] == "0d1e2f3a4b5c", f"Expected head revision 0d1e2f3a4b5c, got {heads[0]}"
+    assert heads[0] == "1e2f3a4b5c6d", f"Expected head revision 1e2f3a4b5c6d, got {heads[0]}"
+    assert script_dir.get_revision("1e2f3a4b5c6d").down_revision == "0d1e2f3a4b5c"
 
     proc_rev = script_dir.get_revision("0d1e2f3a4b5c")
     assert proc_rev.down_revision == "9c0d1e2f3a4b", f"Expected parent revision 9c0d1e2f3a4b, got {proc_rev.down_revision}"
@@ -691,6 +692,10 @@ def test_alembic_migration_upgrade_and_downgrade_sqlite(monkeypatch):
 
         engine = sa.create_engine(sqlite_url)
         try:
+            # This partial clinical fixture also reaches head, which now alters users.email.
+            with engine.begin() as conn:
+                conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR NOT NULL)"))
+                conn.execute(sa.text("CREATE UNIQUE INDEX ix_users_email ON users(email)"))
             inspector = sa.inspect(engine)
             tables = set(inspector.get_table_names())
             for t in CLINICAL_G1_TABLES:

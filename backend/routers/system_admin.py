@@ -90,13 +90,14 @@ async def update_super_admin_profile(
             user.username = new_username
             has_changes = True
 
-    if profile_data.email and profile_data.email.strip():
-        new_email = profile_data.email.strip()
+    if "email" in profile_data.model_fields_set:
+        new_email = (profile_data.email or "").strip() or None
         if new_email != user.email:
-            stmt = select(models.User).where(models.User.email == new_email, models.User.id != user.id)
-            existing = (await db.execute(stmt)).scalar_one_or_none()
-            if existing:
-                raise HTTPException(status_code=400, detail="البريد الإلكتروني مستخدم بالفعل")
+            if new_email:
+                stmt = select(models.User).where(models.User.email == new_email, models.User.id != user.id)
+                existing = (await db.execute(stmt)).scalar_one_or_none()
+                if existing:
+                    raise HTTPException(status_code=400, detail="البريد الإلكتروني مستخدم بالفعل")
             user.email = new_email
             has_changes = True
 

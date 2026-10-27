@@ -9,6 +9,8 @@ from .auth import (
     update_user,
     get_user_by_id,
     normalize_username,
+    sql_normalize_username,
+    validate_and_trim_username,
 )
 from .patient import (
     get_patient,

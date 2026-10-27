@@ -19,6 +19,7 @@ from datetime import date
 from decimal import Decimal
 from rls.schemas import Permissive, ConditionArg, Command
 from sqlalchemy import CheckConstraint, column
+from sqlalchemy.orm import validates
 
 
 class User(Base):
@@ -46,8 +47,13 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     username: Mapped[str] = mapped_column(String, index=True)
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
-    email: Mapped[str] = mapped_column(String, unique=True, index=True)
+    email: Mapped[str | None] = mapped_column(String, unique=True, index=True, nullable=True)
     hashed_password: Mapped[str] = mapped_column(String)
+
+    @validates("email")
+    def normalize_email(self, key: str, value: str | None) -> str | None:
+        """Use NULL for absent addresses across every ORM create/update path."""
+        return (value.strip() or None) if value is not None else None
 
     # Enterprise Security Fields
     failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0)

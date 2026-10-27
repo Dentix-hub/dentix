@@ -28,7 +28,7 @@ async def setup_2fa(
 
     # Generate QR Code
     otp_uri = pyotp.totp.TOTP(secret).provisioning_uri(
-        name=current_user.email, issuer_name="Smart Clinic"
+        name=current_user.email or current_user.username, issuer_name="Smart Clinic"
     )
 
     img = qrcode.make(otp_uri)

@@ -348,7 +348,7 @@ class AdminService:
                     "type": "user",
                     "id": u.id,
                     "title": u.username or u.email,
-                    "subtitle": f"{u.role} - {u.email}",
+                    "subtitle": f"{u.role} - {u.email or ''}",
                     "url": f"/admin/users?id={u.id}",
                     "icon": "User",
                 }
