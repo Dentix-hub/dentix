@@ -119,3 +119,19 @@ async def test_staff_mapping_uses_existing_tenant_identity_and_fails_closed(asyn
         await resolve_staff_mapping(async_db_session, test_user.tenant_id + 99999, [
             {'id': test_user.id, 'username': test_user.username},
         ])
+
+
+def test_registry_rejects_invalid_money_and_column_types():
+    from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS, validate_archive_sections, validate_archive_values
+    payload = {'data': {name: [] for name in ARCHIVE_COLUMNS}}
+    payload['data']['staff_references'] = []
+    payload['data']['expenses'] = [{'id': 1, 'tenant_id': 7, 'item_name': 'synthetic', 'cost': '10.25'}]
+    data = validate_archive_sections(payload, tenant_id=7)
+    validate_archive_values(data)
+    data['expenses'][0]['cost'] = 'NaN'
+    with pytest.raises(ArchiveError):
+        validate_archive_values(data)
+    data['expenses'][0]['cost'] = '10.25'
+    data['expenses'][0]['item_name'] = ['not a string']
+    with pytest.raises(ArchiveError):
+        validate_archive_values(data)

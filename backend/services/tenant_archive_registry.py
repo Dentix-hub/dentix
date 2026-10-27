@@ -116,3 +116,53 @@ def validate_archive_references(data, *, tenant_id, external_ids=None):
                     value = row.get(column.name)
                     if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value not in allowed):
                         raise ArchiveError('تحتوي النسخة الاحتياطية على مرجع غير صالح')
+
+
+def validate_archive_values(data):
+    """Validate scalar database column types before any destructive operation.
+
+    Business rules, nested JSON semantics and identity mapping must also be
+    checked by the restore coordinator before this data is imported.
+    """
+    import math
+    from datetime import date, datetime
+    from decimal import Decimal, InvalidOperation
+    from sqlalchemy import Boolean, Date, DateTime, Float, Integer, Numeric, String
+    from backend import models
+    from backend.services.tenant_archive import ArchiveError
+
+    for name, rows in data.items():
+        if name == STAFF_REFERENCE_SECTION:
+            continue
+        table = models.Base.metadata.tables[name]
+        for row in rows:
+            for key, value in row.items():
+                column = table.c[key]
+                if value is None:
+                    if not column.nullable and not column.primary_key:
+                        raise ArchiveError('قيمة مطلوبة مفقودة في النسخة الاحتياطية')
+                    continue
+                kind = column.type
+                try:
+                    if isinstance(kind, Boolean):
+                        valid = isinstance(value, bool)
+                    elif isinstance(kind, Integer):
+                        valid = isinstance(value, int) and not isinstance(value, bool)
+                    elif isinstance(kind, Numeric):
+                        valid = isinstance(value, (str, int)) and not isinstance(value, bool) and Decimal(value).is_finite()
+                    elif isinstance(kind, Float):
+                        valid = isinstance(value, (int, float, str)) and not isinstance(value, bool) and math.isfinite(float(value))
+                    elif isinstance(kind, DateTime):
+                        valid = isinstance(value, str) and bool(datetime.fromisoformat(value.replace('Z', '+00:00')))
+                    elif isinstance(kind, Date):
+                        valid = isinstance(value, str) and bool(date.fromisoformat(value))
+                    elif isinstance(kind, String):
+                        valid = isinstance(value, str) and (kind.length is None or len(value) <= kind.length)
+                    else:
+                        # JSON and other structured columns need specific
+                        # validation in the archive version adapter.
+                        valid = True
+                except (ValueError, TypeError, OverflowError, InvalidOperation):
+                    valid = False
+                if not valid:
+                    raise ArchiveError('نوع أو قيمة غير صالحة في النسخة الاحتياطية')
