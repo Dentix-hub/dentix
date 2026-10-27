@@ -217,3 +217,38 @@ async def test_reset_preserves_2fa_and_scrubs_expired_delivery():
             await event_service.get_pending_events(db, limit=1)
             event = (await db.execute(select(models.DomainEvent).where(models.DomainEvent.id == event_id))).scalar_one()
             assert event.payload == {}
+
+
+@pytest.mark.asyncio
+async def test_admin_password_change_denies_cross_tenant_and_revokes_sessions():
+    import httpx
+    from backend.auth import get_password_hash
+    from backend.main import app
+
+    suffix = uuid.uuid4().hex
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        async with session.bypass_rls() as db:
+            tenants = [models.Tenant(name='Reset admin A', timezone='Africa/Cairo'), models.Tenant(name='Reset admin B', timezone='Africa/Cairo')]
+            db.add_all(tenants)
+            await db.flush()
+            admin = models.User(username='admin_' + suffix, email='admin_' + suffix + '@example.com', role='admin', tenant_id=tenants[0].id, is_active=True, hashed_password=get_password_hash('OldDental92'))
+            own = models.User(username='own_' + suffix, email='own_' + suffix + '@example.com', role='doctor', tenant_id=tenants[0].id, is_active=True, hashed_password=get_password_hash('OldDental92'))
+            other = models.User(username='other_' + suffix, email='other_' + suffix + '@example.com', role='doctor', tenant_id=tenants[1].id, is_active=True, hashed_password=get_password_hash('OldDental92'))
+            db.add_all([admin, own, other])
+            await db.commit()
+            admin_name, own_name, own_id, other_id = admin.username, own.username, own.id, other.id
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url='http://test') as admin_client, httpx.AsyncClient(transport=transport, base_url='http://test') as own_client:
+        own_login = await own_client.post('/api/v1/auth/token', data={'username': own_name, 'password': 'OldDental92'})
+        assert own_login.status_code == 200
+        old_access = own_login.json()['access_token']
+        admin_login = await admin_client.post('/api/v1/auth/token', data={'username': admin_name, 'password': 'OldDental92'})
+        assert admin_login.status_code == 200
+        csrf = admin_client.cookies.get('csrf_token')
+        forbidden = await admin_client.put(f'/api/v1/users/{other_id}', json={'password': 'NewDental92'}, headers={'X-CSRF-Token': csrf})
+        assert forbidden.status_code == 404, forbidden.text
+        changed = await admin_client.put(f'/api/v1/users/{own_id}', json={'password': 'NewDental92'}, headers={'X-CSRF-Token': csrf})
+        assert changed.status_code == 200, changed.text
+        stale = await own_client.get('/api/v1/users/me', headers={'Authorization': 'Bearer ' + old_access})
+        assert stale.status_code == 401
+        assert (await own_client.post('/api/v1/auth/token', data={'username': own_name, 'password': 'NewDental92'})).status_code == 200

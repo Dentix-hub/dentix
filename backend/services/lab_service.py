@@ -244,7 +244,7 @@ class LabService:
         return result.scalars().first()
 
     async def create_lab_order(
-        self, data: schemas.LabOrderCreate, doctor_id: int
+        self, data: schemas.LabOrderCreate, doctor_id: int, *, commit: bool = True
     ) -> models.LabOrder:
         """Create a lab order and its billable treatment atomically."""
         stmt_patient = select(models.Patient).where(
@@ -335,8 +335,11 @@ class LabService:
         if data.work_item_id is None and data.treatment_id is None and db_order.price_to_patient and db_order.price_to_patient > 0:
             await self._create_linked_treatment(db_order, lab)
 
-        await self.db.commit()
-        await self.db.refresh(db_order)
+        if commit:
+            await self.db.commit()
+            await self.db.refresh(db_order)
+        else:
+            await self.db.flush()
         return db_order
 
     async def update_lab_order(

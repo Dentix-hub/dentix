@@ -480,3 +480,25 @@ async def test_update_lab_order_cannot_link_treatment_to_work_item_order_rejecte
         await update_lab_order(order_id=work_item_order.id, order_update=update_payload, db=async_db_session, current_user=test_user)
     assert exc_info.value.status_code == 400
     assert "Cannot link treatment to a work item lab order" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_deferred_lab_order_and_payment_roll_back_together(async_db_session, test_user, test_patient):
+    """The caller can atomically roll back an order and its initial payment."""
+    from backend.services.lab_service import LabService
+
+    lab = models.Laboratory(name="Atomic Lab", tenant_id=test_user.tenant_id)
+    async_db_session.add(lab)
+    await async_db_session.commit()
+    lab_id, patient_id, tenant_id, doctor_id = lab.id, test_patient.id, test_user.tenant_id, test_user.id
+    service = LabService(async_db_session, tenant_id)
+    order = await service.create_lab_order(
+        schemas.LabOrderCreate(patient_id=patient_id, laboratory_id=lab_id, work_type="Crown", cost=Decimal("400"), paid_now=Decimal("100")),
+        doctor_id=doctor_id,
+        commit=False,
+    )
+    order_id = order.id
+    assert (await async_db_session.execute(sa.select(sa.func.count(models.LabPayment.id)).where(models.LabPayment.lab_order_id == order_id))).scalar_one() == 1
+    await async_db_session.rollback()
+    assert (await async_db_session.execute(sa.select(models.LabOrder.id).where(models.LabOrder.id == order_id))).scalar_one_or_none() is None
+    assert (await async_db_session.execute(sa.select(sa.func.count(models.LabPayment.id)).where(models.LabPayment.lab_order_id == order_id))).scalar_one() == 0
