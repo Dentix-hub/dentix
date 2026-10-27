@@ -94,3 +94,22 @@ Manual staging path after approval (under 15 minutes):
 Rollback: revert application changes if needed. Schema downgrade requires all
 NULL addresses to be resolved with valid unique addresses first; never invent
 addresses or delete accounts just to make downgrade run.
+
+## Final full validation before PR-A delivery
+
+At Eslam's explicit request, PR-B was rebased onto PR-A and the documented
+registration line was reconciled. The entire backend and Vitest suites were
+executed again on combined revision `f873f6abc845e2f92dbbaac48e8438e11aa9b9e5`,
+sequentially to avoid resource contention, followed by ESLint and Vite build:
+
+- Full backend: **1431 passed, 0 failed, 4 skipped**, exit 0.
+- Full Vitest: **988 passed, 0 failed, 0 skipped; 151 files passed**, exit 0.
+- Full ESLint: **0 errors, 0 warnings**, exit 0.
+- Vite production build: **PASS**, exit 0.
+
+The four existing backend skips are the refresh-flow TestClient limitation,
+one PostgreSQL clinical-trigger test and two PostgreSQL preflight tests.
+No tests/assertions/timeouts were weakened and no new skips were added. The
+earlier full run's failures and targeted rechecks remain recorded above and in
+the PR-B report; the green result here comes from new complete suite runs.
+Only PR-A remote delivery is approved. PR-B remains local; no merge is authorized.

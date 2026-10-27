@@ -5,8 +5,9 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 - Plan: Odontogram & Clinical VNext (docs/product/ODONTOGRAM_EXECUTION_QUEUE.md)
 - Baseline: staging @ 1907061 (PR #291).
 - Pre-production auth PR-A (2026-10-27): optional email migration 1e2f3a4b5c6d; symmetric username lookup; JSON registration; no production data rewrite.
-- PR-A verification: 37 targeted backend tests + 2 frontend tests passed; disposable PostgreSQL NULL/unique/up/down checks passed; awaiting human approval for push/PR.
+- PR-A verification: 37 targeted backend tests + 2 frontend tests passed; disposable PostgreSQL NULL/unique/up/down checks passed; PR-A remote delivery authorized only after green combined full validation.
 - PR-A follow-up: new-head fixtures/lineage updated; 61 targeted migration tests passed, 1 existing PostgreSQL-only skip. Combined full-run failures and rechecks are recorded in docs/reports/.
+- Final combined full validation (2026-10-27): backend 1431 passed/0 failed/4 existing skips; Vitest 988 passed/0 failed/0 skipped (151 files); ESLint/build PASS. Only PR-A push/PR authorized; PR-B local, no merge.
 - Current task: Upload error detail surfacing & service worker navigation fallback hardening (fix/upload-error-and-sw-fallback).
 - Fixes: Surface backend error detail (file size/type) on upload failure; graceful offline/sleep navigation fallback in custom SW (preventing unhandled fetch rejection).
 - P1 status: PARTIAL (resolver ready; build-info stamping pending Part B merge on main).
