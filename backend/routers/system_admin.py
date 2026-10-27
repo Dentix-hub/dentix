@@ -102,8 +102,8 @@ async def update_super_admin_profile(
             has_changes = True
 
     if profile_data.password and profile_data.password.strip():
-        validate_password(profile_data.password.strip())
-        user.hashed_password = get_password_hash(profile_data.password.strip())
+        validate_password(profile_data.password, username=user.username)
+        user.hashed_password = get_password_hash(profile_data.password)
         has_changes = True
 
     if not has_changes:
@@ -431,12 +431,12 @@ async def reset_user_password(
     if not new_password:
         raise HTTPException(status_code=400, detail="Password is required")
 
-    validate_password(new_password)
-
     res = await db.execute(select(models.User).where(models.User.id == user_id))
     user = res.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+
+    validate_password(new_password, username=user.username)
 
     user.hashed_password = get_password_hash(new_password)
 

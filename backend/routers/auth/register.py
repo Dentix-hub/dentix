@@ -42,7 +42,7 @@ async def register_clinic(
     contact_phone = contact_phone.strip()
 
     try:
-        validate_password(admin_password)
+        validate_password(admin_password, username=admin_username)
     except HTTPException as e:
         logger.warning(f"Registration failed: Password strength fail for user {admin_username}: {e.detail}")
         raise e

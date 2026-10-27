@@ -788,7 +788,6 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "tenacity" },
     { name = "uvicorn" },
-    { name = "zxcvbn-python" },
 ]
 
 [package.dev-dependencies]
@@ -848,7 +847,6 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0.25" },
     { name = "tenacity", specifier = ">=8.2.0" },
     { name = "uvicorn", specifier = ">=0.27.0" },
-    { name = "zxcvbn-python", specifier = ">=4.4.24" },
 ]
 
 [package.metadata.requires-dev]
@@ -3816,9 +3814,3 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/01/69/c1bfd21e32c638974ea2c542a0b8c53ef1fa9eff336020f5d014f9503ff2/yarl-1.24.5-cp311-cp311-win_arm64.whl", hash = "sha256:3ac6aff147deb9c09461b2d4bbdf6256831198f5d8a23f5d37138213090b6d8a", size = 93359, upload-time = "2026-07-20T02:05:23.493Z" },
     { url = "https://files.pythonhosted.org/packages/61/02/962c1cbfc401a30c1d034dc67ff395f64b52302c6d62de556c1fca99acc0/yarl-1.24.5-py3-none-any.whl", hash = "sha256:a33700d13d9b7d84fd10947b09ff69fb9a792e519c8cb9764a3ca70baa6c23a7", size = 58612, upload-time = "2026-07-20T02:07:43.461Z" },
 ]
-
-[[package]]
-name = "zxcvbn-python"
-version = "4.4.24"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/63/9c/c3f90da63d6bd0e04948386bdf426212f1f8271d544615a5c8d0d03267ef/zxcvbn-python-4.4.24.tar.gz", hash = "sha256:900b28cc5e96be4091d8778f19f222832890264e338765a1c1c09fca2db64b2d", size = 408001, upload-time = "2018-04-11T13:39:22.82Z" }

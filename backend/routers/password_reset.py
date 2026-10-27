@@ -154,7 +154,7 @@ async def reset_password(
         raise HTTPException(status_code=400, detail="المستخدم غير موجود")
 
     # Validate new password strength using central logic
-    validate_password(new_password)
+    validate_password(new_password, username=user.username)
 
     # Update password
     user.hashed_password = get_password_hash(new_password)

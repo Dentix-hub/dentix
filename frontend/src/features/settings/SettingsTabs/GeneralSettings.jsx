@@ -1,3 +1,4 @@
+import { passwordPolicyError } from '@/auth/passwordPolicy';
 import { Save } from 'lucide-react';
 import * as api from '@/api';
 import { useTranslation } from 'react-i18next';
@@ -12,6 +13,13 @@ const GeneralSettings = ({ currentUser, loadUserInfo, setMessage }) => {
             const newEmail = e.target.email.value;
             const newPassword = e.target.password.value;
             if (!newUsername) return;
+            if (newPassword) {
+                const policyError = passwordPolicyError(newPassword, newUsername);
+                if (policyError) {
+                    setMessage({ type: 'error', text: t(`auth.register.errors.${policyError}`) });
+                    return;
+                }
+            }
             try {
                 await api.updateProfile({
                     username: newUsername,
