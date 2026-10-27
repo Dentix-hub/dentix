@@ -166,3 +166,10 @@ async def test_preview_confirmation_binds_actor_file_and_is_single_use(async_db_
     with pytest.raises(ArchiveError):
         await confirm_restore_preview(async_db_session, tenant_id=test_user.tenant_id, actor_id=test_user.id,
                                       operation_id=operation.id, confirmation=confirmation, archive_digest=digest)
+
+
+def test_restore_gate_covers_each_archived_business_table():
+    import importlib
+    from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS
+    migration = importlib.import_module('backend.alembic.versions.d42a71e9bc83_restore_transaction_gate')
+    assert set(ARCHIVE_COLUMNS) == set(migration.TENANT_TABLES) - {'users'} | {'price_list_items'}
