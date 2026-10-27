@@ -13,8 +13,20 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("user_sessions", sa.Column("remember_me", sa.Boolean(), nullable=False, server_default=sa.true()))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = set(inspector.get_table_names())
+    if "user_sessions" in existing_tables:
+        cols = {c["name"] for c in inspector.get_columns("user_sessions")}
+        if "remember_me" not in cols:
+            op.add_column("user_sessions", sa.Column("remember_me", sa.Boolean(), nullable=False, server_default=sa.true()))
 
 
 def downgrade():
-    op.drop_column("user_sessions", "remember_me")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = set(inspector.get_table_names())
+    if "user_sessions" in existing_tables:
+        cols = {c["name"] for c in inspector.get_columns("user_sessions")}
+        if "remember_me" in cols:
+            op.drop_column("user_sessions", "remember_me")

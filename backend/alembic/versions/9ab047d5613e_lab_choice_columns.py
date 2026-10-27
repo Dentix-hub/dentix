@@ -13,10 +13,32 @@ depends_on = None
 
 
 def upgrade():
-    op.add_column("treatments", sa.Column("lab_choice", sa.String(24), nullable=True))
-    op.add_column("clinical_work_items", sa.Column("lab_choice", sa.String(24), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = set(inspector.get_table_names())
+
+    if "treatments" in existing_tables:
+        cols = {c["name"] for c in inspector.get_columns("treatments")}
+        if "lab_choice" not in cols:
+            op.add_column("treatments", sa.Column("lab_choice", sa.String(24), nullable=True))
+
+    if "clinical_work_items" in existing_tables:
+        cols = {c["name"] for c in inspector.get_columns("clinical_work_items")}
+        if "lab_choice" not in cols:
+            op.add_column("clinical_work_items", sa.Column("lab_choice", sa.String(24), nullable=True))
 
 
 def downgrade():
-    op.drop_column("clinical_work_items", "lab_choice")
-    op.drop_column("treatments", "lab_choice")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_tables = set(inspector.get_table_names())
+
+    if "clinical_work_items" in existing_tables:
+        cols = {c["name"] for c in inspector.get_columns("clinical_work_items")}
+        if "lab_choice" in cols:
+            op.drop_column("clinical_work_items", "lab_choice")
+
+    if "treatments" in existing_tables:
+        cols = {c["name"] for c in inspector.get_columns("treatments")}
+        if "lab_choice" in cols:
+            op.drop_column("treatments", "lab_choice")

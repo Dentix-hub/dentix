@@ -84,3 +84,54 @@ def test_ephemeral_blank_db_upgrade():
                 os.remove(db_path)
         except Exception:
             pass
+
+
+def test_attachment_metadata_migration_idempotent_when_column_already_exists():
+    """Verify bc78a10d932e upgrades cleanly even when storage_provider already exists on attachments."""
+    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_db:
+        db_path = tmp_db.name
+
+    try:
+        sqlite_url = f"sqlite:///{db_path}"
+        alembic_cfg_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
+        config = Config(alembic_cfg_path)
+        config.set_main_option("sqlalchemy.url", sqlite_url)
+
+        engine = sa.create_engine(sqlite_url)
+        try:
+            # Create base tables
+            Base.metadata.create_all(bind=engine)
+            # Stamp at ab52d9c807a1 (the predecessor of bc78a10d932e)
+            command.stamp(config, "ab52d9c807a1")
+
+            # Verify attachments has storage_provider from Base.metadata, simulating existing column
+            inspector = sa.inspect(engine)
+            existing_cols = {c["name"] for c in inspector.get_columns("attachments")}
+            assert "storage_provider" in existing_cols
+
+            # Now run upgrade to head: must NOT fail with duplicate column error
+            command.upgrade(config, "head")
+
+            inspector = sa.inspect(engine)
+            cols = {c["name"] for c in inspector.get_columns("attachments")}
+            for expected in (
+                "storage_provider", "storage_uuid", "drive_original_id",
+                "drive_thumbnail_id", "original_sha256", "thumbnail_sha256",
+                "google_account_sub", "original_size", "connection_generation",
+                "storage_status",
+            ):
+                assert expected in cols, f"Missing expected column {expected}"
+
+            # Downgrade and re-upgrade to verify symmetry
+            command.downgrade(config, "ab52d9c807a1")
+            command.upgrade(config, "head")
+        finally:
+            engine.dispose()
+
+    finally:
+        try:
+            if os.path.exists(db_path):
+                os.remove(db_path)
+        except Exception:
+            pass
+

@@ -9,7 +9,8 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 - PR-A follow-up: new-head fixtures/lineage updated; 61 targeted migration tests passed, 1 existing PostgreSQL-only skip. Combined full-run failures and rechecks are recorded in docs/reports/.
 - Final combined full validation (2026-10-27): backend 1431 passed/0 failed/4 existing skips; Vitest 988 passed/0 failed/0 skipped (151 files); ESLint/build PASS. Only PR-A push/PR authorized; PR-B local, no merge.
 - Browser-session PR #316 merged (`41991db`). Combined branch `feat/remaining-clinic-workflows` integrates local relaxed password policy + Phases 1–7 (queued RLS-safe password reset, explicit lab choice & atomic writes, AES-256-GCM clinic backup/restore with preview/gate/staff mapping, browser-bound per-clinic Google OAuth, manual Drive backup/restore, and protected Drive patient images with bounded LRU cache); Alembic head `bc78a10d932e`. Status: PARTIAL (local gates PASS; live SMTP/Google smoke pending external setup).
-- Current task: Upload error detail surfacing & service worker navigation fallback hardening (fix/upload-error-and-sw-fallback).
+- Current task: Resolve staging preflight migration failure (DuplicateColumn on attachments.storage_provider).
+- Staging fix (2026-10-28): Made migration bc78a10d932e and predecessor migrations fully idempotent via SQLAlchemy inspector table/column/index guards to prevent DuplicateColumn / duplicate index crashes on re-runs.
 - Fixes: Surface backend error detail (file size/type) on upload failure; graceful offline/sleep navigation fallback in custom SW (preventing unhandled fetch rejection).
 - P1 status: PARTIAL (resolver ready; build-info stamping pending Part B merge on main).
 - Decisions: D1 (endo/Fractured aliases mapped), D3 (dashboard cache task isolated session), D4 (plain Arabic clinical warnings & collapsed technical codes).
