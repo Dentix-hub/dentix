@@ -191,3 +191,43 @@ async def test_restore_preserves_lab_payment_inventory_and_embedded_links():
             assert stock.quantity == 8.5 and movement.change_amount == -1.5
     finally:
         clear_tenant_context(tenant_token=token)
+
+
+@pytest.mark.asyncio
+async def test_restore_outbox_worker_finishes_confirmed_operation(monkeypatch):
+    import base64
+    import hashlib
+    from backend.services.tenant_archive import encode_archive
+    from backend.services.tenant_restore_preview import create_restore_preview, confirm_restore_preview
+    from backend.workers.handlers import on_tenant_restore_confirmed
+    from sqlalchemy import text
+    key = b'a' * 32
+    monkeypatch.setenv('TENANT_BACKUP_KEY_ID', 'test')
+    monkeypatch.setenv('TENANT_BACKUP_ENCRYPTION_KEY', base64.urlsafe_b64encode(key).decode())
+    monkeypatch.setenv('DENTIX_INSTALLATION_ID', 'synthetic')
+    monkeypatch.setenv('TENANT_BACKUP_MAX_BYTES', '1000000')
+    suffix = uuid.uuid4().hex
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        async with session.bypass_rls() as db:
+            tenant = models.Tenant(name='Worker restore clinic')
+            db.add(tenant)
+            await db.flush()
+            user = models.User(tenant_id=tenant.id, username='worker_' + suffix, email=suffix + '@example.com', hashed_password='synthetic', role='admin', is_active=True)
+            db.add(user)
+            await db.commit()
+            tenant_id, actor = tenant.id, user.id
+    token = set_current_tenant_id(tenant_id)
+    try:
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=tenant_id)) as db:
+            revision = (await db.execute(text('SELECT version_num FROM alembic_version'))).scalar_one()
+            payload = await export_clinic_archive_data(db, tenant_id)
+            archive = encode_archive(payload, tenant_id=tenant_id, installation_id='synthetic', schema_revision=revision, key_id='test', key=key)
+            operation, confirmation, _, _, _ = await create_restore_preview(db, tenant_id=tenant_id, actor_id=actor, archive=archive, installation_id='synthetic', keys={'test': key}, supported_revisions={revision}, max_bytes=1000000)
+            await confirm_restore_preview(db, tenant_id=tenant_id, actor_id=actor, operation_id=operation.id, confirmation=confirmation, archive_digest=hashlib.sha256(archive).hexdigest())
+            event = (await db.execute(select(models.DomainEvent).where(models.DomainEvent.aggregate_id == operation.id))).scalar_one()
+            await on_tenant_restore_confirmed(event)
+            await db.refresh(operation)
+            assert operation.status == 'completed' and operation.encrypted_payload is None
+            await on_tenant_restore_confirmed(event)
+    finally:
+        clear_tenant_context(tenant_token=token)

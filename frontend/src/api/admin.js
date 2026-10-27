@@ -32,6 +32,12 @@ export const purgeDeletedPatients = (tenantId) => api.delete(`/api/v1/admin/tena
 export const downloadBackup = () => api.get('/api/v1/settings/backup/download', { responseType: 'blob' });
 export const exportTenantBackup = () => api.get('/api/v1/settings/backup/export', { responseType: 'blob' });
 export const exportTenantBackupXlsx = () => api.get('/api/v1/settings/backup/export-xlsx', { responseType: 'blob' });
+export const downloadClinicArchive = () => api.get('/api/v1/settings/backup/archive', { responseType: 'blob' });
+export const previewClinicRestore = (file) => api.post('/api/v1/settings/backup/preview', file, {
+    headers: { 'Content-Type': file.name.toLowerCase().endsWith('.json') ? 'application/json' : 'application/octet-stream' },
+});
+export const confirmClinicRestore = (payload) => api.post('/api/v1/settings/backup/confirm', payload);
+export const getClinicRestoreStatus = (id) => api.get(`/api/v1/settings/backup/operations/${encodeURIComponent(id)}`);
 export const uploadBackup = (formData) => api.post('/api/v1/settings/backup/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
 });

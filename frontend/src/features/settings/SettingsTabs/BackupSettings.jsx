@@ -6,6 +6,10 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
     const { t } = useTranslation();
     const [restoring, setRestoring] = useState(false);
     const [exportingXlsx, setExportingXlsx] = useState(false);
+    const [restorePreview, setRestorePreview] = useState(null);
+    const [restorePassword, setRestorePassword] = useState('');
+    const [restoreOtp, setRestoreOtp] = useState('');
+    const [restoreOperation, setRestoreOperation] = useState(null);
 
     const readBlobText = async (blob) => {
         if (typeof blob?.text === 'function') {
@@ -120,21 +124,73 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
             setMessage({ type: 'error', text: msg });
         }
     };
+    const handleEncryptedDownload = async () => {
+        try {
+            const response = await api.downloadClinicArchive();
+            const url = window.URL.createObjectURL(new Blob([response.data]));
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `dentix-clinic-${new Date().toISOString().split('T')[0]}.dentix`;
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            setMessage({ type: 'error', text: await extractErrorMessage(err, t('backup.download_fail')) });
+        }
+    };
     const handleUpload = async (e) => {
         const file = e.target.files[0];
+        e.target.value = '';
         if (!file) return;
-        if (!window.confirm(t('backup.restore_warning'))) return;
-        const formData = new FormData();
-        formData.append('file', file);
         try {
             setRestoring(true);
-            await api.uploadBackup(formData);
-            setMessage({ type: 'success', text: t('backup.restore_success') });
-            setTimeout(() => window.location.reload(), 2000);
+            setRestorePreview(null);
+            setRestoreOperation(null);
+            const response = await api.previewClinicRestore(file);
+            setRestorePreview(response.data.data);
         } catch (err) {
-            const msg = await extractErrorMessage(err, t('backup.restore_fail', 'فشل استعادة البيانات'));
-            setMessage({ type: 'error', text: msg });
+            setMessage({ type: 'error', text: await extractErrorMessage(err, t('backup.restore_fail')) });
+        } finally {
             setRestoring(false);
+        }
+    };
+    const handleConfirmRestore = async (event) => {
+        event.preventDefault();
+        if (!restorePreview || !restorePassword) return;
+        try {
+            setRestoring(true);
+            const response = await api.confirmClinicRestore({
+                operation_id: restorePreview.operation_id,
+                confirmation: restorePreview.confirmation,
+                archive_digest: restorePreview.archive_digest,
+                password: restorePassword,
+                ...(restoreOtp ? { otp_code: restoreOtp } : {}),
+            });
+            setRestoreOperation(response.data.data);
+            setRestorePreview(null);
+            setMessage({ type: 'info', text: t('backup.restore_queued') });
+        } catch (err) {
+            setMessage({ type: 'error', text: await extractErrorMessage(err, t('backup.restore_fail')) });
+        } finally {
+            setRestorePassword('');
+            setRestoreOtp('');
+            setRestoring(false);
+        }
+    };
+    const refreshRestoreStatus = async () => {
+        try {
+            const response = await api.getClinicRestoreStatus(restoreOperation.operation_id);
+            const operation = response.data.data;
+            setRestoreOperation(operation);
+            if (operation.status === 'completed') {
+                setMessage({ type: 'success', text: t('backup.restore_completed') });
+                loadUserInfo?.();
+            } else if (['failed', 'expired'].includes(operation.status)) {
+                setMessage({ type: 'error', text: t('backup.restore_failed_safe') });
+            }
+        } catch (err) {
+            setMessage({ type: 'error', text: await extractErrorMessage(err, t('backup.restore_fail')) });
         }
     };
     const handlePurge = async () => {
@@ -226,7 +282,11 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                     <div className="p-2 bg-amber-100 text-amber-600 rounded-lg"><Upload size={20} /></div>
                     {t('backup.local_title')}
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                    <button type="button" onClick={handleEncryptedDownload} className="p-6 border-2 border-blue-200 border-dashed rounded-2xl hover:bg-blue-50 transition flex flex-col items-center gap-3">
+                        <Download className="text-blue-600" size={32} />
+                        <span className="font-bold text-blue-700">{t('backup.encrypted_download')}</span>
+                    </button>
                     <button type="button" onClick={handleDownload} className="p-6 border-2 border-slate-200 border-dashed rounded-2xl hover:bg-slate-50 transition flex flex-col items-center gap-3">
                         <Download className="text-slate-500" size={32} />
                         <span className="font-bold text-slate-600">{t('backup.download_btn')} (.json)</span>
@@ -246,13 +306,35 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                         <span className="font-bold text-emerald-700">{t('backup.export_excel_btn')} (.xlsx)</span>
                     </button>
                     <div className="relative">
-                        <input type="file" accept=".json" onChange={handleUpload} disabled={restoring} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
+                        <input type="file" accept=".json,.dentix" onChange={handleUpload} aria-label={t('backup.restore_btn')} disabled={restoring} className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10" />
                         <div className="h-full p-6 border-2 border-amber-200 border-dashed rounded-2xl bg-amber-50/50 flex flex-col items-center justify-center gap-3">
                             {restoring ? <div className="animate-spin h-8 w-8 border-4 border-amber-500 border-t-transparent rounded-full" /> : <Upload className="text-amber-500" size={32} />}
-                            <span className="font-bold text-amber-700">{t('backup.restore_btn')} (.json)</span>
+                            <span className="font-bold text-amber-700">{t('backup.restore_btn')} (.dentix / .json)</span>
                         </div>
                     </div>
                 </div>
+                {restorePreview && (
+                    <form onSubmit={handleConfirmRestore} className="space-y-3 rounded-xl border border-amber-300 bg-amber-50 p-4" aria-label={t('backup.preview_title')}>
+                        <h4 className="font-bold">{t('backup.preview_title')}</h4>
+                        <p>{t('backup.restore_explanation')}</p>
+                        <p>{t('backup.preview_date')}: {restorePreview.backup_date}</p>
+                        <p>{t('backup.preview_counts')}: {Object.values(restorePreview.counts || {}).reduce((sum, count) => sum + count, 0)}</p>
+                        <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2" aria-label={t('backup.preview_counts')}>
+                            {Object.entries(restorePreview.counts || {}).filter(([, count]) => count > 0).map(([section, count]) => <li key={section}>{t(`backup.sections.${section}`, section)}: {count}</li>)}
+                        </ul>
+                        {restorePreview.staff_mapping?.length > 0 && <div><p className="font-bold">{t('backup.staff_mapping')}</p><ul>{restorePreview.staff_mapping.map((staff) => <li key={staff.existing_user_id}>{staff.name}</li>)}</ul></div>}
+                        {restorePreview.legacy_unverified && <p className="font-bold">{t('backup.legacy_unverified')}</p>}
+                        {restorePreview.missing_sections?.length > 0 && <p>{t('backup.missing_sections')}: {restorePreview.missing_sections.map((section) => t(`backup.sections.${section}`, section)).join('، ')}</p>}
+                        <label className="block">{t('backup.confirm_password')}<input required type="password" autoComplete="current-password" value={restorePassword} onChange={(event) => setRestorePassword(event.target.value)} className="block w-full rounded border p-2" /></label>
+                        <label className="block">{t('backup.confirm_otp')}<input required={Boolean(currentUser?.is_2fa_enabled)} inputMode="numeric" autoComplete="one-time-code" value={restoreOtp} onChange={(event) => setRestoreOtp(event.target.value)} className="block w-full rounded border p-2" /></label>
+                        <button type="submit" disabled={restoring || !restorePassword} className="rounded bg-amber-700 px-4 py-2 font-bold text-white disabled:opacity-50">{t('backup.confirm_restore')}</button>
+                        <button type="button" onClick={() => { setRestorePreview(null); setRestorePassword(''); setRestoreOtp(''); }} className="ms-3 rounded border px-4 py-2">{t('backup.cancel_restore')}</button>
+                    </form>
+                )}
+                {restoreOperation && <div className="rounded-xl border p-4" role="status">
+                    <p>{t('backup.operation_status')}: {t(`backup.operation_${restoreOperation.status}`)}</p>
+                    <button type="button" onClick={refreshRestoreStatus} className="mt-2 rounded border px-4 py-2">{t('backup.refresh_status')}</button>
+                </div>}
             </div>
             {/* Danger Zone */}
             <div className="space-y-4 pt-6 border-t border-red-100 dark:border-red-900/30">

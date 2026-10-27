@@ -73,6 +73,11 @@ async def confirm_restore_preview(db, *, tenant_id, actor_id, operation_id, conf
     if not isinstance(archive_digest, str) or not hmac.compare_digest(operation.archive_digest, archive_digest):
         raise ArchiveError('ملف الاستعادة لا يطابق الملف الذي تمت معاينته')
     operation.status = 'confirmed'
+    # Keep confirmed ciphertext long enough for outbox lease recovery.
+    operation.expires_at = _now() + timedelta(hours=2)
+    from backend.services.event_service import event_service
+    event_service.emit_event(db, event_type='tenant.restore.confirmed', aggregate_type='tenant_data_operation',
+                             aggregate_id=operation.id, payload={}, tenant_id=tenant_id)
     await db.commit()
     return operation
 

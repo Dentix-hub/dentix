@@ -133,3 +133,35 @@ async def on_password_reset_requested(event: DomainEvent):
     except Exception:
         # Event processor persists exception text, so never propagate provider data.
         raise RuntimeError("Password reset delivery failed") from None
+
+
+@register_handler('tenant.restore.confirmed')
+async def on_tenant_restore_confirmed(event: DomainEvent):
+    """Resume a durable restore without putting clinic data in the outbox."""
+    from sqlalchemy import select, text
+    from backend.core.tenancy import set_current_tenant_id, clear_tenant_context
+    from backend.database import AsyncSessionLocal, RlsContext
+    from backend.services.tenant_archive import configured_keys
+    from backend.services.tenant_backup_config import archive_max_bytes
+    from backend.services.tenant_restore_coordinator import run_confirmed_restore
+
+    token = set_current_tenant_id(event.tenant_id)
+    try:
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=event.tenant_id)) as db:
+            operation = (await db.execute(select(models.TenantDataOperation).where(
+                models.TenantDataOperation.tenant_id == event.tenant_id,
+                models.TenantDataOperation.id == event.aggregate_id,
+            ))).scalar_one_or_none()
+            if operation is None or operation.status in {'completed', 'failed', 'expired'}:
+                return
+            _, keys, installation_id = configured_keys()
+            revision = (await db.execute(text('SELECT version_num FROM alembic_version'))).scalar_one()
+            await run_confirmed_restore(db, tenant_id=event.tenant_id, operation_id=event.aggregate_id,
+                                        installation_id=installation_id, keys=keys,
+                                        supported_revisions={revision}, max_bytes=archive_max_bytes())
+    except Exception:
+        # Provider data, archive content and encryption configuration are not
+        # persisted in the job error or emitted to logs.
+        raise RuntimeError('تعذرت معالجة عملية استعادة العيادة') from None
+    finally:
+        clear_tenant_context(tenant_token=token)

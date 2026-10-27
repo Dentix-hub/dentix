@@ -70,17 +70,21 @@ async def export_tenant_data(db: AsyncSession, tenant_id: int) -> Dict:
     # 1. Users (tenant staff)
     res = await db.execute(
         select(models.User)
-        .filter(models.User.tenant_id == tenant_id, models.User.is_deleted == False)
+        .filter(models.User.tenant_id == tenant_id, models.User.is_deleted.is_(False))
     )
     users = res.scalars().all()
+    # Legacy JSON must not disclose login credentials, roles or authorization.
+    # Staff references retain only identity and financial business attributes.
+    staff_columns = {"id", "tenant_id", "username", "full_name", "email", "commission_percent", "fixed_salary", "per_appointment_fee", "hire_date"}
     export_data["data"]["users"] = [
-        model_to_dict(u, exclude_fields=["active_session_id"]) for u in users
+        {key: value for key, value in model_to_dict(u).items() if key in staff_columns}
+        for u in users
     ]
 
     # 2. Patients
     res = await db.execute(
         select(models.Patient)
-        .filter(models.Patient.tenant_id == tenant_id, models.Patient.is_deleted == False)
+        .filter(models.Patient.tenant_id == tenant_id, models.Patient.is_deleted.is_(False))
     )
     patients = res.scalars().all()
     export_data["data"]["patients"] = [model_to_dict(p) for p in patients]
@@ -91,7 +95,7 @@ async def export_tenant_data(db: AsyncSession, tenant_id: int) -> Dict:
         .join(models.Patient)
         .filter(
             models.Patient.tenant_id == tenant_id,
-            models.Appointment.is_deleted == False,
+            models.Appointment.is_deleted.is_(False),
         )
     )
     appointments = res.scalars().all()

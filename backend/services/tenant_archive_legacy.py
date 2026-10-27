@@ -35,7 +35,7 @@ def adapt_legacy_json(source, *, tenant_id):
             for row in rows:
                 if not isinstance(row, dict) or set(row) - LEGACY_USER_COLUMNS:
                     raise ArchiveError('بيانات المستخدمين القديمة غير مدعومة')
-                if row.get('tenant_id') != tenant_id or row.get('role') == 'super_admin':
+                if row.get('tenant_id') != tenant_id or (row.get('role') is not None and row.get('role') not in {'admin', 'doctor', 'receptionist', 'nurse', 'accountant', 'patient', 'guest', 'manager', 'assistant'}):
                     raise ArchiveError('حساب المستخدم في النسخة الاحتياطية غير صالح')
                 staff.append({key: row.get(key) for key in STAFF_REFERENCE_COLUMNS})
             continue

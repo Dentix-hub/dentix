@@ -40,7 +40,6 @@ from ..services.backup_service import (
     create_secure_temp_file,
     run_backup_task,
 )
-from ..services.import_service import restore_tenant_from_json
 from ..services.export_service import export_tenant_to_json
 from ..services.excel_export_service import export_tenant_to_excel
 from ..utils.audit_logger import log_admin_action
@@ -331,78 +330,14 @@ async def download_backup(
 @router.post("/backup/upload", response_model=StandardResponse[dict])
 async def upload_backup(
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Restore tenant JSON backups. Raw SQL restore over HTTP is disabled."""
-    filename = file.filename.lower() if file.filename else ""
-
-    if filename.endswith(".sql"):
-        raise HTTPException(
-            status_code=410,
-            detail="Raw SQL restore over HTTP is permanently disabled for security. Only tenant-scoped JSON restores are permitted over HTTP.",
-        )
-
-    if filename.endswith(".json"):
-        if not current_user.tenant:
-            raise HTTPException(
-                status_code=400, detail="No tenant associated with user"
-            )
-
-        tenant_id = current_user.tenant.id
-        content = await file.read()
-        try:
-            json_content = content.decode("utf-8")
-        except UnicodeDecodeError:
-            raise HTTPException(
-                status_code=400, detail="ملف النسخة الاحتياطية غير صالح (ترميز غير صحيح)."
-            )
-
-        try:
-            result = await restore_tenant_from_json(db, tenant_id, json_content)
-
-            if not result["success"]:
-                error_msg = result.get("error") or "تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك."
-                sql_keywords = (
-                    "update ",
-                    "delete ",
-                    "insert ",
-                    "select ",
-                    "table ",
-                    "violates",
-                    "foreign key",
-                    "constraint",
-                    "syntax error",
-                )
-                if any(kw in error_msg.lower() for kw in sql_keywords):
-                    logger.error(
-                        "Sanitizing SQL error in backup upload response for tenant %s: %s",
-                        tenant_id,
-                        error_msg,
-                    )
-                    error_msg = "تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك."
-                raise HTTPException(status_code=400, detail=error_msg)
-
-            return success_response(
-                data={
-                    "deleted": result["deleted"],
-                    "imported": result["imported"],
-                    "backup_date": result["backup_date"],
-                },
-                message="Tenant data restored successfully",
-            )
-        except HTTPException:
-            raise
-        except Exception:
-            logger.exception("Failed to restore backup for tenant %s", tenant_id)
-            raise HTTPException(
-                status_code=400,
-                detail="تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك.",
-            )
-
+    """Old clients must use the reviewed preview and confirmation flow."""
+    if (file.filename or "").lower().endswith(".sql"):
+        raise HTTPException(status_code=410, detail="Raw SQL restore over HTTP is permanently disabled for security.")
     raise HTTPException(
-        status_code=400,
-        detail="Unsupported file format. Only .json tenant backup files are permitted.",
+        status_code=409,
+        detail="حدّث التطبيق لمعاينة النسخة وتأكيد الاستعادة قبل استبدال بيانات العيادة",
     )
 
 
@@ -410,7 +345,7 @@ def build_content_disposition(ascii_filename: str, utf8_filename: str) -> str:
     """Build RFC 5987 / RFC 6266 compliant Content-Disposition header with ASCII fallback."""
     safe_ascii = re.sub(r"[^a-zA-Z0-9_.-]+", "_", ascii_filename).strip("_") or "backup"
     encoded_utf8 = quote(utf8_filename, safe="")
-    return f'attachment; filename="{safe_ascii}"; filename*=UTF-8\'\'{encoded_utf8}'
+    return f"attachment; filename=\"{safe_ascii}\"; filename*=UTF-8''{encoded_utf8}"
 
 
 @router.get("/backup/export")
