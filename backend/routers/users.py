@@ -52,7 +52,10 @@ async def update_user_me(
 
     password_changed = False
 
-    if user_update.email:
+    if "email" in user_update.model_fields_set:
+        email_owner = await crud.get_user_by_email(db, user_update.email)
+        if email_owner and email_owner.id != user.id:
+            raise HTTPException(status_code=400, detail="Email already registered")
         user.email = user_update.email
 
     if user_update.password:
@@ -190,6 +193,10 @@ async def register_user(
     if await crud.get_user(db, clean_display_username):
         raise HTTPException(status_code=400, detail="Username already registered")
 
+    new_email = payload.email if payload is not None else None
+    if await crud.get_user_by_email(db, new_email):
+        raise HTTPException(status_code=400, detail="Email already registered")
+
     stmt = select(models.Tenant).where(models.Tenant.id == tenant_id)
     result = await db.execute(stmt)
     tenant = result.scalars().first()
@@ -210,6 +217,7 @@ async def register_user(
     hashed_password = auth.get_password_hash(raw_password)
     user_in = schemas.User(
         username=clean_display_username,
+        email=new_email,
         full_name=effective_full_name,
         role=effective_role,
         patient_visibility_mode=effective_visibility_mode,
@@ -244,6 +252,11 @@ async def update_user(
         if existing_user and existing_user.id != user_id:
             raise HTTPException(status_code=400, detail="Username already registered")
         user_update.username = trimmed_username
+
+    if "email" in user_update.model_fields_set:
+        email_owner = await crud.get_user_by_email(db, user_update.email)
+        if email_owner and email_owner.id != user_id:
+            raise HTTPException(status_code=400, detail="Email already registered")
 
     password_changed = False
     if user_update.password:

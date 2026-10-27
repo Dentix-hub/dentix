@@ -47,6 +47,7 @@ describe('admin subscription payment API', () => {
         expect(api.post).toHaveBeenCalledWith('/api/v1/users/register', {
             username: 'أحمد',
             password: 'Valid#Pass89!XyZ',
+            email: null,
             full_name: 'د. أحمد',
             role: 'doctor',
             permissions: '["view_patients"]',

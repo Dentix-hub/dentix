@@ -49,12 +49,13 @@ async def create_feedback(
 
     # Trigger Background Task via Prefect Flow
     try:
-        background_tasks.add_task(
-            send_connection_email_flow,
-            email=current_user.email,
-            subject=f"New Support Message: {message.subject}",
-            message=message.message,
-        )
+        if current_user.email:
+            background_tasks.add_task(
+                send_connection_email_flow,
+                email=current_user.email,
+                subject=f"New Support Message: {message.subject}",
+                message=message.message,
+            )
     except Exception as e:
         logger.warning("Failed to trigger background email flow: %s", e)
 

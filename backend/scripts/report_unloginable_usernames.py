@@ -10,7 +10,6 @@ Strictly read-only: performs no writes and outputs aggregate counts only by defa
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import os
 import sys
@@ -83,7 +82,7 @@ async def find_unloginable_usernames(db: AsyncSession) -> dict[str, Any]:
     }
 
 
-def format_report(summary: dict[str, Any], *, show_rows: bool = False) -> str:
+def format_report(summary: dict[str, Any]) -> str:
     """Format report output with counts only by default (no PHI)."""
     lines = [
         "=" * 64,
@@ -107,34 +106,19 @@ def format_report(summary: dict[str, Any], *, show_rows: bool = False) -> str:
             f"outer_whitespace={stats['outer_whitespace']}"
         )
 
-    if show_rows and summary["rows"]:
-        lines.append("-" * 64)
-        lines.append("Matched rows (tenant_id, user_id, stored_username_repr):")
-        for tenant_id, user_id, username_repr in summary["rows"]:
-            lines.append(f"  ({tenant_id}, {user_id}, {username_repr})")
-
     lines.append("=" * 64)
     return "\n".join(lines)
 
 
-async def _main_async(show_rows: bool = False) -> int:
+async def _main_async() -> int:
     async with system_session_scope() as db:
         summary = await find_unloginable_usernames(db)
-    print(format_report(summary, show_rows=show_rows))
+    print(format_report(summary))
     return 0
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="Read-only report of usernames requiring SQL-side normalization."
-    )
-    parser.add_argument(
-        "--show-rows",
-        action="store_true",
-        help="Include (tenant_id, user_id, repr(username)) tuples in addition to counts.",
-    )
-    args = parser.parse_args()
-    return asyncio.run(_main_async(show_rows=args.show_rows))
+    return asyncio.run(_main_async())
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ export const registerUser = (data) =>
     api.post('/api/v1/users/register', {
         username: data.username,
         password: data.password,
+        email: data.email ?? null,
         full_name: data.full_name ?? null,
         role: data.role || 'doctor',
         permissions: data.permissions || '',

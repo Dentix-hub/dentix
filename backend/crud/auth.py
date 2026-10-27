@@ -2,6 +2,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from backend import models, schemas
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import IntegrityError
+
+
+async def _commit_user(db: AsyncSession) -> None:
+    """Keep duplicate addresses a client error, including concurrent inserts."""
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        code = getattr(exc.orig, "sqlstate", None) or getattr(exc.orig, "pgcode", None)
+        sqlite_code = getattr(exc.orig, "sqlite_errorname", None)
+        if code == "23505" or sqlite_code == "SQLITE_CONSTRAINT_UNIQUE":
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=400, detail="Username or email already registered") from None
+        raise
 
 def normalize_username(username: str) -> str:
     """Normalize username: trim, lowercase, and basic Arabic normalization."""
@@ -16,7 +32,8 @@ def normalize_username(username: str) -> str:
 
 def sql_normalize_username(column):
     """Build a SQL expression equivalent to normalize_username(column)."""
-    expr = func.lower(func.trim(column))
+    whitespace = " \t\n\r\v\f\x1c\x1d\x1e\x1f\x85\xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
+    expr = func.lower(func.trim(column, whitespace))
     for src, dst in (
         ("أ", "ا"),
         ("إ", "ا"),
@@ -72,7 +89,7 @@ async def get_user(db: AsyncSession, username: str):
     stmt = (
         select(models.User)
         .where(
-            (func.lower(func.trim(models.User.email)) == clean_username)
+            (models.User.email.is_not(None) & (sql_normalize_username(models.User.email) == clean_username))
             | (sql_normalize_username(models.User.username) == clean_username)
         )
         .options(selectinload(models.User.tenant))
@@ -81,8 +98,10 @@ async def get_user(db: AsyncSession, username: str):
     return result.scalars().first()
 
 
-async def get_user_by_email(db: AsyncSession, email: str):
-    stmt = select(models.User).where(func.lower(models.User.email) == email.lower())
+async def get_user_by_email(db: AsyncSession, email: str | None):
+    if not email or not email.strip():
+        return None
+    stmt = select(models.User).where(func.lower(func.trim(models.User.email)) == email.strip().lower())
     result = await db.execute(stmt)
     return result.scalars().first()
 
@@ -98,6 +117,7 @@ async def create_user(db: AsyncSession, user: schemas.User, password_hash: str, 
     db_user = models.User(
         username=trimmed_username,
         full_name=user.full_name,
+        email=user.email,
         hashed_password=password_hash,
         role=user.role,
         permissions=user.permissions,
@@ -105,7 +125,7 @@ async def create_user(db: AsyncSession, user: schemas.User, password_hash: str, 
         tenant_id=tenant_id,
     )
     db.add(db_user)
-    await db.commit()
+    await _commit_user(db)
     await db.refresh(db_user)
     return db_user
 
@@ -144,7 +164,7 @@ async def update_user(
         for key, value in update_data.items():
             setattr(db_user, key, value)
 
-        await db.commit()
+        await _commit_user(db)
         await db.refresh(db_user)
     return db_user
 

@@ -22,7 +22,7 @@ bookkeeping writes their login performs use narrow explicit bypass scopes.
 import logging
 from contextlib import asynccontextmanager
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import joinedload
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -114,7 +114,7 @@ def _identity_stmt(username: str):
         .where(
             or_(
                 sql_normalize_username(models.User.username) == clean_identity,
-                func.lower(func.trim(models.User.email)) == clean_identity,
+                models.User.email.is_not(None) & (sql_normalize_username(models.User.email) == clean_identity),
             )
         )
         # Login/refresh touch user.tenant right after resolution; eager

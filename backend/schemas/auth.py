@@ -60,6 +60,7 @@ class UserRegisterRequest(BaseModel):
 
     username: Optional[str] = None
     password: Optional[str] = None
+    email: Optional[str] = None
     full_name: Optional[str] = None
     role: Optional[str] = None
     permissions: Optional[str] = None
