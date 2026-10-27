@@ -1,3 +1,4 @@
+import ProtectedImage from '@/features/clinical-attachments/components/ProtectedImage';
 import { useState, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import {
@@ -16,7 +17,6 @@ import CanalTargetSelector from './CanalTargetSelector';
 import WorkingLengthEntryTable from './WorkingLengthEntryTable';
 import FinishCareSessionSheet from './FinishCareSessionSheet';
 import {
-    buildAttachmentUrl,
     getPurposeLabel,
     DiagnosticImageLightbox,
     LinkClinicalAttachmentModal,
@@ -432,8 +432,9 @@ export default function RctStructuredCard({
                                     onClick={() => setSelectedImageForLightbox(img)}
                                     className="group relative aspect-square cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm transition-transform hover:scale-[1.02] dark:border-slate-800 dark:bg-slate-800"
                                 >
-                                    <img
-                                        src={buildAttachmentUrl(img.file_path)}
+                                    <ProtectedImage
+                                        filePath={img.file_path}
+                                thumbnail
                                         alt={img.filename || 'Session radiograph'}
                                         className="h-full w-full object-cover"
                                     />

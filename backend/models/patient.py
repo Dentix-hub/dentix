@@ -15,7 +15,7 @@ from .base import (
 )
 from backend.core.security import EncryptedString
 from rls.schemas import Permissive, ConditionArg, Command
-from sqlalchemy import column
+from sqlalchemy import column, Index
 from typing import TYPE_CHECKING
 from datetime import date
 
@@ -91,6 +91,7 @@ class Patient(Base):
 
 class Attachment(Base):
     __tablename__ = "attachments"
+    __table_args__ = (Index("uq_attachment_tenant_storage_uuid", "tenant_id", "storage_uuid", unique=True),)
 
     __rls_policies__ = [
         Permissive(
@@ -107,6 +108,16 @@ class Attachment(Base):
     filename: Mapped[str] = mapped_column(String)
     file_type: Mapped[str] = mapped_column(String)
     note: Mapped[str | None] = mapped_column(Text, nullable=True, default=None)
+    storage_provider: Mapped[str] = mapped_column(String(32), nullable=False, default="legacy", server_default="legacy")
+    storage_uuid: Mapped[str | None] = mapped_column(String(36), nullable=True)
+    drive_original_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    drive_thumbnail_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    original_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    original_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    thumbnail_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    google_account_sub: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    connection_generation: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    storage_status: Mapped[str] = mapped_column(String(32), nullable=False, default="ready", server_default="ready")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )

@@ -1,10 +1,11 @@
 """Clinical/treatment-related schemas."""
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from typing import Optional
+from typing import Optional, Literal
 from datetime import datetime
 from decimal import Decimal
 from .patient import PatientSummary
+from .laboratory import LabOrderCreate
 from .procedure_chart_style import ProcedureChartStyleEmbedded
 from backend.core.money import NonNegativeMoney
 
@@ -109,6 +110,7 @@ class TreatmentBase(BaseModel):
     surfaces: Optional[list[str]] = None
     diagnosis: Optional[str] = None
     procedure: Optional[str] = None
+    lab_choice: Optional[Literal["external_lab", "in_clinic"]] = None
     doctor_id: Optional[int] = None
     cost: NonNegativeMoney
     discount: Optional[NonNegativeMoney] = Decimal("0.00")
@@ -169,6 +171,8 @@ class ConsumedMaterialItem(BaseModel):
 
 
 class TreatmentCreate(TreatmentBase):
+    idempotency_key: Optional[str] = Field(None, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+    lab_order: Optional[LabOrderCreate] = None
     consumedMaterials: Optional[list[ConsumedMaterialItem]] = None
     skip_stock_check: Optional[bool] = False
     price_list_id: Optional[int] = None
@@ -198,6 +202,9 @@ class TreatmentCreate(TreatmentBase):
 class ToothProcedureItem(BaseModel):
     """Single procedure specification within a multi-procedure tooth treatment."""
     procedure: str
+    lab_choice: Optional[Literal["external_lab", "in_clinic"]] = None
+    lab_order: Optional[LabOrderCreate] = None
+    idempotency_key: Optional[str] = Field(None, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
     cost: NonNegativeMoney = Decimal("0.00")
     discount: NonNegativeMoney = Decimal("0.00")
     diagnosis: Optional[str] = None
@@ -363,6 +370,7 @@ class Procedure(ProcedureBase):
     id: int
     tenant_id: Optional[int] = None
     canonical_code: Optional[str] = None
+    requires_lab: bool = False
     chart_style: Optional[ProcedureChartStyleEmbedded] = None
 
     model_config = ConfigDict(from_attributes=True)

@@ -181,3 +181,88 @@ async def post_auth_write_scope(db: AsyncSession, user: models.User | None):
             yield system_db, scoped_user
         return
     yield db, user
+
+
+async def resolve_password_reset_identity(*, email: str | None = None, token_hash: str | None = None):
+    """Resolve only one reset identity through the isolated audited system role.
+
+    Email matching is exact and case-insensitive; it never falls back to a
+    username. Token material must be a digest. Orphaned clinic identities and
+    inactive/deleted accounts are ineligible; tenantless super-admins are
+    handled separately by the existing system-write scope.
+    """
+    from sqlalchemy import func
+    from backend.database import system_session_scope
+
+    if (email is None) == (token_hash is None):
+        raise ValueError("Exactly one reset identity selector is required")
+    from backend.core.tenancy import set_current_tenant_id, set_super_admin_bypass, clear_tenant_context
+
+    tenant_context = set_current_tenant_id(None)
+    admin_context = set_super_admin_bypass(False)
+    try:
+        async with system_session_scope() as system_db:
+            stmt = select(models.User).options(joinedload(models.User.tenant))
+            if email is not None:
+                stmt = stmt.where(func.lower(models.User.email) == email.strip().lower())
+            else:
+                stmt = stmt.join(models.PasswordResetToken, models.PasswordResetToken.user_id == models.User.id).where(
+                    models.PasswordResetToken.token == token_hash
+                )
+            users = (await system_db.execute(stmt)).scalars().all()
+            user = users[0] if len(users) == 1 else None
+            eligible = bool(
+                user and user.is_active and not user.is_deleted and (
+                    (user.role == SUPER_ADMIN_ROLE and user.tenant_id is None)
+                    or (user.tenant_id is not None and user.tenant is not None
+                        and user.tenant.is_active and not user.tenant.is_deleted)
+                )
+            )
+            identity = (user.id, user.tenant_id, user.role) if eligible else None
+    finally:
+        clear_tenant_context(tenant_context, admin_context)
+    await _audit_bootstrap(
+        user_id=identity[0] if identity else None,
+        tenant_id=identity[1] if identity else None,
+        username="[password-reset-redacted]",
+        reason="password_reset_email" if email is not None else "password_reset_token",
+    )
+    return identity
+
+
+@asynccontextmanager
+async def password_reset_identity_scope(db: AsyncSession, identity, *, for_update: bool = False):
+    """Re-read a resolved identity in its tenant or narrow system scope."""
+    from backend.core.tenancy import set_current_tenant_id, set_super_admin_bypass, clear_tenant_context
+    from backend.database import system_session_scope
+
+    user_id, tenant_id, role = identity
+    tenant_context = set_current_tenant_id(tenant_id)
+    admin_context = set_super_admin_bypass(False)
+    try:
+        if tenant_id is None:
+            if role != SUPER_ADMIN_ROLE:
+                raise ValueError("Tenantless clinic identity is not eligible")
+            async with system_session_scope() as system_db:
+                stmt = select(models.User).where(
+                    models.User.id == user_id, models.User.tenant_id.is_(None),
+                    models.User.role == SUPER_ADMIN_ROLE,
+                )
+                if for_update:
+                    stmt = stmt.with_for_update()
+                user = (await system_db.execute(stmt)).scalar_one_or_none()
+                if user and (not user.is_active or user.is_deleted):
+                    user = None
+                yield system_db, user
+            return
+        _bind_tenant(db, tenant_id)
+        stmt = select(models.User).where(models.User.id == user_id, models.User.tenant_id == tenant_id)
+        if for_update:
+            stmt = stmt.with_for_update()
+        user = (await db.execute(stmt)).scalar_one_or_none()
+        tenant = (await db.execute(select(models.Tenant).where(models.Tenant.id == tenant_id))).scalar_one_or_none()
+        if not user or not user.is_active or user.is_deleted or not tenant or not tenant.is_active or tenant.is_deleted:
+            user = None
+        yield db, user
+    finally:
+        clear_tenant_context(tenant_context, admin_context)

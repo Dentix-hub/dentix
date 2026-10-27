@@ -1012,6 +1012,7 @@ export default function PatientDetails() {
                 onRefetch={refetchClinicalData}
                 initialData={newTreatment}
                 isEditing={Boolean(editingTreatmentId)}
+                isNativeWritesEnabled={isNativeWritesEnabled}
                 procedures={procedures}
                 patient={patient}
                 selectedToothCondition={selectedToothCondition}

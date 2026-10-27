@@ -35,6 +35,7 @@ async def create_treatment(
     unit_price: float = None,
     price_snapshot: str = None,
     commit: bool = True,
+    request_fingerprint: str | None = None,
 ):
     """
     Create a treatment record.
@@ -47,6 +48,8 @@ async def create_treatment(
     treatment_dict.pop("skip_stock_check", None)
     treatment_dict.pop("target_kind", None)
     treatment_dict.pop("clinical_work_item_id", None)
+    treatment_dict.pop("lab_order", None)
+    request_key = treatment_dict.pop("idempotency_key", None)
 
     # Auto-fill doctor_id if not provided
     if not treatment_dict.get("doctor_id") and doctor_id:
@@ -57,6 +60,8 @@ async def create_treatment(
         treatment_dict["tenant_id"] = tenant_id
 
     db_treatment = models.Treatment(**treatment_dict)
+    db_treatment.request_key = request_key
+    db_treatment.request_fingerprint = request_fingerprint
 
     if price_list_id:
         db_treatment.price_list_id = price_list_id
@@ -243,6 +248,10 @@ async def update_treatment(
         # Remove fields that are not part of the Treatment model
         treatment_dict.pop("consumedMaterials", None)
         treatment_dict.pop("skip_stock_check", None)
+        treatment_dict.pop("lab_order", None)
+        treatment_dict.pop("idempotency_key", None)
+        if "lab_choice" not in treatment.model_fields_set:
+            treatment_dict.pop("lab_choice", None)
         # Preserve doctor_id if not provided in update
         if not treatment_dict.get("doctor_id") and db_treatment.doctor_id:
             treatment_dict["doctor_id"] = db_treatment.doctor_id

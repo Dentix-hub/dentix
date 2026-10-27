@@ -117,31 +117,27 @@ async def test_upload_backup_sanitizes_db_errors_in_response(async_db_session, m
 
     token = create_access_token(data={"sub": admin.username, "tenant_id": tenant.id, "role": admin.role})
 
-    # Simulate an internal DB error leaking constraint details
-    async def mock_restore_fail(*args, **kwargs):
-        return {
-            "success": False,
-            "error": 'update or delete on table "material_sessions" violates foreign key constraint "material_learning_logs_session_id_fkey" on table "material_learning_logs"',
-        }
-
-    from backend.routers import settings as settings_module
-    monkeypatch.setattr(settings_module, "restore_tenant_from_json", mock_restore_fail)
-
+    # Simulate a preview failure whose raw database exception contains SQL.
+    import base64
+    from unittest.mock import AsyncMock
+    from backend.routers import tenant_backups as backup_router
+    from backend.services.tenant_archive import encode_archive
+    monkeypatch.setenv("TENANT_BACKUP_KEY_ID", "test")
+    monkeypatch.setenv("TENANT_BACKUP_ENCRYPTION_KEY", base64.urlsafe_b64encode(b"a" * 32).decode())
+    monkeypatch.setenv("DENTIX_INSTALLATION_ID", "test")
+    monkeypatch.setattr(backup_router, "_revision", AsyncMock(return_value="test"))
+    async def mock_preview_fail(*args, **kwargs):
+        raise RuntimeError('update or delete on table "material_sessions" violates foreign key constraint')
+    monkeypatch.setattr(backup_router, "create_restore_preview", mock_preview_fail)
+    archive = encode_archive({"data": {}}, tenant_id=tenant.id, installation_id="test", schema_revision="test", key_id="test", key=b"a" * 32)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        files = {"file": ("backup.json", b'{"version":"1.0","tenant_id":1,"data":{}}', "application/json")}
-        resp = await ac.post(
-            "/api/v1/settings/backup/upload",
-            files=files,
-            headers={"Authorization": f"Bearer {token}"},
-        )
-
+        resp = await ac.post("/api/v1/settings/backup/preview", content=archive, headers={"Authorization": f"Bearer {token}", "Content-Type": "application/octet-stream"})
     assert resp.status_code == 400
-    data = resp.json()
-    detail = data.get("detail", "")
-    assert "material_learning_logs" not in detail
+    detail = resp.json().get("detail", "")
+    assert "material_sessions" not in detail
     assert "foreign key" not in detail.lower()
-    assert "تعذرت استعادة النسخة الاحتياطية" in detail
+    assert "لم يتم تغيير بياناتك" in detail
 
 
 @pytest.mark.asyncio

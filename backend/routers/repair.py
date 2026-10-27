@@ -307,7 +307,7 @@ async def reset_password(
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    validate_password(new_password)
+    validate_password(new_password, username=user.username)
 
     try:
         hashed_pw = auth.get_password_hash(new_password)

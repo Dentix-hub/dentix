@@ -1,3 +1,4 @@
+import { passwordPolicyError } from '@/auth/passwordPolicy';
 import { useState } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
@@ -46,15 +47,9 @@ const RegisterClinic = ({ isDarkMode: _isDarkMode }) => {
             setError(t('auth.register.errors.phone_short'));
             return;
         }
-        if (formData.admin_password.length < 8) {
-            setError(t('auth.register.errors.password_min_length'));
-            return;
-        }
-        const hasLetter = /\p{L}/u.test(formData.admin_password);
-        const hasNumber = /[0-9]/.test(formData.admin_password);
-        const hasSpecial = /[^\p{L}0-9]/u.test(formData.admin_password);
-        if (!hasLetter || !hasNumber || !hasSpecial) {
-            setError(t('auth.register.errors.password_weak'));
+        const policyError = passwordPolicyError(formData.admin_password, formData.admin_username);
+        if (policyError) {
+            setError(t(`auth.register.errors.${policyError}`));
             return;
         }
         if (formData.admin_password !== formData.confirm_password) {

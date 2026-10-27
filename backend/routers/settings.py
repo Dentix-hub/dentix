@@ -18,7 +18,8 @@ from fastapi import (
     UploadFile,
     File,
     Form,
-    BackgroundTasks,
+    Request,
+    Header,
 )
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 import re
@@ -34,13 +35,6 @@ from .. import schemas, database, models
 from ..auth import ALGORITHM, SECRET_KEY
 from ..core.permissions import Permission, Role, require_permission
 from ..core.response import success_response, StandardResponse
-from ..services.backup_service import (
-    build_pg_dump_command,
-    build_psql_command,
-    create_secure_temp_file,
-    run_backup_task,
-)
-from ..services.import_service import restore_tenant_from_json
 from ..services.export_service import export_tenant_to_json
 from ..services.excel_export_service import export_tenant_to_excel
 from ..utils.audit_logger import log_admin_action
@@ -128,11 +122,13 @@ async def get_backup_status(
         )
 
     tenant = current_user.tenant
-    is_connected = bool(tenant.google_refresh_token)
+    is_connected = bool(tenant.google_refresh_token and tenant.google_connection_status == "connected")
 
     return success_response(
         data={
             "connected": is_connected,
+            "connection_status": tenant.google_connection_status,
+            "account_email": tenant.google_account_email,
             "frequency": tenant.backup_frequency,
             "last_backup": tenant.last_backup_at,
         },
@@ -142,11 +138,15 @@ async def get_backup_status(
 
 @router.get("/backup/auth", response_model=StandardResponse[dict])
 async def get_backup_auth_url(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Get a Google Drive authorization URL with signed CSRF state."""
-    if current_user.role != Role.SUPER_ADMIN.value and not current_user.tenant_id:
-        raise HTTPException(status_code=400, detail="User has no tenant assigned")
+    """Use browser-bound attempts for clinics; retain the platform flow."""
+    if current_user.role != Role.SUPER_ADMIN.value:
+        from backend.routers.clinic_google import start_connection
+        return await start_connection(request=request, response=response, db=db, user=current_user)
     state = _create_backup_oauth_state(current_user)
     auth_url = get_drive_client().get_auth_url(state=state)
     return success_response(data={"url": auth_url}, message="Redirecting...")
@@ -154,37 +154,23 @@ async def get_backup_auth_url(
 
 @router.post("/backup/callback", response_model=StandardResponse[dict])
 async def backup_auth_callback_post(
-    code: str = Form(...),
-    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Handle the authenticated frontend OAuth callback for a tenant."""
-    if not current_user.tenant:
-        raise HTTPException(status_code=400, detail="User has no tenant assigned")
-    try:
-        token_data = get_drive_client().fetch_token(code=code)
-        if token_data.get("refresh_token"):
-            current_user.tenant.google_refresh_token = token_data["refresh_token"]
-            await db.commit()
-            return success_response(message="تم ربط Google Drive بنجاح")
-        return success_response(
-            success=False,
-            message="لم يتم استلام refresh token. يرجى إعادة المحاولة.",
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Auth Error: %s", type(e).__name__, exc_info=True)
-        raise HTTPException(status_code=400, detail="Google Drive authorization failed")
+    """Old code-only callbacks cannot prove browser-bound OAuth state."""
+    raise HTTPException(status_code=409, detail="يرجى إعادة ربط Google باستخدام التطبيق المحدّث")
 
 
 @router.get("/backup/callback")
 async def backup_auth_callback_get(
+    request: Request,
     code: str,
     state: str = None,
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Handle Google OAuth redirect using signed, identity-bound state."""
+    """Dispatch opaque clinic state; retain signed platform callbacks."""
+    if state and "." not in state:
+        from backend.routers.clinic_google import connection_callback
+        return await connection_callback(request=request, code=code, state=state)
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
     destination = "/settings"
     try:
@@ -192,6 +178,8 @@ async def backup_auth_callback_get(
         user_id = int(state_payload["user_id"])
         state_role = state_payload.get("role")
         state_tenant_id = state_payload.get("tenant_id")
+        if state_role != Role.SUPER_ADMIN.value:
+            raise HTTPException(status_code=400, detail="Clinic OAuth requires browser-bound state")
         if state_role == Role.SUPER_ADMIN.value:
             destination = "/admin/system"
 
@@ -253,33 +241,22 @@ async def backup_auth_callback_get(
 
 @router.post("/backup/now", response_model=StandardResponse[dict])
 async def trigger_manual_backup(
-    background_tasks: BackgroundTasks,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Trigger a manual tenant backup to Google Drive."""
-    if not current_user.tenant:
-        raise HTTPException(status_code=400, detail="User has no tenant assigned")
-
-    tenant = current_user.tenant
-    if not tenant.google_refresh_token:
-        raise HTTPException(
-            status_code=400, detail="Google Drive not connected for this clinic"
-        )
-
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
-        raise HTTPException(
-            status_code=500, detail="DATABASE_URL configuration missing"
-        )
-
-    background_tasks.add_task(
-        run_backup_task, tenant.google_refresh_token, db_url, tenant.id, tenant.name
-    )
-
-    return success_response(
-        message="Manual backup started in background. Please check Google Drive in a few minutes.",
-    )
+    """Queue an idempotent clinic archive upload; success is reported by status."""
+    from backend.routers.clinic_google import _admin
+    from backend.services.clinic_drive_backup import queue_drive_backup
+    from backend.services.clinic_drive_provider import DriveFailure
+    from backend.services.tenant_archive import ArchiveError
+    tenant_id = _admin(current_user)
+    try:
+        operation = await queue_drive_backup(db, tenant_id=tenant_id, actor_id=current_user.id, request_key=idempotency_key)
+        return success_response(data={"operation_id": operation.id, "status": operation.status}, message="تم إرسال النسخ الاحتياطي للتنفيذ")
+    except (DriveFailure, ArchiveError) as exc:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.put("/backup/schedule", response_model=StandardResponse[dict])
@@ -331,78 +308,14 @@ async def download_backup(
 @router.post("/backup/upload", response_model=StandardResponse[dict])
 async def upload_backup(
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Restore tenant JSON backups. Raw SQL restore over HTTP is disabled."""
-    filename = file.filename.lower() if file.filename else ""
-
-    if filename.endswith(".sql"):
-        raise HTTPException(
-            status_code=410,
-            detail="Raw SQL restore over HTTP is permanently disabled for security. Only tenant-scoped JSON restores are permitted over HTTP.",
-        )
-
-    if filename.endswith(".json"):
-        if not current_user.tenant:
-            raise HTTPException(
-                status_code=400, detail="No tenant associated with user"
-            )
-
-        tenant_id = current_user.tenant.id
-        content = await file.read()
-        try:
-            json_content = content.decode("utf-8")
-        except UnicodeDecodeError:
-            raise HTTPException(
-                status_code=400, detail="ملف النسخة الاحتياطية غير صالح (ترميز غير صحيح)."
-            )
-
-        try:
-            result = await restore_tenant_from_json(db, tenant_id, json_content)
-
-            if not result["success"]:
-                error_msg = result.get("error") or "تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك."
-                sql_keywords = (
-                    "update ",
-                    "delete ",
-                    "insert ",
-                    "select ",
-                    "table ",
-                    "violates",
-                    "foreign key",
-                    "constraint",
-                    "syntax error",
-                )
-                if any(kw in error_msg.lower() for kw in sql_keywords):
-                    logger.error(
-                        "Sanitizing SQL error in backup upload response for tenant %s: %s",
-                        tenant_id,
-                        error_msg,
-                    )
-                    error_msg = "تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك."
-                raise HTTPException(status_code=400, detail=error_msg)
-
-            return success_response(
-                data={
-                    "deleted": result["deleted"],
-                    "imported": result["imported"],
-                    "backup_date": result["backup_date"],
-                },
-                message="Tenant data restored successfully",
-            )
-        except HTTPException:
-            raise
-        except Exception:
-            logger.exception("Failed to restore backup for tenant %s", tenant_id)
-            raise HTTPException(
-                status_code=400,
-                detail="تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك.",
-            )
-
+    """Old clients must use the reviewed preview and confirmation flow."""
+    if (file.filename or "").lower().endswith(".sql"):
+        raise HTTPException(status_code=410, detail="Raw SQL restore over HTTP is permanently disabled for security.")
     raise HTTPException(
-        status_code=400,
-        detail="Unsupported file format. Only .json tenant backup files are permitted.",
+        status_code=409,
+        detail="حدّث التطبيق لمعاينة النسخة وتأكيد الاستعادة قبل استبدال بيانات العيادة",
     )
 
 
@@ -410,7 +323,7 @@ def build_content_disposition(ascii_filename: str, utf8_filename: str) -> str:
     """Build RFC 5987 / RFC 6266 compliant Content-Disposition header with ASCII fallback."""
     safe_ascii = re.sub(r"[^a-zA-Z0-9_.-]+", "_", ascii_filename).strip("_") or "backup"
     encoded_utf8 = quote(utf8_filename, safe="")
-    return f'attachment; filename="{safe_ascii}"; filename*=UTF-8\'\'{encoded_utf8}'
+    return f"attachment; filename=\"{safe_ascii}\"; filename*=UTF-8''{encoded_utf8}"
 
 
 @router.get("/backup/export")

@@ -34,15 +34,21 @@ export const createPrescription = (data) => api.post('/api/v1/prescriptions', da
 export const deletePrescription = (id) => api.delete(`/api/v1/prescriptions/${id}`);
 
 export const getAttachments = (patientId) => api.get(`/api/v1/patients/${patientId}/attachments`);
+const attachmentRequestKeys = new WeakMap();
 export const uploadAttachment = (patientId, file) => {
+    if (!attachmentRequestKeys.has(file)) attachmentRequestKeys.set(file, globalThis.crypto.randomUUID());
     const formData = new FormData();
     formData.append('file', file);
     return api.post('/api/v1/upload', formData, {
         params: { patient_id: patientId },
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { 'Content-Type': 'multipart/form-data', 'Idempotency-Key': attachmentRequestKeys.get(file) },
     });
 };
 export const deleteAttachment = (id) => api.delete(`/api/v1/attachments/${id}`);
+export const getDriveImageStatus = (filePath) => {
+    if (!/^\/api\/v1\/upload\/drive\/[a-f0-9-]+\/content$/i.test(filePath)) throw new Error('Invalid attachment path');
+    return api.get(filePath.replace(/\/content$/, '/status'));
+};
 
 export const getPatientClinicalPlans = (patientId) => api.get(`/api/v1/patients/${patientId}/clinical-plans`);
 export const createPatientClinicalPlan = (patientId, data) => api.post(`/api/v1/patients/${patientId}/clinical-plans`, data);

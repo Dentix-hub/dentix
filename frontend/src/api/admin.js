@@ -32,11 +32,17 @@ export const purgeDeletedPatients = (tenantId) => api.delete(`/api/v1/admin/tena
 export const downloadBackup = () => api.get('/api/v1/settings/backup/download', { responseType: 'blob' });
 export const exportTenantBackup = () => api.get('/api/v1/settings/backup/export', { responseType: 'blob' });
 export const exportTenantBackupXlsx = () => api.get('/api/v1/settings/backup/export-xlsx', { responseType: 'blob' });
+export const downloadClinicArchive = () => api.get('/api/v1/settings/backup/archive', { responseType: 'blob' });
+export const previewClinicRestore = (file) => api.post('/api/v1/settings/backup/preview', file, {
+    headers: { 'Content-Type': file.name.toLowerCase().endsWith('.json') ? 'application/json' : 'application/octet-stream' },
+});
+export const confirmClinicRestore = (payload) => api.post('/api/v1/settings/backup/confirm', payload);
+export const getClinicRestoreStatus = (id) => api.get(`/api/v1/settings/backup/operations/${encodeURIComponent(id)}`);
 export const uploadBackup = (formData) => api.post('/api/v1/settings/backup/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
 });
 export const getGoogleAuthUrl = () => api.get('/api/v1/settings/backup/auth');
-export const disconnectGoogleDrive = () => api.delete('/api/v1/settings/backup/auth');
+export const disconnectGoogleDrive = () => api.delete('/api/v1/settings/drive/connection');
 export const sendGoogleAuthCode = (code) => {
     const formData = new FormData();
     formData.append('code', code);
@@ -48,4 +54,6 @@ export const updateBackupSchedule = (frequency) => {
     return api.put('/api/v1/settings/backup/schedule', formData);
 };
 export const getBackupStatus = () => api.get('/api/v1/settings/backup/status');
-export const triggerManualBackup = () => api.post('/api/v1/settings/backup/now');
+export const triggerManualBackup = (key) => api.post('/api/v1/settings/backup/now', null, { headers: { 'Idempotency-Key': key } });
+export const listDriveBackups = (pageToken) => api.get('/api/v1/settings/drive/backups', { params: pageToken ? { page_token: pageToken } : {} });
+export const previewDriveBackup = (id) => api.post(`/api/v1/settings/drive/backups/${encodeURIComponent(id)}/preview`);

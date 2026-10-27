@@ -274,7 +274,15 @@ def test_legacy_finance_tables_unchanged():
 def test_alembic_single_head_is_s32():
     alembic_cfg_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
     script_dir = ScriptDirectory.from_config(Config(alembic_cfg_path))
-    assert script_dir.get_heads() == ["ed137fa8c304"]
+    assert script_dir.get_heads() == ["bc78a10d932e"]
+    assert script_dir.get_revision("bc78a10d932e").down_revision == "ab52d9c807a1"
+    assert script_dir.get_revision("ab52d9c807a1").down_revision == "f17a93c60e24"
+    assert script_dir.get_revision("f17a93c60e24").down_revision == "e82c19f5a406"
+    assert script_dir.get_revision("e82c19f5a406").down_revision == "d42a71e9bc83"
+    assert script_dir.get_revision("d42a71e9bc83").down_revision == "c38f91a2d47b"
+    assert script_dir.get_revision("c38f91a2d47b").down_revision == "ba7526e3a901"
+    assert script_dir.get_revision("ba7526e3a901").down_revision == "9ab047d5613e"
+    assert script_dir.get_revision("9ab047d5613e").down_revision == "ed137fa8c304"
     assert script_dir.get_revision("ed137fa8c304").down_revision == "1e2f3a4b5c6d"
     assert script_dir.get_revision("1e2f3a4b5c6d").down_revision == "0d1e2f3a4b5c"
     assert script_dir.get_revision("0d1e2f3a4b5c").down_revision == "9c0d1e2f3a4b"
@@ -300,10 +308,20 @@ def test_alembic_s32_upgrade_downgrade_and_orm_parity(monkeypatch):
             # Parent-schema baseline: every ORM table except the one S32 adds.
             Base.metadata.create_all(
                 bind=eng,
-                tables=[t for n, t in Base.metadata.tables.items() if n != "clinical_charges"],
+                tables=[t for n, t in Base.metadata.tables.items() if n not in {"clinical_charges", "tenant_data_operations", "google_oauth_attempts"}],
             )
             with eng.begin() as conn:
                 conn.execute(sa.text("ALTER TABLE user_sessions DROP COLUMN remember_me"))
+                conn.execute(sa.text("DROP INDEX uq_attachment_tenant_storage_uuid"))
+                for column in ("storage_status", "connection_generation", "original_size", "google_account_sub", "thumbnail_sha256", "original_sha256", "drive_thumbnail_id", "drive_original_id", "storage_uuid", "storage_provider"):
+                    conn.execute(sa.text(f"ALTER TABLE attachments DROP COLUMN {column}"))
+                for column in ("google_account_sub", "google_account_email", "google_connection_status", "google_connection_generation", "google_root_folder_id", "google_backup_folder_id", "google_image_folder_id"):
+                    conn.execute(sa.text(f"ALTER TABLE tenants DROP COLUMN {column}"))
+                conn.execute(sa.text("DROP INDEX uq_treatment_tenant_request_key"))
+                conn.execute(sa.text("ALTER TABLE treatments DROP COLUMN request_key"))
+                conn.execute(sa.text("ALTER TABLE treatments DROP COLUMN request_fingerprint"))
+                conn.execute(sa.text("ALTER TABLE treatments DROP COLUMN lab_choice"))
+                conn.execute(sa.text("ALTER TABLE clinical_work_items DROP COLUMN lab_choice"))
             command.stamp(config, "4d5e6f7a8b9c")
             assert "clinical_charges" not in sa.inspect(eng).get_table_names()
 

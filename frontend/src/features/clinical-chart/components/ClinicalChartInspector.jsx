@@ -1,9 +1,9 @@
+import ProtectedImage from '@/features/clinical-attachments/components/ProtectedImage';
 import { useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { Trash2, AlertTriangle, Camera, Eye, Plus, FlaskConical, CheckCircle } from 'lucide-react';
 import Modal from '@/shared/ui/Modal';
 import {
-    buildAttachmentUrl,
     getPurposeLabel,
     DiagnosticImageLightbox,
     LinkClinicalAttachmentModal,
@@ -445,8 +445,9 @@ export default function ClinicalChartInspector({
                                         onClick={() => setSelectedImageForLightbox(img)}
                                         className="group relative aspect-square cursor-pointer overflow-hidden rounded-xl border border-slate-200 bg-slate-100 shadow-sm transition-transform hover:scale-[1.02] dark:border-slate-800 dark:bg-slate-800"
                                     >
-                                        <img
-                                            src={buildAttachmentUrl(img.file_path)}
+                                        <ProtectedImage
+                                            filePath={img.file_path}
+                                thumbnail
                                             alt={img.filename || `Tooth ${toothKey} image`}
                                             className="h-full w-full object-cover"
                                         />

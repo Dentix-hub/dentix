@@ -1,3 +1,4 @@
+import { passwordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from '@/auth/passwordPolicy';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
@@ -42,8 +43,8 @@ export default function ResetPassword() {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!password) return setError(t('auth.reset_password.errors.password_required'));
-        if (password.length < 8) return setError(t('auth.reset_password.errors.password_min_length'));
-        if (password.length > 72) return setError(t('auth.reset_password.errors.password_max_length'));
+        const policyError = passwordPolicyError(password);
+        if (policyError) return setError(t(`auth.reset_password.errors.${policyError}`));
         if (password !== confirmPassword) return setError(t('auth.reset_password.errors.password_mismatch'));
         setSubmitting(true);
         setError('');
@@ -109,8 +110,8 @@ export default function ResetPassword() {
                                             type={showPassword ? "text" : "password"}
                                             value={password}
                                             onChange={(e) => setPassword(e.target.value)}
-                                            minLength={8}
-                                            maxLength={72}
+                                            minLength={PASSWORD_MIN_LENGTH}
+                                            maxLength={PASSWORD_MAX_LENGTH * 2}
                                             className="w-full p-4 ps-14 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 outline-none focus:border-sky-500 transition-colors"
                                         />
                                         <button
@@ -130,8 +131,8 @@ export default function ResetPassword() {
                                         type={showPassword ? "text" : "password"}
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}
-                                        minLength={8}
-                                        maxLength={72}
+                                        minLength={PASSWORD_MIN_LENGTH}
+                                        maxLength={PASSWORD_MAX_LENGTH * 2}
                                         className="w-full p-4 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 outline-none focus:border-sky-500 transition-colors"
                                     />
                                 </div>

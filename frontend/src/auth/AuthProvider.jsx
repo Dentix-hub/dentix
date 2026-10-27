@@ -9,6 +9,7 @@ import {
 } from '@/api';
 import { logout as apiLogout } from '@/utils';
 import { logger } from '@/utils/logger';
+import { queryClient } from '@/lib/queryClient';
 import AuthContext from './useAuth';
 import { useTenantStore } from '@/store/tenant.store';
 import { useAuthStore } from '@/store/auth.store';
@@ -23,6 +24,7 @@ export default function AuthProvider({ children }) {
     const clearLocalSession = useCallback(() => {
         // Purge any PHI cached for print flows before the session ends.
         sessionStorage.removeItem('print_rx_data');
+        queryClient.clear();
         clearAuth();
         useTenantStore.getState().clearTenant();
     }, [clearAuth]);

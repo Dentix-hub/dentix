@@ -1,3 +1,5 @@
+import ProtectedImage from '@/features/clinical-attachments/components/ProtectedImage';
+import { getDriveImageStatus } from '@/api';
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { Upload, RefreshCw, Edit2, Trash2, FileText, File as FileIcon, Link2, Eye } from 'lucide-react';
@@ -43,6 +45,15 @@ const PatientFiles = ({
 
     const [selectedAttachmentForLink, setSelectedAttachmentForLink] = useState(null);
     const [selectedImageForLightbox, setSelectedImageForLightbox] = useState(null);
+    const [imageMessages, setImageMessages] = useState({});
+    const showImageStatus = async (file) => {
+        try {
+            const response = await getDriveImageStatus(file.file_path);
+            setImageMessages((current) => ({ ...current, [file.id]: response.data.message || t('backup.image_unavailable') }));
+        } catch {
+            setImageMessages((current) => ({ ...current, [file.id]: t('backup.image_unavailable') }));
+        }
+    };
 
     const handleOpenLinkModal = (file, e) => {
         e?.stopPropagation();
@@ -105,8 +116,9 @@ const PatientFiles = ({
                             className="group relative aspect-square bg-slate-100 rounded-xl overflow-hidden border border-slate-200 shadow-sm dark:border-slate-800 dark:bg-slate-900"
                         >
                             {isImage ? (
-                                <img
-                                    src={buildAttachmentUrl(file.file_path)}
+                                <ProtectedImage
+                                    filePath={file.file_path}
+                                    thumbnail
                                     alt={file.filename}
                                     className="w-full h-full object-cover transition-transform group-hover:scale-105 cursor-pointer"
                                     onClick={() => {
@@ -128,6 +140,11 @@ const PatientFiles = ({
                                 </div>
                             )}
 
+                            {file.storage_status && file.storage_status !== 'ready' && <div className="absolute inset-x-0 top-0 z-10 bg-amber-50 p-2 text-xs text-amber-900" role="status">
+                                <span>{file.storage_status === 'pending' ? t('backup.image_pending') : file.storage_status === 'deleting' ? t('backup.image_deleting') : t('backup.image_unavailable')}</span>
+                                {file.storage_status === 'failed' && <button type="button" className="ms-2 underline" onClick={() => showImageStatus(file)}>{t('backup.image_details')}</button>}
+                                {imageMessages[file.id] && <p>{imageMessages[file.id]}</p>}
+                            </div>}
                             {/* Clinical Context Badges Overlay (G15-M03..M05) */}
                             {linksForFile.length > 0 && (
                                 <div

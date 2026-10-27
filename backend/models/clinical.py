@@ -148,6 +148,7 @@ class Treatment(Base):
     __table_args__ = (
         Index("idx_treatment_doctor_date", "doctor_id", "date"),
         Index("idx_treatment_patient_date", "patient_id", "date"),
+        Index("uq_treatment_tenant_request_key", "tenant_id", "request_key", unique=True),
         CheckConstraint("cost >= 0", name="ck_treatments_cost_nonnegative"),
         CheckConstraint("discount >= 0", name="ck_treatments_discount_nonnegative"),
         CheckConstraint("discount <= cost", name="ck_treatments_discount_not_above_cost"),
@@ -166,6 +167,9 @@ class Treatment(Base):
     tooth_number = Column(Integer, nullable=True)
     diagnosis = Column(String)
     procedure = Column(String)
+    lab_choice = Column(String(24), nullable=True)
+    request_key = Column(String(128), nullable=True)
+    request_fingerprint = Column(String(64), nullable=True)
     doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     cost = Column(Numeric(14, 2), default=0.0)  # Total before discount
     discount = Column(Numeric(14, 2), default=0.0)

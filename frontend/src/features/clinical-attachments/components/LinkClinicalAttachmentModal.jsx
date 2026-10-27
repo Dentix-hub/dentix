@@ -1,8 +1,9 @@
+import ProtectedImage from './ProtectedImage';
 import { useState, useId } from 'react';
 import PropTypes from 'prop-types';
 import { Tag, Link2, Unlink, AlertCircle, Loader2 } from 'lucide-react';
 import Modal from '@/shared/ui/Modal';
-import { ATTACHMENT_PURPOSE_OPTIONS, buildAttachmentUrl } from '../attachmentUtils';
+import { ATTACHMENT_PURPOSE_OPTIONS } from '../attachmentUtils';
 
 // Standard FDI permanent (11-48) and primary (51-85) tooth keys
 const ALL_FDI_TEETH = [
@@ -114,8 +115,9 @@ export default function LinkClinicalAttachmentModal({
                 {/* File preview header */}
                 <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900">
                     {attachment.file_type?.includes('image') ? (
-                        <img
-                            src={buildAttachmentUrl(attachment.file_path)}
+                        <ProtectedImage
+                            filePath={attachment.file_path}
+                            thumbnail
                             alt={attachment.filename}
                             className="h-14 w-14 rounded-xl object-cover border border-slate-200 dark:border-slate-800"
                         />

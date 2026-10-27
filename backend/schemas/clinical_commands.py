@@ -19,6 +19,7 @@ from backend.models.clinical_core import (
     TARGET_KINDS,
 )
 from backend.schemas.clinical import ToothStatus, Treatment
+from backend.schemas.laboratory import LabOrderCreate
 from backend.schemas.clinical_workspace import WorkspaceToothSummary
 
 
@@ -81,6 +82,8 @@ class ClinicalTargetRead(BaseModel):
 class ClinicalWorkItemCreate(BaseModel):
     kind: str
     code: str
+    lab_choice: Optional[Literal["external_lab", "in_clinic"]] = None
+    lab_order: Optional[LabOrderCreate] = None
     status: str = "proposed"
     notes: Optional[str] = None
     targets: List[ClinicalTargetInput] = Field(default_factory=list)
@@ -90,6 +93,8 @@ class ClinicalWorkItemCreate(BaseModel):
 
 
 class ClinicalWorkItemUpdate(BaseModel):
+    lab_choice: Optional[Literal["external_lab", "in_clinic"]] = None
+    lab_order: Optional[LabOrderCreate] = None
     status: Optional[str] = None
     notes: Optional[str] = None
     targets: Optional[List[ClinicalTargetInput]] = None
@@ -100,6 +105,7 @@ class ClinicalWorkItemUpdate(BaseModel):
 
 
 class ClinicalWorkItemRead(BaseModel):
+    lab_choice: Optional[str] = None
     id: int
     tenant_id: int
     patient_id: int
@@ -175,6 +181,8 @@ class ClinicalFindingBulkCreate(BaseModel):
 
 class ClinicalProcedureCreate(BaseModel):
     code: str
+    lab_choice: Optional[Literal["external_lab", "in_clinic"]] = None
+    lab_order: Optional[LabOrderCreate] = None
     status: str = "proposed"
     notes: Optional[str] = None
     targets: List[ClinicalTargetInput] = Field(default_factory=list)

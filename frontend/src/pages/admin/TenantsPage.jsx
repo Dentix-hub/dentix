@@ -1,3 +1,4 @@
+import { passwordPolicyError } from '@/auth/passwordPolicy';
 import { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import logger from '@/utils/logger';
@@ -207,9 +208,9 @@ export default function TenantsPage() {
         if (!passwordResetForm.user_id || !passwordResetForm.new_password) {
             return toast.error('الرجاء اختيار المستخدم وإدخال كلمة المرور الجديدة');
         }
-        if (passwordResetForm.new_password.length < 6) {
-            return toast.error('كلمة المرور يجب أن تكون 6 أحرف على الأقل');
-        }
+        const targetUser = tenantUsers.find((user) => String(user.id) === String(passwordResetForm.user_id));
+        const policyError = passwordPolicyError(passwordResetForm.new_password, targetUser?.username);
+        if (policyError) return toast.error(t(`auth.register.errors.${policyError}`));
 
         setConfirmState({
             isOpen: true,

@@ -244,7 +244,7 @@ class LabService:
         return result.scalars().first()
 
     async def create_lab_order(
-        self, data: schemas.LabOrderCreate, doctor_id: int
+        self, data: schemas.LabOrderCreate, doctor_id: int, *, commit: bool = True
     ) -> models.LabOrder:
         """Create a lab order and its billable treatment atomically."""
         stmt_patient = select(models.Patient).where(
@@ -263,6 +263,24 @@ class LabService:
         lab = (await self.db.execute(stmt_lab)).scalars().first()
         if not lab:
             raise ValueError("Laboratory not found")
+
+        # Native work-item references require the same tenant, patient and gate
+        # even when callers bypass the HTTP router.
+        if data.work_item_id is not None:
+            from backend.services.feature_service import FeatureFlagService
+            if not await FeatureFlagService.is_feature_enabled(self.db, "clinical_vnext_native_writes", self.tenant_id):
+                raise ValueError("ميزة العمل السريري غير مفعلة")
+            work_item = (await self.db.execute(select(models.ClinicalWorkItem).where(
+                models.ClinicalWorkItem.id == data.work_item_id,
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                models.ClinicalWorkItem.patient_id == data.patient_id,
+            ))).scalars().first()
+            if not work_item:
+                raise ValueError("العلاج السريري غير موجود")
+            if work_item.lab_choice == "in_clinic":
+                raise ValueError("لا يمكن إضافة طلب معمل لعلاج داخل العيادة")
+            from backend.clinical.lab_links import validate_work_item_lab_link
+            await validate_work_item_lab_link(self.db, tenant_id=self.tenant_id, work_item=work_item, order=data)
 
         # G12-M16: Handoff idempotency - return existing active lab order if one exists
         if data.work_item_id is not None:
@@ -289,6 +307,10 @@ class LabService:
             treatment = (await self.db.execute(stmt_treatment)).scalars().first()
             if not treatment:
                 raise ValueError("Treatment not found")
+            if treatment.lab_choice == "in_clinic":
+                raise ValueError("لا يمكن إضافة طلب معمل لعلاج داخل العيادة")
+            from backend.clinical.lab_links import validate_treatment_lab_link
+            validate_treatment_lab_link(treatment, data)
 
             # D3 / Step 2: Idempotency - return existing active non-cancelled lab order if present
             stmt_existing = (
@@ -335,8 +357,11 @@ class LabService:
         if data.work_item_id is None and data.treatment_id is None and db_order.price_to_patient and db_order.price_to_patient > 0:
             await self._create_linked_treatment(db_order, lab)
 
-        await self.db.commit()
-        await self.db.refresh(db_order)
+        if commit:
+            await self.db.commit()
+            await self.db.refresh(db_order)
+        else:
+            await self.db.flush()
         return db_order
 
     async def update_lab_order(

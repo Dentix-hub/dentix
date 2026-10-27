@@ -7,9 +7,16 @@ vi.mock('@/api', () => ({
     exportTenantBackup: vi.fn(),
     exportTenantBackupXlsx: vi.fn(),
     uploadBackup: vi.fn(),
+    downloadClinicArchive: vi.fn(),
+    previewClinicRestore: vi.fn(),
+    confirmClinicRestore: vi.fn(),
+    getClinicRestoreStatus: vi.fn(),
     purgeDeletedPatients: vi.fn(),
     getGoogleAuthUrl: vi.fn(),
     triggerManualBackup: vi.fn(),
+    listDriveBackups: vi.fn(),
+    previewDriveBackup: vi.fn(),
+    disconnectGoogleDrive: vi.fn(),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -31,6 +38,36 @@ describe('BackupSettings - Excel Export', () => {
         vi.clearAllMocks();
         window.URL.createObjectURL = vi.fn(() => 'blob:http://localhost/dummy');
         window.URL.revokeObjectURL = vi.fn();
+    });
+
+    it('previews before confirmation and submits current credentials', async () => {
+        api.previewClinicRestore.mockResolvedValueOnce({ data: {
+            operation_id: 'operation-1', confirmation: 'token', archive_digest: 'digest',
+            counts: { patients: 2 }, backup_date: '2026-01-01', legacy_unverified: true, missing_sections: ['material_sessions'],
+        } });
+        api.confirmClinicRestore.mockResolvedValueOnce({ data: { operation_id: 'operation-1', status: 'confirmed' } });
+        render(<BackupSettings backupStatus={mockBackupStatus} currentUser={mockCurrentUser} setMessage={mockSetMessage} loadUserInfo={mockLoadUserInfo} />);
+        const file = new File(['synthetic'], 'clinic.dentix', { type: 'application/octet-stream' });
+        fireEvent.change(screen.getByLabelText('backup.restore_btn'), { target: { files: [file] } });
+        expect(await screen.findByText('backup.legacy_unverified')).toBeInTheDocument();
+        expect(api.confirmClinicRestore).not.toHaveBeenCalled();
+        fireEvent.change(screen.getByLabelText('backup.confirm_password'), { target: { value: 'synthetic-password' } });
+        fireEvent.click(screen.getByRole('button', { name: 'backup.confirm_restore' }));
+        await waitFor(() => expect(api.confirmClinicRestore).toHaveBeenCalledWith({
+            operation_id: 'operation-1', confirmation: 'token', archive_digest: 'digest', password: 'synthetic-password',
+        }));
+        expect(await screen.findByText(/backup.operation_confirmed/)).toBeInTheDocument();
+    });
+
+    it('shows a queued backup until the operation reports completion', async () => {
+        api.triggerManualBackup.mockResolvedValueOnce({ data: { operation_id: 'backup-1', status: 'queued' } });
+        api.getClinicRestoreStatus.mockResolvedValueOnce({ data: { operation_id: 'backup-1', status: 'completed' } });
+        render(<BackupSettings backupStatus={{ connected: true, loading: false }} currentUser={mockCurrentUser} setMessage={mockSetMessage} loadUserInfo={mockLoadUserInfo} />);
+        fireEvent.click(screen.getByRole('button', { name: 'backup.backup_now' }));
+        expect(await screen.findByText(/backup.operation_queued/)).toBeInTheDocument();
+        expect(mockSetMessage).not.toHaveBeenCalledWith({ type: 'success', text: 'backup.backup_success' });
+        fireEvent.click(screen.getByRole('button', { name: 'backup.refresh_status' }));
+        await waitFor(() => expect(mockSetMessage).toHaveBeenCalledWith({ type: 'success', text: 'backup.backup_success' }));
     });
 
     it('renders the Export to Excel button', () => {

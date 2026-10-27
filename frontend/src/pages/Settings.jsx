@@ -24,7 +24,7 @@ export default function Settings() {
     useEffect(() => {
         // Parse URL params for status (redirected from Google)
         const query = new URLSearchParams(window.location.search);
-        const status = query.get('status');
+        const status = query.get('backup_status') || query.get('status');
         const detail = query.get('detail');
         const tabParam = query.get('tab');
         if (status === 'success') {
@@ -50,7 +50,9 @@ export default function Settings() {
             setBackupStatus({
                 connected: res.data.connected === true,
                 loading: false,
-                lastBackup: res.data.last_backup
+                lastBackup: res.data.last_backup,
+                connectionStatus: res.data.connection_status,
+                accountEmail: res.data.account_email,
             });
         } catch (err) {
             setBackupStatus({ connected: false, loading: false });
@@ -150,6 +152,7 @@ export default function Settings() {
                         {activeTab === 'backup' && (
                             <BackupSettings
                                 backupStatus={backupStatus}
+                                refreshBackupStatus={checkBackupConnection}
                                 currentUser={currentUser}
                                 setMessage={setMessage}
                                 loadUserInfo={loadUserInfo}

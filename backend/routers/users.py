@@ -59,7 +59,7 @@ async def update_user_me(
         user.email = user_update.email
 
     if user_update.password:
-        validate_password(user_update.password)
+        validate_password(user_update.password, username=user.username)
         user.hashed_password = auth.get_password_hash(user_update.password)
         password_changed = True
 
@@ -212,7 +212,7 @@ async def register_user(
                     detail=f"لقد وصلت للحد الأقصى من المستخدمين ({max_users}) في خطتك الحالية. يرجى الترقية لإضافة المزيد.",
                 )
 
-    validate_password(raw_password or "")
+    validate_password(raw_password or "", username=clean_display_username)
 
     hashed_password = auth.get_password_hash(raw_password)
     user_in = schemas.User(
@@ -260,7 +260,7 @@ async def update_user(
 
     password_changed = False
     if user_update.password:
-        validate_password(user_update.password)
+        validate_password(user_update.password, username=user_update.username or user.username)
         password_changed = True
 
     updated_user = await crud.update_user(db, user_id, user_update, tenant_id)
