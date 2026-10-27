@@ -114,6 +114,7 @@ class ClinicalWorkItem(Base):
     patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
     kind = Column(String(32), nullable=False)
     code = Column(String(64), nullable=False)
+    lab_choice = Column(String(24), nullable=True)
     status = Column(String(32), nullable=False, default="proposed", server_default="proposed")
     notes = Column(Text, nullable=True)
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)

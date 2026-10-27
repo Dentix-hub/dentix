@@ -100,6 +100,7 @@ class ClinicalWorkItemUpdate(BaseModel):
 
 
 class ClinicalWorkItemRead(BaseModel):
+    lab_choice: Optional[str] = None
     id: int
     tenant_id: int
     patient_id: int

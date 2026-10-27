@@ -166,6 +166,7 @@ class Treatment(Base):
     tooth_number = Column(Integer, nullable=True)
     diagnosis = Column(String)
     procedure = Column(String)
+    lab_choice = Column(String(24), nullable=True)
     doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     cost = Column(Numeric(14, 2), default=0.0)  # Total before discount
     discount = Column(Numeric(14, 2), default=0.0)

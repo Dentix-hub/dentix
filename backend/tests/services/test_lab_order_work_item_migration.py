@@ -466,6 +466,7 @@ def test_alembic_s27_migration_lifecycle_sqlite(monkeypatch):
             conn.execute(sa.text("CREATE TABLE patients (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE laboratories (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE clinical_work_items (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
+            conn.execute(sa.text("CREATE TABLE treatments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(
                 sa.text(
                     """CREATE TABLE lab_orders (

@@ -274,7 +274,8 @@ def test_legacy_finance_tables_unchanged():
 def test_alembic_single_head_is_s32():
     alembic_cfg_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
     script_dir = ScriptDirectory.from_config(Config(alembic_cfg_path))
-    assert script_dir.get_heads() == ["ed137fa8c304"]
+    assert script_dir.get_heads() == ["9ab047d5613e"]
+    assert script_dir.get_revision("9ab047d5613e").down_revision == "ed137fa8c304"
     assert script_dir.get_revision("ed137fa8c304").down_revision == "1e2f3a4b5c6d"
     assert script_dir.get_revision("1e2f3a4b5c6d").down_revision == "0d1e2f3a4b5c"
     assert script_dir.get_revision("0d1e2f3a4b5c").down_revision == "9c0d1e2f3a4b"
@@ -304,6 +305,8 @@ def test_alembic_s32_upgrade_downgrade_and_orm_parity(monkeypatch):
             )
             with eng.begin() as conn:
                 conn.execute(sa.text("ALTER TABLE user_sessions DROP COLUMN remember_me"))
+                conn.execute(sa.text("ALTER TABLE treatments DROP COLUMN lab_choice"))
+                conn.execute(sa.text("ALTER TABLE clinical_work_items DROP COLUMN lab_choice"))
             command.stamp(config, "4d5e6f7a8b9c")
             assert "clinical_charges" not in sa.inspect(eng).get_table_names()
 
