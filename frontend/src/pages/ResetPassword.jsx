@@ -111,12 +111,14 @@ export default function ResetPassword() {
                                             onChange={(e) => setPassword(e.target.value)}
                                             minLength={8}
                                             maxLength={72}
-                                            className="w-full p-4 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 outline-none focus:border-sky-500 transition-colors"
+                                            className="w-full p-4 ps-14 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 outline-none focus:border-sky-500 transition-colors"
                                         />
                                         <button
                                             type="button"
+                                            aria-label={t(showPassword ? 'auth.hide_password' : 'auth.show_password')}
+                                            aria-pressed={showPassword}
                                             onClick={() => setShowPassword(!showPassword)}
-                                            className="absolute start-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-600"
+                                            className="absolute start-1 top-1/2 -translate-y-1/2 min-w-11 min-h-11 flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-600 focus-visible:ring-2 focus-visible:ring-sky-500"
                                         >
                                             {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                                         </button>

@@ -3,7 +3,7 @@ import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, Link } from 'react-router-dom';
 import { registerClinic } from '../api';
-import { Building2, User, Lock, AlertCircle, Phone } from 'lucide-react';
+import { Building2, User, Lock, AlertCircle, Phone, Eye, EyeOff } from 'lucide-react';
 
 const RegisterClinic = ({ isDarkMode: _isDarkMode }) => {
     const { t } = useTranslation();
@@ -15,6 +15,7 @@ const RegisterClinic = ({ isDarkMode: _isDarkMode }) => {
         confirm_password: '',
         contact_phone: ''
     });
+    const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
@@ -178,14 +179,17 @@ const RegisterClinic = ({ isDarkMode: _isDarkMode }) => {
                         <div className="relative">
                             <Lock className={`absolute end-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
                             <input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 name="admin_password"
                                 required
                                 value={formData.admin_password}
                                 onChange={handleChange}
-                                className={`w-full pe-10 ps-4 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
+                                className={`w-full pe-10 ps-14 py-3 rounded-xl outline-none focus:ring-2 transition-all bg-input border-border text-text-primary focus:ring-primary/20 focus:border-primary border`}
                                 placeholder="••••••••"
                             />
+                            <button type="button" aria-label={t(showPassword ? 'auth.hide_password' : 'auth.show_password')} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} className="absolute start-1 top-1/2 -translate-y-1/2 min-w-11 min-h-11 flex items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:ring-primary">
+                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                            </button>
                         </div>
                     </div>
                     <div className="space-y-2">
@@ -193,7 +197,7 @@ const RegisterClinic = ({ isDarkMode: _isDarkMode }) => {
                         <div className="relative">
                             <Lock className={`absolute end-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary`} />
                             <input
-                                type="password"
+                                type={showPassword ? "text" : "password"}
                                 name="confirm_password"
                                 required
                                 value={formData.confirm_password}

@@ -490,6 +490,10 @@ def test_alembic_s27_migration_lifecycle_sqlite(monkeypatch):
             )
             conn.commit()
 
+        with engine.begin() as conn:
+            conn.execute(sa.text("CREATE TABLE user_sessions (id INTEGER PRIMARY KEY, user_id INTEGER, token_hash VARCHAR, ip_address VARCHAR, user_agent VARCHAR, device_info VARCHAR, last_active_at DATETIME, expires_at DATETIME, is_active BOOLEAN, created_at DATETIME)"))
+            conn.execute(sa.text("INSERT INTO user_sessions (id, user_id, token_hash, is_active) VALUES (1, 1, 'old-session', 1)"))
+
         # 2. Stamp at 2b3c4d5e6f7a (parent revision)
         command.stamp(config, "2b3c4d5e6f7a")
 

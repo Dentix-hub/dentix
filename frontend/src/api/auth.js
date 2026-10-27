@@ -1,10 +1,11 @@
 import { api } from './apiClient';
 export { hasSessionCookieHint, clearSessionCookieHint } from './authSession';
 
-export const login = (username, password) => {
+export const login = (username, password, rememberMe = false) => {
     const formData = new FormData();
     formData.append('username', username);
     formData.append('password', password);
+    formData.append('remember_me', String(rememberMe));
     return api.post('/api/v1/auth/token', formData);
 };
 

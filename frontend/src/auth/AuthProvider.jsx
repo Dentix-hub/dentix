@@ -84,16 +84,16 @@ export default function AuthProvider({ children }) {
         initAuth();
     }, [clearLocalSession, finishAuthentication, setLoading]);
 
-    const login = async (username, password) => {
-        setLoading(true);
+    const login = async (username, password, rememberMe = false) => {
         try {
-            const res = await apiLogin(username, password);
+            const res = await apiLogin(username, password, rememberMe);
 
             // Check for 2FA requirement
             if (res.data.user_status === '2fa_required') {
                 return res.data; // Return early, don't set user
             }
 
+            setLoading(true);
             const { user } = res.data;
 
             const userData = {
@@ -112,7 +112,6 @@ export default function AuthProvider({ children }) {
     };
 
     const verify2FA = async (code, tempToken) => {
-        setLoading(true);
         try {
             const res = await api.post('/api/v1/auth/login/2fa', `code=${code}`, {
                 headers: {
@@ -121,6 +120,7 @@ export default function AuthProvider({ children }) {
                 }
             });
 
+            setLoading(true);
             const { user } = res.data;
 
             const userData = {

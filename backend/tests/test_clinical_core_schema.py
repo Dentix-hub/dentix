@@ -635,7 +635,8 @@ def test_alembic_single_head_is_f4a5b6c7d8e9():
 
     heads = script_dir.get_heads()
     assert len(heads) == 1, f"Expected exactly 1 Alembic head revision, found {heads}"
-    assert heads[0] == "1e2f3a4b5c6d", f"Expected head revision 1e2f3a4b5c6d, got {heads[0]}"
+    assert heads[0] == "ed137fa8c304", f"Expected head revision ed137fa8c304, got {heads[0]}"
+    assert script_dir.get_revision("ed137fa8c304").down_revision == "1e2f3a4b5c6d"
     assert script_dir.get_revision("1e2f3a4b5c6d").down_revision == "0d1e2f3a4b5c"
 
     proc_rev = script_dir.get_revision("0d1e2f3a4b5c")
@@ -695,6 +696,7 @@ def test_alembic_migration_upgrade_and_downgrade_sqlite(monkeypatch):
             # This partial clinical fixture also reaches head, which now alters users.email.
             with engine.begin() as conn:
                 conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR NOT NULL)"))
+                conn.execute(sa.text("CREATE TABLE user_sessions (id INTEGER PRIMARY KEY, user_id INTEGER, token_hash VARCHAR, ip_address VARCHAR, user_agent VARCHAR, device_info VARCHAR, last_active_at DATETIME, expires_at DATETIME, is_active BOOLEAN, created_at DATETIME)"))
                 conn.execute(sa.text("CREATE UNIQUE INDEX ix_users_email ON users(email)"))
             inspector = sa.inspect(engine)
             tables = set(inspector.get_table_names())

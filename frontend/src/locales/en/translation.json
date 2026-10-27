@@ -1901,6 +1901,8 @@
     "payment_received": "Payment Received"
   },
   "auth": {
+    "show_password": "Show password",
+    "hide_password": "Hide password",
     "login": {
       "title": "Smart Clinic",
       "subtitle": "Smart Clinic Management System",
