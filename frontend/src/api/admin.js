@@ -42,7 +42,7 @@ export const uploadBackup = (formData) => api.post('/api/v1/settings/backup/uplo
     headers: { 'Content-Type': 'multipart/form-data' }
 });
 export const getGoogleAuthUrl = () => api.get('/api/v1/settings/backup/auth');
-export const disconnectGoogleDrive = () => api.delete('/api/v1/settings/backup/auth');
+export const disconnectGoogleDrive = () => api.delete('/api/v1/settings/drive/connection');
 export const sendGoogleAuthCode = (code) => {
     const formData = new FormData();
     formData.append('code', code);

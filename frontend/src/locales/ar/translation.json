@@ -2129,6 +2129,12 @@
     }
   },
   "backup": {
+    "needs_reconnect": "يلزم إعادة ربط Google Drive",
+    "disconnect_done": "تم فصل العيادة، وتبقى الملفات في حساب Google",
+    "disconnect_failed": "تعذر فصل Google Drive",
+    "disconnect_btn": "فصل الاتصال",
+    "google_ownership": "الملفات محفوظة في حساب Google الخاص بالعيادة، والعيادة مسؤولة عن صلاحيات الوصول إلى هذا الحساب",
+    "disconnect_explanation": "فصل الاتصال هنا لا يلغي صلاحية التطبيق من إعدادات حساب Google.",
     "staff_mapping": "مطابقة حسابات العاملين",
     "sections": {
       "appointments": "المواعيد",

@@ -38,11 +38,11 @@ describe('BackupSettings - Excel Export', () => {
     });
 
     it('previews before confirmation and submits current credentials', async () => {
-        api.previewClinicRestore.mockResolvedValueOnce({ data: { data: {
+        api.previewClinicRestore.mockResolvedValueOnce({ data: {
             operation_id: 'operation-1', confirmation: 'token', archive_digest: 'digest',
             counts: { patients: 2 }, backup_date: '2026-01-01', legacy_unverified: true, missing_sections: ['material_sessions'],
-        } } });
-        api.confirmClinicRestore.mockResolvedValueOnce({ data: { data: { operation_id: 'operation-1', status: 'confirmed' } } });
+        } });
+        api.confirmClinicRestore.mockResolvedValueOnce({ data: { operation_id: 'operation-1', status: 'confirmed' } });
         render(<BackupSettings backupStatus={mockBackupStatus} currentUser={mockCurrentUser} setMessage={mockSetMessage} loadUserInfo={mockLoadUserInfo} />);
         const file = new File(['synthetic'], 'clinic.dentix', { type: 'application/octet-stream' });
         fireEvent.change(screen.getByLabelText('backup.restore_btn'), { target: { files: [file] } });

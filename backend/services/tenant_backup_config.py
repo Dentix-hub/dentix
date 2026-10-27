@@ -12,3 +12,8 @@ def archive_max_bytes():
     if value < 1024 or value > DEFAULT_MAX_BYTES:
         raise ArchiveError('إعداد حجم النسخة الاحتياطية غير صالح')
     return value
+
+
+def supported_archive_revisions(current_revision):
+    """Business formats that have the same version-one column allowlist."""
+    return {current_revision, 'd42a71e9bc83', 'e82c19f5a406', 'f17a93c60e24'}

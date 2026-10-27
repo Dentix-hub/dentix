@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Database, Upload, Download, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import * as api from '@/api';
-const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo }) => {
+const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo, refreshBackupStatus }) => {
     const { t } = useTranslation();
     const [restoring, setRestoring] = useState(false);
     const [exportingXlsx, setExportingXlsx] = useState(false);
@@ -148,7 +148,7 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
             setRestorePreview(null);
             setRestoreOperation(null);
             const response = await api.previewClinicRestore(file);
-            setRestorePreview(response.data.data);
+            setRestorePreview(response.data);
         } catch (err) {
             setMessage({ type: 'error', text: await extractErrorMessage(err, t('backup.restore_fail')) });
         } finally {
@@ -167,7 +167,7 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                 password: restorePassword,
                 ...(restoreOtp ? { otp_code: restoreOtp } : {}),
             });
-            setRestoreOperation(response.data.data);
+            setRestoreOperation(response.data);
             setRestorePreview(null);
             setMessage({ type: 'info', text: t('backup.restore_queued') });
         } catch (err) {
@@ -181,7 +181,7 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
     const refreshRestoreStatus = async () => {
         try {
             const response = await api.getClinicRestoreStatus(restoreOperation.operation_id);
-            const operation = response.data.data;
+            const operation = response.data;
             setRestoreOperation(operation);
             if (operation.status === 'completed') {
                 setMessage({ type: 'success', text: t('backup.restore_completed') });
@@ -216,9 +216,19 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                         <div>
                             <p className="font-bold text-slate-800">{t('backup.status_label')}</p>
                             <p className={`text-sm ${backupStatus.connected ? 'text-emerald-600' : 'text-slate-500'}`}>
-                                {backupStatus.loading ? t('backup.checking') : (backupStatus.connected ? t('backup.connected') : t('backup.disconnected'))}
+                                {backupStatus.loading ? t('backup.checking') : (backupStatus.connected ? t('backup.connected') : (backupStatus.connectionStatus === 'needs_reconnect' ? t('backup.needs_reconnect') : t('backup.disconnected')))}
                             </p>
+                            {backupStatus.accountEmail && <p className="text-sm">{backupStatus.accountEmail}</p>}
                         </div>
+                        {backupStatus.connected && <button type="button" onClick={async () => {
+                            try {
+                                await api.disconnectGoogleDrive();
+                                await refreshBackupStatus?.();
+                                setMessage({ type: 'success', text: t('backup.disconnect_done') });
+                            } catch (err) {
+                                setMessage({ type: 'error', text: await extractErrorMessage(err, t('backup.disconnect_failed')) });
+                            }
+                        }} className="rounded-xl border px-4 py-2 font-bold">{t('backup.disconnect_btn')}</button>}
                         {!backupStatus.connected && !backupStatus.loading && (
                             <button
                                 onClick={async () => {
@@ -233,6 +243,8 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo })
                             </button>
                         )}
                     </div>
+                    <p className="mb-3 text-sm">{t('backup.google_ownership')}</p>
+                    <p className="mb-3 text-sm">{t('backup.disconnect_explanation')}</p>
                     {backupStatus.connected && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-200/50">
                             <div>

@@ -191,6 +191,13 @@ class Tenant(Base):
     google_refresh_token: Mapped[str | None] = mapped_column(
         EncryptedString(2048), nullable=True
     )
+    google_account_sub: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    google_account_email: Mapped[str | None] = mapped_column(String(320), nullable=True)
+    google_connection_status: Mapped[str] = mapped_column(String(32), nullable=False, default="disconnected", server_default="disconnected")
+    google_connection_generation: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    google_root_folder_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    google_backup_folder_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    google_image_folder_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     last_backup_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     last_login: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

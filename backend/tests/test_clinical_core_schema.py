@@ -635,7 +635,9 @@ def test_alembic_single_head_is_f4a5b6c7d8e9():
 
     heads = script_dir.get_heads()
     assert len(heads) == 1, f"Expected exactly 1 Alembic head revision, found {heads}"
-    assert heads[0] == "d42a71e9bc83", f"Expected head revision d42a71e9bc83, got {heads[0]}"
+    assert heads[0] == "f17a93c60e24", f"Expected head revision f17a93c60e24, got {heads[0]}"
+    assert script_dir.get_revision("f17a93c60e24").down_revision == "e82c19f5a406"
+    assert script_dir.get_revision("e82c19f5a406").down_revision == "d42a71e9bc83"
     assert script_dir.get_revision("d42a71e9bc83").down_revision == "c38f91a2d47b"
     assert script_dir.get_revision("c38f91a2d47b").down_revision == "ba7526e3a901"
     assert script_dir.get_revision("ba7526e3a901").down_revision == "9ab047d5613e"
@@ -699,6 +701,7 @@ def test_alembic_migration_upgrade_and_downgrade_sqlite(monkeypatch):
         try:
             # This partial clinical fixture also reaches head, which now alters users.email.
             with engine.begin() as conn:
+                conn.execute(sa.text("CREATE TABLE tenants (id INTEGER PRIMARY KEY, google_refresh_token VARCHAR)"))
                 conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR NOT NULL)"))
                 conn.execute(sa.text("CREATE TABLE treatments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
                 conn.execute(sa.text("CREATE TABLE user_sessions (id INTEGER PRIMARY KEY, user_id INTEGER, token_hash VARCHAR, ip_address VARCHAR, user_agent VARCHAR, device_info VARCHAR, last_active_at DATETIME, expires_at DATETIME, is_active BOOLEAN, created_at DATETIME)"))

@@ -89,3 +89,4 @@ from .clinical_core import (
     TARGET_KINDS,
 )
 from .tenant_data_operation import TenantDataOperation
+from .google_oauth_attempt import GoogleOAuthAttempt

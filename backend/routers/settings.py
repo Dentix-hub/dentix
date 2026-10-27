@@ -19,6 +19,7 @@ from fastapi import (
     File,
     Form,
     BackgroundTasks,
+    Request,
 )
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 import re
@@ -127,11 +128,13 @@ async def get_backup_status(
         )
 
     tenant = current_user.tenant
-    is_connected = bool(tenant.google_refresh_token)
+    is_connected = bool(tenant.google_refresh_token and tenant.google_connection_status == "connected")
 
     return success_response(
         data={
             "connected": is_connected,
+            "connection_status": tenant.google_connection_status,
+            "account_email": tenant.google_account_email,
             "frequency": tenant.backup_frequency,
             "last_backup": tenant.last_backup_at,
         },
@@ -141,11 +144,15 @@ async def get_backup_status(
 
 @router.get("/backup/auth", response_model=StandardResponse[dict])
 async def get_backup_auth_url(
+    request: Request,
+    response: Response,
+    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Get a Google Drive authorization URL with signed CSRF state."""
-    if current_user.role != Role.SUPER_ADMIN.value and not current_user.tenant_id:
-        raise HTTPException(status_code=400, detail="User has no tenant assigned")
+    """Use browser-bound attempts for clinics; retain the platform flow."""
+    if current_user.role != Role.SUPER_ADMIN.value:
+        from backend.routers.clinic_google import start_connection
+        return await start_connection(request=request, response=response, db=db, user=current_user)
     state = _create_backup_oauth_state(current_user)
     auth_url = get_drive_client().get_auth_url(state=state)
     return success_response(data={"url": auth_url}, message="Redirecting...")
@@ -153,37 +160,23 @@ async def get_backup_auth_url(
 
 @router.post("/backup/callback", response_model=StandardResponse[dict])
 async def backup_auth_callback_post(
-    code: str = Form(...),
-    db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Handle the authenticated frontend OAuth callback for a tenant."""
-    if not current_user.tenant:
-        raise HTTPException(status_code=400, detail="User has no tenant assigned")
-    try:
-        token_data = get_drive_client().fetch_token(code=code)
-        if token_data.get("refresh_token"):
-            current_user.tenant.google_refresh_token = token_data["refresh_token"]
-            await db.commit()
-            return success_response(message="تم ربط Google Drive بنجاح")
-        return success_response(
-            success=False,
-            message="لم يتم استلام refresh token. يرجى إعادة المحاولة.",
-        )
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error("Auth Error: %s", type(e).__name__, exc_info=True)
-        raise HTTPException(status_code=400, detail="Google Drive authorization failed")
+    """Old code-only callbacks cannot prove browser-bound OAuth state."""
+    raise HTTPException(status_code=409, detail="يرجى إعادة ربط Google باستخدام التطبيق المحدّث")
 
 
 @router.get("/backup/callback")
 async def backup_auth_callback_get(
+    request: Request,
     code: str,
     state: str = None,
     db: AsyncSession = Depends(get_async_db),
 ):
-    """Handle Google OAuth redirect using signed, identity-bound state."""
+    """Dispatch opaque clinic state; retain signed platform callbacks."""
+    if state and "." not in state:
+        from backend.routers.clinic_google import connection_callback
+        return await connection_callback(request=request, code=code, state=state)
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5173")
     destination = "/settings"
     try:
@@ -191,6 +184,8 @@ async def backup_auth_callback_get(
         user_id = int(state_payload["user_id"])
         state_role = state_payload.get("role")
         state_tenant_id = state_payload.get("tenant_id")
+        if state_role != Role.SUPER_ADMIN.value:
+            raise HTTPException(status_code=400, detail="Clinic OAuth requires browser-bound state")
         if state_role == Role.SUPER_ADMIN.value:
             destination = "/admin/system"
 

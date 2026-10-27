@@ -274,7 +274,9 @@ def test_legacy_finance_tables_unchanged():
 def test_alembic_single_head_is_s32():
     alembic_cfg_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
     script_dir = ScriptDirectory.from_config(Config(alembic_cfg_path))
-    assert script_dir.get_heads() == ["d42a71e9bc83"]
+    assert script_dir.get_heads() == ["f17a93c60e24"]
+    assert script_dir.get_revision("f17a93c60e24").down_revision == "e82c19f5a406"
+    assert script_dir.get_revision("e82c19f5a406").down_revision == "d42a71e9bc83"
     assert script_dir.get_revision("d42a71e9bc83").down_revision == "c38f91a2d47b"
     assert script_dir.get_revision("c38f91a2d47b").down_revision == "ba7526e3a901"
     assert script_dir.get_revision("ba7526e3a901").down_revision == "9ab047d5613e"
@@ -304,10 +306,12 @@ def test_alembic_s32_upgrade_downgrade_and_orm_parity(monkeypatch):
             # Parent-schema baseline: every ORM table except the one S32 adds.
             Base.metadata.create_all(
                 bind=eng,
-                tables=[t for n, t in Base.metadata.tables.items() if n not in {"clinical_charges", "tenant_data_operations"}],
+                tables=[t for n, t in Base.metadata.tables.items() if n not in {"clinical_charges", "tenant_data_operations", "google_oauth_attempts"}],
             )
             with eng.begin() as conn:
                 conn.execute(sa.text("ALTER TABLE user_sessions DROP COLUMN remember_me"))
+                for column in ("google_account_sub", "google_account_email", "google_connection_status", "google_connection_generation", "google_root_folder_id", "google_backup_folder_id", "google_image_folder_id"):
+                    conn.execute(sa.text(f"ALTER TABLE tenants DROP COLUMN {column}"))
                 conn.execute(sa.text("DROP INDEX uq_treatment_tenant_request_key"))
                 conn.execute(sa.text("ALTER TABLE treatments DROP COLUMN request_key"))
                 conn.execute(sa.text("ALTER TABLE treatments DROP COLUMN request_fingerprint"))

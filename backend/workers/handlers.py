@@ -142,7 +142,7 @@ async def on_tenant_restore_confirmed(event: DomainEvent):
     from backend.core.tenancy import set_current_tenant_id, clear_tenant_context
     from backend.database import AsyncSessionLocal, RlsContext
     from backend.services.tenant_archive import configured_keys
-    from backend.services.tenant_backup_config import archive_max_bytes
+    from backend.services.tenant_backup_config import archive_max_bytes, supported_archive_revisions
     from backend.services.tenant_restore_coordinator import run_confirmed_restore
 
     token = set_current_tenant_id(event.tenant_id)
@@ -158,7 +158,7 @@ async def on_tenant_restore_confirmed(event: DomainEvent):
             revision = (await db.execute(text('SELECT version_num FROM alembic_version'))).scalar_one()
             await run_confirmed_restore(db, tenant_id=event.tenant_id, operation_id=event.aggregate_id,
                                         installation_id=installation_id, keys=keys,
-                                        supported_revisions={revision}, max_bytes=archive_max_bytes())
+                                        supported_revisions=supported_archive_revisions(revision), max_bytes=archive_max_bytes())
     except Exception:
         # Provider data, archive content and encryption configuration are not
         # persisted in the job error or emitted to logs.

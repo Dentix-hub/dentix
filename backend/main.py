@@ -527,6 +527,8 @@ app.include_router(laboratories.router, prefix=API_V1_STR)
 app.include_router(settings.router, prefix=API_V1_STR)
 from backend.routers import tenant_backups
 app.include_router(tenant_backups.router, prefix=API_V1_STR)
+from backend.routers import clinic_google
+app.include_router(clinic_google.router, prefix=API_V1_STR)
 app.include_router(procedures.router, prefix=API_V1_STR)
 app.include_router(procedure_chart_styles.router, prefix=API_V1_STR)
 app.include_router(dashboard.router, prefix=API_V1_STR)

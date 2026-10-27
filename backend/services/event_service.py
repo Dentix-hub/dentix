@@ -94,6 +94,15 @@ class EventService:
         ).values(status='expired', encrypted_payload=None, completed_at=now))
         await db.commit()
 
+        # Discard expired unclaimed PKCE material; consumed reservations hold
+        # only folder metadata and support an interrupted provisioning retry.
+        from backend.models.google_oauth_attempt import GoogleOAuthAttempt
+        await db.execute(GoogleOAuthAttempt.__table__.delete().where(
+            GoogleOAuthAttempt.consumed_at.is_(None),
+            GoogleOAuthAttempt.expires_at <= now,
+        ))
+        await db.commit()
+
         # Reclaim events abandoned by crashed workers before claiming new ones.
         await EventService.recover_stale_processing(db)
 

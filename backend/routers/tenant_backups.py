@@ -19,7 +19,7 @@ from backend.services.tenant_archive import ArchiveError, configured_keys, encod
 from backend.services.tenant_archive_export import export_clinic_archive_data
 from backend.services.tenant_archive_import import GATE_NAMESPACE
 from backend.services.tenant_archive_legacy import adapt_legacy_json
-from backend.services.tenant_backup_config import archive_max_bytes
+from backend.services.tenant_backup_config import archive_max_bytes, supported_archive_revisions
 from backend.services.tenant_restore_coordinator import known_global_references
 from backend.services.tenant_restore_preview import confirm_restore_preview, create_restore_preview
 from backend.utils.audit_logger import log_admin_action
@@ -98,7 +98,7 @@ async def preview_clinic_restore(request: Request, db: AsyncSession = Depends(ge
         external_ids = await known_global_references(db)
         operation, confirmation, header, counts, mapping = await create_restore_preview(
             db, tenant_id=tenant_id, actor_id=user.id, archive=raw, installation_id=installation,
-            keys=keys, supported_revisions={revision}, external_ids=external_ids, max_bytes=limit,
+            keys=keys, supported_revisions=supported_archive_revisions(revision), external_ids=external_ids, max_bytes=limit,
         )
         # Metadata from the original payload is authenticated inside the file.
         from backend.services.tenant_archive import decode_archive

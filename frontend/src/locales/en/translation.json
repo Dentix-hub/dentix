@@ -2129,6 +2129,12 @@
     }
   },
   "backup": {
+    "needs_reconnect": "Reconnect Google Drive",
+    "disconnect_done": "Clinic disconnected; files remain in Google Drive",
+    "disconnect_failed": "Could not disconnect Google Drive",
+    "disconnect_btn": "Disconnect",
+    "google_ownership": "Files are stored in the clinic’s Google account. The clinic controls access to that account.",
+    "disconnect_explanation": "Disconnecting here does not revoke the app in Google Account settings.",
     "staff_mapping": "Staff account mapping",
     "sections": {
       "appointments": "Appointments",
