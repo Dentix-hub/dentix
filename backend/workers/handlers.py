@@ -165,3 +165,10 @@ async def on_tenant_restore_confirmed(event: DomainEvent):
         raise RuntimeError('تعذرت معالجة عملية استعادة العيادة') from None
     finally:
         clear_tenant_context(tenant_token=token)
+
+
+@register_handler('tenant.backup.requested')
+async def on_tenant_backup_requested(event: DomainEvent):
+    """Outbox retries reuse the same tenant operation and remote file ID."""
+    from backend.services.clinic_drive_backup import run_drive_backup
+    await run_drive_backup(tenant_id=event.tenant_id, operation_id=event.aggregate_id)

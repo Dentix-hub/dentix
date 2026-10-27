@@ -18,8 +18,8 @@ from fastapi import (
     UploadFile,
     File,
     Form,
-    BackgroundTasks,
     Request,
+    Header,
 )
 from fastapi.responses import FileResponse, RedirectResponse, Response, StreamingResponse
 import re
@@ -35,12 +35,6 @@ from .. import schemas, database, models
 from ..auth import ALGORITHM, SECRET_KEY
 from ..core.permissions import Permission, Role, require_permission
 from ..core.response import success_response, StandardResponse
-from ..services.backup_service import (
-    build_pg_dump_command,
-    build_psql_command,
-    create_secure_temp_file,
-    run_backup_task,
-)
 from ..services.export_service import export_tenant_to_json
 from ..services.excel_export_service import export_tenant_to_excel
 from ..utils.audit_logger import log_admin_action
@@ -247,33 +241,22 @@ async def backup_auth_callback_get(
 
 @router.post("/backup/now", response_model=StandardResponse[dict])
 async def trigger_manual_backup(
-    background_tasks: BackgroundTasks,
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_async_db),
     current_user: schemas.User = Depends(require_permission(Permission.SYSTEM_CONFIG)),
 ):
-    """Trigger a manual tenant backup to Google Drive."""
-    if not current_user.tenant:
-        raise HTTPException(status_code=400, detail="User has no tenant assigned")
-
-    tenant = current_user.tenant
-    if not tenant.google_refresh_token:
-        raise HTTPException(
-            status_code=400, detail="Google Drive not connected for this clinic"
-        )
-
-    db_url = os.getenv("DATABASE_URL")
-    if not db_url:
-        raise HTTPException(
-            status_code=500, detail="DATABASE_URL configuration missing"
-        )
-
-    background_tasks.add_task(
-        run_backup_task, tenant.google_refresh_token, db_url, tenant.id, tenant.name
-    )
-
-    return success_response(
-        message="Manual backup started in background. Please check Google Drive in a few minutes.",
-    )
+    """Queue an idempotent clinic archive upload; success is reported by status."""
+    from backend.routers.clinic_google import _admin
+    from backend.services.clinic_drive_backup import queue_drive_backup
+    from backend.services.clinic_drive_provider import DriveFailure
+    from backend.services.tenant_archive import ArchiveError
+    tenant_id = _admin(current_user)
+    try:
+        operation = await queue_drive_backup(db, tenant_id=tenant_id, actor_id=current_user.id, request_key=idempotency_key)
+        return success_response(data={"operation_id": operation.id, "status": operation.status}, message="تم إرسال النسخ الاحتياطي للتنفيذ")
+    except (DriveFailure, ArchiveError) as exc:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.put("/backup/schedule", response_model=StandardResponse[dict])

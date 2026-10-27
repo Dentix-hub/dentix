@@ -24,4 +24,12 @@ class TenantDataOperation(Base):
     created_at = Column(DateTime(timezone=True), nullable=False)
     completed_at = Column(DateTime(timezone=True), nullable=True)
     error_code = Column(String(64), nullable=True)
-    __table_args__ = (Index('ix_tenant_data_operations_tenant_status', 'tenant_id', 'status'),)
+    request_key = Column(String(128), nullable=True)
+    remote_file_id = Column(String(255), nullable=True)
+    connection_generation = Column(Integer, nullable=True)
+    attempts = Column(Integer, nullable=False, default=0, server_default='0')
+    updated_at = Column(DateTime(timezone=True), nullable=True)
+    __table_args__ = (
+        Index('ix_tenant_data_operations_tenant_status', 'tenant_id', 'status'),
+        Index('uq_tenant_data_operation_request', 'tenant_id', 'kind', 'request_key', unique=True),
+    )

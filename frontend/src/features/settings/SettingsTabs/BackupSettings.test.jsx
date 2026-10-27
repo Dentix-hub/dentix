@@ -14,6 +14,9 @@ vi.mock('@/api', () => ({
     purgeDeletedPatients: vi.fn(),
     getGoogleAuthUrl: vi.fn(),
     triggerManualBackup: vi.fn(),
+    listDriveBackups: vi.fn(),
+    previewDriveBackup: vi.fn(),
+    disconnectGoogleDrive: vi.fn(),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -54,6 +57,17 @@ describe('BackupSettings - Excel Export', () => {
             operation_id: 'operation-1', confirmation: 'token', archive_digest: 'digest', password: 'synthetic-password',
         }));
         expect(await screen.findByText(/backup.operation_confirmed/)).toBeInTheDocument();
+    });
+
+    it('shows a queued backup until the operation reports completion', async () => {
+        api.triggerManualBackup.mockResolvedValueOnce({ data: { operation_id: 'backup-1', status: 'queued' } });
+        api.getClinicRestoreStatus.mockResolvedValueOnce({ data: { operation_id: 'backup-1', status: 'completed' } });
+        render(<BackupSettings backupStatus={{ connected: true, loading: false }} currentUser={mockCurrentUser} setMessage={mockSetMessage} loadUserInfo={mockLoadUserInfo} />);
+        fireEvent.click(screen.getByRole('button', { name: 'backup.backup_now' }));
+        expect(await screen.findByText(/backup.operation_queued/)).toBeInTheDocument();
+        expect(mockSetMessage).not.toHaveBeenCalledWith({ type: 'success', text: 'backup.backup_success' });
+        fireEvent.click(screen.getByRole('button', { name: 'backup.refresh_status' }));
+        await waitFor(() => expect(mockSetMessage).toHaveBeenCalledWith({ type: 'success', text: 'backup.backup_success' }));
     });
 
     it('renders the Export to Excel button', () => {

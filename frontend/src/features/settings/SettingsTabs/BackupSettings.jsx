@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Database, Upload, Download, AlertTriangle, FileSpreadsheet } from 'lucide-react';
 import * as api from '@/api';
@@ -10,6 +10,10 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo, r
     const [restorePassword, setRestorePassword] = useState('');
     const [restoreOtp, setRestoreOtp] = useState('');
     const [restoreOperation, setRestoreOperation] = useState(null);
+    const [backupOperation, setBackupOperation] = useState(null);
+    const [driveBackups, setDriveBackups] = useState([]);
+    const [nextPage, setNextPage] = useState(null);
+    const backupRequestKey = useRef(null);
 
     const readBlobText = async (blob) => {
         if (typeof blob?.text === 'function') {
@@ -193,6 +197,48 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo, r
             setMessage({ type: 'error', text: await extractErrorMessage(err, t('backup.restore_fail')) });
         }
     };
+    const handleDriveBackup = async () => {
+        try {
+            if (!backupRequestKey.current) backupRequestKey.current = globalThis.crypto.randomUUID();
+            const response = await api.triggerManualBackup(backupRequestKey.current);
+            setBackupOperation(response.data);
+            setMessage({ type: 'info', text: t('backup.backup_queued') });
+        } catch (err) {
+            setMessage({ type: 'error', text: await extractErrorMessage(err, t('backup.backup_failed')) });
+        }
+    };
+    const refreshBackupOperation = async () => {
+        try {
+            const response = await api.getClinicRestoreStatus(backupOperation.operation_id);
+            setBackupOperation(response.data);
+            if (['completed', 'failed', 'expired'].includes(response.data.status)) backupRequestKey.current = null;
+            if (response.data.status === 'completed') setMessage({ type: 'success', text: t('backup.backup_success') });
+            if (response.data.status === 'failed') setMessage({ type: 'error', text: response.data.message || t('backup.backup_failed') });
+        } catch (err) {
+            setMessage({ type: 'error', text: await extractErrorMessage(err, t('backup.backup_failed')) });
+        }
+    };
+    const loadDriveBackups = async (pageToken = null) => {
+        try {
+            const response = await api.listDriveBackups(pageToken);
+            setDriveBackups((previous) => pageToken ? [...previous, ...response.data.files] : response.data.files);
+            setNextPage(response.data.next_page_token);
+        } catch (err) {
+            setMessage({ type: 'error', text: await extractErrorMessage(err, t('backup.list_failed')) });
+        }
+    };
+    const previewRemoteBackup = async (id) => {
+        try {
+            setRestoring(true);
+            const response = await api.previewDriveBackup(id);
+            setRestorePreview(response.data);
+            setRestoreOperation(null);
+        } catch (err) {
+            setMessage({ type: 'error', text: await extractErrorMessage(err, t('backup.restore_fail')) });
+        } finally {
+            setRestoring(false);
+        }
+    };
     const handlePurge = async () => {
         if (!window.confirm(t('backup.danger_zone.purge_confirm'))) return;
         try {
@@ -268,16 +314,20 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo, r
                             </div>
                             <div className="flex items-end">
                                 <button
-                                    onClick={async () => {
-                                        setMessage({ type: 'info', text: t('backup.backing_up', 'جاري النسخ...') });
-                                        await api.triggerManualBackup();
-                                        setMessage({ type: 'success', text: t('backup.backup_success') });
-                                        loadUserInfo();
-                                    }}
+                                    onClick={handleDriveBackup}
                                     className="w-full py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 text-center"
                                 >
                                     {t('backup.backup_now')}
                                 </button>
+                            </div>
+                            {backupOperation && <div className="md:col-span-2" role="status">
+                                <span>{t('backup.operation_status')}: {t(`backup.operation_${backupOperation.status}`)}</span>
+                                <button type="button" onClick={refreshBackupOperation} className="ms-3 rounded border px-3 py-2">{t('backup.refresh_status')}</button>
+                            </div>}
+                            <div className="md:col-span-2">
+                                <button type="button" onClick={() => loadDriveBackups()} className="rounded border px-3 py-2">{t('backup.list_drive')}</button>
+                                <ul>{driveBackups.map((file) => <li key={file.id} className="mt-2 flex flex-wrap items-center gap-2"><span>{file.name} — {file.date} — {file.size}</span><button type="button" disabled={restoring} onClick={() => previewRemoteBackup(file.id)} className="rounded border px-3 py-1">{t('backup.preview_title')}</button></li>)}</ul>
+                                {nextPage && <button type="button" onClick={() => loadDriveBackups(nextPage)} className="mt-2 rounded border px-3 py-2">{t('backup.more_files')}</button>}
                             </div>
                             {currentUser?.tenant?.last_backup_at && (
                                 <p className="md:col-span-2 text-xs text-slate-500 text-center">

@@ -2129,6 +2129,13 @@
     }
   },
   "backup": {
+    "backup_queued": "Backup queued",
+    "backup_failed": "Backup failed",
+    "list_drive": "Show Google Drive backups",
+    "list_failed": "Could not list backups",
+    "more_files": "Show more",
+    "operation_queued": "Queued",
+    "operation_running": "In progress",
     "needs_reconnect": "Reconnect Google Drive",
     "disconnect_done": "Clinic disconnected; files remain in Google Drive",
     "disconnect_failed": "Could not disconnect Google Drive",

@@ -116,3 +116,107 @@ class ClinicDriveProvider:
         if existing.get('id') != folder_id or existing.get('trashed') or existing.get('mimeType') != 'application/vnd.google-apps.folder' or existing.get('appProperties') != properties or (parent_id and parent_id not in existing.get('parents', [])):
             raise DriveFailure('permission')
         return folder_id
+
+    @staticmethod
+    def _archive_properties(*, tenant_id, installation_id, digest):
+        return {'dentix_tenant': str(tenant_id), 'dentix_installation': installation_id,
+                'dentix_kind': 'backup', 'dentix_sha256': digest}
+
+    def verify_backup(self, *, file_id, folder_id, tenant_id, installation_id, digest=None):
+        meta = execute_with_retry(lambda: self.service.files().get(
+            fileId=file_id, fields='id,name,mimeType,parents,appProperties,trashed,size,modifiedTime,sha256Checksum'))
+        props = meta.get('appProperties') or {}
+        if (meta.get('id') != file_id or meta.get('trashed') or folder_id not in meta.get('parents', [])
+            or props.get('dentix_tenant') != str(tenant_id) or props.get('dentix_installation') != installation_id
+            or props.get('dentix_kind') != 'backup' or (digest is not None and props.get('dentix_sha256') != digest)
+            or (digest is not None and meta.get('sha256Checksum') != digest)):
+            raise DriveFailure('permission')
+        return meta
+
+    def upload_backup(self, *, file_id, folder_id, tenant_id, installation_id, archive, digest):
+        import io
+        from googleapiclient.http import MediaIoBaseUpload
+        try:
+            return self.verify_backup(file_id=file_id, folder_id=folder_id, tenant_id=tenant_id, installation_id=installation_id, digest=digest)
+        except DriveFailure as exc:
+            if exc.category != 'not_found':
+                raise
+        media = MediaIoBaseUpload(io.BytesIO(archive), mimetype='application/octet-stream', chunksize=1024 * 1024, resumable=True)
+        body = {'id': file_id, 'name': f'dentix-backup-{file_id}.dentix', 'parents': [folder_id],
+                'appProperties': self._archive_properties(tenant_id=tenant_id, installation_id=installation_id, digest=digest)}
+        request = self.service.files().create(body=body, media_body=media, fields='id')
+        failures = 0
+        while True:
+            try:
+                _, response = request.next_chunk(num_retries=0)
+                if response is not None:
+                    break
+                failures = 0
+            except (HttpError, RefreshError, OSError, TimeoutError) as exc:
+                category = classify_error(exc)
+                if category == 'conflict':
+                    break
+                if category not in {'rate_limit', 'transient'} or failures >= 3:
+                    # An interrupted response may still have committed the
+                    # exact ID. Verify before reporting failure.
+                    try:
+                        return self.verify_backup(file_id=file_id, folder_id=folder_id, tenant_id=tenant_id, installation_id=installation_id, digest=digest)
+                    except DriveFailure:
+                        raise DriveFailure(category) from None
+                time.sleep(min(8.0, 2 ** failures + random.random()))
+                failures += 1
+        return self.verify_backup(file_id=file_id, folder_id=folder_id, tenant_id=tenant_id, installation_id=installation_id, digest=digest)
+
+    def list_backups(self, *, folder_id, tenant_id, installation_id, page_token=None):
+        # IDs and installation IDs are generated/configured by the server, but
+        # still escape Drive query literals before constructing a query.
+        def escape(value):
+            return str(value).replace('\\', '\\\\').replace("'", "\\'")
+        query = (f"'{escape(folder_id)}' in parents and trashed = false and "
+                 f"appProperties has {{ key='dentix_kind' and value='backup' }} and "
+                 f"appProperties has {{ key='dentix_tenant' and value='{escape(tenant_id)}' }} and "
+                 f"appProperties has {{ key='dentix_installation' and value='{escape(installation_id)}' }}")
+        result = execute_with_retry(lambda: self.service.files().list(
+            q=query, pageSize=100, pageToken=page_token, fields='nextPageToken,files(id,name,size,modifiedTime,parents,appProperties,trashed,sha256Checksum)', orderBy='modifiedTime desc'))
+        files = result.get('files', [])
+        for item in files:
+            props = item.get('appProperties') or {}
+            if (item.get('trashed') or folder_id not in item.get('parents', [])
+                or props.get('dentix_tenant') != str(tenant_id)
+                or props.get('dentix_installation') != installation_id or props.get('dentix_kind') != 'backup'):
+                raise DriveFailure('permission')
+        return files, result.get('nextPageToken')
+
+    def download_backup(self, *, file_id, folder_id, tenant_id, installation_id, max_bytes):
+        import io
+        from googleapiclient.http import MediaIoBaseDownload
+        meta = self.verify_backup(file_id=file_id, folder_id=folder_id, tenant_id=tenant_id, installation_id=installation_id)
+        try:
+            size = int(meta.get('size', '-1'))
+        except ValueError:
+            raise DriveFailure('permission') from None
+        if size < 0 or size > max_bytes:
+            raise DriveFailure('permission')
+        class BoundedBuffer(io.BytesIO):
+            def write(self, value):
+                if self.tell() + len(value) > max_bytes:
+                    raise DriveFailure('permission')
+                return super().write(value)
+        output = BoundedBuffer()
+        downloader = MediaIoBaseDownload(output, self.service.files().get_media(fileId=file_id), chunksize=1024 * 1024)
+        complete = False
+        failures = 0
+        while not complete:
+            try:
+                _, complete = downloader.next_chunk(num_retries=0)
+                failures = 0
+            except (HttpError, RefreshError, OSError, TimeoutError) as exc:
+                category = classify_error(exc)
+                if category not in {'rate_limit', 'transient'} or failures >= 3:
+                    raise DriveFailure(category) from None
+                time.sleep(min(8.0, 2 ** failures + random.random()))
+                failures += 1
+        raw = output.getvalue()
+        if len(raw) != size or hashlib.sha256(raw).hexdigest() != meta.get('sha256Checksum'):
+            raise DriveFailure('permission')
+        return raw

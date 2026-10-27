@@ -54,4 +54,6 @@ export const updateBackupSchedule = (frequency) => {
     return api.put('/api/v1/settings/backup/schedule', formData);
 };
 export const getBackupStatus = () => api.get('/api/v1/settings/backup/status');
-export const triggerManualBackup = () => api.post('/api/v1/settings/backup/now');
+export const triggerManualBackup = (key) => api.post('/api/v1/settings/backup/now', null, { headers: { 'Idempotency-Key': key } });
+export const listDriveBackups = (pageToken) => api.get('/api/v1/settings/drive/backups', { params: pageToken ? { page_token: pageToken } : {} });
+export const previewDriveBackup = (id) => api.post(`/api/v1/settings/drive/backups/${encodeURIComponent(id)}/preview`);

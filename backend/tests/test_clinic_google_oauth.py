@@ -157,3 +157,50 @@ async def test_stale_provider_failure_cannot_invalidate_reconnected_account(asyn
     assert await mark_needs_reconnect(async_db_session, tenant_id=tenant.id, generation=8)
     await async_db_session.refresh(tenant)
     assert tenant.google_connection_status == 'needs_reconnect' and tenant.google_connection_generation == 9
+
+
+def test_drive_backup_metadata_rejects_cross_tenant_and_wrong_folder():
+    from types import SimpleNamespace
+    from backend.services.clinic_drive_provider import ClinicDriveProvider, DriveFailure
+    class Request:
+        def __init__(self, value):
+            self.value = value
+        def execute(self, **kwargs):
+            return self.value
+    class Files:
+        def __init__(self, value):
+            self.value = value
+        def get(self, **kwargs):
+            return Request(self.value)
+    meta = {'id': 'file', 'parents': ['folder-a'], 'trashed': False, 'sha256Checksum': 'digest',
+            'appProperties': {'dentix_tenant': '7', 'dentix_installation': 'env', 'dentix_kind': 'backup', 'dentix_sha256': 'digest'}}
+    provider = ClinicDriveProvider.__new__(ClinicDriveProvider)
+    provider.service = SimpleNamespace(files=lambda: Files(meta))
+    assert provider.verify_backup(file_id='file', folder_id='folder-a', tenant_id=7, installation_id='env', digest='digest') == meta
+    with pytest.raises(DriveFailure):
+        provider.verify_backup(file_id='file', folder_id='folder-b', tenant_id=7, installation_id='env')
+    with pytest.raises(DriveFailure):
+        provider.verify_backup(file_id='file', folder_id='folder-a', tenant_id=8, installation_id='env')
+    with pytest.raises(DriveFailure):
+        provider.verify_backup(file_id='file', folder_id='folder-a', tenant_id=7, installation_id='other-env')
+
+
+def test_drive_backup_listing_checks_folder_metadata_and_pagination():
+    from types import SimpleNamespace
+    from backend.services.clinic_drive_provider import ClinicDriveProvider, DriveFailure
+    calls = []
+    class Request:
+        def execute(self, **kwargs):
+            return {'files': [{'id': 'file', 'parents': ['folder'], 'appProperties': {
+                'dentix_tenant': '7', 'dentix_installation': 'env', 'dentix_kind': 'backup'}}], 'nextPageToken': 'next'}
+    class Files:
+        def list(self, **kwargs):
+            calls.append(kwargs)
+            return Request()
+    provider = ClinicDriveProvider.__new__(ClinicDriveProvider)
+    provider.service = SimpleNamespace(files=lambda: Files())
+    files, next_page = provider.list_backups(folder_id='folder', tenant_id=7, installation_id='env', page_token='previous')
+    assert files[0]['id'] == 'file' and next_page == 'next'
+    assert calls[0]['pageToken'] == 'previous'
+    with pytest.raises(DriveFailure):
+        provider.list_backups(folder_id='other-folder', tenant_id=7, installation_id='env')

@@ -2129,6 +2129,13 @@
     }
   },
   "backup": {
+    "backup_queued": "تم إرسال النسخة الاحتياطية للتنفيذ",
+    "backup_failed": "تعذر إنشاء النسخة الاحتياطية",
+    "list_drive": "عرض نسخ Google Drive",
+    "list_failed": "تعذر عرض النسخ",
+    "more_files": "عرض المزيد",
+    "operation_queued": "في الانتظار",
+    "operation_running": "قيد التنفيذ",
     "needs_reconnect": "يلزم إعادة ربط Google Drive",
     "disconnect_done": "تم فصل العيادة، وتبقى الملفات في حساب Google",
     "disconnect_failed": "تعذر فصل Google Drive",

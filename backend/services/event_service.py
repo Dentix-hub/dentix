@@ -88,8 +88,8 @@ class EventService:
         # Purge expired encrypted restore inputs even after a worker restart.
         from backend.models.tenant_data_operation import TenantDataOperation
         await db.execute(TenantDataOperation.__table__.update().where(
-            TenantDataOperation.kind == 'restore',
-            TenantDataOperation.status.in_(['previewed', 'confirmed']),
+            TenantDataOperation.kind.in_(['restore', 'drive_backup']),
+            TenantDataOperation.status.in_(['previewed', 'confirmed', 'queued', 'running']),
             TenantDataOperation.expires_at <= now,
         ).values(status='expired', encrypted_payload=None, completed_at=now))
         await db.commit()

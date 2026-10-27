@@ -147,5 +147,10 @@ async def clinic_restore_status(operation_id: str, db: AsyncSession = Depends(ge
     ))).scalar_one_or_none()
     if operation is None:
         raise HTTPException(status_code=404, detail='عملية الاستعادة غير موجودة')
+    errors = {'quota': 'مساحة Google Drive غير كافية', 'reconnect': 'يرجى إعادة ربط Google Drive',
+              'rate_limit': 'طلبات Google Drive كثيرة، يرجى المحاولة لاحقًا',
+              'transient': 'Google Drive غير متاح مؤقتًا', 'permission': 'تعذر الوصول إلى Google Drive',
+              'connection_changed': 'تغير اتصال Google أثناء العملية'}
     return success_response(data={'operation_id': operation.id, 'status': operation.status,
+                                  'message': errors.get(operation.error_code),
                                   'completed_at': operation.completed_at.isoformat() if operation.completed_at else None})

@@ -100,3 +100,89 @@ async def disconnect_connection(db: AsyncSession = Depends(get_async_db), user: 
     tenant.google_connection_generation += 1
     await db.commit()
     return success_response(message='تم فصل العيادة عن Google Drive. تظل الملفات في حساب Google.')
+
+
+async def _connected_credentials(db, tenant_id):
+    tenant = (await db.execute(select(models.Tenant).where(models.Tenant.id == tenant_id))).scalar_one()
+    if tenant.google_connection_status != 'connected' or not tenant.google_refresh_token or not tenant.google_backup_folder_id:
+        from backend.services.clinic_drive_provider import DriveFailure
+        raise DriveFailure('reconnect')
+    result = (tenant.google_refresh_token, tenant.google_backup_folder_id, tenant.google_connection_generation)
+    await db.commit()  # Never hold a connection during provider I/O.
+    return result
+
+
+async def _assert_connection_generation(db, tenant_id, generation):
+    row = (await db.execute(select(models.Tenant.google_connection_generation, models.Tenant.google_connection_status).where(
+        models.Tenant.id == tenant_id,
+    ))).one_or_none()
+    if not row or row.google_connection_generation != generation or row.google_connection_status != 'connected':
+        from backend.services.clinic_drive_provider import DriveFailure
+        raise DriveFailure('reconnect')
+
+
+async def _drive_error(db, tenant_id, generation, exc):
+    from backend.services.clinic_drive_provider import DriveFailure
+    from backend.services.clinic_google_connection import mark_needs_reconnect
+    if isinstance(exc, DriveFailure) and exc.category == 'reconnect' and generation is not None:
+        await mark_needs_reconnect(db, tenant_id=tenant_id, generation=generation)
+    raise HTTPException(status_code=400, detail=str(exc) if isinstance(exc, DriveFailure) else 'تعذر الاتصال بـ Google Drive') from None
+
+
+@router.get('/backups')
+async def list_clinic_backups(page_token: str | None = None, db: AsyncSession = Depends(get_async_db), user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+    from backend.services.clinic_drive_provider import DriveFailure
+    from backend.services.tenant_archive import configured_keys
+    tenant_id = _admin(user)
+    generation = None
+    try:
+        refresh, folder, generation = await _connected_credentials(db, tenant_id)
+        _, _, installation = configured_keys()
+        provider = await drive_io(ClinicDriveProvider, refresh)
+        files, next_page = await drive_io(provider.list_backups, folder_id=folder, tenant_id=tenant_id, installation_id=installation, page_token=page_token)
+        await _assert_connection_generation(db, tenant_id, generation)
+        return success_response(data={'files': [{'id': item['id'], 'name': item.get('name'), 'date': item.get('modifiedTime'), 'size': item.get('size')} for item in files], 'next_page_token': next_page})
+    except DriveFailure as exc:
+        await _drive_error(db, tenant_id, generation, exc)
+    except Exception:
+        raise HTTPException(status_code=400, detail='تعذر عرض نسخ Google Drive') from None
+
+
+@router.post('/backups/{file_id}/preview')
+async def preview_drive_backup(file_id: str, db: AsyncSession = Depends(get_async_db), user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+    from sqlalchemy import text
+    from backend.services.clinic_drive_provider import DriveFailure
+    from backend.services.tenant_archive import ArchiveError, configured_keys, decode_archive
+    from backend.services.tenant_backup_config import archive_max_bytes, supported_archive_revisions
+    from backend.services.tenant_restore_coordinator import known_global_references
+    from backend.services.tenant_restore_preview import create_restore_preview
+    tenant_id = _admin(user)
+    generation = None
+    try:
+        refresh, folder, generation = await _connected_credentials(db, tenant_id)
+        _, keys, installation = configured_keys()
+        limit = archive_max_bytes()
+        provider = await drive_io(ClinicDriveProvider, refresh)
+        archive = await drive_io(provider.download_backup, file_id=file_id, folder_id=folder, tenant_id=tenant_id, installation_id=installation, max_bytes=limit)
+        await _assert_connection_generation(db, tenant_id, generation)
+        revision = (await db.execute(text('SELECT version_num FROM alembic_version'))).scalar_one()
+        external_ids = await known_global_references(db)
+        operation, confirmation, header, counts, mapping = await create_restore_preview(
+            db, tenant_id=tenant_id, actor_id=user.id, archive=archive, installation_id=installation,
+            keys=keys, supported_revisions=supported_archive_revisions(revision), external_ids=external_ids, max_bytes=limit,
+        )
+        _, decoded = decode_archive(archive, tenant_id=tenant_id, installation_id=installation, keys=keys, max_bytes=limit)
+        return success_response(data={'operation_id': operation.id, 'confirmation': confirmation,
+                                      'archive_digest': operation.archive_digest, 'backup_date': header['created_at'],
+                                      'schema_revision': header['schema_revision'], 'counts': counts,
+                                      'staff_mapping': [{'name': row.get('full_name') or row.get('username'), 'existing_user_id': mapping[row['id']]} for row in decoded['data']['staff_references']],
+                                      'legacy_unverified': bool(decoded.get('legacy_unverified')), 'missing_sections': decoded.get('missing_sections', []),
+                                      'expires_at': operation.expires_at.isoformat()})
+    except DriveFailure as exc:
+        await _drive_error(db, tenant_id, generation, exc)
+    except ArchiveError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail='تعذرت معاينة نسخة Google Drive') from None
