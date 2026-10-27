@@ -11,6 +11,8 @@ from sqlalchemy import select
 from backend import models
 from backend.services.tenant_archive import ArchiveError, decode_archive
 from backend.services.tenant_archive_identity import resolve_staff_mapping
+from backend.services.tenant_archive_adapters import adapt_archive_version
+from backend.services.tenant_archive_attachments import validate_attachment_metadata
 from backend.services.tenant_archive_legacy import missing_legacy_sections, ensure_missing_sections_empty
 from backend.services.tenant_archive_embedded_refs import validate_embedded_references
 from backend.services.tenant_archive_registry import (
@@ -30,10 +32,12 @@ async def create_restore_preview(db, *, tenant_id, actor_id, archive, installati
     header, payload = decode_archive(archive, tenant_id=tenant_id, installation_id=installation_id, keys=keys, max_bytes=max_bytes)
     if header.get('schema_revision') not in supported_revisions:
         raise ArchiveError('إصدار قاعدة بيانات النسخة الاحتياطية غير مدعوم')
+    payload = adapt_archive_version(payload, header.get('schema_revision'))
     missing = missing_legacy_sections(payload)
     data = validate_archive_sections(payload, tenant_id=tenant_id)
     await ensure_missing_sections_empty(db, tenant_id=tenant_id, missing_sections=missing)
     validate_archive_values(data)
+    validate_attachment_metadata(data, tenant_id)
     validate_archive_references(data, tenant_id=tenant_id, external_ids=external_ids)
     validate_embedded_references(data, tenant_id=tenant_id, external_ids=external_ids)
     staff_mapping = await resolve_staff_mapping(db, tenant_id, data['staff_references'])

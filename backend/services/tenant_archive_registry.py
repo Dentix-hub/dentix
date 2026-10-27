@@ -6,7 +6,7 @@ are excluded. This registry is not by itself a restore engine.
 
 ARCHIVE_COLUMNS = {
     'appointments': frozenset('id patient_id doctor_id price_list_id date_time duration_minutes status notes is_deleted deleted_at tenant_id version_id'.split()),
-    'attachments': frozenset('id tenant_id patient_id file_path filename file_type note created_at'.split()),
+    'attachments': frozenset('id tenant_id patient_id file_path filename file_type note created_at storage_provider storage_uuid drive_original_id drive_thumbnail_id original_size original_sha256 thumbnail_sha256 google_account_sub connection_generation storage_status'.split()),
     'batches': frozenset('id material_id tenant_id batch_number expiry_date supplier cost_per_unit created_at'.split()),
     'care_observations': frozenset('id tenant_id patient_id care_session_id step_id work_item_id observation_code tooth_key structured_value notes recorded_at recorded_by_user_id created_at'.split()),
     'care_session_steps': frozenset('id tenant_id care_session_id work_item_id step_order step_code title status started_at completed_at notes version_id created_at updated_at'.split()),

@@ -2129,6 +2129,12 @@
     }
   },
   "backup": {
+    "attachments_missing": "Unavailable attachments",
+    "attachments_unverified": "Unverified attachments",
+    "image_pending": "Uploading image to Google Drive",
+    "image_deleting": "Deleting image from Google Drive",
+    "image_details": "View issue",
+    "image_unavailable": "Image unavailable. Check the Google Drive connection.",
     "backup_queued": "Backup queued",
     "backup_failed": "Backup failed",
     "list_drive": "Show Google Drive backups",

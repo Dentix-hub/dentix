@@ -226,3 +226,43 @@ async def test_legacy_missing_sections_cannot_erase_existing_data(async_db_sessi
     with pytest.raises(ArchiveError):
         await ensure_missing_sections_empty(async_db_session, tenant_id=test_user.tenant_id, missing_sections=['expenses'])
     await ensure_missing_sections_empty(async_db_session, tenant_id=test_user.tenant_id, missing_sections=['lab_payments'])
+
+
+def test_known_pre_image_archive_defaults_to_legacy_storage():
+    from backend.services.tenant_archive_adapters import adapt_archive_version
+    payload = {'data': {'attachments': [{'id': 1, 'tenant_id': 7, 'patient_id': 3, 'file_path': 'legacy/path.png', 'filename': 'x.png', 'file_type': 'image/png', 'note': None, 'created_at': '2026-01-01T00:00:00'}]}}
+    adapted = adapt_archive_version(payload, 'ab52d9c807a1')
+    row = adapted['data']['attachments'][0]
+    assert row['storage_provider'] == 'legacy' and row['storage_status'] == 'ready'
+    assert row['storage_uuid'] is None and row['file_path'] == 'legacy/path.png'
+    assert 'storage_provider' not in payload['data']['attachments'][0]
+    payload['data']['attachments'][0]['drive_original_id'] = 'forged'
+    with pytest.raises(ArchiveError):
+        adapt_archive_version(payload, 'ab52d9c807a1')
+
+
+def test_restored_attachment_paths_cannot_escape_tenant_or_forge_drive_metadata():
+    from backend.services.tenant_archive_attachments import validate_attachment_metadata
+    data = {'attachments': [{'storage_provider': 'legacy', 'file_path': 'tenant_7/synthetic.png'}]}
+    validate_attachment_metadata(data, 7)
+    data['attachments'][0]['file_path'] = 'tenant_8/other.png'
+    with pytest.raises(ArchiveError):
+        validate_attachment_metadata(data, 7)
+    data['attachments'][0]['file_path'] = 'tenant_7/../../etc/passwd'
+    with pytest.raises(ArchiveError):
+        validate_attachment_metadata(data, 7)
+    data['attachments'][0] = {'storage_provider': 'google_drive', 'storage_uuid': 'not-a-uuid', 'file_path': '/api/v1/upload/drive/not-a-uuid/content'}
+    with pytest.raises(ArchiveError):
+        validate_attachment_metadata(data, 7)
+
+
+@pytest.mark.asyncio
+async def test_preview_reports_unavailable_and_unverified_attachment_references(async_db_session, test_user):
+    from backend.services.tenant_archive_availability import attachment_availability
+    rows = [
+        {'storage_provider': 'legacy', 'file_path': f'tenant_{test_user.tenant_id}/missing-synthetic.png'},
+        {'storage_provider': 'legacy', 'file_path': 'https://res.cloudinary.com/example/image/upload/synthetic.png'},
+        {'storage_provider': 'google_drive', 'storage_status': 'ready', 'google_account_sub': 'synthetic'},
+    ]
+    result = await attachment_availability(async_db_session, tenant_id=test_user.tenant_id, rows=rows)
+    assert result == {'missing': 2, 'unverified': 1}

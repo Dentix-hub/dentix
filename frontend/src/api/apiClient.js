@@ -3,7 +3,7 @@ import { setupApiPerfInterceptor } from '../utils/perfDiagnostics';
 import { logger } from '../utils/logger';
 import { useAuthStore } from '../store/auth.store';
 import { queryClient } from '../lib/queryClient';
-import { resolveApiBaseUrl } from './apiOrigin';
+import { resolveApiBaseUrl, shouldUseSameOriginApi } from './apiOrigin';
 import { clearSessionCookieHint } from './authSession';
 import {
     CONNECTION_STATES,
@@ -14,18 +14,11 @@ const getApiUrl = () => {
     const hostname = window.location.hostname;
     const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
-    if (configuredBaseUrl) {
-        return resolveApiBaseUrl(configuredBaseUrl, window.location);
-    }
-
-    if (hostname.includes('vercel.app')) {
-        if (hostname.toLowerCase().includes('staging') ||
-            hostname.toLowerCase().includes('preview') ||
-            hostname.toLowerCase().includes('-git-')) {
-            return 'https://dentix-dentix-staging.hf.space';
-        }
-        return 'https://dentix-dentix.hf.space';
-    }
+    // Vercel provides environment-specific /api rewrites. Keeping browser
+    // requests on this origin also keeps HttpOnly session cookies available
+    // to protected <img> and document requests.
+    if (shouldUseSameOriginApi(hostname)) return '';
+    if (configuredBaseUrl) return resolveApiBaseUrl(configuredBaseUrl, window.location);
 
     return resolveApiBaseUrl(undefined, window.location);
 };

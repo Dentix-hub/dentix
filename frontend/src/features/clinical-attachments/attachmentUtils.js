@@ -5,6 +5,7 @@ import { API_URL } from '@/api';
  */
 export const buildAttachmentUrl = (filePath) => {
     if (!filePath) return '';
+    if (filePath.startsWith('/api/v1/upload/drive/')) return filePath;
     if (filePath.startsWith('http://') || filePath.startsWith('https://')) return filePath;
     if (filePath.includes('http://') || filePath.includes('https://')) {
         const httpIdx = filePath.indexOf('http');

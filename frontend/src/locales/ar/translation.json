@@ -2129,6 +2129,12 @@
     }
   },
   "backup": {
+    "attachments_missing": "مرفقات غير متاحة",
+    "attachments_unverified": "مرفقات لم يُتحقق منها",
+    "image_pending": "جاري رفع الصورة إلى Google Drive",
+    "image_deleting": "جاري حذف الصورة من Google Drive",
+    "image_details": "تفاصيل المشكلة",
+    "image_unavailable": "الصورة غير متاحة حاليًا، تأكد من ربط جوجل درايف",
     "backup_queued": "تم إرسال النسخة الاحتياطية للتنفيذ",
     "backup_failed": "تعذر إنشاء النسخة الاحتياطية",
     "list_drive": "عرض نسخ Google Drive",

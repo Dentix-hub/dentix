@@ -11,6 +11,8 @@ from backend import models
 from backend.services.tenant_archive import ArchiveError, decode_archive
 from backend.services.tenant_archive_embedded_refs import validate_embedded_references
 from backend.services.tenant_archive_identity import resolve_staff_mapping
+from backend.services.tenant_archive_adapters import adapt_archive_version
+from backend.services.tenant_archive_attachments import validate_attachment_metadata
 from backend.services.tenant_archive_legacy import missing_legacy_sections
 from backend.services.tenant_archive_import import replace_clinic_business_data
 from backend.services.tenant_archive_registry import validate_archive_references, validate_archive_sections, validate_archive_values
@@ -48,9 +50,11 @@ async def run_confirmed_restore(db, *, tenant_id, operation_id, installation_id,
         header, payload = decode_archive(archive, tenant_id=tenant_id, installation_id=installation_id, keys=keys, max_bytes=max_bytes)
         if header.get('schema_revision') not in supported_revisions:
             raise ArchiveError('إصدار قاعدة بيانات النسخة الاحتياطية غير مدعوم')
+        payload = adapt_archive_version(payload, header.get('schema_revision'))
         missing = missing_legacy_sections(payload)
         data = validate_archive_sections(payload, tenant_id=tenant_id)
         validate_archive_values(data)
+        validate_attachment_metadata(data, tenant_id)
         external_ids = await known_global_references(db)
         validate_archive_references(data, tenant_id=tenant_id, external_ids=external_ids)
         validate_embedded_references(data, tenant_id=tenant_id, external_ids=external_ids)
@@ -62,6 +66,8 @@ async def run_confirmed_restore(db, *, tenant_id, operation_id, installation_id,
         operation.encrypted_payload = None
         operation.completed_at = datetime.now(timezone.utc)
         await db.commit()
+        from backend.services.drive_image_cache import image_cache
+        image_cache.invalidate(tenant_id=tenant_id)
         return counts, mapping
     except Exception:
         await db.rollback()

@@ -49,7 +49,11 @@ def adapt_legacy_json(source, *, tenant_id):
                 raise ArchiveError('بيانات النسخة الاحتياطية القديمة غير مدعومة')
             if 'tenant_id' in allowed and row.get('tenant_id') != tenant_id:
                 raise ArchiveError('النسخة الاحتياطية لا تخص هذه العيادة')
-            converted.append({key: row.get(key) for key in allowed})
+            converted_row = {key: row.get(key) for key in allowed}
+            if name == 'attachments':
+                converted_row['storage_provider'] = 'legacy'
+                converted_row['storage_status'] = 'ready'
+            converted.append(converted_row)
         sections[name] = converted
     if staff is None:
         raise ArchiveError('بيانات العاملين مفقودة من النسخة الاحتياطية القديمة')

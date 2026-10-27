@@ -1,6 +1,6 @@
+import ProtectedImage from '@/features/clinical-attachments/components/ProtectedImage';
 import PropTypes from 'prop-types';
 import { Activity, Clock, Flag, CheckCircle2, Calendar, Camera } from 'lucide-react';
-import { buildAttachmentUrl } from '@/features/clinical-attachments';
 
 /**
  * CareSessionActiveBanner (Slice S20, S22 & S24 / G11-M01, G15-M08).
@@ -117,9 +117,10 @@ export default function CareSessionActiveBanner({
                         className="me-2 flex items-center gap-1.5"
                     >
                         {sessionImages.slice(0, 3).map((img) => (
-                            <img
+                            <ProtectedImage
                                 key={img.id}
-                                src={buildAttachmentUrl(img.file_path)}
+                                filePath={img.file_path}
+                                thumbnail
                                 alt={img.filename || 'Session radiograph'}
                                 data-testid={`banner-session-image-${img.id}`}
                                 onClick={onOpenWorkflow}

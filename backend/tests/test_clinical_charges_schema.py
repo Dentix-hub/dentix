@@ -274,7 +274,8 @@ def test_legacy_finance_tables_unchanged():
 def test_alembic_single_head_is_s32():
     alembic_cfg_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
     script_dir = ScriptDirectory.from_config(Config(alembic_cfg_path))
-    assert script_dir.get_heads() == ["ab52d9c807a1"]
+    assert script_dir.get_heads() == ["bc78a10d932e"]
+    assert script_dir.get_revision("bc78a10d932e").down_revision == "ab52d9c807a1"
     assert script_dir.get_revision("ab52d9c807a1").down_revision == "f17a93c60e24"
     assert script_dir.get_revision("f17a93c60e24").down_revision == "e82c19f5a406"
     assert script_dir.get_revision("e82c19f5a406").down_revision == "d42a71e9bc83"
@@ -311,6 +312,9 @@ def test_alembic_s32_upgrade_downgrade_and_orm_parity(monkeypatch):
             )
             with eng.begin() as conn:
                 conn.execute(sa.text("ALTER TABLE user_sessions DROP COLUMN remember_me"))
+                conn.execute(sa.text("DROP INDEX uq_attachment_tenant_storage_uuid"))
+                for column in ("storage_status", "connection_generation", "original_size", "google_account_sub", "thumbnail_sha256", "original_sha256", "drive_thumbnail_id", "drive_original_id", "storage_uuid", "storage_provider"):
+                    conn.execute(sa.text(f"ALTER TABLE attachments DROP COLUMN {column}"))
                 for column in ("google_account_sub", "google_account_email", "google_connection_status", "google_connection_generation", "google_root_folder_id", "google_backup_folder_id", "google_image_folder_id"):
                     conn.execute(sa.text(f"ALTER TABLE tenants DROP COLUMN {column}"))
                 conn.execute(sa.text("DROP INDEX uq_treatment_tenant_request_key"))

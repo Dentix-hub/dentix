@@ -112,6 +112,13 @@ describe('custom service worker contract (plan §11)', () => {
         expect(event.respondWith).not.toHaveBeenCalled();
     });
 
+    it('never sends authenticated Drive images to Cache Storage', () => {
+        const request = new Request('https://www.dentixs.app/api/v1/upload/drive/uuid/content?variant=thumbnail');
+        const event = { request, respondWith: vi.fn() };
+        stubs.listeners.fetch(event);
+        expect(event.respondWith).not.toHaveBeenCalled();
+    });
+
     it('serves the precached shell for SPA navigations and cached assets cache-first', async () => {
         const shell = new Response('<html>shell</html>');
         // The worker passes either a Request or a URL to caches.match.

@@ -50,6 +50,11 @@ async def test_oauth_callback_browser_binding_and_separate_tenant_folders(monkey
             assert 'backup_status=success' in response.headers['location']
             replay = await client.get('/api/v1/settings/drive/callback', params={'state': state, 'code': 'synthetic-code'})
             assert 'backup_status=error' in replay.headers['location']
+    _, username, tenant_id = identities[0]
+    jwt = create_access_token(data={'sub': username, 'tenant_id': tenant_id, 'role': 'admin'})
+    async with AsyncClient(transport=transport, base_url='http://test') as client:
+        disconnected = await client.delete('/api/v1/settings/drive/connection', headers={'Authorization': f'Bearer {jwt}'})
+        assert disconnected.status_code == 200
     async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
         async with session.bypass_rls() as db:
             rows = (await db.execute(select(models.Tenant).where(models.Tenant.id.in_([row[2] for row in identities])))).scalars().all()
@@ -57,3 +62,6 @@ async def test_oauth_callback_browser_binding_and_separate_tenant_folders(monkey
             assert len({row.google_root_folder_id for row in rows}) == 2
             assert len({row.google_backup_folder_id for row in rows}) == 2
             assert len({row.google_image_folder_id for row in rows}) == 2
+            by_id = {row.id: row for row in rows}
+            assert by_id[identities[0][2]].google_refresh_token is None
+            assert by_id[identities[1][2]].google_refresh_token == 'synthetic-refresh'

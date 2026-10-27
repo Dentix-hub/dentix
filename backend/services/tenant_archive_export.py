@@ -22,6 +22,8 @@ async def export_clinic_archive_data(db, tenant_id):
     Staff references never contain login credentials, roles, permissions or
     sessions. The importer must map every reference to a live tenant user.
     """
+    from backend.services.drive_image_safety import ensure_no_active_image_operations
+    await ensure_no_active_image_operations(db, tenant_id)
     result = {}
     classes = {mapper.local_table.name: mapper.class_ for mapper in models.Base.registry.mappers}
     for name, columns in ARCHIVE_COLUMNS.items():

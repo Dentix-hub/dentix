@@ -1,3 +1,4 @@
+import ProtectedImage from './ProtectedImage';
 import PropTypes from 'prop-types';
 import { ExternalLink, Tag, Calendar, Activity, Info } from 'lucide-react';
 import Modal from '@/shared/ui/Modal';
@@ -24,8 +25,8 @@ export default function DiagnosticImageLightbox({
             <div className="space-y-4 p-4" data-testid="diagnostic-image-lightbox">
                 {/* Image display container */}
                 <div className="flex max-h-[65vh] w-full items-center justify-center overflow-hidden rounded-2xl bg-black/90 p-2">
-                    <img
-                        src={fullUrl}
+                    <ProtectedImage
+                        filePath={image.file_path}
                         alt={image.filename || 'Diagnostic Radiograph'}
                         className="max-h-[60vh] max-w-full rounded-lg object-contain shadow-md"
                     />

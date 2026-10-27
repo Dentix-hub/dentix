@@ -381,6 +381,7 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo, r
                         <p>{t('backup.restore_explanation')}</p>
                         <p>{t('backup.preview_date')}: {restorePreview.backup_date}</p>
                         <p>{t('backup.preview_counts')}: {Object.values(restorePreview.counts || {}).reduce((sum, count) => sum + count, 0)}</p>
+                        {restorePreview.attachment_availability && <p>{t('backup.attachments_missing')}: {restorePreview.attachment_availability.missing} · {t('backup.attachments_unverified')}: {restorePreview.attachment_availability.unverified}</p>}
                         <ul className="grid grid-cols-1 gap-1 sm:grid-cols-2" aria-label={t('backup.preview_counts')}>
                             {Object.entries(restorePreview.counts || {}).filter(([, count]) => count > 0).map(([section, count]) => <li key={section}>{t(`backup.sections.${section}`, section)}: {count}</li>)}
                         </ul>

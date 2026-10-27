@@ -152,5 +152,6 @@ class Attachment(AttachmentBase):
     id: int
     created_at: datetime
     file_path: str
+    storage_status: str = "ready"
 
     model_config = ConfigDict(from_attributes=True)

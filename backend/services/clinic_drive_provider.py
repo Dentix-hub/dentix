@@ -54,6 +54,15 @@ def classify_error(error):
     return 'transient'
 
 
+def _retry_delay(error, attempt):
+    if isinstance(error, HttpError):
+        try:
+            return min(10.0, max(0.0, float(error.resp.get('retry-after', ''))))
+        except (ValueError, TypeError):
+            pass
+    return min(8.0, 2 ** attempt + random.random())
+
+
 def execute_with_retry(request_factory, *, attempts=4):
     """Retry only transient/rate-limit failures, with bounded jitter."""
     for attempt in range(attempts):
@@ -63,14 +72,7 @@ def execute_with_retry(request_factory, *, attempts=4):
             category = classify_error(exc)
             if category not in {'transient', 'rate_limit'} or attempt + 1 == attempts:
                 raise DriveFailure(category) from None
-            retry_after = None
-            if isinstance(exc, HttpError):
-                try:
-                    retry_after = float(exc.resp.get('retry-after', ''))
-                except (ValueError, TypeError):
-                    pass
-            delay = min(10.0, max(0.0, retry_after)) if retry_after is not None else min(8.0, 2 ** attempt + random.random())
-            time.sleep(delay)
+            time.sleep(_retry_delay(exc, attempt))
     raise DriveFailure('transient')
 
 
@@ -163,7 +165,7 @@ class ClinicDriveProvider:
                         return self.verify_backup(file_id=file_id, folder_id=folder_id, tenant_id=tenant_id, installation_id=installation_id, digest=digest)
                     except DriveFailure:
                         raise DriveFailure(category) from None
-                time.sleep(min(8.0, 2 ** failures + random.random()))
+                time.sleep(_retry_delay(exc, failures))
                 failures += 1
         return self.verify_backup(file_id=file_id, folder_id=folder_id, tenant_id=tenant_id, installation_id=installation_id, digest=digest)
 
@@ -214,9 +216,120 @@ class ClinicDriveProvider:
                 category = classify_error(exc)
                 if category not in {'rate_limit', 'transient'} or failures >= 3:
                     raise DriveFailure(category) from None
-                time.sleep(min(8.0, 2 ** failures + random.random()))
+                time.sleep(_retry_delay(exc, failures))
                 failures += 1
         raw = output.getvalue()
         if len(raw) != size or hashlib.sha256(raw).hexdigest() != meta.get('sha256Checksum'):
             raise DriveFailure('permission')
         return raw
+
+    @staticmethod
+    def _image_properties(*, tenant_id, installation_id, storage_uuid, patient_id, variant, digest):
+        return {'dentix_tenant': str(tenant_id), 'dentix_installation': installation_id,
+                'dentix_kind': 'patient_image', 'dentix_storage': storage_uuid,
+                'dentix_created_patient': str(patient_id), 'dentix_variant': variant, 'dentix_sha256': digest}
+
+    def verify_image(self, *, file_id, folder_id, tenant_id, installation_id, storage_uuid, variant, digest):
+        meta = execute_with_retry(lambda: self.service.files().get(
+            fileId=file_id, fields='id,mimeType,parents,appProperties,trashed,size,sha256Checksum'))
+        props = meta.get('appProperties') or {}
+        if (meta.get('id') != file_id or meta.get('trashed') or folder_id not in meta.get('parents', [])
+            or props.get('dentix_tenant') != str(tenant_id) or props.get('dentix_installation') != installation_id
+            or props.get('dentix_kind') != 'patient_image' or props.get('dentix_storage') != storage_uuid
+            or props.get('dentix_variant') != variant or props.get('dentix_sha256') != digest
+            or meta.get('sha256Checksum') != digest):
+            raise DriveFailure('permission')
+        return meta
+
+    def upload_image(self, *, file_id, folder_id, tenant_id, installation_id, storage_uuid, patient_id, variant, content, mime, digest):
+        import io
+        from googleapiclient.http import MediaIoBaseUpload
+        try:
+            return self.verify_image(file_id=file_id, folder_id=folder_id, tenant_id=tenant_id, installation_id=installation_id, storage_uuid=storage_uuid, variant=variant, digest=digest)
+        except DriveFailure as exc:
+            if exc.category != 'not_found':
+                raise
+        media = MediaIoBaseUpload(io.BytesIO(content), mimetype=mime, chunksize=1024 * 1024, resumable=True)
+        body = {'id': file_id, 'name': f'{storage_uuid}-{variant}', 'parents': [folder_id],
+                'appProperties': self._image_properties(tenant_id=tenant_id, installation_id=installation_id,
+                    storage_uuid=storage_uuid, patient_id=patient_id, variant=variant, digest=digest)}
+        request = self.service.files().create(body=body, media_body=media, fields='id')
+        failures = 0
+        while True:
+            try:
+                _, response = request.next_chunk(num_retries=0)
+                if response is not None:
+                    break
+                failures = 0
+            except (HttpError, RefreshError, OSError, TimeoutError) as exc:
+                category = classify_error(exc)
+                if category == 'conflict':
+                    break
+                if category not in {'rate_limit', 'transient'} or failures >= 3:
+                    try:
+                        return self.verify_image(file_id=file_id, folder_id=folder_id, tenant_id=tenant_id, installation_id=installation_id, storage_uuid=storage_uuid, variant=variant, digest=digest)
+                    except DriveFailure:
+                        raise DriveFailure(category) from None
+                time.sleep(_retry_delay(exc, failures))
+                failures += 1
+        return self.verify_image(file_id=file_id, folder_id=folder_id, tenant_id=tenant_id, installation_id=installation_id, storage_uuid=storage_uuid, variant=variant, digest=digest)
+
+    def download_image(self, *, file_id, folder_id, tenant_id, installation_id, storage_uuid, variant, digest, max_bytes):
+        import io
+        from googleapiclient.http import MediaIoBaseDownload
+        meta = self.verify_image(file_id=file_id, folder_id=folder_id, tenant_id=tenant_id, installation_id=installation_id, storage_uuid=storage_uuid, variant=variant, digest=digest)
+        try:
+            size = int(meta.get('size', '-1'))
+        except (ValueError, TypeError):
+            raise DriveFailure('permission') from None
+        if size < 0 or size > max_bytes:
+            raise DriveFailure('permission')
+        class BoundedBuffer(io.BytesIO):
+            def write(self, value):
+                if self.tell() + len(value) > max_bytes:
+                    raise DriveFailure('permission')
+                return super().write(value)
+        output = BoundedBuffer()
+        downloader = MediaIoBaseDownload(output, self.service.files().get_media(fileId=file_id), chunksize=1024 * 1024)
+        done, failures = False, 0
+        while not done:
+            try:
+                _, done = downloader.next_chunk(num_retries=0)
+                failures = 0
+            except (HttpError, RefreshError, OSError, TimeoutError) as exc:
+                category = classify_error(exc)
+                if category not in {'rate_limit', 'transient'} or failures >= 3:
+                    raise DriveFailure(category) from None
+                time.sleep(_retry_delay(exc, failures))
+                failures += 1
+        data = output.getvalue()
+        if len(data) != size or hashlib.sha256(data).hexdigest() != digest:
+            raise DriveFailure('permission')
+        return data
+
+    def delete_image(self, *, file_id, folder_id, tenant_id, installation_id, storage_uuid, variant, digest):
+        try:
+            self.verify_image(file_id=file_id, folder_id=folder_id, tenant_id=tenant_id, installation_id=installation_id, storage_uuid=storage_uuid, variant=variant, digest=digest)
+            execute_with_retry(lambda: self.service.files().delete(fileId=file_id))
+        except DriveFailure as exc:
+            if exc.category != 'not_found':
+                raise
+
+    def list_images(self, *, folder_id, tenant_id, installation_id, page_token=None):
+        def escape(value):
+            return str(value).replace('\\', '\\\\').replace("'", "\\'")
+        query = (f"'{escape(folder_id)}' in parents and trashed = false and "
+                 f"appProperties has {{ key='dentix_kind' and value='patient_image' }} and "
+                 f"appProperties has {{ key='dentix_tenant' and value='{escape(tenant_id)}' }} and "
+                 f"appProperties has {{ key='dentix_installation' and value='{escape(installation_id)}' }}")
+        result = execute_with_retry(lambda: self.service.files().list(
+            q=query, pageSize=1000, pageToken=page_token,
+            fields='nextPageToken,files(id,parents,appProperties,trashed,sha256Checksum)'))
+        files = result.get('files', [])
+        for item in files:
+            props = item.get('appProperties') or {}
+            if (item.get('trashed') or folder_id not in item.get('parents', [])
+                or props.get('dentix_tenant') != str(tenant_id) or props.get('dentix_installation') != installation_id
+                or props.get('dentix_kind') != 'patient_image'):
+                raise DriveFailure('permission')
+        return files, result.get('nextPageToken')

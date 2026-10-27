@@ -99,6 +99,38 @@ def validate_embedded_references(data, *, tenant_id, external_ids=None):
         remap_event_payload(row.get('payload'), mapping)
     for row in data['stock_movements']:
         remap_stock_reference(row.get('reference_id'), mapping)
+    for row in data['material_learning_logs']:
+        remap_learning_data(row.get('calculation_data'), mapping)
     for row in data['treatments']:
         remap_treatment_note(row.get('notes'), mapping)
         remap_price_snapshot(row.get('price_snapshot'), mapping)
+
+
+def remap_learning_data(value, mapping):
+    if value is None:
+        return None
+    try:
+        data = json.loads(value)
+        if not isinstance(data, dict) or set(data) - {'error', 'treatments_count', 'total_weight_score', 'unit_weight_value', 'dist_log', 'usage_updates', 'learning_updates'}:
+            raise ValueError
+        for field in ('dist_log', 'usage_updates'):
+            if field in data:
+                if not isinstance(data[field], list):
+                    raise ValueError
+                for entry in data[field]:
+                    if not isinstance(entry, dict) or 'treatment_id' not in entry:
+                        raise ValueError
+                    entry['treatment_id'] = _mapped(mapping, 'treatments', entry['treatment_id'])
+        if 'learning_updates' in data:
+            if not isinstance(data['learning_updates'], dict):
+                raise ValueError
+            updates = {}
+            for key, entry in data['learning_updates'].items():
+                new_id = _mapped(mapping, 'procedures', int(key))
+                updates[str(new_id)] = entry
+            data['learning_updates'] = updates
+        return json.dumps(data, ensure_ascii=False, separators=(',', ':'))
+    except (ValueError, TypeError) as exc:
+        if isinstance(exc, ArchiveError):
+            raise
+        raise ArchiveError('سجل تعلم المواد غير صالح') from exc

@@ -172,3 +172,16 @@ async def on_tenant_backup_requested(event: DomainEvent):
     """Outbox retries reuse the same tenant operation and remote file ID."""
     from backend.services.clinic_drive_backup import run_drive_backup
     await run_drive_backup(tenant_id=event.tenant_id, operation_id=event.aggregate_id)
+
+
+@register_handler('tenant.image.upload')
+async def on_drive_image_upload(event: DomainEvent):
+    from backend.services.drive_image_operations import run_image_upload
+    await run_image_upload(tenant_id=event.tenant_id, operation_id=event.aggregate_id)
+
+
+@register_handler('tenant.image.delete')
+@register_handler('tenant.image.cleanup')
+async def on_drive_image_delete(event: DomainEvent):
+    from backend.services.drive_image_operations import run_image_deletion
+    await run_image_deletion(tenant_id=event.tenant_id, operation_id=event.aggregate_id)

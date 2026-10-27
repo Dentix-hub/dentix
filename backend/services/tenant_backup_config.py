@@ -16,4 +16,4 @@ def archive_max_bytes():
 
 def supported_archive_revisions(current_revision):
     """Business formats that have the same version-one column allowlist."""
-    return {current_revision, 'd42a71e9bc83', 'e82c19f5a406', 'f17a93c60e24'}
+    return {current_revision, 'd42a71e9bc83', 'e82c19f5a406', 'f17a93c60e24', 'ab52d9c807a1', 'bc78a10d932e'}

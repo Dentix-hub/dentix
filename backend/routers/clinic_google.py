@@ -99,6 +99,8 @@ async def disconnect_connection(db: AsyncSession = Depends(get_async_db), user: 
     tenant.google_connection_status = 'disconnected'
     tenant.google_connection_generation += 1
     await db.commit()
+    from backend.services.drive_image_cache import image_cache
+    image_cache.invalidate(tenant_id=tenant_id)
     return success_response(message='تم فصل العيادة عن Google Drive. تظل الملفات في حساب Google.')
 
 
@@ -172,12 +174,16 @@ async def preview_drive_backup(file_id: str, db: AsyncSession = Depends(get_asyn
             keys=keys, supported_revisions=supported_archive_revisions(revision), external_ids=external_ids, max_bytes=limit,
         )
         _, decoded = decode_archive(archive, tenant_id=tenant_id, installation_id=installation, keys=keys, max_bytes=limit)
+        from backend.services.tenant_archive_adapters import adapt_archive_version
+        from backend.services.tenant_archive_availability import attachment_availability
+        decoded = adapt_archive_version(decoded, header.get('schema_revision'))
+        availability = await attachment_availability(db, tenant_id=tenant_id, rows=decoded['data']['attachments'])
         return success_response(data={'operation_id': operation.id, 'confirmation': confirmation,
                                       'archive_digest': operation.archive_digest, 'backup_date': header['created_at'],
                                       'schema_revision': header['schema_revision'], 'counts': counts,
                                       'staff_mapping': [{'name': row.get('full_name') or row.get('username'), 'existing_user_id': mapping[row['id']]} for row in decoded['data']['staff_references']],
                                       'legacy_unverified': bool(decoded.get('legacy_unverified')), 'missing_sections': decoded.get('missing_sections', []),
-                                      'expires_at': operation.expires_at.isoformat()})
+                                      'attachment_availability': availability, 'expires_at': operation.expires_at.isoformat()})
     except DriveFailure as exc:
         await _drive_error(db, tenant_id, generation, exc)
     except ArchiveError as exc:

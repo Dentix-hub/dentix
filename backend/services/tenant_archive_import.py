@@ -13,7 +13,7 @@ from sqlalchemy import Date, DateTime, Numeric, delete, select, text
 from backend import models
 from backend.services.tenant_archive import ArchiveError
 from backend.services.tenant_archive_embedded_refs import (
-    remap_event_payload, remap_price_snapshot, remap_stock_reference, remap_treatment_note,
+    remap_event_payload, remap_learning_data, remap_price_snapshot, remap_stock_reference, remap_treatment_note,
 )
 from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS
 
@@ -53,6 +53,8 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
     # trigger; the exclusive transaction lock waits for all previous writers.
     await db.execute(text('SELECT pg_advisory_xact_lock(:namespace, :tenant)'),
                      {'namespace': GATE_NAMESPACE, 'tenant': tenant_id})
+    from backend.services.drive_image_safety import ensure_no_active_image_operations
+    await ensure_no_active_image_operations(db, tenant_id)
     from backend.services.tenant_archive_legacy import ensure_missing_sections_empty
     await ensure_missing_sections_empty(db, tenant_id=tenant_id, missing_sections=missing_sections)
     classes = _model_classes()
@@ -82,6 +84,10 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
                 if key == 'id':
                     continue
                 col = table.c[key]
+                if name == 'material_learning_logs' and key == 'calculation_data':
+                    later[key] = value
+                    values[key] = None
+                    continue
                 if name == 'clinical_events' and key == 'payload':
                     later[key] = value
                     values[key] = {}
@@ -108,7 +114,9 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
             if later:
                 deferred.append((name, row, later))
     for name, row, later in deferred:
-        if name == 'clinical_events':
+        if name == 'material_learning_logs':
+            row.calculation_data = remap_learning_data(later['calculation_data'], mapping)
+        elif name == 'clinical_events':
             row.payload = remap_event_payload(later['payload'], mapping)
         elif name == 'stock_movements':
             row.reference_id = remap_stock_reference(later['reference_id'], mapping)

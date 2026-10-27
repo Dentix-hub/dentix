@@ -37,11 +37,15 @@ async def finish_google_connection(*, details, identity, provider):
             tenant = await _identity(db, tenant_id, user_id)
             if tenant.google_connection_generation != generation:
                 raise GoogleConnectionError('تغير اتصال Google أثناء الربط، يرجى المحاولة مجددًا')
-            if tenant.google_account_sub and tenant.google_account_sub != identity['sub']:
-                # Preserve the existing account until attachment ownership can
-                # be verified by the Drive-image provider.
-                raise GoogleConnectionError('الحساب مختلف عن حساب Google المرتبط بالعيادة')
-            existing = (tenant.google_root_folder_id, tenant.google_backup_folder_id, tenant.google_image_folder_id)
+            changing_account = bool(tenant.google_account_sub and tenant.google_account_sub != identity['sub'])
+            if changing_account:
+                image = (await db.execute(select(models.Attachment.id).where(
+                    models.Attachment.tenant_id == tenant_id,
+                    models.Attachment.storage_provider == 'google_drive',
+                ).limit(1))).first()
+                if image:
+                    raise GoogleConnectionError('لا يمكن تغيير حساب Google لوجود صور مرتبطة بالحساب الحالي')
+            existing = (None, None, None) if changing_account else (tenant.google_root_folder_id, tenant.google_backup_folder_id, tenant.google_image_folder_id)
             await db.commit()
         if all(existing):
             ids = existing
@@ -79,6 +83,13 @@ async def finish_google_connection(*, details, identity, provider):
             tenant = await _identity(db, tenant_id, user_id)
             if tenant.google_connection_generation != generation:
                 raise GoogleConnectionError('تغير اتصال Google أثناء الربط، يرجى المحاولة مجددًا')
+            if tenant.google_account_sub and tenant.google_account_sub != identity['sub']:
+                image = (await db.execute(select(models.Attachment.id).where(
+                    models.Attachment.tenant_id == tenant_id,
+                    models.Attachment.storage_provider == 'google_drive',
+                ).limit(1))).first()
+                if image:
+                    raise GoogleConnectionError('لا يمكن تغيير حساب Google لوجود صور مرتبطة بالحساب الحالي')
             tenant.google_refresh_token = identity['refresh_token']
             tenant.google_account_sub = identity['sub']
             tenant.google_account_email = identity.get('email')
@@ -86,6 +97,23 @@ async def finish_google_connection(*, details, identity, provider):
             tenant.google_connection_status = 'connected'
             tenant.google_connection_generation += 1
             await db.commit()
+            # Resume previously exhausted remote deletions after reconnecting.
+            from sqlalchemy import update
+            from datetime import datetime, timezone
+            pending_ids = select(models.TenantDataOperation.id).where(
+                models.TenantDataOperation.tenant_id == tenant_id,
+                models.TenantDataOperation.kind.in_(['drive_image_delete', 'drive_image_cleanup']),
+                models.TenantDataOperation.status != 'completed',
+            )
+            await db.execute(update(models.DomainEvent).where(
+                models.DomainEvent.tenant_id == tenant_id,
+                models.DomainEvent.event_type.in_(['tenant.image.delete', 'tenant.image.cleanup']),
+                models.DomainEvent.status == 'failed',
+                models.DomainEvent.aggregate_id.in_(pending_ids),
+            ).values(status='pending', attempts=0, available_at=datetime.now(timezone.utc), error_message=None))
+            await db.commit()
+        from backend.services.drive_image_cache import image_cache
+        image_cache.invalidate(tenant_id=tenant_id)
         return True
     finally:
         clear_tenant_context(tenant_token=token)
@@ -100,4 +128,7 @@ async def mark_needs_reconnect(db, *, tenant_id, generation):
         models.Tenant.google_connection_status == 'connected',
     ).values(google_connection_status='needs_reconnect', google_connection_generation=generation + 1))
     await db.commit()
+    if result.rowcount == 1:
+        from backend.services.drive_image_cache import image_cache
+        image_cache.invalidate(tenant_id=tenant_id)
     return result.rowcount == 1

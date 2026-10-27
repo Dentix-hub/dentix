@@ -71,7 +71,7 @@ def engine():
 
 
 @pytest.fixture(scope="session")
-def async_engine_fixture():
+async def async_engine_fixture():
     """Create a persistent async SQLite engine for the session."""
     from sqlalchemy.ext.asyncio import create_async_engine
     engine = create_async_engine(
@@ -80,6 +80,7 @@ def async_engine_fixture():
         poolclass=StaticPool,
     )
     yield engine
+    await engine.dispose()
 
 
 @pytest.fixture(scope="function")

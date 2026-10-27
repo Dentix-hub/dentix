@@ -103,12 +103,16 @@ async def preview_clinic_restore(request: Request, db: AsyncSession = Depends(ge
         # Metadata from the original payload is authenticated inside the file.
         from backend.services.tenant_archive import decode_archive
         _, decoded = decode_archive(raw, tenant_id=tenant_id, installation_id=installation, keys=keys, max_bytes=limit)
+        from backend.services.tenant_archive_adapters import adapt_archive_version
+        from backend.services.tenant_archive_availability import attachment_availability
+        decoded = adapt_archive_version(decoded, header.get('schema_revision'))
+        availability = await attachment_availability(db, tenant_id=tenant_id, rows=decoded['data']['attachments'])
         return success_response(data={
             'operation_id': operation.id, 'confirmation': confirmation, 'archive_digest': operation.archive_digest,
             'backup_date': header['created_at'], 'schema_revision': header['schema_revision'], 'counts': counts,
             'legacy_unverified': bool(decoded.get('legacy_unverified')), 'missing_sections': decoded.get('missing_sections', []),
             'staff_mapping': [{'name': row.get('full_name') or row.get('username'), 'existing_user_id': mapping[row['id']]} for row in decoded['data']['staff_references']],
-            'expires_at': operation.expires_at.isoformat(),
+            'attachment_availability': availability, 'expires_at': operation.expires_at.isoformat(),
         })
     except ArchiveError as exc:
         await db.rollback()
