@@ -122,6 +122,8 @@ class EventService:
 
             if event.attempts >= event.max_attempts:
                 event.status = "failed"
+                if event.event_type == "auth.password_reset.requested":
+                    event.payload = {}
             else:
                 event.status = "pending"
                 # Simple exponential backoff for next attempt
