@@ -20,21 +20,6 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "has": [{ "type": "host", "value": "(?<host>.*staging.*)" }],
-      "destination": "https://dentix-dentix-staging.hf.space/api/:path*"
-    },
-    {
-      "source": "/api/:path*",
-      "has": [{ "type": "host", "value": "(?<host>.*preview.*)" }],
-      "destination": "https://dentix-dentix-staging.hf.space/api/:path*"
-    },
-    {
-      "source": "/api/:path*",
-      "has": [{ "type": "host", "value": "(?<host>.*-git-.*)" }],
-      "destination": "https://dentix-dentix-staging.hf.space/api/:path*"
-    },
-    {
-      "source": "/api/:path*",
       "destination": "https://dentix-dentix.hf.space/api/:path*"
     },
     {

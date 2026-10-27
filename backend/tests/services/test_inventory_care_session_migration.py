@@ -279,7 +279,8 @@ def test_alembic_s26_migration_lifecycle_sqlite(monkeypatch):
             # Head also migrates users.email; keep the legacy prerequisite schema realistic.
             conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR NOT NULL)"))
             conn.execute(sa.text("CREATE UNIQUE INDEX ix_users_email ON users(email)"))
-            conn.execute(sa.text("CREATE TABLE tenants (id INTEGER PRIMARY KEY, name VARCHAR)"))
+            conn.execute(sa.text("CREATE TABLE tenants (id INTEGER PRIMARY KEY, name VARCHAR, google_refresh_token VARCHAR)"))
+            conn.execute(sa.text("CREATE TABLE attachments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE treatments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE materials (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE material_sessions (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))

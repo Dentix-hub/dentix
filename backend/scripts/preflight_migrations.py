@@ -124,6 +124,8 @@ RLS_TABLES = (
     "clinical_projection_coverages",
     "clinical_charges",
     "user_onboarding_state",
+    "tenant_data_operations",
+    "google_oauth_attempts",
 )
 
 CHILD_TENANT_RELATIONSHIPS = (

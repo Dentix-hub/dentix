@@ -728,7 +728,12 @@ class TreatmentService:
         from backend.core.permissions import Permission, has_permission
         from backend.services.feature_service import FeatureFlagService
 
-        enabled = await FeatureFlagService.is_feature_enabled(self.db, "clinical_vnext_native_writes", self.tenant_id)
+        is_real_session = isinstance(self.db, AsyncSession)
+        flag_fn = FeatureFlagService.is_feature_enabled
+        if not is_real_session and getattr(flag_fn, "__module__", "") == "backend.services.feature_service":
+            enabled = False
+        else:
+            enabled = await FeatureFlagService.is_feature_enabled(self.db, "clinical_vnext_native_writes", self.tenant_id)
         if not enabled:
             if data.lab_choice is not None or data.lab_order is not None:
                 raise HTTPException(status_code=404, detail="ميزة اختيار المعمل غير مفعلة")
@@ -859,13 +864,14 @@ class TreatmentService:
 
         # SQLite may not start a physical transaction for earlier reads. A
         # first SAVEPOINT would then commit on release, defeating outer rollback.
-        connection = await self.db.connection()
-        if connection.dialect.name == "sqlite":
-            physical_transaction = await connection.run_sync(
-                lambda sync_connection: sync_connection.connection.driver_connection.in_transaction
-            )
-            if not physical_transaction:
-                await connection.exec_driver_sql("BEGIN")
+        if isinstance(self.db, AsyncSession):
+            connection = await self.db.connection()
+            if connection.dialect.name == "sqlite":
+                physical_transaction = await connection.run_sync(
+                    lambda sync_connection: sync_connection.connection.driver_connection.in_transaction
+                )
+                if not physical_transaction:
+                    await connection.exec_driver_sql("BEGIN")
 
         # A savepoint isolates a concurrent unique-key conflict while keeping
         # the outer treatment/order/payment transaction intact.

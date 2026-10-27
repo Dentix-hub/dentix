@@ -306,8 +306,22 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
 
     # 1. Import Users
     for user_data in data.get("users", []):
+        user_data = dict(user_data)
         old_id = user_data.pop("id", None)
         user_data["tenant_id"] = tenant_id
+        for sensitive in (
+            "hashed_password",
+            "otp_secret",
+            "is_2fa_enabled",
+            "active_session_id",
+            "role",
+            "permissions",
+            "failed_login_attempts",
+            "last_failed_login",
+            "account_locked_until",
+        ):
+            user_data.pop(sensitive, None)
+        user_data["hashed_password"] = "!unusable-restored-staff-placeholder"
         # Parse datetime fields
         for dt_field in ["last_failed_login", "account_locked_until", "deleted_at"]:
             if dt_field in user_data:
