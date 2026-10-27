@@ -23,23 +23,21 @@ async def export_clinic_archive_data(db, tenant_id):
     sessions. The importer must map every reference to a live tenant user.
     """
     result = {}
-    tables = models.Base.metadata.tables
+    classes = {mapper.local_table.name: mapper.class_ for mapper in models.Base.registry.mappers}
     for name, columns in ARCHIVE_COLUMNS.items():
-        table = tables[name]
-        query = select(*(table.c[column] for column in sorted(columns)))
-        if 'tenant_id' in table.c:
-            query = query.where(table.c.tenant_id == tenant_id)
+        model = classes[name]
+        query = select(model)
+        if hasattr(model, 'tenant_id'):
+            query = query.where(model.tenant_id == tenant_id)
         elif name == 'price_list_items':
-            lists = tables['price_lists']
-            query = query.join(lists, table.c.price_list_id == lists.c.id).where(lists.c.tenant_id == tenant_id)
+            query = query.join(models.PriceList, model.price_list_id == models.PriceList.id).where(models.PriceList.tenant_id == tenant_id)
         else:
             raise ValueError(f'Unsupported archive ownership: {name}')
-        rows = (await db.execute(query)).mappings().all()
-        result[name] = [{column: _serialize(value) for column, value in row.items()} for row in rows]
-    users = tables['users']
-    query = select(*(users.c[column] for column in sorted(STAFF_REFERENCE_COLUMNS))).where(users.c.tenant_id == tenant_id)
+        rows = (await db.execute(query)).scalars().all()
+        result[name] = [{column: _serialize(getattr(row, column)) for column in columns} for row in rows]
+    query = select(models.User).where(models.User.tenant_id == tenant_id)
     result['staff_references'] = [
-        {column: _serialize(value) for column, value in row.items()}
-        for row in (await db.execute(query)).mappings().all()
+        {column: _serialize(getattr(user, column)) for column in STAFF_REFERENCE_COLUMNS}
+        for user in (await db.execute(query)).scalars().all()
     ]
     return {'data': result}

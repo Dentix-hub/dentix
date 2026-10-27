@@ -148,10 +148,10 @@ def validate_archive_values(data):
                         valid = isinstance(value, bool)
                     elif isinstance(kind, Integer):
                         valid = isinstance(value, int) and not isinstance(value, bool)
-                    elif isinstance(kind, Numeric):
-                        valid = isinstance(value, (str, int)) and not isinstance(value, bool) and Decimal(value).is_finite()
                     elif isinstance(kind, Float):
                         valid = isinstance(value, (int, float, str)) and not isinstance(value, bool) and math.isfinite(float(value))
+                    elif isinstance(kind, Numeric):
+                        valid = isinstance(value, (str, int)) and not isinstance(value, bool) and Decimal(value).is_finite()
                     elif isinstance(kind, DateTime):
                         valid = isinstance(value, str) and bool(datetime.fromisoformat(value.replace('Z', '+00:00')))
                     elif isinstance(kind, Date):

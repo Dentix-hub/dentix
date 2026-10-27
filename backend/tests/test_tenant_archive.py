@@ -126,6 +126,7 @@ def test_registry_rejects_invalid_money_and_column_types():
     payload = {'data': {name: [] for name in ARCHIVE_COLUMNS}}
     payload['data']['staff_references'] = []
     payload['data']['expenses'] = [{'id': 1, 'tenant_id': 7, 'item_name': 'synthetic', 'cost': '10.25'}]
+    payload['data']['stock_items'] = [{'id': 2, 'tenant_id': 7, 'quantity': 1.25}]
     data = validate_archive_sections(payload, tenant_id=7)
     validate_archive_values(data)
     data['expenses'][0]['cost'] = 'NaN'
@@ -135,3 +136,33 @@ def test_registry_rejects_invalid_money_and_column_types():
     data['expenses'][0]['item_name'] = ['not a string']
     with pytest.raises(ArchiveError):
         validate_archive_values(data)
+
+
+@pytest.mark.asyncio
+async def test_preview_confirmation_binds_actor_file_and_is_single_use(async_db_session, test_user):
+    import hashlib
+    from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS
+    from backend.services.tenant_restore_preview import create_restore_preview, confirm_restore_preview
+
+    data = {name: [] for name in ARCHIVE_COLUMNS}
+    data['staff_references'] = [{'id': test_user.id, 'username': test_user.username}]
+    archive = encode_archive({'data': data}, tenant_id=test_user.tenant_id,
+                             installation_id='synthetic', schema_revision='revision', key_id='k', key=b'a' * 32)
+    operation, confirmation, _, _, mapping = await create_restore_preview(
+        async_db_session, tenant_id=test_user.tenant_id, actor_id=test_user.id, archive=archive,
+        installation_id='synthetic', keys={'k': b'a' * 32}, supported_revisions={'revision'}, max_bytes=100_000,
+    )
+    assert mapping[test_user.id] == test_user.id
+    digest = hashlib.sha256(archive).hexdigest()
+    with pytest.raises(ArchiveError):
+        await confirm_restore_preview(async_db_session, tenant_id=test_user.tenant_id, actor_id=test_user.id + 1,
+                                      operation_id=operation.id, confirmation=confirmation, archive_digest=digest)
+    with pytest.raises(ArchiveError):
+        await confirm_restore_preview(async_db_session, tenant_id=test_user.tenant_id, actor_id=test_user.id,
+                                      operation_id=operation.id, confirmation=confirmation, archive_digest='0' * 64)
+    confirmed = await confirm_restore_preview(async_db_session, tenant_id=test_user.tenant_id, actor_id=test_user.id,
+                                              operation_id=operation.id, confirmation=confirmation, archive_digest=digest)
+    assert confirmed.status == 'confirmed'
+    with pytest.raises(ArchiveError):
+        await confirm_restore_preview(async_db_session, tenant_id=test_user.tenant_id, actor_id=test_user.id,
+                                      operation_id=operation.id, confirmation=confirmation, archive_digest=digest)
