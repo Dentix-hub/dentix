@@ -915,7 +915,13 @@ def _is_alembic_at_head(engine, alembic_cfg) -> bool:
     from alembic.script import ScriptDirectory
 
     expected = set(ScriptDirectory.from_config(alembic_cfg).get_heads())
-    with engine.connect() as connection:
+    with engine.begin() as connection:
+        set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+        if set_role and connection.dialect.name == "postgresql":
+            try:
+                connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+            except Exception:
+                pass
         current = set(MigrationContext.configure(connection).get_current_heads())
     return bool(expected) and current == expected
 
@@ -971,6 +977,7 @@ def _prepare_postgresql_migration_privileges(engine, migration_url: str) -> None
         t_owner = str(tableowner)
         owner_summary[t_owner] = owner_summary.get(t_owner, 0) + 1
         if t_name in {
+            "alembic_version",
             "treatment_material_usages",
             "lab_orders",
             "care_sessions",
@@ -980,6 +987,8 @@ def _prepare_postgresql_migration_privileges(engine, migration_url: str) -> None
             key_owners[t_name] = f"{t_owner}(usage={bool(has_usage)},member={bool(is_member)})"
             if not bool(has_usage) and t_owner not in missing_owner_roles:
                 missing_owner_roles.append(t_owner)
+        elif bool(is_member) and not bool(has_usage) and t_owner not in missing_owner_roles:
+            missing_owner_roles.append(t_owner)
 
     logger.info(
         "[PREFLIGHT] PostgreSQL pre-upgrade diagnostics: migration_user=%r owner_counts=%s key_tables=%s",
@@ -1147,7 +1156,13 @@ def _verify_alembic_heads(engine, alembic_cfg) -> bool:
     from alembic.script import ScriptDirectory
 
     expected = set(ScriptDirectory.from_config(alembic_cfg).get_heads())
-    with engine.connect() as connection:
+    with engine.begin() as connection:
+        set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+        if set_role and connection.dialect.name == "postgresql":
+            try:
+                connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+            except Exception:
+                pass
         current = set(MigrationContext.configure(connection).get_current_heads())
     if current != expected:
         logger.error(
@@ -1211,12 +1226,16 @@ def run_alembic_upgrade():
                 return False
 
             logger.info("[PREFLIGHT] Existing versioned schema detected; running alembic upgrade head ...")
-            if not _is_alembic_at_head(engine, alembic_cfg):
+            if engine.name == "postgresql":
                 _prepare_postgresql_migration_privileges(engine, db_url)
+
+            if not _is_alembic_at_head(engine, alembic_cfg):
                 command.upgrade(alembic_cfg, "head")
                 _sync_postgresql_runtime_privileges(engine, db_url)
             else:
                 command.upgrade(alembic_cfg, "head")
+                if engine.name == "postgresql":
+                    _sync_postgresql_runtime_privileges(engine, db_url)
             logger.info("[PREFLIGHT] Alembic upgrade completed successfully.")
 
         if engine.name == "postgresql":
