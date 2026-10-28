@@ -32,7 +32,7 @@ def upgrade():
     if op.get_bind().dialect.name != 'postgresql':
         return
     op.execute(f'''
-        CREATE FUNCTION dentix_clinic_write_gate() RETURNS trigger LANGUAGE plpgsql AS $$
+        CREATE OR REPLACE FUNCTION dentix_clinic_write_gate() RETURNS trigger LANGUAGE plpgsql AS $$
         DECLARE old_tenant integer; new_tenant integer;
         BEGIN
             IF TG_OP <> 'INSERT' THEN old_tenant := OLD.tenant_id; END IF;
@@ -47,9 +47,10 @@ def upgrade():
         END $$
     ''')
     for table in TENANT_TABLES:
+        op.execute(f'DROP TRIGGER IF EXISTS clinic_write_gate ON "{table}"')
         op.execute(f'CREATE TRIGGER clinic_write_gate BEFORE INSERT OR UPDATE OR DELETE ON "{table}" FOR EACH ROW EXECUTE FUNCTION dentix_clinic_write_gate()')
     op.execute(f'''
-        CREATE FUNCTION dentix_price_item_write_gate() RETURNS trigger LANGUAGE plpgsql AS $$
+        CREATE OR REPLACE FUNCTION dentix_price_item_write_gate() RETURNS trigger LANGUAGE plpgsql AS $$
         DECLARE old_tenant integer; new_tenant integer;
         BEGIN
             IF TG_OP <> 'INSERT' THEN SELECT tenant_id INTO old_tenant FROM price_lists WHERE id = OLD.price_list_id; END IF;
@@ -63,14 +64,15 @@ def upgrade():
             IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
         END $$
     ''')
+    op.execute('DROP TRIGGER IF EXISTS clinic_write_gate ON price_list_items')
     op.execute('CREATE TRIGGER clinic_write_gate BEFORE INSERT OR UPDATE OR DELETE ON price_list_items FOR EACH ROW EXECUTE FUNCTION dentix_price_item_write_gate()')
 
 
 def downgrade():
     if op.get_bind().dialect.name != 'postgresql':
         return
-    op.execute('DROP TRIGGER clinic_write_gate ON price_list_items')
-    op.execute('DROP FUNCTION dentix_price_item_write_gate()')
+    op.execute('DROP TRIGGER IF EXISTS clinic_write_gate ON price_list_items')
+    op.execute('DROP FUNCTION IF EXISTS dentix_price_item_write_gate()')
     for table in TENANT_TABLES:
-        op.execute(f'DROP TRIGGER clinic_write_gate ON "{table}"')
-    op.execute('DROP FUNCTION dentix_clinic_write_gate()')
+        op.execute(f'DROP TRIGGER IF EXISTS clinic_write_gate ON "{table}"')
+    op.execute('DROP FUNCTION IF EXISTS dentix_clinic_write_gate()')
