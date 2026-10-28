@@ -53,9 +53,20 @@ export default function Settings() {
                 lastBackup: res.data.last_backup,
                 connectionStatus: res.data.connection_status,
                 accountEmail: res.data.account_email,
+                google_configured: res.data.google_configured,
+                google_unconfigured_reason: res.data.google_unconfigured_reason,
+                archive_configured: res.data.archive_configured,
+                archive_unconfigured_reason: res.data.archive_unconfigured_reason,
             });
         } catch (err) {
-            setBackupStatus({ connected: false, loading: false });
+            setBackupStatus({
+                connected: false,
+                loading: false,
+                google_configured: false,
+                google_unconfigured_reason: null,
+                archive_configured: false,
+                archive_unconfigured_reason: null,
+            });
         }
     };
     const loadUserInfo = async () => {

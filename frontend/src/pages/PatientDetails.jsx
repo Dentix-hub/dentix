@@ -432,6 +432,7 @@ export default function PatientDetails() {
         data: attachments = [],
         isLoading: attachmentsLoading,
         refetch: refetchAttachments,
+        isPollingStalled: isAttachmentsPollingStalled,
     } = usePatientAttachments(id, activeTab === 'files');
 
     const { mutateAsync: createPaymentMutate } = useCreatePayment();
@@ -972,6 +973,7 @@ export default function PatientDetails() {
                                 handleDeleteAttachment={handleDeleteAttachment}
                                 loading={attachmentsLoading}
                                 reloadAttachments={refetchAttachments}
+                                isPollingStalled={isAttachmentsPollingStalled}
                                 patientId={id}
                                 activeCareSession={activeCareSession}
                                 workItems={workspaceSnapshot?.work_items || []}

@@ -448,6 +448,10 @@ def _user_tables(engine) -> set[str]:
     return _table_names(engine) - {"alembic_version", BOOTSTRAP_MARKER}
 
 
+def _quote_ident(ident: str) -> str:
+    return '"' + ident.replace('"', '""') + '"'
+
+
 def _ensure_bootstrap_marker(engine) -> None:
     """Persist a resumable marker before any fresh-schema model DDL."""
     with engine.begin() as connection:
@@ -799,6 +803,10 @@ def _install_postgresql_restore_write_gates(connection) -> None:
     if connection.dialect.name != "postgresql":
         return
 
+    set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+    if set_role:
+        connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+
     connection.execute(
         text(
             f"""
@@ -900,10 +908,6 @@ def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
     # invocation resumes this path instead of attempting legacy migrations.
     _drop_bootstrap_marker(engine)
     logger.info("[PREFLIGHT] Fresh database baseline created and stamped at head.")
-
-
-def _quote_ident(ident: str) -> str:
-    return '"' + ident.replace('"', '""') + '"'
 
 
 def _is_alembic_at_head(engine, alembic_cfg) -> bool:
@@ -1222,8 +1226,21 @@ def run_alembic_upgrade():
                     "[PREFLIGHT] Missing restore write gates detected (%s); applying additive installation.",
                     len(missing_gates),
                 )
+                _prepare_postgresql_migration_privileges(engine, db_url)
                 with engine.begin() as connection:
+                    set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+                    if set_role:
+                        connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
                     _install_postgresql_restore_write_gates(connection)
+                _sync_postgresql_runtime_privileges(engine, db_url)
+                remaining_missing = _verify_postgresql_restore_write_gates(engine)
+                if remaining_missing:
+                    logger.error(
+                        "[PREFLIGHT] Restore write gates repair failed; %s gates still missing: %s",
+                        len(remaining_missing),
+                        remaining_missing,
+                    )
+                    return False
 
         return _verify_alembic_heads(engine, alembic_cfg)
     except BaseException as exc:

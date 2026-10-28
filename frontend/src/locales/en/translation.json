@@ -2142,6 +2142,7 @@
     "more_files": "Show more",
     "operation_queued": "Queued",
     "operation_running": "In progress",
+    "operation_delayed": "Operation is taking longer than expected",
     "needs_reconnect": "Reconnect Google Drive",
     "disconnect_done": "Clinic disconnected; files remain in Google Drive",
     "disconnect_failed": "Could not disconnect Google Drive",

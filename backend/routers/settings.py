@@ -127,20 +127,30 @@ async def get_backup_status(
     google_configured = True
     google_unconfigured_reason = None
     try:
-        from backend.services.clinic_google_oauth import oauth_config
+        from backend.services.clinic_google_oauth import GoogleConnectionError, oauth_config
         oauth_config()
-    except Exception as exc:
+    except GoogleConnectionError as exc:
         google_configured = False
         google_unconfigured_reason = str(exc)
+    except Exception as exc:
+        logger.exception("Unexpected error while checking Google connection configuration: %s", exc)
+        google_configured = False
+        google_unconfigured_reason = "إعدادات ربط Google غير مكتملة"
 
     archive_configured = True
     archive_unconfigured_reason = None
     try:
-        from backend.services.tenant_archive_registry import configured_keys
+        from backend.services.tenant_archive import ArchiveError, configured_keys
+        from backend.services.tenant_backup_config import archive_max_bytes
         configured_keys()
-    except Exception as exc:
+        archive_max_bytes()
+    except ArchiveError as exc:
         archive_configured = False
         archive_unconfigured_reason = str(exc)
+    except Exception as exc:
+        logger.exception("Unexpected error while checking archive configuration: %s", exc)
+        archive_configured = False
+        archive_unconfigured_reason = "إعدادات النسخ الاحتياطي غير مكتملة"
 
     return success_response(
         data={

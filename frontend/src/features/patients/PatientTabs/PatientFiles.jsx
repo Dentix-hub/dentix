@@ -22,6 +22,7 @@ const PatientFiles = ({
     handleDeleteAttachment,
     loading,
     reloadAttachments,
+    isPollingStalled = false,
     patientId = null,
     activeCareSession = null,
     workItems = [],
@@ -147,7 +148,24 @@ const PatientFiles = ({
                             )}
 
                             {file.storage_status && file.storage_status !== 'ready' && <div className="absolute inset-x-0 top-0 z-10 bg-amber-50 p-2 text-xs text-amber-900" role="status">
-                                <span>{file.storage_status === 'pending' ? t('backup.image_pending') : file.storage_status === 'deleting' ? t('backup.image_deleting') : t('backup.image_unavailable')}</span>
+                                <span>
+                                    {isPollingStalled && (file.storage_status === 'pending' || file.storage_status === 'deleting')
+                                        ? t('backup.operation_delayed')
+                                        : file.storage_status === 'pending'
+                                        ? t('backup.image_pending')
+                                        : file.storage_status === 'deleting'
+                                        ? t('backup.image_deleting')
+                                        : t('backup.image_unavailable')}
+                                </span>
+                                {isPollingStalled && (file.storage_status === 'pending' || file.storage_status === 'deleting') && reloadAttachments && (
+                                    <button
+                                        type="button"
+                                        className="ms-2 underline font-medium text-amber-950 hover:text-black cursor-pointer"
+                                        onClick={() => reloadAttachments()}
+                                    >
+                                        {t('backup.refresh_status')}
+                                    </button>
+                                )}
                                 {file.storage_status === 'failed' && <button type="button" className="ms-2 underline" onClick={() => showImageStatus(file)}>{t('backup.image_details')}</button>}
                                 {imageMessages[file.id] && <p>{imageMessages[file.id]}</p>}
                             </div>}
@@ -295,6 +313,7 @@ PatientFiles.propTypes = {
     handleDeleteAttachment: PropTypes.func,
     loading: PropTypes.bool,
     reloadAttachments: PropTypes.func,
+    isPollingStalled: PropTypes.bool,
     patientId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     activeCareSession: PropTypes.object,
     workItems: PropTypes.array,

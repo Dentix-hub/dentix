@@ -37,6 +37,18 @@ def test_install_postgresql_restore_write_gates_installs_functions_and_triggers(
     assert 'CREATE TRIGGER clinic_write_gate BEFORE INSERT OR UPDATE OR DELETE ON "price_list_items"' in combined_sql
 
 
+def test_install_postgresql_restore_write_gates_applies_set_role_when_configured(monkeypatch):
+    monkeypatch.setenv("DENTIX_MIGRATION_SET_ROLE", "synthetic_owner_role")
+    conn = MagicMock()
+    conn.dialect.name = "postgresql"
+    conn.execute.return_value.scalars.return_value = ["patients"]
+
+    preflight._install_postgresql_restore_write_gates(conn)
+
+    executed_statements = [str(call_args[0][0]) for call_args in conn.execute.call_args_list]
+    assert any('SET LOCAL ROLE "synthetic_owner_role"' in stmt for stmt in executed_statements)
+
+
 def test_verify_postgresql_restore_write_gates_detects_missing():
     engine = MagicMock()
     engine.name = "postgresql"

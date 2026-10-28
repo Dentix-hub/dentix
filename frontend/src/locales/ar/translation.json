@@ -2142,6 +2142,7 @@
     "more_files": "عرض المزيد",
     "operation_queued": "في الانتظار",
     "operation_running": "قيد التنفيذ",
+    "operation_delayed": "استغرقت العملية وقتاً أطول من المتوقع",
     "needs_reconnect": "يلزم إعادة ربط Google Drive",
     "disconnect_done": "تم فصل العيادة، وتبقى الملفات في حساب Google",
     "disconnect_failed": "تعذر فصل Google Drive",
