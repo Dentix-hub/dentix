@@ -21,7 +21,6 @@ from backend.core.config import (
 from backend.core.logging_sanitizer import sanitize_text
 from backend.services.event_service import event_service
 from backend.services.job_service import JobService
-from scripts.ops.guarded_backup import create_backup
 
 
 BACKUP_EVENT_TYPE = "system.backup.requested"
@@ -123,9 +122,14 @@ async def execute_backup_event(
     db: AsyncSession,
     event: models.DomainEvent,
     *,
-    backup_callable: Callable[[Path, str | None], Path] = create_backup,
+    backup_callable: Callable[[Path, str | None], Path] | None = None,
 ) -> Path:
     """Execute one backup event and retain success/failure job evidence."""
+    if backup_callable is None:
+        from scripts.ops.guarded_backup import create_backup
+
+        backup_callable = create_backup
+
     job = await JobService.start_job(db, BACKUP_JOB_NAME, triggered_by="outbox")
     output_dir = Path(os.getenv("BACKUP_OUTPUT_DIR", "backups/offline"))
     try:
@@ -150,3 +154,11 @@ async def execute_backup_event(
 
     await JobService.complete_job(db, job.id, status="success")
     return artifact
+
+
+def __getattr__(name: str):
+    if name == "create_backup":
+        from scripts.ops.guarded_backup import create_backup
+
+        return create_backup
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

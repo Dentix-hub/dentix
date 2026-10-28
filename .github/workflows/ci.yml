@@ -938,6 +938,19 @@ jobs:
           test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE")" = "dentix"
 
           docker run --rm \
+            --entrypoint python \
+            -e ENVIRONMENT=production \
+            "$IMAGE" \
+            -c "
+          from backend.services.backup_scheduler_service import schedule_due_backup, execute_backup_event
+          import backend.workers.event_processor
+          import backend.workers.handlers
+          from scripts.ops.guarded_backup import create_backup
+          from scripts.ops.guarded_restore import verify_and_restore
+          print('Production container import graph verified successfully.')
+          "
+
+          docker run --rm \
             --network host \
             --entrypoint python \
             -e DATABASE_URL="$OWNER_DATABASE_URL" \
@@ -954,6 +967,12 @@ jobs:
           GRANT USAGE ON SCHEMA public TO dentix_container_app, dentix_container_system;
           GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO dentix_container_app, dentix_container_system;
           GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO dentix_container_app, dentix_container_system;
+          INSERT INTO tenants (id, name, is_active, subscription_status, created_at, updated_at)
+          VALUES (9999, 'Container Smoke Tenant', true, 'active', NOW(), NOW())
+          ON CONFLICT (id) DO NOTHING;
+          INSERT INTO domain_events (id, tenant_id, event_type, aggregate_type, aggregate_id, payload, status, attempts, available_at, created_at)
+          VALUES (999901, 9999, 'appointment.created', 'Appointment', '999901', '{"patient_id": 1, "time": "2026-10-28T12:00:00Z"}', 'pending', 0, NOW(), NOW())
+          ON CONFLICT (id) DO NOTHING;
           SQL
 
           docker run --detach \
@@ -964,7 +983,7 @@ jobs:
             -e DB_SSL_MODE=disable \
             -e SECRET_KEY="$SECRET_KEY" \
             -e ENVIRONMENT=production \
-            -e ENABLE_IN_PROCESS_WORKERS=false \
+            -e ENABLE_IN_PROCESS_WORKERS=true \
             "$IMAGE"
 
           cleanup() {
@@ -990,6 +1009,22 @@ jobs:
 
           test "$ready" = "true"
           cat /tmp/dentix-container-health.json
+
+          worker_completed=false
+          for attempt in {1..30}; do
+            status="$(PGPASSWORD=container_pass psql --host=127.0.0.1 --username=container_user --dbname=dentix_container --tuples-only --no-align -c "SELECT status FROM domain_events WHERE id = 999901" | tr -d '[:space:]')"
+            if [ "$status" = "completed" ]; then
+              worker_completed=true
+              break
+            fi
+            sleep 1
+          done
+          test "$worker_completed" = "true"
+
+          if docker logs dentix-runtime-smoke 2>&1 | grep -E "ModuleNotFoundError|No module named 'scripts'|Outbox polling flow failed"; then
+            echo "Outbox worker logged unexpected failure."
+            exit 1
+          fi
 
           test "$(docker exec dentix-runtime-smoke id -u)" = "1000"
           test "$(docker exec dentix-runtime-smoke id -un)" = "dentix"
