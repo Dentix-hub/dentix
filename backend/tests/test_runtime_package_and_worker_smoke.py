@@ -47,6 +47,9 @@ def test_runtime_image_import_graph_succeeds_with_packaged_scripts(tmp_path):
     env = os.environ.copy()
     env["PYTHONPATH"] = str(app_dir)
     env["ENVIRONMENT"] = "production"
+    env["DATABASE_URL"] = "postgresql+asyncpg://app_user:app_pass@127.0.0.1:5432/dentix"
+    env["SYSTEM_DATABASE_URL"] = "postgresql+asyncpg://sys_user:sys_pass@127.0.0.1:5432/dentix"
+    env["SECRET_KEY"] = "mock_secret_key_for_testing_purposes_only_32bytes"
 
     result = subprocess.run(
         [sys.executable, "-c", code],
@@ -77,6 +80,9 @@ def test_old_image_environment_fails_without_scripts_package(tmp_path):
     env = os.environ.copy()
     env["PYTHONPATH"] = str(app_dir)
     env["ENVIRONMENT"] = "production"
+    env["DATABASE_URL"] = "postgresql+asyncpg://app_user:app_pass@127.0.0.1:5432/dentix"
+    env["SYSTEM_DATABASE_URL"] = "postgresql+asyncpg://sys_user:sys_pass@127.0.0.1:5432/dentix"
+    env["SECRET_KEY"] = "mock_secret_key_for_testing_purposes_only_32bytes"
 
     result = subprocess.run(
         [sys.executable, "-c", code],
@@ -111,6 +117,9 @@ def test_scheduler_import_and_disabled_call_succeeds_without_scripts(tmp_path):
     env = os.environ.copy()
     env["PYTHONPATH"] = str(app_dir)
     env["ENVIRONMENT"] = "production"
+    env["DATABASE_URL"] = "postgresql+asyncpg://app_user:app_pass@127.0.0.1:5432/dentix"
+    env["SYSTEM_DATABASE_URL"] = "postgresql+asyncpg://sys_user:sys_pass@127.0.0.1:5432/dentix"
+    env["SECRET_KEY"] = "mock_secret_key_for_testing_purposes_only_32bytes"
 
     result = subprocess.run(
         [sys.executable, "-c", code],
@@ -125,13 +134,19 @@ def test_scheduler_import_and_disabled_call_succeeds_without_scripts(tmp_path):
 
 @pytest.mark.asyncio
 async def test_event_processor_flow_resilient_to_scheduler_failure(
-    async_db_session: AsyncSession, monkeypatch
+    async_db_session: AsyncSession, async_engine_fixture, monkeypatch
 ):
-    """Ensure a failing scheduler does not block pending outbox event processing."""
+    """Ensure a failing scheduler (even with SQL statement errors) does not block pending outbox event processing."""
+    from sqlalchemy.ext.asyncio import async_sessionmaker
+    from sqlalchemy import text
     from backend.services import backup_scheduler_service
 
-    async def _failing_schedule(_session, **_kwargs):
-        raise RuntimeError("Synthetic platform scheduler breakdown")
+    async def _failing_schedule(session, **_kwargs):
+        # Execute an invalid statement to trigger an SQL error / aborted transaction
+        try:
+            await session.execute(text("SELECT * FROM non_existent_scheduler_test_table"))
+        except Exception:
+            raise
 
     monkeypatch.setattr(backup_scheduler_service, "schedule_due_backup", _failing_schedule)
 
@@ -151,17 +166,25 @@ async def test_event_processor_flow_resilient_to_scheduler_failure(
     await async_db_session.commit()
     await async_db_session.refresh(event)
 
-    # Monkeypatch system_session_scope to yield our async_db_session for testing
+    # Yield distinct sessions for scheduler and outbox flow to mimic system_session_scope isolation
+    TestingAsyncSessionLocal = async_sessionmaker(
+        bind=async_engine_fixture, expire_on_commit=False, autoflush=False
+    )
+
     from contextlib import asynccontextmanager
     import backend.workers.event_processor as ep
 
     @asynccontextmanager
     async def mock_system_session():
-        yield async_db_session
+        async with TestingAsyncSessionLocal() as session:
+            try:
+                yield session
+            finally:
+                await session.rollback()
 
     monkeypatch.setattr(ep, "system_session_scope", mock_system_session)
 
-    # Flow should complete without raising and process the pending event
+    # Flow should handle scheduler rollback cleanly and process the pending event
     await event_processor_flow()
 
     await async_db_session.refresh(event)

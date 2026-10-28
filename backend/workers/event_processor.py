@@ -53,14 +53,22 @@ async def process_pending_events(session: AsyncSession):
 @flow(name="outbox-event-processor", log_prints=True)
 async def event_processor_flow():
     """Prefect flow to run the outbox event processing cycle."""
-    async with system_session_scope() as session:
-        try:
-            from backend.services.backup_scheduler_service import schedule_due_backup
+    try:
+        from backend.services.backup_scheduler_service import schedule_due_backup
 
-            await schedule_due_backup(session)
-        except Exception as e:
-            logger.error(f"Scheduled backup check failed: {e}")
-        await process_pending_events(session)
+        async with system_session_scope() as scheduler_session:
+            try:
+                await schedule_due_backup(scheduler_session)
+            except Exception:
+                await scheduler_session.rollback()
+                raise
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.error(f"Scheduled backup check failed: {e}")
+
+    async with system_session_scope() as outbox_session:
+        await process_pending_events(outbox_session)
 
 async def poll_outbox(poll_interval: int = 5):
     """
