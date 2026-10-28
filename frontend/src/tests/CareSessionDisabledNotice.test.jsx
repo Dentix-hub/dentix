@@ -3,9 +3,28 @@ import { describe, expect, it, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import PatientDetails from '@/pages/PatientDetails';
-const { mockToastError, mockToastSuccess } = vi.hoisted(() => ({
+const { mockToastError, mockToastSuccess, mockUseActiveCareSession, mockUseResumableCareSession } = vi.hoisted(() => ({
     mockToastError: vi.fn(),
     mockToastSuccess: vi.fn(),
+    mockUseActiveCareSession: vi.fn(() => ({ data: null, isLoading: false, refetch: vi.fn() })),
+    mockUseResumableCareSession: vi.fn(() => ({
+        data: {
+            has_resumable: true,
+            active_or_paused_session: null,
+            items: [
+                {
+                    work_item_id: 10,
+                    tooth_key: '46',
+                    canonical_code: 'ENDO_RCT',
+                    resumable_status: 'paused',
+                    last_session_id: 5,
+                    last_step_code: 'ACCESS_OPENING',
+                },
+            ],
+        },
+        isLoading: false,
+        refetch: vi.fn(),
+    })),
 }));
 
 vi.mock('@/shared/ui', async (importOriginal) => {
@@ -99,25 +118,8 @@ vi.mock('@/hooks/usePatientDetails', () => ({
     useDeletePayment: () => ({ mutate: vi.fn() }),
     useTenantFeatures: () => ({ data: [], isLoading: false }),
     usePatientClinicalPlans: () => ({ data: [], isLoading: false }),
-    useActiveCareSession: () => ({ data: null, isLoading: false, refetch: vi.fn() }),
-    useResumableCareSession: () => ({
-        data: {
-            has_resumable: true,
-            active_or_paused_session: null,
-            items: [
-                {
-                    work_item_id: 10,
-                    tooth_key: '46',
-                    canonical_code: 'ENDO_RCT',
-                    resumable_status: 'paused',
-                    last_session_id: 5,
-                    last_step_code: 'ACCESS_OPENING',
-                },
-            ],
-        },
-        isLoading: false,
-        refetch: vi.fn(),
-    }),
+    useActiveCareSession: (...args) => mockUseActiveCareSession(...args),
+    useResumableCareSession: (...args) => mockUseResumableCareSession(...args),
     useStartCareSession: () => ({
         mutateAsync: mockMutateAsync,
         isPending: false,
@@ -200,5 +202,26 @@ describe('Care Session 404 Disabled State UI Handling', () => {
 
         // The banner should NOT be rendered in the DOM
         expect(screen.queryByTestId('care-session-disabled-notice')).toBeNull();
+    });
+
+    it('disables care session queries when clinical_vnext_native_writes is not enabled', () => {
+        mockUseActiveCareSession.mockClear();
+        mockUseResumableCareSession.mockClear();
+
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+        });
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter>
+                    <PatientDetails />
+                </MemoryRouter>
+            </QueryClientProvider>,
+        );
+
+        // useTenantFeatures returns [] by default in the mock, so isNativeWritesEnabled is false
+        expect(mockUseActiveCareSession).toHaveBeenCalledWith('123', { enabled: false });
+        expect(mockUseResumableCareSession).toHaveBeenCalledWith('123', { enabled: false });
     });
 });

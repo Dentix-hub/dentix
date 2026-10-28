@@ -46,6 +46,7 @@ const PatientFiles = ({
     const [selectedAttachmentForLink, setSelectedAttachmentForLink] = useState(null);
     const [selectedImageForLightbox, setSelectedImageForLightbox] = useState(null);
     const [imageMessages, setImageMessages] = useState({});
+    const [retryGeneration, setRetryGeneration] = useState(0);
     const showImageStatus = async (file) => {
         try {
             const response = await getDriveImageStatus(file.file_path);
@@ -88,7 +89,10 @@ const PatientFiles = ({
                 <div className="flex gap-2">
                     <button
                         type="button"
-                        onClick={reloadAttachments}
+                        onClick={() => {
+                            setRetryGeneration((prev) => prev + 1);
+                            if (reloadAttachments) reloadAttachments();
+                        }}
                         className="p-2 text-slate-500 hover:text-primary hover:bg-slate-50 rounded-lg transition-colors dark:hover:bg-slate-800"
                         title={t('patientDetails.files.refresh_tooltip')}
                     >
@@ -119,6 +123,8 @@ const PatientFiles = ({
                                 <ProtectedImage
                                     filePath={file.file_path}
                                     thumbnail
+                                    storageStatus={file.storage_status}
+                                    retryGeneration={retryGeneration}
                                     alt={file.filename}
                                     className="w-full h-full object-cover transition-transform group-hover:scale-105 cursor-pointer"
                                     onClick={() => {

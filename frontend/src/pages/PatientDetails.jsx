@@ -240,10 +240,10 @@ export default function PatientDetails() {
     );
 
     const { data: activeCareSession, refetch: refetchActiveSession } = useActiveCareSession(id, {
-        enabled: !!id && activeTab === 'chart',
+        enabled: !!id && activeTab === 'chart' && isNativeWritesEnabled,
     });
     const { data: resumableCareSession, refetch: refetchResumableSession } = useResumableCareSession(id, {
-        enabled: !!id && activeTab === 'chart',
+        enabled: !!id && activeTab === 'chart' && isNativeWritesEnabled,
     });
     const startCareSessionMutation = useStartCareSession();
     const finishCareSessionMutation = useFinishCareSession();

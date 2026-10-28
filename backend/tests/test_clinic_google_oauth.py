@@ -53,17 +53,51 @@ def test_provider_requires_offline_token_exact_scopes_and_nonce(monkeypatch):
         credentials = SimpleNamespace(refresh_token='synthetic-refresh')
         def fetch_token(self, **kwargs):
             assert kwargs['timeout'] == 9
-            return {'scope': 'openid email https://www.googleapis.com/auth/drive.file', 'id_token': 'synthetic-id-token'}
+            # OAuthlib SDK returns a list, not a string
+            return {'scope': ['openid', 'email', oauth.DRIVE_SCOPE], 'id_token': 'synthetic-id-token'}
     monkeypatch.setattr(oauth, 'oauth_config', lambda: ({'web': {'client_id': 'synthetic-client'}}, 'https://example.test/callback', 9))
     monkeypatch.setattr(oauth, '_flow', lambda _: FakeFlow())
     monkeypatch.setattr(oauth.id_token, 'verify_oauth2_token', lambda *args, **kwargs: {'iss': 'https://accounts.google.com', 'sub': 'stable-sub', 'nonce': nonce, 'email': 'synthetic@example.test'})
     result = oauth.exchange_and_verify(code='synthetic-code', verifier='synthetic-verifier', nonce_digest=oauth.digest(nonce))
     assert result['sub'] == 'stable-sub' and result['refresh_token'] == 'synthetic-refresh'
+
+    # Test EMAIL_SCOPE normalization
+    class EmailScopeFlow(FakeFlow):
+        def fetch_token(self, **kwargs):
+            return {'scope': ['openid', oauth.EMAIL_SCOPE, oauth.DRIVE_SCOPE], 'id_token': 'synthetic-id-token'}
+    monkeypatch.setattr(oauth, '_flow', lambda _: EmailScopeFlow())
+    res_email = oauth.exchange_and_verify(code='synthetic-code', verifier='synthetic-verifier', nonce_digest=oauth.digest(nonce))
+    assert res_email['sub'] == 'stable-sub'
+
+    # Test string representation
+    class StringScopeFlow(FakeFlow):
+        def fetch_token(self, **kwargs):
+            return {'scope': f'openid {oauth.EMAIL_SCOPE} {oauth.DRIVE_SCOPE}', 'id_token': 'synthetic-id-token'}
+    monkeypatch.setattr(oauth, '_flow', lambda _: StringScopeFlow())
+    assert oauth.exchange_and_verify(code='synthetic-code', verifier='synthetic-verifier', nonce_digest=oauth.digest(nonce))['sub'] == 'stable-sub'
+
+    # Test missing scopes
+    class MissingScopeFlow(FakeFlow):
+        def fetch_token(self, **kwargs):
+            return {'scope': ['openid', 'email'], 'id_token': 'synthetic-id-token'}
+    monkeypatch.setattr(oauth, '_flow', lambda _: MissingScopeFlow())
+    with pytest.raises(GoogleConnectionError):
+        oauth.exchange_and_verify(code='synthetic-code', verifier='synthetic-verifier', nonce_digest=oauth.digest(nonce))
+
+    # Test malformed scope types
+    for malformed in [None, 12345, ['openid', None], {'scope': 'openid'}]:
+        class MalformedScopeFlow(FakeFlow):
+            def fetch_token(self, **kwargs):
+                return {'scope': malformed, 'id_token': 'synthetic-id-token'}
+        monkeypatch.setattr(oauth, '_flow', lambda _: MalformedScopeFlow())
+        with pytest.raises(GoogleConnectionError):
+            oauth.exchange_and_verify(code='synthetic-code', verifier='synthetic-verifier', nonce_digest=oauth.digest(nonce))
+
     with pytest.raises(GoogleConnectionError):
         oauth.exchange_and_verify(code='synthetic-code', verifier='synthetic-verifier', nonce_digest=oauth.digest('wrong'))
     class BroadFlow(FakeFlow):
         def fetch_token(self, **kwargs):
-            return {'scope': 'openid email https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/drive', 'id_token': 'synthetic-id-token'}
+            return {'scope': ['openid', 'email', oauth.DRIVE_SCOPE, 'https://www.googleapis.com/auth/drive'], 'id_token': 'synthetic-id-token'}
     monkeypatch.setattr(oauth, '_flow', lambda _: BroadFlow())
     with pytest.raises(GoogleConnectionError):
         oauth.exchange_and_verify(code='synthetic-code', verifier='synthetic-verifier', nonce_digest=oauth.digest(nonce))
@@ -72,6 +106,32 @@ def test_provider_requires_offline_token_exact_scopes_and_nonce(monkeypatch):
     monkeypatch.setattr(oauth, '_flow', lambda _: NoRefreshFlow())
     with pytest.raises(GoogleConnectionError):
         oauth.exchange_and_verify(code='synthetic-code', verifier='synthetic-verifier', nonce_digest=oauth.digest(nonce))
+
+
+def test_oauthlib_compliance_hook_normalizes_email_scope():
+    import json
+    import requests
+    from backend.services import clinic_google_oauth as oauth
+    hook = oauth._normalize_access_token_response
+
+    resp = requests.Response()
+    resp.status_code = 200
+    resp.headers['content-type'] = 'application/json'
+    resp.encoding = 'utf-8'
+    body = {
+        'access_token': 'synthetic-token',
+        'token_type': 'Bearer',
+        'scope': f'{oauth.DRIVE_SCOPE} openid {oauth.EMAIL_SCOPE}'
+    }
+    resp._content = json.dumps(body).encode('utf-8')
+    modified = hook(resp)
+    assert json.loads(modified.text)['scope'] == f'{oauth.DRIVE_SCOPE} openid email'
+
+    # List scope variant
+    body['scope'] = [oauth.DRIVE_SCOPE, 'openid', oauth.EMAIL_SCOPE]
+    resp._content = json.dumps(body).encode('utf-8')
+    modified2 = hook(resp)
+    assert json.loads(modified2.text)['scope'] == [oauth.DRIVE_SCOPE, 'openid', 'email']
 
 
 @pytest.mark.asyncio

@@ -210,6 +210,18 @@ export function usePatientAttachments(patientId, enabled = true) {
         },
         enabled: !!patientId && enabled,
         staleTime: 30 * 1000,
+        refetchInterval: (query) => {
+            const data = query.state.data;
+            if (
+                Array.isArray(data) &&
+                data.some(
+                    (att) => att.storage_status === 'pending' || att.storage_status === 'deleting'
+                )
+            ) {
+                return 2500;
+            }
+            return false;
+        },
     });
 }
 
@@ -415,6 +427,10 @@ export function useActiveCareSession(patientId, { enabled = true } = {}) {
         },
         enabled: !!patientId && enabled,
         staleTime: 10 * 1000,
+        retry: (failureCount, error) => {
+            if (error?.response?.status === 404) return false;
+            return failureCount < 1;
+        },
     });
 }
 
@@ -430,6 +446,10 @@ export function useResumableCareSession(patientId, { enabled = true } = {}) {
         },
         enabled: !!patientId && enabled,
         staleTime: 10 * 1000,
+        retry: (failureCount, error) => {
+            if (error?.response?.status === 404) return false;
+            return failureCount < 1;
+        },
     });
 }
 

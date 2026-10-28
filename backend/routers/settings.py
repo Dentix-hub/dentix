@@ -124,6 +124,24 @@ async def get_backup_status(
     tenant = current_user.tenant
     is_connected = bool(tenant.google_refresh_token and tenant.google_connection_status == "connected")
 
+    google_configured = True
+    google_unconfigured_reason = None
+    try:
+        from backend.services.clinic_google_oauth import oauth_config
+        oauth_config()
+    except Exception as exc:
+        google_configured = False
+        google_unconfigured_reason = str(exc)
+
+    archive_configured = True
+    archive_unconfigured_reason = None
+    try:
+        from backend.services.tenant_archive_registry import configured_keys
+        configured_keys()
+    except Exception as exc:
+        archive_configured = False
+        archive_unconfigured_reason = str(exc)
+
     return success_response(
         data={
             "connected": is_connected,
@@ -131,6 +149,10 @@ async def get_backup_status(
             "account_email": tenant.google_account_email,
             "frequency": tenant.backup_frequency,
             "last_backup": tenant.last_backup_at,
+            "google_configured": google_configured,
+            "google_unconfigured_reason": google_unconfigured_reason,
+            "archive_configured": archive_configured,
+            "archive_unconfigured_reason": archive_unconfigured_reason,
         },
         message="Google Drive connected" if is_connected else "Not connected",
     )

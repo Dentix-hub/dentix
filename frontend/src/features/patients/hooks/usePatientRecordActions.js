@@ -39,6 +39,7 @@ export function usePatientRecordActions({
         try {
             await uploadAttachment(id, file);
             refetchAttachments();
+            queryClient?.invalidateQueries?.({ queryKey: ['patient', id, 'attachments'] });
         } catch (error) {
             const detail = error?.response?.data?.detail;
             const message = error?.response?.data?.message;
@@ -65,6 +66,7 @@ export function usePatientRecordActions({
         try {
             await deleteAttachment(attachmentId);
             refetchAttachments();
+            queryClient?.invalidateQueries?.({ queryKey: ['patient', id, 'attachments'] });
         } catch {
             // Preserve existing silent attachment-delete failure behavior.
         }

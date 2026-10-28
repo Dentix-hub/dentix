@@ -258,14 +258,23 @@ jobs:
             backend/ci_tests/test_child_tenant_rls_postgres.py \
             backend/ci_tests/test_clinical_commands_concurrency_postgres.py \
             backend/ci_tests/test_clinical_projection_coverage_rls_postgres.py \
+            backend/ci_tests/test_clinic_google_callback_pg.py \
             backend/ci_tests/test_cross_tenant_http_postgres.py \
+            backend/ci_tests/test_drive_backup_operations_pg.py \
+            backend/ci_tests/test_drive_images_pg.py \
+            backend/ci_tests/test_google_oauth_attempt_rls.py \
             backend/ci_tests/test_upload_postgres_smoke.py \
             backend/ci_tests/test_u2_concurrency_postgres.py \
             backend/ci_tests/test_procedure_chart_styles_rls_postgres.py \
             backend/ci_tests/test_lab_shade_material_postgres.py \
+            backend/ci_tests/test_password_reset_identity_rls.py \
             backend/ci_tests/test_patient_delete_postgres.py \
             backend/ci_tests/test_appointment_concurrency_postgres.py \
             backend/ci_tests/test_lab_payment_concurrency_postgres.py \
+            backend/ci_tests/test_restore_transaction_gate_pg.py \
+            backend/ci_tests/test_tenant_archive_restore_pg.py \
+            backend/ci_tests/test_tenant_data_operations_rls.py \
+            backend/ci_tests/test_treatment_lab_atomic_pg.py \
             -v \
             --tb=short \
             --confcutdir=backend/ci_tests

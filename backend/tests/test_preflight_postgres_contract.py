@@ -62,6 +62,12 @@ def test_preflight_bootstraps_fresh_database_then_upgrades_existing(monkeypatch)
         assert preflight.run_alembic_upgrade() is True
         assert preflight.run_migration_health_check() is True
 
+        with psycopg2.connect(database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT count(*) FROM pg_trigger WHERE tgname = 'clinic_write_gate' AND NOT tgisinternal")
+                gate_count = cursor.fetchone()[0]
+                assert gate_count > 0, "Restore write-gate triggers must be installed on fresh bootstrap"
+
         # The second pass must take the existing Alembic-versioned path and be
         # idempotent. This is the path production takes on normal deployments.
         assert preflight.run_alembic_upgrade() is True

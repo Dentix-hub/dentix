@@ -276,17 +276,35 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo, r
                             }
                         }} className="rounded-xl border px-4 py-2 font-bold">{t('backup.disconnect_btn')}</button>}
                         {!backupStatus.connected && !backupStatus.loading && (
-                            <button
-                                onClick={async () => {
-                                    try {
-                                        const res = await api.getGoogleAuthUrl();
-                                        window.location.href = res.data.url;
-                                    } catch (err) { setMessage({ type: 'error', text: t('backup.connect_fail', 'فشل الاتصال') }) }
-                                }}
-                                className="px-6 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700"
-                            >
-                                {t('backup.connect_btn')}
-                            </button>
+                            <div className="flex flex-col items-end gap-1">
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            const res = await api.getGoogleAuthUrl();
+                                            window.location.href = res.data.url;
+                                        } catch (err) {
+                                            setMessage({
+                                                type: 'error',
+                                                text: await extractErrorMessage(err, t('backup.connect_fail', 'فشل الاتصال')),
+                                            });
+                                        }
+                                    }}
+                                    disabled={backupStatus.google_configured === false}
+                                    title={backupStatus.google_configured === false ? (backupStatus.google_unconfigured_reason || t('backup.google_not_configured')) : undefined}
+                                    className={`px-6 py-2 rounded-xl font-bold transition ${
+                                        backupStatus.google_configured === false
+                                            ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
+                                            : 'bg-blue-600 text-white hover:bg-blue-700'
+                                    }`}
+                                >
+                                    {t('backup.connect_btn')}
+                                </button>
+                                {backupStatus.google_configured === false && (
+                                    <span className="text-xs text-amber-600 font-medium max-w-xs text-end">
+                                        {backupStatus.google_unconfigured_reason || t('backup.google_not_configured', 'إعدادات ربط Google غير مكتملة')}
+                                    </span>
+                                )}
+                            </div>
                         )}
                     </div>
                     <p className="mb-3 text-sm">{t('backup.google_ownership')}</p>
@@ -345,9 +363,24 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo, r
                     {t('backup.local_title')}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-                    <button type="button" onClick={handleEncryptedDownload} className="p-6 border-2 border-blue-200 border-dashed rounded-2xl hover:bg-blue-50 transition flex flex-col items-center gap-3">
-                        <Download className="text-blue-600" size={32} />
-                        <span className="font-bold text-blue-700">{t('backup.encrypted_download')}</span>
+                    <button
+                        type="button"
+                        onClick={handleEncryptedDownload}
+                        disabled={backupStatus.archive_configured === false}
+                        title={backupStatus.archive_configured === false ? (backupStatus.archive_unconfigured_reason || t('backup.archive_not_configured')) : undefined}
+                        className={`p-6 border-2 border-dashed rounded-2xl transition flex flex-col items-center gap-3 ${
+                            backupStatus.archive_configured === false
+                                ? 'border-slate-200 bg-slate-50 text-slate-400 opacity-60 cursor-not-allowed'
+                                : 'border-blue-200 hover:bg-blue-50 text-blue-700'
+                        }`}
+                    >
+                        <Download className={backupStatus.archive_configured === false ? 'text-slate-400' : 'text-blue-600'} size={32} />
+                        <span className="font-bold">{t('backup.encrypted_download')}</span>
+                        {backupStatus.archive_configured === false && (
+                            <span className="text-[11px] text-amber-600 text-center font-medium">
+                                {backupStatus.archive_unconfigured_reason || t('backup.archive_not_configured', 'إعدادات النسخ غير مكتملة')}
+                            </span>
+                        )}
                     </button>
                     <button type="button" onClick={handleDownload} className="p-6 border-2 border-slate-200 border-dashed rounded-2xl hover:bg-slate-50 transition flex flex-col items-center gap-3">
                         <Download className="text-slate-500" size={32} />
