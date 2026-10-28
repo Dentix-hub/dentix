@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { queryKeys } from '@/lib/queryClient';
 import {
     getPatient,
@@ -198,11 +198,25 @@ export function useDeletePayment() {
     });
 }
 
+export const ATTACHMENT_POLL_INTERVAL_MS = 2500;
+export const MAX_ATTACHMENT_POLL_DURATION_MS = 25000;
+export const MAX_ATTACHMENT_POLL_ATTEMPTS = 10;
+
 /**
- * Hook for patient attachments - loads only on files tab
+ * Hook for patient attachments - loads only on files tab with bounded polling
  */
 export function usePatientAttachments(patientId, enabled = true) {
-    return useQuery({
+    const [isPollingStalled, setIsPollingStalled] = useState(false);
+    const pendingSinceRef = useRef(null);
+    const knownPendingIdsRef = useRef(new Set());
+
+    useEffect(() => {
+        pendingSinceRef.current = null;
+        knownPendingIdsRef.current = new Set();
+        setIsPollingStalled(false);
+    }, [patientId]);
+
+    const query = useQuery({
         queryKey: ['patient', patientId, 'attachments'],
         queryFn: async () => {
             const res = await getAttachments(patientId);
@@ -210,7 +224,58 @@ export function usePatientAttachments(patientId, enabled = true) {
         },
         enabled: !!patientId && enabled,
         staleTime: 30 * 1000,
+        refetchInterval: (q) => {
+            const data = q.state.data;
+            if (!Array.isArray(data)) return false;
+
+            const pendingItems = data.filter(
+                (att) => att.storage_status === 'pending' || att.storage_status === 'deleting'
+            );
+
+            if (pendingItems.length === 0) {
+                if (pendingSinceRef.current !== null || knownPendingIdsRef.current.size > 0) {
+                    pendingSinceRef.current = null;
+                    knownPendingIdsRef.current = new Set();
+                    if (isPollingStalled) setIsPollingStalled(false);
+                }
+                return false;
+            }
+
+            const currentPendingIds = new Set(pendingItems.map((att) => att.id));
+            const hasNewOperation = [...currentPendingIds].some(
+                (id) => !knownPendingIdsRef.current.has(id)
+            );
+
+            const now = Date.now();
+            if (pendingSinceRef.current === null || hasNewOperation) {
+                pendingSinceRef.current = now;
+                knownPendingIdsRef.current = currentPendingIds;
+                if (isPollingStalled) setIsPollingStalled(false);
+            } else {
+                knownPendingIdsRef.current = currentPendingIds;
+            }
+
+            if (now - pendingSinceRef.current >= MAX_ATTACHMENT_POLL_DURATION_MS) {
+                if (!isPollingStalled) setIsPollingStalled(true);
+                return false;
+            }
+
+            return ATTACHMENT_POLL_INTERVAL_MS;
+        },
     });
+
+    const manualRetry = useCallback((...args) => {
+        pendingSinceRef.current = Date.now();
+        setIsPollingStalled(false);
+        return query.refetch(...args);
+    }, [query]);
+
+    return {
+        ...query,
+        refetch: manualRetry,
+        manualRetry,
+        isPollingStalled,
+    };
 }
 
 /**
@@ -415,6 +480,10 @@ export function useActiveCareSession(patientId, { enabled = true } = {}) {
         },
         enabled: !!patientId && enabled,
         staleTime: 10 * 1000,
+        retry: (failureCount, error) => {
+            if (error?.response?.status === 404) return false;
+            return failureCount < 1;
+        },
     });
 }
 
@@ -430,6 +499,10 @@ export function useResumableCareSession(patientId, { enabled = true } = {}) {
         },
         enabled: !!patientId && enabled,
         staleTime: 10 * 1000,
+        retry: (failureCount, error) => {
+            if (error?.response?.status === 404) return false;
+            return failureCount < 1;
+        },
     });
 }
 

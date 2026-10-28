@@ -227,4 +227,72 @@ describe('BackupSettings - Excel Export', () => {
             });
         });
     });
+
+    it('disables google connect button and displays unconfigured reason when google_configured is false', () => {
+        render(
+            <BackupSettings
+                backupStatus={{
+                    connected: false,
+                    loading: false,
+                    google_configured: false,
+                    google_unconfigured_reason: 'إعدادات ربط Google غير مكتملة',
+                }}
+                currentUser={mockCurrentUser}
+                setMessage={mockSetMessage}
+                loadUserInfo={mockLoadUserInfo}
+            />
+        );
+
+        const connectBtn = screen.getByRole('button', { name: 'backup.connect_btn' });
+        expect(connectBtn).toBeDisabled();
+        expect(screen.getByText('إعدادات ربط Google غير مكتملة')).toBeInTheDocument();
+    });
+
+    it('extracts backend error detail safely when getGoogleAuthUrl fails', async () => {
+        api.getGoogleAuthUrl.mockRejectedValueOnce({
+            response: {
+                status: 400,
+                data: { detail: 'إعدادات ربط Google غير مكتملة' },
+            },
+        });
+
+        render(
+            <BackupSettings
+                backupStatus={{ connected: false, loading: false, google_configured: true }}
+                currentUser={mockCurrentUser}
+                setMessage={mockSetMessage}
+                loadUserInfo={mockLoadUserInfo}
+            />
+        );
+
+        const connectBtn = screen.getByRole('button', { name: 'backup.connect_btn' });
+        fireEvent.click(connectBtn);
+
+        await waitFor(() => {
+            expect(mockSetMessage).toHaveBeenCalledWith({
+                type: 'error',
+                text: 'إعدادات ربط Google غير مكتملة (400)',
+            });
+        });
+    });
+
+    it('disables encrypted download button and displays unconfigured reason when archive_configured is false', () => {
+        render(
+            <BackupSettings
+                backupStatus={{
+                    connected: false,
+                    loading: false,
+                    archive_configured: false,
+                    archive_unconfigured_reason: 'مفتاح تشفير النسخ الاحتياطي غير صالح',
+                }}
+                currentUser={mockCurrentUser}
+                setMessage={mockSetMessage}
+                loadUserInfo={mockLoadUserInfo}
+            />
+        );
+
+        const encryptedBtn = screen.getByText('backup.encrypted_download').closest('button');
+        expect(encryptedBtn).toBeDisabled();
+        expect(screen.getByText('مفتاح تشفير النسخ الاحتياطي غير صالح')).toBeInTheDocument();
+    });
 });

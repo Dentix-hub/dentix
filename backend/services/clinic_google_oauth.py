@@ -1,5 +1,6 @@
 """Per-attempt Google OAuth flow and verified identity for clinic connections."""
 import hashlib
+import json
 import os
 from urllib.parse import urlparse
 
@@ -47,10 +48,55 @@ def oauth_config():
     return config, redirect, timeout
 
 
+def _normalize_access_token_response(response):
+    try:
+        data = response.json()
+    except Exception:
+        return response
+    scope_val = data.get('scope')
+    if isinstance(scope_val, str):
+        parts = scope_val.split()
+        normalized = ['email' if p == EMAIL_SCOPE else p for p in parts]
+        data['scope'] = ' '.join(normalized)
+        response._content = json.dumps(data).encode(response.encoding or 'utf-8')
+    elif isinstance(scope_val, (list, tuple)):
+        normalized = ['email' if p == EMAIL_SCOPE else p for p in scope_val]
+        data['scope'] = normalized
+        response._content = json.dumps(data).encode(response.encoding or 'utf-8')
+    return response
+
+
+def normalize_scopes(raw_scope) -> set[str]:
+    if raw_scope is None:
+        raise GoogleConnectionError('صلاحيات Google المستلمة غير صالحة')
+    if isinstance(raw_scope, str):
+        items = raw_scope.split()
+    elif isinstance(raw_scope, (list, tuple, set)):
+        items = []
+        for item in raw_scope:
+            if not isinstance(item, str):
+                raise GoogleConnectionError('صلاحيات Google المستلمة غير صالحة')
+            items.append(item.strip())
+    else:
+        raise GoogleConnectionError('صلاحيات Google المستلمة غير صالحة')
+
+    normalized = set()
+    for s in items:
+        if not s:
+            continue
+        if s == EMAIL_SCOPE:
+            normalized.add('email')
+        else:
+            normalized.add(s)
+    return normalized
+
+
 def _flow(verifier):
     config, redirect, _ = oauth_config()
-    return Flow.from_client_config(config, scopes=SCOPES, redirect_uri=redirect,
+    flow = Flow.from_client_config(config, scopes=SCOPES, redirect_uri=redirect,
                                    code_verifier=verifier, autogenerate_code_verifier=False)
+    flow.oauth2session.register_compliance_hook('access_token_response', _normalize_access_token_response)
+    return flow
 
 
 def authorization_url(*, state, nonce, verifier):
@@ -65,9 +111,8 @@ def exchange_and_verify(*, code, verifier, nonce_digest):
     config, _, timeout = oauth_config()
     flow = _flow(verifier)
     token = flow.fetch_token(code=code, timeout=timeout)
-    granted = set(str(token.get('scope', '')).split())
-    normalized = {'email' if scope == EMAIL_SCOPE else scope for scope in granted}
-    if normalized != set(SCOPES):
+    granted = normalize_scopes(token.get('scope'))
+    if granted != set(SCOPES):
         raise GoogleConnectionError('لم تُمنح صلاحيات Google المطلوبة فقط')
     credentials = flow.credentials
     if not credentials.refresh_token or not token.get('id_token'):

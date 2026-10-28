@@ -240,10 +240,10 @@ export default function PatientDetails() {
     );
 
     const { data: activeCareSession, refetch: refetchActiveSession } = useActiveCareSession(id, {
-        enabled: !!id && activeTab === 'chart',
+        enabled: !!id && activeTab === 'chart' && isNativeWritesEnabled,
     });
     const { data: resumableCareSession, refetch: refetchResumableSession } = useResumableCareSession(id, {
-        enabled: !!id && activeTab === 'chart',
+        enabled: !!id && activeTab === 'chart' && isNativeWritesEnabled,
     });
     const startCareSessionMutation = useStartCareSession();
     const finishCareSessionMutation = useFinishCareSession();
@@ -432,6 +432,7 @@ export default function PatientDetails() {
         data: attachments = [],
         isLoading: attachmentsLoading,
         refetch: refetchAttachments,
+        isPollingStalled: isAttachmentsPollingStalled,
     } = usePatientAttachments(id, activeTab === 'files');
 
     const { mutateAsync: createPaymentMutate } = useCreatePayment();
@@ -972,6 +973,7 @@ export default function PatientDetails() {
                                 handleDeleteAttachment={handleDeleteAttachment}
                                 loading={attachmentsLoading}
                                 reloadAttachments={refetchAttachments}
+                                isPollingStalled={isAttachmentsPollingStalled}
                                 patientId={id}
                                 activeCareSession={activeCareSession}
                                 workItems={workspaceSnapshot?.work_items || []}

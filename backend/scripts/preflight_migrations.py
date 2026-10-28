@@ -448,6 +448,10 @@ def _user_tables(engine) -> set[str]:
     return _table_names(engine) - {"alembic_version", BOOTSTRAP_MARKER}
 
 
+def _quote_ident(ident: str) -> str:
+    return '"' + ident.replace('"', '""') + '"'
+
+
 def _ensure_bootstrap_marker(engine) -> None:
     """Persist a resumable marker before any fresh-schema model DDL."""
     with engine.begin() as connection:
@@ -777,6 +781,103 @@ def _install_postgresql_rls(connection) -> None:
     )
 
 
+RESTORE_GATE_NAMESPACE = 1146377304
+RESTORE_WRITE_GATE_TABLES = (
+    "users", "appointments", "attachments", "batches", "care_observations",
+    "care_session_steps", "care_sessions", "clinical_attachment_links",
+    "clinical_charges", "clinical_event_targets", "clinical_events",
+    "clinical_projection_coverages", "clinical_treatment_plan_items",
+    "clinical_treatment_plan_phases", "clinical_treatment_plans",
+    "clinical_work_item_targets", "clinical_work_items", "expenses",
+    "insurance_providers", "lab_orders", "lab_payments", "laboratories",
+    "material_learning_logs", "material_sessions", "materials", "next_visit_requests",
+    "patients", "payments", "prescriptions", "price_lists", "procedure_chart_styles",
+    "procedure_material_weights", "procedures", "salary_payments", "saved_medications",
+    "stock_items", "stock_movements", "tooth_status", "treatment_material_usages",
+    "treatment_sessions", "treatments", "warehouses", "workflow_templates",
+)
+
+
+def _install_postgresql_restore_write_gates(connection) -> None:
+    """Install per-tenant advisory lock triggers to coordinate exclusive restore transactions."""
+    if connection.dialect.name != "postgresql":
+        return
+
+    set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+    if set_role:
+        connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+
+    connection.execute(
+        text(
+            f"""
+            CREATE OR REPLACE FUNCTION dentix_clinic_write_gate() RETURNS trigger LANGUAGE plpgsql AS $$
+            DECLARE old_tenant integer; new_tenant integer;
+            BEGIN
+                IF TG_OP <> 'INSERT' THEN old_tenant := OLD.tenant_id; END IF;
+                IF TG_OP <> 'DELETE' THEN new_tenant := NEW.tenant_id; END IF;
+                IF old_tenant IS NOT NULL AND new_tenant IS NOT NULL AND old_tenant <> new_tenant THEN
+                    PERFORM pg_advisory_xact_lock_shared({RESTORE_GATE_NAMESPACE}, LEAST(old_tenant, new_tenant));
+                    PERFORM pg_advisory_xact_lock_shared({RESTORE_GATE_NAMESPACE}, GREATEST(old_tenant, new_tenant));
+                ELSIF COALESCE(old_tenant, new_tenant) IS NOT NULL THEN
+                    PERFORM pg_advisory_xact_lock_shared({RESTORE_GATE_NAMESPACE}, COALESCE(old_tenant, new_tenant));
+                END IF;
+                IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+            END $$
+            """
+        )
+    )
+
+    existing_tables = set(
+        connection.execute(
+            text(
+                """
+                SELECT tablename FROM pg_tables
+                WHERE schemaname = current_schema()
+                """
+            )
+        ).scalars()
+    )
+
+    for table in RESTORE_WRITE_GATE_TABLES:
+        if table in existing_tables:
+            connection.execute(text(f'DROP TRIGGER IF EXISTS clinic_write_gate ON "{table}"'))
+            connection.execute(
+                text(
+                    f'CREATE TRIGGER clinic_write_gate BEFORE INSERT OR UPDATE OR DELETE ON "{table}" '
+                    f'FOR EACH ROW EXECUTE FUNCTION dentix_clinic_write_gate()'
+                )
+            )
+
+    connection.execute(
+        text(
+            f"""
+            CREATE OR REPLACE FUNCTION dentix_price_item_write_gate() RETURNS trigger LANGUAGE plpgsql AS $$
+            DECLARE old_tenant integer; new_tenant integer;
+            BEGIN
+                IF TG_OP <> 'INSERT' THEN SELECT tenant_id INTO old_tenant FROM price_lists WHERE id = OLD.price_list_id; END IF;
+                IF TG_OP <> 'DELETE' THEN SELECT tenant_id INTO new_tenant FROM price_lists WHERE id = NEW.price_list_id; END IF;
+                IF old_tenant IS NOT NULL AND new_tenant IS NOT NULL AND old_tenant <> new_tenant THEN
+                    PERFORM pg_advisory_xact_lock_shared({RESTORE_GATE_NAMESPACE}, LEAST(old_tenant, new_tenant));
+                    PERFORM pg_advisory_xact_lock_shared({RESTORE_GATE_NAMESPACE}, GREATEST(old_tenant, new_tenant));
+                ELSIF COALESCE(old_tenant, new_tenant) IS NOT NULL THEN
+                    PERFORM pg_advisory_xact_lock_shared({RESTORE_GATE_NAMESPACE}, COALESCE(old_tenant, new_tenant));
+                END IF;
+                IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+            END $$
+            """
+        )
+    )
+
+    if "price_list_items" in existing_tables:
+        connection.execute(text('DROP TRIGGER IF EXISTS clinic_write_gate ON "price_list_items"'))
+        connection.execute(
+            text(
+                'CREATE TRIGGER clinic_write_gate BEFORE INSERT OR UPDATE OR DELETE ON "price_list_items" '
+                'FOR EACH ROW EXECUTE FUNCTION dentix_price_item_write_gate()'
+            )
+        )
+
+
 def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
     """Create/resume the current canonical schema for a brand-new database."""
     from alembic import command
@@ -793,10 +894,10 @@ def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
     # verification/replacement phase. create_all itself is idempotent.
     models.Base.metadata.create_all(bind=engine)
 
-    # Use a completely fresh transaction for explicit RLS installation. This
-    # phase is also idempotent because policies are dropped/recreated safely.
+    # Use a completely fresh transaction for explicit RLS and restore-gate trigger installation.
     with engine.begin() as connection:
         _install_postgresql_rls(connection)
+        _install_postgresql_restore_write_gates(connection)
 
     # The model baseline is current by definition. Historical revisions are
     # legacy deltas for pre-existing schemas and cannot safely be replayed from
@@ -809,16 +910,18 @@ def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
     logger.info("[PREFLIGHT] Fresh database baseline created and stamped at head.")
 
 
-def _quote_ident(ident: str) -> str:
-    return '"' + ident.replace('"', '""') + '"'
-
-
 def _is_alembic_at_head(engine, alembic_cfg) -> bool:
     from alembic.migration import MigrationContext
     from alembic.script import ScriptDirectory
 
     expected = set(ScriptDirectory.from_config(alembic_cfg).get_heads())
-    with engine.connect() as connection:
+    with engine.begin() as connection:
+        set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+        if set_role and connection.dialect.name == "postgresql":
+            try:
+                connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+            except Exception:
+                pass
         current = set(MigrationContext.configure(connection).get_current_heads())
     return bool(expected) and current == expected
 
@@ -874,6 +977,7 @@ def _prepare_postgresql_migration_privileges(engine, migration_url: str) -> None
         t_owner = str(tableowner)
         owner_summary[t_owner] = owner_summary.get(t_owner, 0) + 1
         if t_name in {
+            "alembic_version",
             "treatment_material_usages",
             "lab_orders",
             "care_sessions",
@@ -883,6 +987,8 @@ def _prepare_postgresql_migration_privileges(engine, migration_url: str) -> None
             key_owners[t_name] = f"{t_owner}(usage={bool(has_usage)},member={bool(is_member)})"
             if not bool(has_usage) and t_owner not in missing_owner_roles:
                 missing_owner_roles.append(t_owner)
+        elif bool(is_member) and not bool(has_usage) and t_owner not in missing_owner_roles:
+            missing_owner_roles.append(t_owner)
 
     logger.info(
         "[PREFLIGHT] PostgreSQL pre-upgrade diagnostics: migration_user=%r owner_counts=%s key_tables=%s",
@@ -1050,7 +1156,13 @@ def _verify_alembic_heads(engine, alembic_cfg) -> bool:
     from alembic.script import ScriptDirectory
 
     expected = set(ScriptDirectory.from_config(alembic_cfg).get_heads())
-    with engine.connect() as connection:
+    with engine.begin() as connection:
+        set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+        if set_role and connection.dialect.name == "postgresql":
+            try:
+                connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+            except Exception:
+                pass
         current = set(MigrationContext.configure(connection).get_current_heads())
     if current != expected:
         logger.error(
@@ -1114,13 +1226,40 @@ def run_alembic_upgrade():
                 return False
 
             logger.info("[PREFLIGHT] Existing versioned schema detected; running alembic upgrade head ...")
-            if not _is_alembic_at_head(engine, alembic_cfg):
+            if engine.name == "postgresql":
                 _prepare_postgresql_migration_privileges(engine, db_url)
+
+            if not _is_alembic_at_head(engine, alembic_cfg):
                 command.upgrade(alembic_cfg, "head")
                 _sync_postgresql_runtime_privileges(engine, db_url)
             else:
                 command.upgrade(alembic_cfg, "head")
+                if engine.name == "postgresql":
+                    _sync_postgresql_runtime_privileges(engine, db_url)
             logger.info("[PREFLIGHT] Alembic upgrade completed successfully.")
+
+        if engine.name == "postgresql":
+            missing_gates = _verify_postgresql_restore_write_gates(engine)
+            if missing_gates:
+                logger.warning(
+                    "[PREFLIGHT] Missing restore write gates detected (%s); applying additive installation.",
+                    len(missing_gates),
+                )
+                _prepare_postgresql_migration_privileges(engine, db_url)
+                with engine.begin() as connection:
+                    set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+                    if set_role:
+                        connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+                    _install_postgresql_restore_write_gates(connection)
+                _sync_postgresql_runtime_privileges(engine, db_url)
+                remaining_missing = _verify_postgresql_restore_write_gates(engine)
+                if remaining_missing:
+                    logger.error(
+                        "[PREFLIGHT] Restore write gates repair failed; %s gates still missing: %s",
+                        len(remaining_missing),
+                        remaining_missing,
+                    )
+                    return False
 
         return _verify_alembic_heads(engine, alembic_cfg)
     except BaseException as exc:
@@ -1213,6 +1352,65 @@ def _verify_postgresql_child_patient_triggers(engine) -> list[str]:
             ).scalars()
         )
     return sorted(expected - present)
+
+
+def _verify_postgresql_restore_write_gates(engine) -> list[str]:
+    """Return missing restore write-gate functions or triggers in PostgreSQL."""
+    if engine.name != "postgresql":
+        return []
+
+    failures: list[str] = []
+    with engine.connect() as connection:
+        procs = set(
+            connection.execute(
+                text(
+                    """
+                    SELECT proname FROM pg_proc p
+                    JOIN pg_namespace n ON n.oid = p.pronamespace
+                    WHERE n.nspname = current_schema()
+                      AND proname IN ('dentix_clinic_write_gate', 'dentix_price_item_write_gate')
+                    """
+                )
+            ).scalars()
+        )
+        if "dentix_clinic_write_gate" not in procs:
+            failures.append("function:dentix_clinic_write_gate:missing")
+        if "dentix_price_item_write_gate" not in procs:
+            failures.append("function:dentix_price_item_write_gate:missing")
+
+        existing_tables = set(
+            connection.execute(
+                text(
+                    """
+                    SELECT tablename FROM pg_tables
+                    WHERE schemaname = current_schema()
+                    """
+                )
+            ).scalars()
+        )
+        expected_tables = [t for t in RESTORE_WRITE_GATE_TABLES if t in existing_tables]
+        if "price_list_items" in existing_tables:
+            expected_tables.append("price_list_items")
+
+        triggers = set(
+            connection.execute(
+                text(
+                    """
+                    SELECT c.relname FROM pg_trigger t
+                    JOIN pg_class c ON c.oid = t.tgrelid
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = current_schema()
+                      AND NOT t.tgisinternal
+                      AND t.tgname = 'clinic_write_gate'
+                    """
+                )
+            ).scalars()
+        )
+        for tbl in expected_tables:
+            if tbl not in triggers:
+                failures.append(f"trigger:{tbl}:clinic_write_gate:missing")
+
+    return failures
 
 
 def run_migration_health_check():
@@ -1312,6 +1510,14 @@ def run_migration_health_check():
             logger.error(
                 "[PREFLIGHT] CRITICAL: G1 child patient triggers missing: %s",
                 patient_trigger_failures,
+            )
+            return False
+
+        gate_failures = _verify_postgresql_restore_write_gates(engine)
+        if gate_failures:
+            logger.error(
+                "[PREFLIGHT] CRITICAL: restore write gates missing: %s",
+                gate_failures,
             )
             return False
 

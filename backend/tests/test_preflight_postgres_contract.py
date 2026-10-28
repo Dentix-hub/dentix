@@ -62,6 +62,12 @@ def test_preflight_bootstraps_fresh_database_then_upgrades_existing(monkeypatch)
         assert preflight.run_alembic_upgrade() is True
         assert preflight.run_migration_health_check() is True
 
+        with psycopg2.connect(database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT count(*) FROM pg_trigger WHERE tgname = 'clinic_write_gate' AND NOT tgisinternal")
+                gate_count = cursor.fetchone()[0]
+                assert gate_count > 0, "Restore write-gate triggers must be installed on fresh bootstrap"
+
         # The second pass must take the existing Alembic-versioned path and be
         # idempotent. This is the path production takes on normal deployments.
         assert preflight.run_alembic_upgrade() is True
@@ -96,3 +102,107 @@ def test_preflight_resumes_interrupted_fresh_bootstrap(monkeypatch):
                 assert cursor.fetchone()[0] is None
     finally:
         _drop_database(base_url, database)
+
+
+def test_preflight_repairs_missing_gates_with_noinherit_migration_login(monkeypatch):
+    base_url = _postgres_base_url()
+    database, database_url = _create_database(base_url)
+    uid = uuid.uuid4().hex[:8]
+    owner_role = f"dentix_test_owner_{uid}"
+    migrator_role = f"dentix_test_migrator_{uid}"
+    migrator_pass = "migrator_secret_123"
+
+    try:
+        # 1. Fresh bootstrap the database under admin so it is stamped at head
+        monkeypatch.setenv("DATABASE_URL", database_url)
+        assert preflight.run_alembic_upgrade() is True
+        assert preflight.run_migration_health_check() is True
+
+        admin_url = _url_for_database(base_url, database)
+        with psycopg2.connect(admin_url) as conn:
+            conn.autocommit = True
+            with conn.cursor() as cursor:
+                # 2. Create synthetic owner and NOINHERIT migration roles
+                cursor.execute(sql.SQL("CREATE ROLE {} NOLOGIN").format(sql.Identifier(owner_role)))
+                cursor.execute(
+                    sql.SQL("CREATE ROLE {} LOGIN PASSWORD %s NOINHERIT").format(sql.Identifier(migrator_role)),
+                    (migrator_pass,),
+                )
+                cursor.execute(sql.SQL("GRANT {} TO {}").format(sql.Identifier(owner_role), sql.Identifier(migrator_role)))
+                cursor.execute(sql.SQL("GRANT CONNECT ON DATABASE {} TO {}").format(sql.Identifier(database), sql.Identifier(migrator_role)))
+                cursor.execute(sql.SQL("GRANT USAGE, CREATE ON SCHEMA public TO {}").format(sql.Identifier(owner_role)))
+                cursor.execute(sql.SQL("GRANT USAGE, CREATE ON SCHEMA public TO {}").format(sql.Identifier(migrator_role)))
+
+                # 3. Transfer all tables and dentix_% functions to owner_role
+                cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+                for (tbl,) in cursor.fetchall():
+                    cursor.execute(
+                        sql.SQL("ALTER TABLE public.{} OWNER TO {}").format(
+                            sql.Identifier(tbl), sql.Identifier(owner_role)
+                        )
+                    )
+
+                cursor.execute(
+                    """
+                    SELECT p.oid::regprocedure::text AS fn_sig FROM pg_proc p
+                    JOIN pg_namespace n ON n.oid = p.pronamespace
+                    WHERE n.nspname = 'public' AND p.proname LIKE 'dentix_%'
+                    """
+                )
+                for (fn_sig,) in cursor.fetchall():
+                    cursor.execute(
+                        sql.SQL("ALTER FUNCTION {} OWNER TO {}").format(
+                            sql.SQL(fn_sig), sql.Identifier(owner_role)
+                        )
+                    )
+
+                # 4. Remove triggers to simulate an already-stamped database needing repair
+                cursor.execute(
+                    """
+                    SELECT c.relname AS tbl FROM pg_trigger t
+                    JOIN pg_class c ON c.oid = t.tgrelid
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = 'public' AND t.tgname = 'clinic_write_gate' AND NOT t.tgisinternal
+                    """
+                )
+                for (tbl,) in cursor.fetchall():
+                    cursor.execute(
+                        sql.SQL("DROP TRIGGER clinic_write_gate ON public.{}").format(
+                            sql.Identifier(tbl)
+                        )
+                    )
+
+                # Confirm triggers were removed
+                cursor.execute("SELECT count(*) FROM pg_trigger WHERE tgname = 'clinic_write_gate' AND NOT tgisinternal")
+                assert cursor.fetchone()[0] == 0
+
+        # 5. Build migration URL using NOINHERIT login
+        parts = urlsplit(database_url)
+        netloc = f"{migrator_role}:{migrator_pass}@{parts.hostname}:{parts.port or 5432}"
+        migrator_url = urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+
+        monkeypatch.setenv("DATABASE_URL", migrator_url)
+        monkeypatch.delenv("MIGRATION_DATABASE_URL", raising=False)
+        monkeypatch.delenv("OWNER_DATABASE_URL", raising=False)
+        monkeypatch.delenv("DENTIX_MIGRATION_SET_ROLE", raising=False)
+
+        # 6. Run preflight upgrade; it must detect NOINHERIT owner role, apply SET LOCAL ROLE in repair,
+        # and succeed without InsufficientPrivilege error.
+        assert preflight.run_alembic_upgrade() is True
+        assert preflight.run_migration_health_check() is True
+
+        with psycopg2.connect(admin_url) as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT count(*) FROM pg_trigger WHERE tgname = 'clinic_write_gate' AND NOT tgisinternal")
+                assert cursor.fetchone()[0] > 0
+    finally:
+        _drop_database(base_url, database)
+        admin_postgres_url = _url_for_database(base_url, "postgres")
+        try:
+            with psycopg2.connect(admin_postgres_url) as conn:
+                conn.autocommit = True
+                with conn.cursor() as cursor:
+                    cursor.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(migrator_role)))
+                    cursor.execute(sql.SQL("DROP ROLE IF EXISTS {}").format(sql.Identifier(owner_role)))
+        except Exception:
+            pass

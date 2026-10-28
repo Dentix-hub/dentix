@@ -39,6 +39,7 @@ export function usePatientRecordActions({
         try {
             await uploadAttachment(id, file);
             refetchAttachments();
+            queryClient?.invalidateQueries?.({ queryKey: ['patient', id, 'attachments'] });
         } catch (error) {
             const detail = error?.response?.data?.detail;
             const message = error?.response?.data?.message;
@@ -58,17 +59,18 @@ export function usePatientRecordActions({
                 event.target.value = '';
             }
         }
-    }, [id, refetchAttachments, t]);
+    }, [id, refetchAttachments, queryClient, t]);
 
     const handleDeleteAttachment = useCallback(async (attachmentId) => {
         if (!window.confirm('Delete this file?')) return;
         try {
             await deleteAttachment(attachmentId);
             refetchAttachments();
+            queryClient?.invalidateQueries?.({ queryKey: ['patient', id, 'attachments'] });
         } catch {
             // Preserve existing silent attachment-delete failure behavior.
         }
-    }, [refetchAttachments]);
+    }, [id, refetchAttachments, queryClient]);
 
     const handleSavePatient = useCallback(async (updatedData) => {
         try {
