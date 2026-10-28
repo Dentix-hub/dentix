@@ -58,6 +58,7 @@ RUN groupadd --gid 1000 dentix \
 
 COPY --from=python-deps /app/.venv /app/.venv
 COPY backend/ backend/
+COPY scripts/ops/ scripts/ops/
 COPY --from=frontend-build /app/frontend/dist /app/backend/static
 
 ENV PYTHONPATH=/app \
