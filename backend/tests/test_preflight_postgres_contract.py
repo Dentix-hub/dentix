@@ -134,44 +134,43 @@ def test_preflight_repairs_missing_gates_with_noinherit_migration_login(monkeypa
                 cursor.execute(sql.SQL("GRANT USAGE, CREATE ON SCHEMA public TO {}").format(sql.Identifier(migrator_role)))
 
                 # 3. Transfer all tables and dentix_% functions to owner_role
-                # NOTE: We compose the DO block using psycopg2.sql so that
-                # the owner_role literal is injected safely *before* the
-                # statement reaches PostgreSQL.  Using cursor.execute()
-                # parameters would conflict with PL/pgSQL's own format()
-                # %-placeholders (%I, %L) and cause an IndexError.
-                do_transfer = sql.SQL(
+                cursor.execute("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+                for (tbl,) in cursor.fetchall():
+                    cursor.execute(
+                        sql.SQL("ALTER TABLE public.{} OWNER TO {}").format(
+                            sql.Identifier(tbl), sql.Identifier(owner_role)
+                        )
+                    )
+
+                cursor.execute(
                     """
-                    DO $$
-                    DECLARE r RECORD;
-                    BEGIN
-                        FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
-                            EXECUTE format('ALTER TABLE public.%%I OWNER TO %%I', r.tablename, {role});
-                        END LOOP;
-                        FOR r IN SELECT p.oid::regprocedure::text AS fn_sig FROM pg_proc p
-                                 JOIN pg_namespace n ON n.oid = p.pronamespace
-                                 WHERE n.nspname = 'public' AND p.proname LIKE 'dentix_%%' LOOP
-                            EXECUTE format('ALTER FUNCTION %%s OWNER TO %%I', r.fn_sig, {role});
-                        END LOOP;
-                    END $$;
+                    SELECT p.oid::regprocedure::text AS fn_sig FROM pg_proc p
+                    JOIN pg_namespace n ON n.oid = p.pronamespace
+                    WHERE n.nspname = 'public' AND p.proname LIKE 'dentix_%'
                     """
-                ).format(role=sql.Literal(owner_role))
-                cursor.execute(do_transfer)
+                )
+                for (fn_sig,) in cursor.fetchall():
+                    cursor.execute(
+                        sql.SQL("ALTER FUNCTION {} OWNER TO {}").format(
+                            sql.SQL(fn_sig), sql.Identifier(owner_role)
+                        )
+                    )
 
                 # 4. Remove triggers to simulate an already-stamped database needing repair
                 cursor.execute(
                     """
-                    DO $$
-                    DECLARE r RECORD;
-                    BEGIN
-                        FOR r IN SELECT c.relname AS tbl FROM pg_trigger t
-                                 JOIN pg_class c ON c.oid = t.tgrelid
-                                 JOIN pg_namespace n ON n.oid = c.relnamespace
-                                 WHERE n.nspname = 'public' AND t.tgname = 'clinic_write_gate' AND NOT t.tgisinternal LOOP
-                            EXECUTE format('DROP TRIGGER clinic_write_gate ON public.%I', r.tbl);
-                        END LOOP;
-                    END $$;
+                    SELECT c.relname AS tbl FROM pg_trigger t
+                    JOIN pg_class c ON c.oid = t.tgrelid
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = 'public' AND t.tgname = 'clinic_write_gate' AND NOT t.tgisinternal
                     """
                 )
+                for (tbl,) in cursor.fetchall():
+                    cursor.execute(
+                        sql.SQL("DROP TRIGGER clinic_write_gate ON public.{}").format(
+                            sql.Identifier(tbl)
+                        )
+                    )
 
                 # Confirm triggers were removed
                 cursor.execute("SELECT count(*) FROM pg_trigger WHERE tgname = 'clinic_write_gate' AND NOT tgisinternal")
