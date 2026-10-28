@@ -2221,6 +2221,8 @@
     "connected": "متصل ✅",
     "disconnected": "غير متصل ❌",
     "connect_btn": "ربط مع Google Drive",
+    "google_not_configured": "إعدادات ربط Google غير مكتملة",
+    "archive_not_configured": "إعدادات النسخ غير مكتملة",
     "daily": "يومي (كل 24 ساعة)",
     "weekly": "أسبوعي",
     "monthly": "شهري",

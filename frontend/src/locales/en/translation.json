@@ -2222,6 +2222,8 @@
     "disconnected": "Disconnected ❌",
     "checking": "Checking...",
     "connect_btn": "Connect Account",
+    "google_not_configured": "Google connection is not configured",
+    "archive_not_configured": "Backup archive is not configured",
     "auto_backup_label": "Auto Backup Frequency",
     "off": "Off",
     "daily": "Daily (24h)",
