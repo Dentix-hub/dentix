@@ -134,25 +134,28 @@ def test_preflight_repairs_missing_gates_with_noinherit_migration_login(monkeypa
                 cursor.execute(sql.SQL("GRANT USAGE, CREATE ON SCHEMA public TO {}").format(sql.Identifier(migrator_role)))
 
                 # 3. Transfer all tables and dentix_% functions to owner_role
-                cursor.execute(
-                    sql.SQL(
-                        """
-                        DO $$
-                        DECLARE r RECORD;
-                        BEGIN
-                            FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
-                                EXECUTE format('ALTER TABLE public.%I OWNER TO %I', r.tablename, %L);
-                            END LOOP;
-                            FOR r IN SELECT p.oid::regprocedure::text AS fn_sig FROM pg_proc p
-                                     JOIN pg_namespace n ON n.oid = p.pronamespace
-                                     WHERE n.nspname = 'public' AND p.proname LIKE 'dentix_%' LOOP
-                                EXECUTE format('ALTER FUNCTION %s OWNER TO %I', r.fn_sig, %L);
-                            END LOOP;
-                        END $$;
-                        """
-                    ),
-                    (owner_role, owner_role),
-                )
+                # NOTE: We compose the DO block using psycopg2.sql so that
+                # the owner_role literal is injected safely *before* the
+                # statement reaches PostgreSQL.  Using cursor.execute()
+                # parameters would conflict with PL/pgSQL's own format()
+                # %-placeholders (%I, %L) and cause an IndexError.
+                do_transfer = sql.SQL(
+                    """
+                    DO $$
+                    DECLARE r RECORD;
+                    BEGIN
+                        FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+                            EXECUTE format('ALTER TABLE public.%%I OWNER TO %%I', r.tablename, {role});
+                        END LOOP;
+                        FOR r IN SELECT p.oid::regprocedure::text AS fn_sig FROM pg_proc p
+                                 JOIN pg_namespace n ON n.oid = p.pronamespace
+                                 WHERE n.nspname = 'public' AND p.proname LIKE 'dentix_%%' LOOP
+                            EXECUTE format('ALTER FUNCTION %%s OWNER TO %%I', r.fn_sig, {role});
+                        END LOOP;
+                    END $$;
+                    """
+                ).format(role=sql.Literal(owner_role))
+                cursor.execute(do_transfer)
 
                 # 4. Remove triggers to simulate an already-stamped database needing repair
                 cursor.execute(
