@@ -75,14 +75,14 @@ class User(Base):
     can_view_other_doctors_history: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Compensation settings
-    commission_percent: Mapped[Decimal] = mapped_column(
-        Numeric(7, 4), default=Decimal("0.0000")
+    commission_percent: Mapped[Decimal | None] = mapped_column(
+        Numeric(7, 4), nullable=True, default=Decimal("0.0000")
     )
-    fixed_salary: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), default=Decimal("0.00")
+    fixed_salary: Mapped[Decimal | None] = mapped_column(
+        Numeric(14, 2), nullable=True, default=Decimal("0.00")
     )
-    per_appointment_fee: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), default=Decimal("0.00")
+    per_appointment_fee: Mapped[Decimal | None] = mapped_column(
+        Numeric(14, 2), nullable=True, default=Decimal("0.00")
     )
     hire_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 

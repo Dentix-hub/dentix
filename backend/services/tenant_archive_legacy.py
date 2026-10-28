@@ -1,4 +1,5 @@
 """Known-version adapter for historical, unauthenticated clinic JSON files."""
+from backend import models
 from backend.services.tenant_archive import ArchiveError
 from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS, STAFF_REFERENCE_COLUMNS
 
@@ -10,6 +11,15 @@ LEGACY_DISCARDED_COLUMNS = {
     'treatments': {'request_key', 'request_fingerprint'},
 }
 LEGACY_RENAMES = {'tooth_statuses': 'tooth_status'}
+
+
+def _adapt_legacy_scalar(column, val):
+    from sqlalchemy import Numeric
+    if val is None:
+        return None
+    if isinstance(column.type, Numeric) and isinstance(val, (int, float)):
+        return str(val)
+    return val
 
 
 def adapt_legacy_json(source, *, tenant_id):
@@ -24,6 +34,7 @@ def adapt_legacy_json(source, *, tenant_id):
         raise ArchiveError('ملف النسخة الاحتياطية القديم غير صالح')
     sections = {}
     staff = None
+    user_table = models.User.__table__
     for original_name, rows in source['data'].items():
         name = LEGACY_RENAMES.get(original_name, original_name)
         if not isinstance(rows, list):
@@ -37,19 +48,20 @@ def adapt_legacy_json(source, *, tenant_id):
                     raise ArchiveError('بيانات المستخدمين القديمة غير مدعومة')
                 if row.get('tenant_id') != tenant_id or (row.get('role') is not None and row.get('role') not in {'admin', 'doctor', 'receptionist', 'nurse', 'accountant', 'patient', 'guest', 'manager', 'assistant'}):
                     raise ArchiveError('حساب المستخدم في النسخة الاحتياطية غير صالح')
-                staff.append({key: row.get(key) for key in STAFF_REFERENCE_COLUMNS})
+                staff.append({key: _adapt_legacy_scalar(user_table.c[key], row.get(key)) for key in STAFF_REFERENCE_COLUMNS})
             continue
         if name not in ARCHIVE_COLUMNS or name in sections:
             raise ArchiveError('أقسام النسخة الاحتياطية القديمة غير مدعومة')
         allowed = ARCHIVE_COLUMNS[name]
         discarded = LEGACY_DISCARDED_COLUMNS.get(name, set())
         converted = []
+        table = models.Base.metadata.tables[name]
         for row in rows:
             if not isinstance(row, dict) or set(row) - allowed - discarded:
                 raise ArchiveError('بيانات النسخة الاحتياطية القديمة غير مدعومة')
             if 'tenant_id' in allowed and row.get('tenant_id') != tenant_id:
                 raise ArchiveError('النسخة الاحتياطية لا تخص هذه العيادة')
-            converted_row = {key: row.get(key) for key in allowed}
+            converted_row = {key: _adapt_legacy_scalar(table.c[key], row.get(key)) for key in allowed}
             if name == 'attachments':
                 converted_row['storage_provider'] = 'legacy'
                 converted_row['storage_status'] = 'ready'

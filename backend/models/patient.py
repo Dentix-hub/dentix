@@ -40,8 +40,8 @@ class Patient(Base):
     phone: Mapped[str] = mapped_column(EncryptedString, index=True)
     email: Mapped[str | None] = mapped_column(EncryptedString, nullable=True, index=True)
     address: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
-    medical_history: Mapped[str] = mapped_column(EncryptedString)
-    notes: Mapped[str] = mapped_column(EncryptedString)
+    medical_history: Mapped[str | None] = mapped_column(EncryptedString, nullable=True, default=None)
+    notes: Mapped[str | None] = mapped_column(EncryptedString, nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
