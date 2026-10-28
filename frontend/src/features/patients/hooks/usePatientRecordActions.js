@@ -59,7 +59,7 @@ export function usePatientRecordActions({
                 event.target.value = '';
             }
         }
-    }, [id, refetchAttachments, t]);
+    }, [id, refetchAttachments, queryClient, t]);
 
     const handleDeleteAttachment = useCallback(async (attachmentId) => {
         if (!window.confirm('Delete this file?')) return;
@@ -70,7 +70,7 @@ export function usePatientRecordActions({
         } catch {
             // Preserve existing silent attachment-delete failure behavior.
         }
-    }, [refetchAttachments]);
+    }, [id, refetchAttachments, queryClient]);
 
     const handleSavePatient = useCallback(async (updatedData) => {
         try {
