@@ -1,5 +1,32 @@
 import { test, expect } from '@playwright/test';
 
+for (const language of ['ar', 'en']) {
+  test(`product screenshots load with correct dimensions and no external assets (${language})`, async ({ page, baseURL }) => {
+    const externalRequests: string[] = [];
+    const expectedOrigin = new URL(baseURL!).origin;
+    page.on('request', request => {
+      if (new URL(request.url()).origin !== expectedOrigin) externalRequests.push(request.url());
+    });
+    await page.goto(`/${language}/index.html`);
+    const screenshots = page.locator('img[src^="/marketing/screens/"]');
+    await expect(screenshots).toHaveCount(4);
+    for (const screenshot of await screenshots.all()) {
+      await screenshot.scrollIntoViewIfNeeded();
+      await expect(screenshot).toBeVisible();
+      await expect.poll(() => screenshot.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
+      const dimensions = await screenshot.evaluate((image: HTMLImageElement) => ({
+        width: image.naturalWidth, height: image.naturalHeight,
+        declaredWidth: Number(image.getAttribute('width')), declaredHeight: Number(image.getAttribute('height')),
+      }));
+      expect(dimensions.width).toBe(dimensions.declaredWidth);
+      expect(dimensions.height).toBe(dimensions.declaredHeight);
+      await expect(screenshot).toHaveAttribute('alt', /\S/);
+    }
+    await expect(page.locator('.demo-note').first()).toContainText(language === 'ar' ? 'بيانات تجريبية' : 'Fictional');
+    expect(externalRequests).toEqual([]);
+  });
+}
+
 test.describe('Dentix Arabic Marketing Page', () => {
   test('renders complete Arabic marketing content and valid metadata', async ({ page }) => {
     await page.goto('/ar/index.html');
@@ -12,7 +39,7 @@ test.describe('Dentix Arabic Marketing Page', () => {
 
     // Heading H1
     const h1 = page.locator('h1');
-    await expect(h1).toHaveText('إدارة عيادة الأسنان من مكان واحد.');
+    await expect(h1).toHaveText('من أول حجز لآخر حساب.');
 
     // Canonical link
     const canonical = page.locator('link[rel="canonical"]');
@@ -110,7 +137,7 @@ test.describe('Dentix English Marketing Page', () => {
 
     // Heading H1
     const h1 = page.locator('h1');
-    await expect(h1).toHaveText('Manage your dental clinic in one place.');
+    await expect(h1).toHaveText('From the first booking to the final balance.');
 
     // Canonical link
     const canonical = page.locator('link[rel="canonical"]');
@@ -410,12 +437,12 @@ test.describe('Dentix Marketing Discovery & PWA Lifecycle', () => {
     // 9. Verify public marketing pages after update:
     // /ar/index.html reaches the static marketing page directly
     await page.goto('/ar/index.html');
-    await expect(page.locator('h1')).toHaveText('إدارة عيادة الأسنان من مكان واحد.');
+    await expect(page.locator('h1')).toHaveText('من أول حجز لآخر حساب.');
     await expect(page.locator('#root')).toHaveCount(0);
 
     // /en/index.html reaches the English marketing page directly
     await page.goto('/en/index.html');
-    await expect(page.locator('h1')).toHaveText('Manage your dental clinic in one place.');
+    await expect(page.locator('h1')).toHaveText('From the first booking to the final balance.');
     await expect(page.locator('#root')).toHaveCount(0);
 
     // 10. Verify known application route after update:

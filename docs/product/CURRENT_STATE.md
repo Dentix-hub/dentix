@@ -2,6 +2,12 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Marketing visual redesign (2026-10-29): Arabic/English pages now use the app's sky/navy/teal palette, practical clinic-day copy, six actual React screenshots with fictional-data disclosures, self-hosted licensed Cairo, native image enlargement and responsive layouts. SEO, zero-JS public delivery and PWA exclusions retained.
+- Verification: 65 targeted Vitest tests PASS; full marketing browser run 63 passed + 2 intentional no-JS skips; final visual/image checks 30 PASS; backend 39 passed + 1 existing refresh-tracking skip; build/lint/guardrails PASS; 120 precache entries. Status: DONE locally, awaiting visual review; no push/deployment.
+
+- HF marketing routing fix (fix/hf-marketing-routes, 2026-10-29): Backend serves /ar and /en as static documents; trailing-slash/index.html aliases redirect 308 with query strings preserved; missing language/marketing/crawl resources return 404. Existing SPA, API and SW behavior preserved.
+- Verification: 39 passed + 1 existing skip across marketing HTTP, security-header and auth-flow tests (refresh tracking unavailable in TestClient); targeted Ruff PASS. Status: DONE locally; not pushed/deployed; staging HTTP smoke required after delivery.
+
 - Marketing & Discovery Batch 1 & 2 (feat/marketing-english-page, 2026-10-29): Standalone static landing pages in Arabic (/ar) and English (/en), isolated CSS with LTR/RTL support, WCAG AA contrast, bidirectional hreflang (ar, en, x-default), language switchers, sitemap with both URLs, SW/Vercel clean network bypasses, and dynamic Login discovery link.
 - Verification: 158 frontend test files (1042 Vitest tests) PASS; Playwright marketing tests: 53 passed + 2 skipped across 5 viewport projects; full backend unit tests: 1569 passed + 5 skipped (0 failed); 0 lint warnings; 0 new design guardrail violations; 120 precache entries (2.76 MiB). Status: PARTIAL (local review approved; live Vercel & CI PostgreSQL runs pending).
 

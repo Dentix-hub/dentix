@@ -667,7 +667,7 @@ def get_safe_static_path(base_directory: pathlib.Path, requested_path_str: str) 
 # Note: /health is now handled by health.router with more comprehensive checks
 
 
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 # ...
 
@@ -694,7 +694,7 @@ async def read_root():
 
 # SPA Catch-all route (must be last)
 @app.get("/{full_path:path}")
-async def catch_all(full_path: str):
+async def catch_all(full_path: str, request: Request):
     """Serve React App for any unknown path (SPA support)."""
     # Exclude API/Static paths and auth endpoints
     if (
@@ -705,10 +705,25 @@ async def catch_all(full_path: str):
         or full_path.startswith("auth")
     ):
         if full_path.endswith("/"):
-            from fastapi.responses import RedirectResponse
             return RedirectResponse(url=f"/{full_path.rstrip('/')}", status_code=307)
 
-        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    # HF serves the built frontend directly; Vercel rewrites do not run here.
+    # Keep public marketing documents separate from the application SPA fallback.
+    language = full_path.split("/", 1)[0]
+    if language in {"ar", "en"}:
+        if full_path in {f"{language}/", f"{language}/index.html"}:
+            destination = f"/{language}"
+            if request.url.query:
+                destination += f"?{request.url.query}"
+            return RedirectResponse(url=destination, status_code=308)
+
+        if full_path == language:
+            page_path = get_safe_static_path(static_dir, f"{language}/index.html")
+            if page_path and page_path.is_file():
+                return FileResponse(str(page_path))
+
         raise HTTPException(status_code=404, detail="Not Found")
 
     # Check if the file exists in the static directory (e.g. /logo.png)
@@ -717,6 +732,11 @@ async def catch_all(full_path: str):
 
     if safe_file_path and safe_file_path.is_file():
         return FileResponse(str(safe_file_path))
+
+    if full_path == "marketing" or full_path.startswith("marketing/") or full_path in {
+        "robots.txt", "sitemap.xml"
+    }:
+        raise HTTPException(status_code=404, detail="Not Found")
 
     # Serve index.html for SPA routing
     index_path = os.path.join(static_dir, "index.html")
