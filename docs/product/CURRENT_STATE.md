@@ -2,6 +2,9 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Marketing visual redesign (2026-10-29): Arabic/English pages now use the app's sky/navy/teal palette, practical clinic-day copy, six actual React screenshots with fictional-data disclosures, self-hosted licensed Cairo, native image enlargement and responsive layouts. SEO, zero-JS public delivery and PWA exclusions retained.
+- Verification: 65 targeted Vitest tests PASS; full marketing browser run 63 passed + 2 intentional no-JS skips; final visual/image checks 30 PASS; backend 39 passed + 1 existing refresh-tracking skip; build/lint/guardrails PASS; 120 precache entries. Status: DONE locally, awaiting visual review; no push/deployment.
+
 - HF marketing routing fix (fix/hf-marketing-routes, 2026-10-29): Backend serves /ar and /en as static documents; trailing-slash/index.html aliases redirect 308 with query strings preserved; missing language/marketing/crawl resources return 404. Existing SPA, API and SW behavior preserved.
 - Verification: 39 passed + 1 existing skip across marketing HTTP, security-header and auth-flow tests (refresh tracking unavailable in TestClient); targeted Ruff PASS. Status: DONE locally; not pushed/deployed; staging HTTP smoke required after delivery.
 

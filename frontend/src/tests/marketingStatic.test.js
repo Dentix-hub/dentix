@@ -30,7 +30,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(html).toContain('<meta name="description" content="نظّم ملفات المرضى والمواعيد ومخطط الأسنان وتقارير العيادة مع Dentix، نظام سحابي لإدارة عيادات الأسنان بواجهة عربية وإنجليزية.">');
 
             // H1 and Core headings
-            expect(html).toContain('<h1 class="hero-title">إدارة عيادة الأسنان من مكان واحد.</h1>');
+            expect(html).toContain('<h1 class="hero-title">من أول حجز<br> <span>لآخر حساب.</span></h1>');
 
             // Canonical URL
             expect(html).toContain('<link rel="canonical" href="https://www.dentixs.app/ar">');
@@ -132,7 +132,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(html).toContain('<meta name="description" content="Manage patient records, appointments, dental charts, and clinic finances with Dentix — cloud-based dental practice management software with bilingual Arabic and English support.">');
 
             // H1 and Core headings
-            expect(html).toContain('<h1 class="hero-title">Manage your dental clinic in one place.</h1>');
+            expect(html).toContain('<h1 class="hero-title">From the first booking<br> <span>to the final balance.</span></h1>');
 
             // Canonical URL
             expect(html).toContain('<link rel="canonical" href="https://www.dentixs.app/en">');
