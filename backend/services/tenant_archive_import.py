@@ -105,7 +105,11 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
                         try:
                             value = mapping[foreign.column.table.name][value]
                         except KeyError as exc:
-                            raise ArchiveError('تحتوي النسخة الاحتياطية على مرجع غير صالح') from exc
+                            raise ArchiveError(
+                                f'تحتوي النسخة الاحتياطية على مرجع غير صالح ({name}.{key})',
+                                section=name, field=key, referenced_section=foreign.column.table.name,
+                                category='invalid_reference', counts=1,
+                            ) from exc
                 values[key] = _convert(col, value)
             row = cls(**values)
             db.add(row)

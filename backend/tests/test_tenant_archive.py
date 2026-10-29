@@ -433,3 +433,179 @@ async def test_export_fails_early_when_business_data_is_invalid(async_db_session
         await mock_export_corrupt(async_db_session, test_user.tenant_id)
     assert exc_info.value.field == 'name'
     assert exc_info.value.category == 'missing_required_value'
+
+
+def test_sql_foreign_key_structured_diagnostics():
+    from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS, validate_archive_references, validate_archive_sections
+
+    payload = {'data': {name: [] for name in ARCHIVE_COLUMNS}}
+    payload['data']['staff_references'] = [{'id': 10, 'username': 'doctor_a'}]
+    payload['data']['patients'] = [{'id': 1, 'tenant_id': 7, 'assigned_doctor_id': 10}]
+    payload['data']['treatments'] = [
+        {'id': 101, 'tenant_id': 7, 'patient_id': 1, 'doctor_id': 999},
+        {'id': 102, 'tenant_id': 7, 'patient_id': 1, 'doctor_id': 999},
+    ]
+    data = validate_archive_sections(payload, tenant_id=7, require_complete=False)
+
+    # Rejection of invalid foreign reference doctor_id with aggregate count=2
+    with pytest.raises(ArchiveError) as exc_info:
+        validate_archive_references(data, tenant_id=7)
+    err = exc_info.value
+    assert err.section == 'treatments'
+    assert err.field == 'doctor_id'
+    assert err.referenced_section == 'users'
+    assert err.category == 'invalid_reference'
+    assert err.counts == 2
+    assert 'تحتوي النسخة الاحتياطية على مرجع غير صالح (treatments.doctor_id)' in str(err)
+
+    # Rejection of SQL type mismatch in patient_id
+    payload['data']['treatments'][0]['doctor_id'] = 10
+    payload['data']['treatments'][1]['doctor_id'] = 10
+    payload['data']['treatments'][0]['patient_id'] = 'not-an-integer'
+    data = validate_archive_sections(payload, tenant_id=7, require_complete=False)
+    with pytest.raises(ArchiveError) as exc_info:
+        validate_archive_references(data, tenant_id=7)
+    err = exc_info.value
+    assert err.section == 'treatments'
+    assert err.field == 'patient_id'
+    assert err.referenced_section == 'patients'
+    assert err.category == 'invalid_reference_type'
+    assert err.counts == 1
+
+
+def test_embedded_references_structured_diagnostics():
+    from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS, validate_archive_sections
+    from backend.services.tenant_archive_embedded_refs import validate_embedded_references
+
+    payload = {'data': {name: [] for name in ARCHIVE_COLUMNS}}
+    payload['data']['staff_references'] = [{'id': 10, 'username': 'doc'}]
+    payload['data']['treatments'] = [{'id': 1, 'tenant_id': 7}]
+    payload['data']['price_lists'] = [{'id': 5, 'tenant_id': 7}]
+    payload['data']['lab_orders'] = [{'id': 20, 'tenant_id': 7}]
+
+    # 1. Invalid stock movement reference with aggregate count
+    payload['data']['stock_movements'] = [
+        {'id': 1, 'tenant_id': 7, 'reference_id': 'TREATMENT:999'},
+        {'id': 2, 'tenant_id': 7, 'reference_id': 'REVERSE:TREATMENT:999'},
+    ]
+    data = validate_archive_sections(payload, tenant_id=7, require_complete=False)
+    with pytest.raises(ArchiveError) as exc_info:
+        validate_embedded_references(data, tenant_id=7)
+    err = exc_info.value
+    assert err.section == 'stock_movements'
+    assert err.field == 'reference_id'
+    assert err.referenced_section == 'treatments'
+    assert err.category == 'invalid_reference'
+    assert err.counts == 2
+    assert 'تحتوي النسخة الاحتياطية على مرجع غير صالح (stock_movements.reference_id)' in str(err)
+
+    # 2. Invalid clinical event payload treatment reference
+    payload['data']['stock_movements'] = []
+    payload['data']['clinical_events'] = [
+        {'id': 1, 'tenant_id': 7, 'payload': {'treatment_id': 888, 'kind': 'procedure'}},
+    ]
+    data = validate_archive_sections(payload, tenant_id=7, require_complete=False)
+    with pytest.raises(ArchiveError) as exc_info:
+        validate_embedded_references(data, tenant_id=7)
+    err = exc_info.value
+    assert err.section == 'clinical_events'
+    assert err.field == 'payload.treatment_id'
+    assert err.referenced_section == 'treatments'
+    assert err.category == 'invalid_reference'
+    assert err.counts == 1
+    assert 'تحتوي النسخة الاحتياطية على مرجع غير صالح (clinical_events.payload.treatment_id)' in str(err)
+
+    # 3. Invalid treatment notes lab order link
+    payload['data']['clinical_events'] = []
+    payload['data']['treatments'] = [
+        {'id': 1, 'tenant_id': 7, 'notes': 'Link:LabOrder:777'},
+    ]
+    data = validate_archive_sections(payload, tenant_id=7, require_complete=False)
+    with pytest.raises(ArchiveError) as exc_info:
+        validate_embedded_references(data, tenant_id=7)
+    err = exc_info.value
+    assert err.section == 'treatments'
+    assert err.field == 'notes'
+    assert err.referenced_section == 'lab_orders'
+    assert err.category == 'invalid_reference'
+    assert err.counts == 1
+
+    # 4. Invalid treatment price_snapshot list_id
+    payload['data']['treatments'] = [
+        {'id': 1, 'tenant_id': 7, 'price_snapshot': '{"list_id":666,"price":"50"}'},
+    ]
+    data = validate_archive_sections(payload, tenant_id=7, require_complete=False)
+    with pytest.raises(ArchiveError) as exc_info:
+        validate_embedded_references(data, tenant_id=7)
+    err = exc_info.value
+    assert err.section == 'treatments'
+    assert err.field == 'price_snapshot.list_id'
+    assert err.referenced_section == 'price_lists'
+    assert err.category == 'invalid_reference'
+    assert err.counts == 1
+
+    # 5. Invalid learning log treatment reference
+    payload['data']['treatments'] = [{'id': 1, 'tenant_id': 7}]
+    payload['data']['material_learning_logs'] = [
+        {'id': 1, 'tenant_id': 7, 'calculation_data': '{"dist_log":[{"treatment_id":555}]}'},
+    ]
+    data = validate_archive_sections(payload, tenant_id=7, require_complete=False)
+    with pytest.raises(ArchiveError) as exc_info:
+        validate_embedded_references(data, tenant_id=7)
+    err = exc_info.value
+    assert err.section == 'material_learning_logs'
+    assert err.field == 'calculation_data.dist_log.treatment_id'
+    assert err.referenced_section == 'treatments'
+    assert err.category == 'invalid_reference'
+    assert err.counts == 1
+
+
+@pytest.mark.asyncio
+async def test_tenant_consistency_audit_report(async_db_session, test_user, test_patient):
+    from decimal import Decimal
+    from backend import models
+    from backend.services.tenant_archive_consistency import (
+        audit_tenant_consistency, format_consistency_report,
+    )
+
+    # 1. Consistent tenant check
+    result = await audit_tenant_consistency(async_db_session, test_user.tenant_id)
+    assert result["consistent"] is True
+    assert result["summary"]["missing_targets_count"] == 0
+    assert result["summary"]["forbidden_cross_tenant_reference_count"] == 0
+    report_text = format_consistency_report(result)
+    assert "CONSISTENT" in report_text
+
+    # 2. Add another tenant and inject cross-tenant reference
+    other_tenant = models.Tenant(name="Other consistency tenant", domain="other.invalid", is_active=True)
+    async_db_session.add(other_tenant)
+    await async_db_session.flush()
+
+    other_user = models.User(
+        tenant_id=other_tenant.id, username="other_doc", email="otherdoc@example.com",
+        hashed_password="synth", role="doctor", is_active=True,
+    )
+    async_db_session.add(other_user)
+    await async_db_session.flush()
+
+    # Treatment in test_user's tenant referencing other_user (cross-tenant)
+    bad_treatment = models.Treatment(
+        tenant_id=test_user.tenant_id,
+        patient_id=test_patient.id,
+        doctor_id=other_user.id,
+        cost=Decimal("100"),
+        discount=Decimal("0"),
+    )
+    async_db_session.add(bad_treatment)
+    await async_db_session.commit()
+
+    inconsistent = await audit_tenant_consistency(async_db_session, test_user.tenant_id)
+    assert inconsistent["consistent"] is False
+    assert inconsistent["summary"]["forbidden_cross_tenant_reference_count"] == 1
+    assert any(
+        entry["relation"] == "treatments.doctor_id -> users"
+        for entry in inconsistent["categories"]["forbidden_cross_tenant_reference"]
+    )
+    inconsistent_report = format_consistency_report(inconsistent)
+    assert "INCONSISTENT" in inconsistent_report
+    assert "FORBIDDEN CROSS TENANT REFERENCE" in inconsistent_report

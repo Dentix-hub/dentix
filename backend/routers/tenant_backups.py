@@ -68,6 +68,12 @@ async def download_clinic_archive(db: AsyncSession = Depends(get_async_db), user
         archive = encode_archive(payload, tenant_id=tenant_id, installation_id=installation,
                                  schema_revision=revision, key_id=key_id, key=keys[key_id], max_bytes=limit)
     except ArchiveError as exc:
+        await db.rollback()
+        logger.warning(
+            'Clinic archive export rejected for tenant %s: category=%s section=%s field=%s referenced_section=%s counts=%s',
+            tenant_id, getattr(exc, 'category', None), getattr(exc, 'section', None),
+            getattr(exc, 'field', None), getattr(exc, 'referenced_section', None), getattr(exc, 'counts', None),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return Response(content=archive, media_type='application/octet-stream', headers={
         'Content-Disposition': 'attachment; filename="dentix-clinic-backup.dentix"', 'Cache-Control': 'private, no-store',
@@ -117,9 +123,9 @@ async def preview_clinic_restore(request: Request, db: AsyncSession = Depends(ge
     except ArchiveError as exc:
         await db.rollback()
         logger.warning(
-            'Clinic restore preview rejected for tenant %s: category=%s section=%s field=%s counts=%s',
+            'Clinic restore preview rejected for tenant %s: category=%s section=%s field=%s referenced_section=%s counts=%s',
             tenant_id, getattr(exc, 'category', None), getattr(exc, 'section', None),
-            getattr(exc, 'field', None), getattr(exc, 'counts', None),
+            getattr(exc, 'field', None), getattr(exc, 'referenced_section', None), getattr(exc, 'counts', None),
         )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception:
@@ -145,9 +151,9 @@ async def confirm_clinic_restore(request: Request, payload: ConfirmRestore, db: 
     except ArchiveError as exc:
         await db.rollback()
         logger.warning(
-            'Clinic restore preview rejected for tenant %s: category=%s section=%s field=%s counts=%s',
+            'Clinic restore confirm rejected for tenant %s: category=%s section=%s field=%s referenced_section=%s counts=%s',
             tenant_id, getattr(exc, 'category', None), getattr(exc, 'section', None),
-            getattr(exc, 'field', None), getattr(exc, 'counts', None),
+            getattr(exc, 'field', None), getattr(exc, 'referenced_section', None), getattr(exc, 'counts', None),
         )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
