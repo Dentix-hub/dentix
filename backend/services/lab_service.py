@@ -430,7 +430,7 @@ class LabService:
         await self.db.refresh(order)
         return order
 
-    async def delete_lab_order(self, order_id: int) -> bool:
+    async def delete_lab_order(self, order_id: int, *, current_user=None) -> bool:
         """Delete one lab order and only its exact linked treatment."""
         order = await self.get_lab_order(order_id)
         if not order:
@@ -452,7 +452,10 @@ class LabService:
         )
         linked_treatment = (await self.db.execute(stmt_treatment)).scalars().first()
         if linked_treatment:
-            await self.db.delete(linked_treatment)
+            from backend.services.treatment_service import TreatmentService
+            await TreatmentService(self.db, self.tenant_id, current_user).delete_treatment(
+                linked_treatment.id, commit=False,
+            )
 
         await self.db.delete(order)
         await self.db.commit()

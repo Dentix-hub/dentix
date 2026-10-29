@@ -543,3 +543,164 @@ async def test_closed_session_learning_survives_deleted_procedure_and_repeated_r
             assert other_proc.price == Decimal('999.99') and other_proc.name == 'Other procedure ' + suffix
     finally:
         clear_tenant_context(tenant_token=token)
+
+
+@pytest.mark.asyncio
+async def test_native_and_legacy_workflows_survive_two_encrypted_restores():
+    from datetime import date, datetime
+    from sqlalchemy.orm import joinedload
+    from backend import schemas
+    from backend.services.care_session_service import CareSessionService
+    from backend.services.care_session_material_service import CareSessionMaterialService
+    from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
+    from backend.services.feature_service import FeatureFlagService
+    from backend.services.treatment_service import TreatmentService
+    from backend.services.tenant_archive import encode_archive
+    from backend.services.tenant_restore_preview import create_restore_preview, confirm_restore_preview
+    from backend.services.tenant_restore_coordinator import run_confirmed_restore
+
+    suffix = uuid.uuid4().hex
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        async with session.bypass_rls() as db:
+            tenant = models.Tenant(name='Adjacent workflow clinic')
+            db.add(tenant)
+            await db.flush()
+            user = models.User(tenant_id=tenant.id, username='adjacent_' + suffix, role='admin',
+                               hashed_password='unchanged', commission_percent=Decimal('17.25'))
+            patient = models.Patient(tenant_id=tenant.id, name='Synthetic adjacent', phone='0', age=30)
+            warehouse = models.Warehouse(tenant_id=tenant.id, name='Adjacent warehouse')
+            material = models.Material(tenant_id=tenant.id, name='Adjacent material', type='NON_DIVISIBLE',
+                base_unit='unit', standard_price=Decimal('2.50'))
+            lab = models.Laboratory(tenant_id=tenant.id, name='Adjacent lab')
+            db.add_all([user, patient, warehouse, material, lab])
+            await db.flush()
+            work = models.ClinicalWorkItem(tenant_id=tenant.id, patient_id=patient.id, kind='procedure',
+                code='ENDO_RCT', status='active', created_by_user_id=user.id)
+            appointment = models.Appointment(tenant_id=tenant.id, patient_id=patient.id, doctor_id=user.id,
+                date_time=datetime(2030, 1, 1, 12), duration_minutes=30, status='Scheduled')
+            legacy = models.Treatment(tenant_id=tenant.id, patient_id=patient.id, doctor_id=user.id,
+                tooth_number=16, procedure='Custom unprojected legacy', cost=Decimal('100'), discount=Decimal('0'))
+            batch = models.Batch(tenant_id=tenant.id, material_id=material.id, batch_number='adjacent',
+                expiry_date=date(2035, 1, 1), cost_per_unit=Decimal('2.50'))
+            order = models.LabOrder(tenant_id=tenant.id, patient_id=patient.id, laboratory_id=lab.id,
+                work_type='Crown', cost=Decimal('20'), price_to_patient=Decimal('100'), doctor_id=user.id)
+            db.add_all([work, appointment, legacy, batch, order])
+            await db.flush()
+            lab_treatment = models.Treatment(tenant_id=tenant.id, patient_id=patient.id, doctor_id=user.id,
+                tooth_number=17, procedure='Crown', cost=Decimal('100'), discount=Decimal('0'),
+                notes=f'Link:LabOrder:{order.id}')
+            stock = models.StockItem(tenant_id=tenant.id, warehouse_id=warehouse.id, batch_id=batch.id, quantity=9)
+            db.add_all([lab_treatment, stock])
+            await db.flush()
+            material_session = models.MaterialSession(tenant_id=tenant.id, stock_item_id=stock.id, status='CLOSED')
+            db.add(material_session)
+            await db.flush()
+            db.add_all([
+                models.StockMovement(tenant_id=tenant.id, stock_item_id=stock.id, change_amount=-1,
+                    reason='use', reference_id=f'TREATMENT:{legacy.id}', performed_by=user.id),
+                models.MaterialLearningLog(tenant_id=tenant.id, session_id=material_session.id,
+                    material_id=material.id, total_consumed=1, calculation_data=json.dumps({
+                        'treatments_count': 1, 'total_weight_score': 1, 'unit_weight_value': 1,
+                        'dist_log': [{'treatment_id': legacy.id, 'procedure': legacy.procedure, 'weight': 1}],
+                        'usage_updates': [], 'learning_updates': {}})),
+            ])
+            flag = (await db.execute(select(models.FeatureFlag).where(
+                models.FeatureFlag.key == FEATURE_FLAG_CLINICAL_NATIVE_WRITES))).scalar_one_or_none()
+            if flag is None:
+                db.add(models.FeatureFlag(key=FEATURE_FLAG_CLINICAL_NATIVE_WRITES,
+                    description='Synthetic archive regression', is_global_enabled=False, rollout_percentage=0))
+            await db.commit()
+            tid, actor, pid = tenant.id, user.id, patient.id
+            legacy_id, lab_treatment_id, order_id = legacy.id, lab_treatment.id, order.id
+            material_id, appointment_id, work_id = material.id, appointment.id, work.id
+
+    token = set_current_tenant_id(tid)
+    try:
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=tid)) as db:
+            user = (await db.execute(select(models.User).where(
+                models.User.tenant_id == tid, models.User.id == actor))).scalar_one()
+            await FeatureFlagService.set_tenant_override(db, tid, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, True)
+            treatments = TreatmentService(db, tid, user)
+            await treatments.delete_treatment(legacy_id)
+            # Recreate an archive produced by the old direct lab-deletion path.
+            old_treatment = (await db.execute(select(models.Treatment).where(
+                models.Treatment.tenant_id == tid, models.Treatment.id == lab_treatment_id))).scalar_one()
+            assert await treatments._sync_clinical_work_item(old_treatment) is not None
+            old_order = (await db.execute(select(models.LabOrder).where(
+                models.LabOrder.tenant_id == tid, models.LabOrder.id == order_id))).scalar_one()
+            await db.delete(old_treatment)
+            await db.delete(old_order)
+            await db.commit()
+            service = CareSessionService(db, tid, user)
+            first = await service.start_session(pid, schemas.CareSessionCreate(appointment_id=appointment_id))
+            first_id = first.id
+            step = await service.add_step(pid, first_id, schemas.CareSessionStepCreate(
+                step_code='ACCESS', title='Synthetic access', work_item_id=work_id))
+            await service.add_observation(pid, first_id, schemas.CareObservationCreate(
+                observation_code='working_length', step_id=step.id, work_item_id=work_id,
+                tooth_key='16', root_id='MB', canal_id='MB1', structured_value={'length_mm': 20}))
+            usages = await CareSessionMaterialService(db, tid, user).record_material_usage(
+                pid, first_id, schemas.CareSessionMaterialUsageCreate(work_item_id=work_id,
+                    items=[schemas.CareSessionMaterialItem(material_id=material_id, quantity=1)]))
+            assert len(usages) == 1 and usages[0].cost_calculated == Decimal('2.50')
+            await service.finish_session(pid, first_id, schemas.CareSessionFinish())
+            second = await service.start_session(pid, schemas.CareSessionCreate(
+                resume_work_item_id=work_id, resume_from_session_id=first_id))
+            request = await service.create_next_visit_request(pid, schemas.NextVisitRequestCreate(
+                work_item_id=work_id, reason='Synthetic follow-up'), session_id=second.id)
+            await service.schedule_next_visit_request(request.id, schemas.NextVisitRequestSchedule(
+                date_time=datetime(2031, 1, 2, 12), doctor_id=actor))
+            payload = await export_clinic_archive_data(db, tid)
+            for revision in ('bc78a10d932e', 'e2b3c4d5e6f7'):
+                before = payload['data']
+                old_request = before['next_visit_requests'][0]
+                old_scheduled = schemas.NextVisitRequestRead.model_validate(dict(old_request)).fulfilled_appointment_id
+                archive = encode_archive(payload, tenant_id=tid, installation_id='adjacent-workflows',
+                    schema_revision=revision, key_id='test', key=b'a' * 32)
+                operation, confirmation, _, _, _ = await create_restore_preview(db, tenant_id=tid,
+                    actor_id=actor, archive=archive, installation_id='adjacent-workflows', keys={'test': b'a' * 32},
+                    supported_revisions={revision}, max_bytes=1000000)
+                await confirm_restore_preview(db, tenant_id=tid, actor_id=actor, operation_id=operation.id,
+                    confirmation=confirmation, archive_digest=operation.archive_digest)
+                _, mapping = await run_confirmed_restore(db, tenant_id=tid, operation_id=operation.id,
+                    installation_id='adjacent-workflows', keys={'test': b'a' * 32},
+                    supported_revisions={revision}, max_bytes=1000000)
+                restored = (await db.execute(select(models.NextVisitRequest).options(joinedload(models.NextVisitRequest.patient)).where(
+                    models.NextVisitRequest.tenant_id == tid))).scalar_one()
+                assert schemas.NextVisitRequestRead.model_validate(restored).fulfilled_appointment_id == mapping['appointments'][old_scheduled]
+                assert mapping['appointments'][old_scheduled] != old_scheduled
+                events = {row.id: row for row in (await db.execute(select(models.ClinicalEvent).where(
+                    models.ClinicalEvent.tenant_id == tid))).scalars()}
+                for old in before['clinical_events']:
+                    actual = events[mapping['clinical_events'][old['id']]].payload
+                    source = old['payload']
+                    for key, table in [('session_id', 'care_sessions'), ('appointment_id', 'appointments'),
+                        ('resume_from_session_id', 'care_sessions'), ('resume_work_item_id', 'clinical_work_items'),
+                        ('step_id', 'care_session_steps'), ('observation_id', 'care_observations'),
+                        ('request_id', 'next_visit_requests')]:
+                        if source.get(key) is not None:
+                            assert actual[key] == mapping[table][source[key]]
+                    if old['event_type'] == 'care_session_materials_recorded':
+                        assert actual['items'][0]['material_id'] == mapping['materials'][source['items'][0]['material_id']]
+                        assert actual['usage_ids'] == [mapping['treatment_material_usages'][value] for value in source['usage_ids']]
+                historical = set(mapping['historical_treatments'].values())
+                assert len(historical) == 2
+                assert not (await db.execute(select(models.Treatment.id).where(models.Treatment.tenant_id == tid))).all()
+                log = (await db.execute(select(models.MaterialLearningLog).where(
+                    models.MaterialLearningLog.tenant_id == tid))).scalar_one()
+                assert json.loads(log.calculation_data)['dist_log'][0]['treatment_id'] in historical
+                stock = (await db.execute(select(models.StockItem).where(models.StockItem.tenant_id == tid))).scalar_one()
+                assert stock.quantity == 9
+                usage = (await db.execute(select(models.TreatmentMaterialUsage).where(
+                    models.TreatmentMaterialUsage.tenant_id == tid))).scalar_one()
+                assert usage.cost_calculated == Decimal('2.50') and usage.quantity_used == 1
+                assert user.commission_percent == Decimal('17.25') and user.hashed_password == 'unchanged'
+                payload = await export_clinic_archive_data(db, tid)
+            # A real cancellation must still reopen the linked request after ID regeneration.
+            from backend.crud.appointment import update_appointment_status
+            await update_appointment_status(db, schemas.NextVisitRequestRead.model_validate(restored).fulfilled_appointment_id,
+                'Cancelled', tid)
+            await db.refresh(restored)
+            assert restored.status == 'requested'
+    finally:
+        clear_tenant_context(tenant_token=token)

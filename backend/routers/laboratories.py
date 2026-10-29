@@ -754,13 +754,8 @@ async def delete_lab_order(
             detail="الطلب عليه دفعات، الغِ الطلب بدل حذفه",
         )
 
-    linked_treatment = (
-        await db.execute(_linked_treatment_stmt(current_user.tenant_id, order_id))
-    ).scalars().first()
-    if linked_treatment:
-        await db.delete(linked_treatment)
-    await db.delete(order)
-    await db.commit()
+    from backend.services.lab_service import LabService
+    await LabService(db, current_user.tenant_id).delete_lab_order(order_id, current_user=current_user)
     return success_response(message="Lab order deleted successfully")
 
 

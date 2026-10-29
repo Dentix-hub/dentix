@@ -1,5 +1,9 @@
 # Adjacent archive reference review before delivery
 
+Follow-up: all four findings below are now resolved locally on the same branch.
+See [implementation and executed verification](archive-adjacent-reference-recovery-2026-10-29.md).
+The original findings and review-time status are retained as an audit record.
+
 Reviewed candidate: `b8b8a4c` on `fix/archive-learning-procedure-history`, based
 on staging `94769aa`. The deleted-procedure learning fix remains local.
 This review does not change application behavior, upload a branch, or access
@@ -135,7 +139,7 @@ deleted-reference defect. Anatomical canal/root identifiers are not database
 row IDs. This is a focused review, not a claim that every clinic dataset or
 external Google/storage state has been tested.
 
-## Status
+## Status at the original review
 
 Review requested by the user: completed. Overall backup repair: **PARTIAL**,
 with the four findings above unaddressed. No push, PR, merge or deployment was

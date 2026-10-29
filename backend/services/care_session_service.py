@@ -1800,6 +1800,9 @@ class CareSessionService:
             await self.db.commit()
             await self.db.refresh(req)
             await self.db.refresh(appointment)
+            # A newly created request can already be in the identity map.
+            # Explicit refresh avoids an async lazy load after commit/refresh.
+            await self.db.refresh(req, attribute_names=['patient'])
         except (IntegrityError, StaleDataError) as exc:
             await self.db.rollback()
             await self._get_active_current_user()

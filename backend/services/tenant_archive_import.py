@@ -13,10 +13,10 @@ from sqlalchemy import Date, DateTime, Numeric, delete, select, text
 from backend import models
 from backend.services.tenant_archive import ArchiveError
 from backend.services.tenant_archive_embedded_refs import (
-    learning_procedure_ids, remap_event_payload, remap_learning_data, remap_price_snapshot, remap_stock_reference, remap_treatment_note,
+    learning_procedure_ids, remap_event_payload, remap_learning_data, remap_next_visit_note, remap_price_snapshot, remap_stock_reference, remap_treatment_note,
 )
 from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS
-from backend.services.tenant_archive_history import deleted_treatment_contexts, historical_treatment_ids
+from backend.services.tenant_archive_history import deleted_treatment_contexts, historical_treatment_ids, inventory_treatment_history
 
 GATE_NAMESPACE = 1146377304
 
@@ -77,6 +77,7 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
     await ensure_missing_sections_empty(db, tenant_id=tenant_id, missing_sections=missing_sections)
     classes = _model_classes()
     historical_contexts = deleted_treatment_contexts(data)
+    historical_inventory_ids = inventory_treatment_history(data)
     learning_ids = {value for row in data['material_learning_logs']
                     for value in learning_procedure_ids(row.get('calculation_data'))}
     live_procedure_ids = {row['id'] for row in data['procedures']} | set((external_ids or {}).get('procedures', ()))
@@ -124,6 +125,10 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
                     later[key] = value
                     values[key] = None
                     continue
+                if name == 'next_visit_requests' and key == 'notes':
+                    later[key] = value
+                    values[key] = None
+                    continue
                 for foreign in col.foreign_keys:
                     if value is not None:
                         try:
@@ -145,7 +150,8 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
     # must stay absent after IDs are regenerated, even if an old ID is now used
     # by another clinic or would collide with newly restored live data.
     historical = await _reserve_historical_ids(
-        db, 'treatments', historical_treatment_ids(historical_contexts), mapping.get('treatments', {}),
+        db, 'treatments', historical_treatment_ids(historical_contexts) | historical_inventory_ids,
+        mapping.get('treatments', {}),
     )
     if historical:
         mapping['historical_treatments'] = historical
@@ -168,6 +174,8 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
         elif name == 'treatments':
             row.notes = remap_treatment_note(later['notes'], mapping)
             row.price_snapshot = remap_price_snapshot(later['price_snapshot'], mapping)
+        elif name == 'next_visit_requests':
+            row.notes = remap_next_visit_note(later['notes'], mapping)
     # Only the financial staff attributes are business backup data. Never
     # restore login credentials, permission/role fields, sessions, or 2FA.
     financial_fields = ('commission_percent', 'fixed_salary', 'per_appointment_fee', 'hire_date')
