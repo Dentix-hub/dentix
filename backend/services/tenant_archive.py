@@ -24,13 +24,14 @@ MAX_HEADER_BYTES = 16 * 1024
 class ArchiveError(ValueError):
     """An archive is invalid, unsupported, or cannot be authenticated."""
 
-    def __init__(self, message, *, section=None, field=None, category=None, counts=None):
+    def __init__(self, message, *, section=None, field=None, category=None, counts=None, referenced_section=None):
         super().__init__(message)
         self.message = message
         self.section = section
         self.field = field
         self.category = category
         self.counts = counts
+        self.referenced_section = referenced_section
 
 
 def _canonical(value):

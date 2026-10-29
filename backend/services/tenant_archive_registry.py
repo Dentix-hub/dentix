@@ -96,7 +96,7 @@ def validate_archive_references(data, *, tenant_id, external_ids=None):
 
     external_ids = external_ids or {}
     if set(external_ids) - {'material_categories', 'procedures'}:
-        raise ArchiveError('مرجع خارجي غير مدعوم في النسخة الاحتياطية')
+        raise ArchiveError('مرجع خارجي غير مدعوم في النسخة الاحتياطية', category='unsupported_external_reference')
     ids = {name: {row['id'] for row in rows} for name, rows in data.items()}
     ids['users'] = ids[STAFF_REFERENCE_SECTION]
     ids['tenants'] = {tenant_id}
@@ -110,12 +110,33 @@ def validate_archive_references(data, *, tenant_id, external_ids=None):
             for foreign in column.foreign_keys:
                 referenced = foreign.column.table.name
                 if foreign.column.name != 'id':
-                    raise ArchiveError('مرجع غير مدعوم في النسخة الاحتياطية')
+                    raise ArchiveError(
+                        f'مرجع غير مدعوم في النسخة الاحتياطية ({name}.{column.name})',
+                        section=name, field=column.name, referenced_section=referenced,
+                        category='unsupported_reference', counts=1,
+                    )
                 allowed = ids.get(referenced, set()) | set(external_ids.get(referenced, ()))
+                type_mismatch_count = 0
+                invalid_ref_count = 0
                 for row in rows:
                     value = row.get(column.name)
-                    if value is not None and (not isinstance(value, int) or isinstance(value, bool) or value not in allowed):
-                        raise ArchiveError('تحتوي النسخة الاحتياطية على مرجع غير صالح')
+                    if value is not None:
+                        if not isinstance(value, int) or isinstance(value, bool):
+                            type_mismatch_count += 1
+                        elif value not in allowed:
+                            invalid_ref_count += 1
+                if type_mismatch_count > 0:
+                    raise ArchiveError(
+                        f'نوع أو قيمة غير صالحة في النسخة الاحتياطية ({name}.{column.name})',
+                        section=name, field=column.name, referenced_section=referenced,
+                        category='invalid_reference_type', counts=type_mismatch_count,
+                    )
+                if invalid_ref_count > 0:
+                    raise ArchiveError(
+                        f'تحتوي النسخة الاحتياطية على مرجع غير صالح ({name}.{column.name})',
+                        section=name, field=column.name, referenced_section=referenced,
+                        category='invalid_reference', counts=invalid_ref_count,
+                    )
 
 
 def _is_valid_scalar(kind, value):
