@@ -1,5 +1,6 @@
 """Synthetic PostgreSQL round trip for tenant business data and identities."""
 import uuid
+import json
 from decimal import Decimal
 
 import pytest
@@ -12,6 +13,152 @@ from backend.services.tenant_archive_export import export_clinic_archive_data
 from backend.services.tenant_archive_identity import resolve_staff_mapping
 from backend.services.tenant_archive_import import replace_clinic_business_data
 from backend.services.tenant_archive_registry import validate_archive_references, validate_archive_sections, validate_archive_values
+
+
+@pytest.mark.asyncio
+async def test_deleted_treatment_history_survives_encrypted_restore_and_id_collisions():
+    """Real deletion/export/preview/restore, including stock and learned history."""
+    from datetime import date
+    from backend.services.treatment_service import TreatmentService
+    from backend.services.tenant_archive import encode_archive
+    from backend.services.tenant_restore_preview import create_restore_preview, confirm_restore_preview
+    from backend.services.tenant_restore_coordinator import run_confirmed_restore
+    from backend.services.clinical_charge_service import ClinicalChargeService
+    from backend.services.tenant_archive_embedded_refs import validate_embedded_references
+    from backend.services.tenant_backup_config import supported_archive_revisions
+
+    suffix = uuid.uuid4().hex
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        async with session.bypass_rls() as db:
+            tenant = models.Tenant(name='Deleted history clinic')
+            other_tenant = models.Tenant(name='History isolation clinic')
+            db.add_all([tenant, other_tenant])
+            await db.flush()
+            user = models.User(tenant_id=tenant.id, username='history_' + suffix,
+                               hashed_password='unchanged', role='admin', commission_percent=Decimal('17.25'))
+            patient = models.Patient(tenant_id=tenant.id, name='Synthetic history', age=30, phone='0')
+            other_patient = models.Patient(tenant_id=other_tenant.id, name='Other clinic', age=40, phone='0')
+            warehouse = models.Warehouse(tenant_id=tenant.id, name='History warehouse')
+            material = models.Material(tenant_id=tenant.id, name='History material', type='DIVISIBLE', base_unit='g')
+            db.add_all([user, patient, other_patient, warehouse, material])
+            await db.flush()
+            treatment = models.Treatment(tenant_id=tenant.id, patient_id=patient.id, doctor_id=user.id,
+                                         procedure='Crown', tooth_number=16, cost=Decimal('123.45'), discount=Decimal('1.25'))
+            batch = models.Batch(tenant_id=tenant.id, material_id=material.id, batch_number='history',
+                                 expiry_date=date(2030, 1, 1), cost_per_unit=Decimal('2.50'))
+            db.add_all([treatment, batch])
+            await db.flush()
+            stock = models.StockItem(tenant_id=tenant.id, warehouse_id=warehouse.id, batch_id=batch.id, quantity=9)
+            db.add(stock)
+            await db.flush()
+            material_session = models.MaterialSession(tenant_id=tenant.id, stock_item_id=stock.id,
+                                                       patient_id=patient.id, doctor_id=user.id, remaining_est=8)
+            db.add(material_session)
+            await db.flush()
+            db.add_all([
+                models.StockMovement(tenant_id=tenant.id, stock_item_id=stock.id, change_amount=-1,
+                                     reason='use', reference_id=f'TREATMENT:{treatment.id}', performed_by=user.id),
+                models.MaterialLearningLog(tenant_id=tenant.id, session_id=material_session.id,
+                    material_id=material.id, total_consumed=1,
+                    calculation_data=json.dumps({'dist_log': [{'treatment_id': treatment.id, 'weight': 1}]})),
+                models.Payment(tenant_id=tenant.id, patient_id=patient.id, doctor_id=user.id, amount=Decimal('23.45')),
+            ])
+            await db.commit()
+            tenant_id, other_id, actor = tenant.id, other_tenant.id, user.id
+            patient_id, other_patient_id, deleted_id = patient.id, other_patient.id, treatment.id
+
+    token = set_current_tenant_id(tenant_id)
+    try:
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=tenant_id)) as db:
+            user = (await db.execute(select(models.User).where(models.User.tenant_id == tenant_id, models.User.id == actor))).scalar_one()
+            treatment = (await db.execute(select(models.Treatment).where(models.Treatment.tenant_id == tenant_id, models.Treatment.id == deleted_id))).scalar_one()
+            service = TreatmentService(db, tenant_id, user)
+            work_item = await service._sync_clinical_work_item(treatment)
+            assert work_item is not None
+            await db.commit()
+            await service.delete_treatment(deleted_id)
+            # A live treatment and its charge must still be restored normally.
+            live = models.Treatment(tenant_id=tenant_id, patient_id=patient_id, doctor_id=actor,
+                                    procedure='Crown', tooth_number=17, cost=Decimal('345.67'), discount=Decimal('2.34'))
+            db.add(live)
+            await db.flush()
+            live_item = await service._sync_clinical_work_item(live)
+            assert live_item is not None
+            db.add(models.ClinicalCharge(tenant_id=tenant_id, patient_id=patient_id,
+                work_item_id=live_item.id, doctor_id=actor, legacy_treatment_id=live.id,
+                amount=Decimal('345.67'), discount=Decimal('2.34'), status='pending'))
+            await db.commit()
+            live_id = live.id
+        clear_tenant_context(tenant_token=token)
+        token = set_current_tenant_id(other_id)
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=other_id)) as db:
+            # Simulate an old installation's historical ID now naming another
+            # clinic's live row. Never bind the restored history to that row.
+            db.add(models.Treatment(id=deleted_id, tenant_id=other_id, patient_id=other_patient_id,
+                procedure='Other clinic treatment', tooth_number=18, cost=Decimal('999.99'), discount=0))
+            await db.commit()
+        clear_tenant_context(tenant_token=token)
+        token = set_current_tenant_id(tenant_id)
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=tenant_id)) as db:
+            payload = await export_clinic_archive_data(db, tenant_id)
+            assert len(payload['data']['clinical_events']) == 3
+            assert len(payload['data']['treatments']) == 1
+            assert {row['id'] for row in payload['data']['treatments']} == {live_id}
+            # Exercise unmodified old-format archive contents and repeat the
+            # entire cycle: historical IDs must remain safe on later restores.
+            for revision in ('bc78a10d932e', 'e2b3c4d5e6f7'):
+                validate_embedded_references(payload['data'], tenant_id=tenant_id)
+                archive = encode_archive(payload, tenant_id=tenant_id, installation_id='synthetic-history',
+                                         schema_revision=revision, key_id='test', key=b'h' * 32)
+                operation, confirmation, _, _, _ = await create_restore_preview(
+                    db, tenant_id=tenant_id, actor_id=actor, archive=archive,
+                    installation_id='synthetic-history', keys={'test': b'h' * 32},
+                    supported_revisions=supported_archive_revisions('e2b3c4d5e6f7'), max_bytes=1000000)
+                await confirm_restore_preview(db, tenant_id=tenant_id, actor_id=actor,
+                    operation_id=operation.id, confirmation=confirmation, archive_digest=operation.archive_digest)
+                _, mapping = await run_confirmed_restore(db, tenant_id=tenant_id, operation_id=operation.id,
+                    installation_id='synthetic-history', keys={'test': b'h' * 32},
+                    supported_revisions=supported_archive_revisions('e2b3c4d5e6f7'), max_bytes=1000000)
+                historical_id = next(iter(mapping['historical_treatments'].values()))
+                live_rows = (await db.execute(select(models.Treatment).where(models.Treatment.tenant_id == tenant_id))).scalars().all()
+                assert len(live_rows) == 1
+                assert live_rows[0].id != historical_id and historical_id != deleted_id
+                assert live_rows[0].cost == Decimal('345.67') and live_rows[0].discount == Decimal('2.34')
+                events = (await db.execute(select(models.ClinicalEvent).where(models.ClinicalEvent.tenant_id == tenant_id))).scalars().all()
+                historical_events = [row for row in events if row.payload['treatment_id'] == historical_id]
+                assert len(events) == 3 and len(historical_events) == 2
+                assert {row.payload.get('action') for row in historical_events} == {None, 'deleted'}
+                assert [row.payload['treatment_id'] for row in events if row not in historical_events] == [live_rows[0].id]
+                assert await ClinicalChargeService(db, tenant_id).is_legacy_synced_work_item(historical_events[0].work_item_id)
+                charge = (await db.execute(select(models.ClinicalCharge).where(models.ClinicalCharge.tenant_id == tenant_id))).scalar_one()
+                assert charge.legacy_treatment_id == live_rows[0].id and charge.amount == Decimal('345.67')
+                stock = (await db.execute(select(models.StockItem).where(models.StockItem.tenant_id == tenant_id))).scalar_one()
+                movements = (await db.execute(select(models.StockMovement).where(models.StockMovement.tenant_id == tenant_id))).scalars().all()
+                assert stock.quantity == 10
+                assert {(row.change_amount, row.reference_id) for row in movements} == {
+                    (-1, f'TREATMENT:{historical_id}'), (1, f'REVERSE:TREATMENT:{historical_id}')}
+                log = (await db.execute(select(models.MaterialLearningLog).where(models.MaterialLearningLog.tenant_id == tenant_id))).scalar_one()
+                assert json.loads(log.calculation_data)['dist_log'][0]['treatment_id'] == historical_id
+                assert (await db.execute(select(models.Payment.amount).where(models.Payment.tenant_id == tenant_id))).scalar_one() == Decimal('23.45')
+                restored_user = (await db.execute(select(models.User).where(
+                    models.User.tenant_id == tenant_id, models.User.id == actor,
+                ))).scalar_one()
+                assert restored_user.hashed_password == 'unchanged' and restored_user.commission_percent == Decimal('17.25')
+                # Future live creation cannot reuse the historical number.
+                future = models.Treatment(tenant_id=tenant_id, patient_id=live_rows[0].patient_id,
+                    procedure='Future treatment', tooth_number=18, cost=Decimal('0'), discount=0)
+                db.add(future)
+                await db.flush()
+                assert future.id > historical_id
+                await db.rollback()
+                payload = await export_clinic_archive_data(db, tenant_id)
+        clear_tenant_context(tenant_token=token)
+        token = set_current_tenant_id(other_id)
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=other_id)) as db:
+            other = (await db.execute(select(models.Treatment).where(models.Treatment.tenant_id == other_id, models.Treatment.id == deleted_id))).scalar_one()
+            assert other.cost == Decimal('999.99') and other.procedure == 'Other clinic treatment'
+    finally:
+        clear_tenant_context(tenant_token=token)
 
 
 @pytest.mark.asyncio

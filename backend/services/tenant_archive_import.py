@@ -16,6 +16,7 @@ from backend.services.tenant_archive_embedded_refs import (
     remap_event_payload, remap_learning_data, remap_price_snapshot, remap_stock_reference, remap_treatment_note,
 )
 from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS
+from backend.services.tenant_archive_history import deleted_treatment_contexts, historical_treatment_ids
 
 GATE_NAMESPACE = 1146377304
 
@@ -58,6 +59,7 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
     from backend.services.tenant_archive_legacy import ensure_missing_sections_empty
     await ensure_missing_sections_empty(db, tenant_id=tenant_id, missing_sections=missing_sections)
     classes = _model_classes()
+    historical_contexts = deleted_treatment_contexts(data)
     order = _order()
     for name in reversed(order):
         cls = classes[name]
@@ -90,6 +92,7 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
                     continue
                 if name == 'clinical_events' and key == 'payload':
                     later[key] = value
+                    later['historical_ids'] = historical_contexts.get((source.get('patient_id'), source.get('work_item_id')), set())
                     values[key] = {}
                     continue
                 if name == 'stock_movements' and key == 'reference_id':
@@ -117,13 +120,32 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
             table_map[source['id']] = row.id
             if later:
                 deferred.append((name, row, later))
+    # Reserve sequence values without inserting treatments. Historical references
+    # must stay absent after IDs are regenerated, even if an old ID is now used
+    # by another clinic or would collide with a newly restored live treatment.
+    historical = {}
+    historical_ids = sorted(historical_treatment_ids(historical_contexts))
+    if historical_ids:
+        reserved = (await db.execute(text(
+            "SELECT nextval(pg_get_serial_sequence('treatments', 'id')) "
+            "FROM generate_series(1, :count)"
+        ), {'count': len(historical_ids)})).scalars().all()
+        if (
+            any(not isinstance(value, int) or value <= 0 for value in reserved)
+            or len(set(reserved)) != len(historical_ids)
+            or set(reserved).intersection(mapping.get('treatments', {}).values())
+        ):
+            raise ArchiveError('تعذر تخصيص مراجع آمنة لسجل العلاجات المحذوفة')
+        historical = dict(zip(historical_ids, reserved, strict=True))
+        mapping['historical_treatments'] = historical
     for name, row, later in deferred:
         if name == 'material_learning_logs':
-            row.calculation_data = remap_learning_data(later['calculation_data'], mapping)
+            row.calculation_data = remap_learning_data(later['calculation_data'], mapping, historical_mapping=historical)
         elif name == 'clinical_events':
-            row.payload = remap_event_payload(later['payload'], mapping)
+            row.payload = remap_event_payload(later['payload'], mapping,
+                                            historical_mapping={value: historical[value] for value in later['historical_ids']})
         elif name == 'stock_movements':
-            row.reference_id = remap_stock_reference(later['reference_id'], mapping)
+            row.reference_id = remap_stock_reference(later['reference_id'], mapping, historical_mapping=historical)
         elif name == 'treatments':
             row.notes = remap_treatment_note(later['notes'], mapping)
             row.price_snapshot = remap_price_snapshot(later['price_snapshot'], mapping)
