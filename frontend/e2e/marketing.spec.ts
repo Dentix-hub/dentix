@@ -196,13 +196,13 @@ test.describe('Dentix Arabic Marketing Page', () => {
       const reg = await navigator.serviceWorker.getRegistration();
       return {
         hasWaiting: !!reg?.waiting,
-        activeScript: reg?.active?.scriptURL || '',
-        waitingScript: reg?.waiting?.scriptURL || '',
+        activePath: reg?.active ? new URL(reg.active.scriptURL).pathname : '',
+        waitingPath: reg?.waiting ? new URL(reg.waiting.scriptURL).pathname : '',
       };
     });
     expect(swState.hasWaiting).toBe(true);
-    expect(swState.activeScript).toContain('mock-old-sw.js');
-    expect(swState.waitingScript).toContain('sw.js');
+    expect(swState.activePath).toBe('/mock-old-sw.js');
+    expect(swState.waitingPath).toBe('/sw.js');
 
     // 5. Navigate to the application shell at /
     // PwaInstallManager will detect the waiting worker on mount and display the update prompt
@@ -214,44 +214,68 @@ test.describe('Dentix Arabic Marketing Page', () => {
     const updateButton = page.getByRole('button', { name: /حدّث الآن|Update now/i });
     await expect(updateButton).toBeVisible({ timeout: 15000 });
 
-    // 7. Prepare activation wait BEFORE clicking to avoid race conditions or missing the controllerchange event:
-    const activationPromise = page.evaluate(() => {
-      return new Promise((resolve, reject) => {
-        if (navigator.serviceWorker.controller?.scriptURL?.includes('sw.js')) {
-          resolve(true);
-          return;
-        }
-        const timer = setTimeout(() => {
-          reject(new Error('Timed out waiting for controllerchange after clicking update button'));
-        }, 15000);
-        navigator.serviceWorker.addEventListener('controllerchange', () => {
-          clearTimeout(timer);
-          resolve(true);
-        }, { once: true });
-      });
+    // 7. Ensure activation listener is attached BEFORE clicking:
+    // When updateButton is clicked, updateServiceWorker(true) sends SKIP_WAITING to the waiting worker.
+    // The new worker activates, triggers controllerchange, and Workbox may invoke window.location.reload().
+    await page.evaluate(() => {
+      window.__swControllerChanged = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.__swControllerChanged = true;
+      }, { once: true });
     });
 
     // Click the actual user-facing acceptance button in the app UI (NO fallback)
     await updateButton.click();
 
-    // Await activation (triggered by SKIP_WAITING from the UI button click)
-    await activationPromise;
+    // Account for potential page reload triggered by Workbox controlling event
+    await page.waitForLoadState('domcontentloaded');
 
     // 8. Strict Verification: New production worker MUST be active and controlling, with no waiting worker
-    await page.waitForFunction(async () => {
-      const reg = await navigator.serviceWorker.getRegistration();
-      return !!reg && !!reg.active && reg.active.scriptURL.includes('sw.js') && !reg.waiting;
-    }, undefined, { timeout: 15000 });
+    // Strictly check new URL(scriptURL).pathname === '/sw.js' and record diagnostics on failure
+    try {
+      await page.waitForFunction(async () => {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (!reg || !reg.active || reg.waiting) return false;
+        try {
+          return new URL(reg.active.scriptURL).pathname === '/sw.js';
+        } catch {
+          return false;
+        }
+      }, undefined, { timeout: 15000 });
+    } catch (err) {
+      const diag = await page.evaluate(async () => {
+        const reg = await navigator.serviceWorker.getRegistration();
+        return {
+          controller: navigator.serviceWorker.controller ? {
+            scriptURL: navigator.serviceWorker.controller.scriptURL,
+            pathname: new URL(navigator.serviceWorker.controller.scriptURL).pathname,
+            state: navigator.serviceWorker.controller.state,
+          } : null,
+          active: reg?.active ? {
+            scriptURL: reg.active.scriptURL,
+            pathname: new URL(reg.active.scriptURL).pathname,
+            state: reg.active.state,
+          } : null,
+          waiting: reg?.waiting ? {
+            scriptURL: reg.waiting.scriptURL,
+            pathname: new URL(reg.waiting.scriptURL).pathname,
+            state: reg.waiting.state,
+          } : null,
+        };
+      }).catch((e) => ({ diagnosticError: e.message }));
+      console.error('PWA Update Failure Diagnostics:', JSON.stringify(diag, null, 2));
+      throw new Error(`Failed waiting for /sw.js activation: ${err.message}. State diagnostics: ${JSON.stringify(diag)}`);
+    }
 
     const postUpdateSw = await page.evaluate(async () => {
       const reg = await navigator.serviceWorker.getRegistration();
       return {
-        activeScript: reg?.active?.scriptURL || '',
-        controllerScript: navigator.serviceWorker.controller?.scriptURL || '',
+        activePath: reg?.active ? new URL(reg.active.scriptURL).pathname : '',
+        controllerPath: navigator.serviceWorker.controller ? new URL(navigator.serviceWorker.controller.scriptURL).pathname : '',
         hasWaiting: !!reg?.waiting,
       };
     });
-    expect(postUpdateSw.activeScript).toContain('sw.js');
+    expect(postUpdateSw.activePath).toBe('/sw.js');
     expect(postUpdateSw.hasWaiting).toBe(false);
 
     // 9. Verify public marketing page after update:
