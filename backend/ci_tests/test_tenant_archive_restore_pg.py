@@ -380,3 +380,166 @@ async def test_restore_outbox_worker_finishes_confirmed_operation(monkeypatch):
             await on_tenant_restore_confirmed(event)
     finally:
         clear_tenant_context(tenant_token=token)
+
+
+@pytest.mark.asyncio
+async def test_closed_session_learning_survives_deleted_procedure_and_repeated_restore():
+    from backend.crud.procedure import delete_procedure
+    from backend.services.inventory_learning_service import InventoryLearningService
+    from backend.services.tenant_archive import encode_archive
+    from backend.services.tenant_restore_coordinator import run_confirmed_restore
+    from backend.services.tenant_restore_preview import create_restore_preview, confirm_restore_preview
+    from datetime import date
+
+    suffix = uuid.uuid4().hex
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        async with session.bypass_rls() as db:
+            tenant, other = models.Tenant(name='Learning clinic'), models.Tenant(name='Other learning clinic')
+            category = models.MaterialCategory(name_en='learning_' + suffix, name_ar='Synthetic learning')
+            db.add_all([tenant, other, category])
+            await db.flush()
+            user = models.User(tenant_id=tenant.id, username='learning_' + suffix, role='admin',
+                               hashed_password='unchanged', commission_percent=Decimal('17.25'))
+            patient = models.Patient(tenant_id=tenant.id, name='Synthetic learning', phone='0', age=30)
+            deleted = models.Procedure(tenant_id=tenant.id, name='Deleted ' + suffix, price=Decimal('50'))
+            live = models.Procedure(tenant_id=tenant.id, name='Live ' + suffix, price=Decimal('100'))
+            shared = models.Procedure(tenant_id=None, name='Global ' + suffix, price=Decimal('200'))
+            material = models.Material(tenant_id=tenant.id, name='Cement', type='DIVISIBLE', base_unit='g',
+                                       category_id=category.id, standard_price=Decimal('2.50'))
+            warehouse = models.Warehouse(tenant_id=tenant.id, name='Learning warehouse')
+            db.add_all([user, patient, deleted, live, shared, material, warehouse])
+            await db.flush()
+            batch = models.Batch(tenant_id=tenant.id, material_id=material.id, batch_number='learning',
+                                 expiry_date=date(2030, 1, 1), cost_per_unit=Decimal('2.50'))
+            db.add(batch)
+            await db.flush()
+            stock = models.StockItem(tenant_id=tenant.id, warehouse_id=warehouse.id, batch_id=batch.id, quantity=3)
+            db.add(stock)
+            await db.flush()
+            opened = models.MaterialSession(tenant_id=tenant.id, stock_item_id=stock.id, doctor_id=user.id)
+            db.add(opened)
+            await db.flush()
+            for procedure in (deleted, live, shared):
+                treatment = models.Treatment(tenant_id=tenant.id, patient_id=patient.id, doctor_id=user.id,
+                                             tooth_number=16, procedure=procedure.name, cost=procedure.price,
+                                             discount=Decimal('0'))
+                db.add(treatment)
+                await db.flush()
+                db.add_all([
+                    models.ProcedureMaterialWeight(tenant_id=tenant.id, procedure_id=procedure.id,
+                        material_id=material.id, category_id=category.id, weight=1),
+                    models.TreatmentMaterialUsage(tenant_id=tenant.id, treatment_id=treatment.id,
+                        material_id=material.id, session_id=opened.id, weight_score=1),
+                ])
+            await db.commit()
+            tenant_id, other_id, actor, session_id = tenant.id, other.id, user.id, opened.id
+            deleted_id, live_id, global_id = deleted.id, live.id, shared.id
+
+    token = set_current_tenant_id(tenant_id)
+    try:
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=tenant_id)) as db:
+            # Legacy deployments created logs with privileged DB connections,
+            # including global catalogue entries hidden by today's tenant RLS.
+            # Recreate that source data; export/preview/restore below all use
+            # the restricted app connection and retain the global assertions.
+            async with db.bypass_rls() as legacy_db:
+                await InventoryLearningService(legacy_db).close_session(session_id, total_consumed=1.5, user_id=actor)
+            log = (await db.execute(select(models.MaterialLearningLog).where(
+                models.MaterialLearningLog.tenant_id == tenant_id))).scalar_one()
+            original = json.loads(log.calculation_data)
+            assert set(original['learning_updates']) == {str(deleted_id), str(live_id), str(global_id)}
+            assert await delete_procedure(db, deleted_id, tenant_id) is not None
+
+        clear_tenant_context(tenant_token=token)
+        token = set_current_tenant_id(other_id)
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=other_id)) as db:
+            db.add(models.Procedure(id=deleted_id, tenant_id=other_id, name='Other procedure ' + suffix,
+                                     price=Decimal('999.99')))
+            await db.commit()
+        clear_tenant_context(tenant_token=token)
+        token = set_current_tenant_id(tenant_id)
+
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=tenant_id)) as db:
+            payload = await export_clinic_archive_data(db, tenant_id)
+            assert json.loads(payload['data']['material_learning_logs'][0]['calculation_data']) == original
+            from sqlalchemy import update
+            from backend.services.tenant_restore_coordinator import known_global_references
+            globals_ = await known_global_references(db)
+            assert global_id in globals_['procedures']
+            assert live_id not in globals_['procedures'] and deleted_id not in globals_['procedures']
+            unchanged = await db.execute(update(models.Procedure).where(
+                models.Procedure.id == global_id).values(price=Decimal('999')))
+            assert unchanged.rowcount == 0
+            async with db.bypass_rls() as catalog_db:
+                global_price = (await catalog_db.execute(select(models.Procedure.price).where(
+                    models.Procedure.tenant_id.is_(None), models.Procedure.id == global_id))).scalar_one()
+                assert global_price == Decimal('200')
+            from backend.services.export_service import export_tenant_data
+            from backend.services.tenant_archive_legacy import adapt_legacy_json
+            legacy = adapt_legacy_json(await export_tenant_data(db, tenant_id), tenant_id=tenant_id)
+            # Legacy JSON omits learning/weight tables. Keep its existing
+            # no-data-loss rejection rather than treating it as a full backup.
+            from backend.services.tenant_archive import ArchiveError
+            legacy_archive = encode_archive(legacy, tenant_id=tenant_id, installation_id='synthetic-learning',
+                                           schema_revision='bc78a10d932e', key_id='test', key=b'l' * 32)
+            with pytest.raises(ArchiveError, match='النسخة القديمة لا تشمل بيانات حالية'):
+                await create_restore_preview(
+                    db, tenant_id=tenant_id, actor_id=actor, archive=legacy_archive,
+                    installation_id='synthetic-learning', keys={'test': b'l' * 32},
+                    supported_revisions={'bc78a10d932e'}, max_bytes=1000000)
+            assert json.loads(log.calculation_data) == original
+            for revision in ('bc78a10d932e', 'e2b3c4d5e6f7'):
+                archive = encode_archive(payload, tenant_id=tenant_id, installation_id='synthetic-learning',
+                                         schema_revision=revision, key_id='test', key=b'l' * 32)
+                operation, confirmation, _, _, _ = await create_restore_preview(
+                    db, tenant_id=tenant_id, actor_id=actor, archive=archive,
+                    installation_id='synthetic-learning', keys={'test': b'l' * 32},
+                    supported_revisions={revision}, max_bytes=1000000)
+                await confirm_restore_preview(db, tenant_id=tenant_id, actor_id=actor,
+                    operation_id=operation.id, confirmation=confirmation, archive_digest=operation.archive_digest)
+                _, mapping = await run_confirmed_restore(db, tenant_id=tenant_id, operation_id=operation.id,
+                    installation_id='synthetic-learning', keys={'test': b'l' * 32},
+                    supported_revisions={revision}, max_bytes=1000000)
+                new_historical = mapping['historical_procedures'][deleted_id]
+                new_live = mapping['procedures'][live_id]
+                assert new_historical not in {new_live, global_id, deleted_id}
+                log = (await db.execute(select(models.MaterialLearningLog).where(
+                    models.MaterialLearningLog.tenant_id == tenant_id).execution_options(populate_existing=True))).scalar_one()
+                restored = json.loads(log.calculation_data)
+                assert restored['learning_updates'] == {
+                    str(new_historical): original['learning_updates'][str(deleted_id)],
+                    str(new_live): original['learning_updates'][str(live_id)],
+                    str(global_id): original['learning_updates'][str(global_id)],
+                }
+                assert [entry['treatment_id'] for entry in restored['dist_log']] == [
+                    mapping['treatments'][entry['treatment_id']] for entry in original['dist_log']]
+                assert [entry['cost'] for entry in restored['usage_updates']] == [
+                    entry['cost'] for entry in original['usage_updates']]
+                procedures = (await db.execute(select(models.Procedure).where(
+                    models.Procedure.tenant_id == tenant_id))).scalars().all()
+                assert len(procedures) == 1 and procedures[0].id == new_live
+                assert procedures[0].price == Decimal('100')
+                weights = (await db.execute(select(models.ProcedureMaterialWeight).where(
+                    models.ProcedureMaterialWeight.tenant_id == tenant_id))).scalars().all()
+                assert {row.procedure_id for row in weights} == {new_live, global_id}
+                assert all(row.current_average_usage == 0.5 and row.sample_size == 1 for row in weights)
+                user = (await db.execute(select(models.User).where(
+                    models.User.tenant_id == tenant_id, models.User.id == actor))).scalar_one()
+                assert user.hashed_password == 'unchanged' and user.commission_percent == Decimal('17.25')
+                future = models.Procedure(tenant_id=tenant_id, name='Future ' + uuid.uuid4().hex, price=Decimal('0'))
+                db.add(future)
+                await db.flush()
+                assert future.id != new_historical
+                await db.rollback()
+                payload = await export_clinic_archive_data(db, tenant_id)
+                original, deleted_id, live_id = restored, new_historical, new_live
+            await db.rollback()
+
+        clear_tenant_context(tenant_token=token)
+        token = set_current_tenant_id(other_id)
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=other_id)) as db:
+            other_proc = (await db.execute(select(models.Procedure).where(
+                models.Procedure.tenant_id == other_id))).scalar_one()
+            assert other_proc.price == Decimal('999.99') and other_proc.name == 'Other procedure ' + suffix
+    finally:
+        clear_tenant_context(tenant_token=token)
