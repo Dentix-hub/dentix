@@ -2,7 +2,8 @@
 /**
  * verify-vercel-preview-routes.mjs
  * Independent HTTP route verification for Vercel Preview deployment.
- * Validates clean URLs, 308 redirects, 404 fallthroughs, and security headers.
+ * Validates clean URLs, 308 redirects (with strict origin/pathname comparison),
+ * strict content-types, 404 fallthroughs, and semantic AST/XML validation.
  * Zero state modification / Zero database mutations.
  *
  * Usage:
@@ -11,71 +12,105 @@
  *   node scripts/verify-vercel-preview-routes.mjs https://dentix-preview.vercel.app
  */
 
-const targetUrl = process.argv[2] || process.env.VERCEL_PREVIEW_URL;
+import {
+  validateMarketingHtml,
+  validateSitemapXml,
+  validateRobotsTxt,
+} from './verify-marketing-artifacts.mjs';
 
-if (!targetUrl) {
-  console.log(`
-[verify-vercel-preview] Usage: node scripts/verify-vercel-preview-routes.mjs <URL>
-No URL provided. Set VERCEL_PREVIEW_URL or pass the deployment URL as the first argument.
-This script performs non-mutating HTTP assertions (GET/HEAD only) against the deployment.
-`);
-  process.exit(1);
-}
-
+const targetUrl = process.argv[2] || process.env.VERCEL_PREVIEW_URL || 'http://localhost:3000';
 const baseUrl = targetUrl.replace(/\/+$/, '');
-console.log(`[verify-vercel-preview] Target deployment: ${baseUrl}`);
+const expectedOrigin = new URL(baseUrl).origin;
 
-async function checkRoute(description, path, expected) {
-  const url = `${baseUrl}${path}`;
+export async function checkRoute(description, path, expected, deploymentBaseUrl = baseUrl) {
+  const currentBase = deploymentBaseUrl.replace(/\/+$/, '');
+  const origin = new URL(currentBase).origin;
+  const url = `${currentBase}${path}`;
   const result = { description, path, passed: true, details: [] };
 
   try {
     const res = await fetch(url, { redirect: 'manual' });
 
-    // Check status
+    // 1. Check HTTP status code
     if (expected.status !== undefined && res.status !== expected.status) {
       result.passed = false;
       result.details.push(`Status mismatch: expected ${expected.status}, got ${res.status}`);
     }
 
-    // Check redirect Location header
+    // 2. Strict Redirect Location validation (origin + pathname)
     if (expected.location !== undefined) {
-      const loc = res.headers.get('location') || '';
-      if (!loc.endsWith(expected.location)) {
+      const locHeader = res.headers.get('location');
+      if (!locHeader) {
         result.passed = false;
-        result.details.push(`Location mismatch: expected ending with '${expected.location}', got '${loc}'`);
-      }
-    }
-
-    // Check Content-Type header
-    if (expected.contentType !== undefined) {
-      const ct = res.headers.get('content-type') || '';
-      if (!ct.includes(expected.contentType)) {
-        result.passed = false;
-        result.details.push(`Content-Type mismatch: expected '${expected.contentType}', got '${ct}'`);
-      }
-    }
-
-    // Check body content if required
-    if (expected.bodyContains !== undefined) {
-      const body = await res.text();
-      for (const expectedText of expected.bodyContains) {
-        if (!body.includes(expectedText)) {
+        result.details.push('Location header missing in redirect response');
+      } else {
+        try {
+          const resolvedLoc = new URL(locHeader, currentBase);
+          // Origin must match expected deployment origin (reject cross-domain open redirects)
+          if (resolvedLoc.origin !== origin) {
+            result.passed = false;
+            result.details.push(`Location origin mismatch (cross-domain redirect rejected): expected '${origin}', got '${resolvedLoc.origin}'`);
+          }
+          // Pathname must match exact expected destination
+          if (resolvedLoc.pathname !== expected.location) {
+            result.passed = false;
+            result.details.push(`Location pathname mismatch: expected '${expected.location}', got '${resolvedLoc.pathname}'`);
+          }
+        } catch (e) {
           result.passed = false;
-          result.details.push(`Body missing required text: '${expectedText}'`);
+          result.details.push(`Invalid Location URL header: '${locHeader}' (${e.message})`);
         }
       }
-      if (expected.bodyNotContains !== undefined) {
-        for (const notExpected of expected.bodyNotContains) {
-          if (body.includes(notExpected)) {
+    }
+
+    // 3. Strict Content-Type validation
+    const ct = (res.headers.get('content-type') || '').toLowerCase();
+    if (expected.contentType !== undefined) {
+      if (!ct.includes(expected.contentType.toLowerCase())) {
+        result.passed = false;
+        result.details.push(`Content-Type mismatch: expected containing '${expected.contentType}', got '${ct}'`);
+      }
+    }
+    if (expected.contentTypeNot !== undefined) {
+      if (ct.includes(expected.contentTypeNot.toLowerCase())) {
+        result.passed = false;
+        result.details.push(`Content-Type illegally contains '${expected.contentTypeNot}': '${ct}'`);
+      }
+    }
+
+    // 4. Body reading and semantic validation
+    if (expected.validator || expected.bodyContains || expected.bodyNotContains) {
+      const body = await res.text();
+
+      if (expected.bodyContains) {
+        for (const text of expected.bodyContains) {
+          if (!body.includes(text)) {
             result.passed = false;
-            result.details.push(`Body illegally contains text: '${notExpected}'`);
+            result.details.push(`Body missing required text: '${text}'`);
           }
         }
       }
+
+      if (expected.bodyNotContains) {
+        for (const text of expected.bodyNotContains) {
+          if (body.includes(text)) {
+            result.passed = false;
+            result.details.push(`Body illegally contains text: '${text}'`);
+          }
+        }
+      }
+
+      // Reuse semantic parsers
+      if (expected.validator) {
+        const valErrors = expected.validator(body);
+        if (valErrors.length > 0) {
+          result.passed = false;
+          result.details.push(...valErrors);
+        }
+      }
     }
 
-    // Check headers
+    // 5. Security headers
     if (expected.headers) {
       for (const [hKey, hVal] of Object.entries(expected.headers)) {
         const val = res.headers.get(hKey);
@@ -93,7 +128,7 @@ async function checkRoute(description, path, expected) {
   return result;
 }
 
-const routeTests = [
+export const routeTests = [
   {
     desc: 'Root / serves SPA application entry (HTTP 200)',
     path: '/',
@@ -105,21 +140,16 @@ const routeTests = [
     expected: {
       status: 200,
       contentType: 'text/html',
-      bodyContains: [
-        '<html lang="ar" dir="rtl">',
-        'إدارة عيادة الأسنان من مكان واحد.',
-        'https://www.dentixs.app/ar',
-      ],
-      bodyNotContains: ['registerSW', 'assets/index-'],
+      validator: (html) => validateMarketingHtml(html),
     },
   },
   {
-    desc: 'Trailing slash /ar/ redirects with 308 to /ar',
+    desc: 'Trailing slash /ar/ redirects with 308 to /ar on same origin',
     path: '/ar/',
     expected: { status: 308, location: '/ar' },
   },
   {
-    desc: '/ar/index.html redirects with 308 to /ar',
+    desc: '/ar/index.html redirects with 308 to /ar on same origin',
     path: '/ar/index.html',
     expected: { status: 308, location: '/ar' },
   },
@@ -148,21 +178,23 @@ const routeTests = [
     expected: { status: 404 },
   },
   {
-    desc: '/robots.txt is served as plain text (HTTP 200)',
+    desc: '/robots.txt is served as plain text (HTTP 200) and passes semantic robots validation',
     path: '/robots.txt',
     expected: {
       status: 200,
-      bodyContains: ['User-agent: *', 'Disallow: /api/', 'Sitemap: https://www.dentixs.app/sitemap.xml'],
-      bodyNotContains: ['<!DOCTYPE', '<html'],
+      contentType: 'text/plain',
+      contentTypeNot: 'text/html',
+      validator: (txt) => validateRobotsTxt(txt),
     },
   },
   {
-    desc: '/sitemap.xml is served as valid XML containing only /ar (HTTP 200)',
+    desc: '/sitemap.xml is served as XML (HTTP 200) and passes semantic XML validation',
     path: '/sitemap.xml',
     expected: {
       status: 200,
-      bodyContains: ['<loc>https://www.dentixs.app/ar</loc>'],
-      bodyNotContains: ['/patients', '/login', '/api/'],
+      contentType: 'xml',
+      contentTypeNot: 'text/html',
+      validator: (xml) => validateSitemapXml(xml),
     },
   },
   {
@@ -178,12 +210,25 @@ const routeTests = [
 ];
 
 async function main() {
+  const cliUrl = process.argv[2] || process.env.VERCEL_PREVIEW_URL;
+  if (!cliUrl) {
+    console.log(`
+[verify-vercel-preview] Usage: node scripts/verify-vercel-preview-routes.mjs <URL>
+No URL provided. Set VERCEL_PREVIEW_URL or pass the deployment URL as the first argument.
+This script performs non-mutating HTTP assertions (GET/HEAD only) against the deployment.
+`);
+    process.exit(1);
+  }
+  const currentBase = cliUrl.replace(/\/+$/, '');
+  const currentOrigin = new URL(currentBase).origin;
+  console.log(`[verify-vercel-preview] Target deployment: ${currentBase} (Origin: ${currentOrigin})`);
+
   console.log(`\nExecuting ${routeTests.length} HTTP route contract assertions...\n`);
   let passedCount = 0;
   let failedCount = 0;
 
   for (const t of routeTests) {
-    const res = await checkRoute(t.desc, t.path, t.expected);
+    const res = await checkRoute(t.desc, t.path, t.expected, currentBase);
     if (res.passed) {
       console.log(`  ✓ PASS: ${res.description}`);
       passedCount++;
@@ -202,4 +247,7 @@ async function main() {
   }
 }
 
-main();
+const isCli = process.argv[1] && import.meta.url.endsWith(process.argv[1]);
+if (isCli) {
+  main();
+}

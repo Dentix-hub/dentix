@@ -122,7 +122,8 @@ test.describe('Dentix Arabic Marketing Page', () => {
   test('PWA lifecycle: old worker waits for user update, accepts SKIP_WAITING, then allows /ar navigation without breaking app routes', async ({ page, context, javaScriptEnabled }) => {
     test.skip(!javaScriptEnabled, 'Service worker requires JavaScript');
 
-    // 1. Mock an old service worker that intercepts all navigations
+    // 1. Mock an old service worker that intercepts /ar navigations (as legacy SW lacked the /ar bypass)
+    // while allowing real application routes to pass through to the app shell.
     await context.route('**/mock-old-sw.js', (route) => {
       route.fulfill({
         contentType: 'application/javascript',
@@ -130,33 +131,45 @@ test.describe('Dentix Arabic Marketing Page', () => {
           self.addEventListener('install', (e) => self.skipWaiting());
           self.addEventListener('activate', (e) => self.clients.claim());
           self.addEventListener('fetch', (e) => {
-            if (e.request.mode === 'navigate') {
-              e.respondWith(new Response('<!DOCTYPE html><html><body><div id="root">OLD_APP_SHELL</div></body></html>', {
+            const url = new URL(e.request.url);
+            if (e.request.mode === 'navigate' && (url.pathname === '/ar' || url.pathname.startsWith('/ar/'))) {
+              e.respondWith(new Response('<!DOCTYPE html><html><body><div id="root">OLD_APP_SHELL_INTERCEPTED</div></body></html>', {
                 headers: { 'Content-Type': 'text/html; charset=utf-8' }
               }));
+              return;
             }
           });
         `,
       });
     });
 
+    // Clean up any lingering SW from previous tests to ensure deterministic state
     await page.goto('/');
+    await page.evaluate(async () => {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (const r of registrations) await r.unregister();
+    });
 
     // 2. Register old SW and wait for it to take control
     await page.evaluate(async () => {
       await navigator.serviceWorker.register('/mock-old-sw.js', { scope: '/' });
       await navigator.serviceWorker.ready;
+      if (!navigator.serviceWorker.controller) {
+        await new Promise((resolve) => {
+          navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true });
+        });
+      }
     });
 
-    // Reload page to ensure old SW controller takes effect on document
-    await page.goto('/patients');
-    await expect(page.locator('#root')).toHaveText('OLD_APP_SHELL');
-
-    // Old SW also intercepts /ar/index.html because it lacks the bypass
+    // Old SW intercepts /ar/index.html because it lacks the bypass
     await page.goto('/ar/index.html');
-    await expect(page.locator('#root')).toHaveText('OLD_APP_SHELL');
+    await expect(page.locator('#root')).toHaveText('OLD_APP_SHELL_INTERCEPTED');
 
-    // 3. Register the new production service worker /sw.js
+    // 3. Navigate to the real app shell at /
+    await page.goto('/');
+    await expect(page.locator('#root')).toBeVisible();
+
+    // 4. Register the new production service worker /sw.js
     await page.evaluate(async () => {
       const reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
       await new Promise((resolve) => {
@@ -170,37 +183,85 @@ test.describe('Dentix Arabic Marketing Page', () => {
             if (newWorker.state === 'installed') resolve(true);
           });
         });
-        setTimeout(resolve, 2500);
+        setTimeout(resolve, 3500);
       });
     });
 
-    // 4. Verify the new worker is waiting and did NOT take over automatically
+    // 4. Strict Assertion: Verify the new worker is waiting and did NOT take over automatically
+    await page.waitForFunction(async () => {
+      const reg = await navigator.serviceWorker.getRegistration();
+      return !!reg && !!reg.waiting;
+    }, { timeout: 10000 });
+
     const swState = await page.evaluate(async () => {
       const reg = await navigator.serviceWorker.getRegistration();
       return {
         hasWaiting: !!reg?.waiting,
         activeScript: reg?.active?.scriptURL || '',
+        waitingScript: reg?.waiting?.scriptURL || '',
       };
     });
+    expect(swState.hasWaiting).toBe(true);
     expect(swState.activeScript).toContain('mock-old-sw.js');
+    expect(swState.waitingScript).toContain('sw.js');
 
-    // 5. User accepts update via UI: send SKIP_WAITING to waiting worker
+    // 5. User accepts update via UI:
+    // Look for the actual update confirmation button in the application UI
+    const updateButton = page.getByRole('button', { name: /حدّث الآن|Update now/i });
+    if (await updateButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+      // Click the actual user-facing acceptance button in the app UI
+      await updateButton.click();
+    } else {
+      // Direct user acceptance signal to the waiting worker
+      await page.evaluate(async () => {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg?.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        }
+      });
+    }
+
+    // 6. Explicit Activation Wait: Must reject/fail on timeout rather than silently passing
     await page.evaluate(async () => {
-      const reg = await navigator.serviceWorker.getRegistration();
-      if (reg?.waiting) {
-        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-      }
-      await new Promise((resolve) => {
-        navigator.serviceWorker.addEventListener('controllerchange', resolve, { once: true });
-        setTimeout(resolve, 2000);
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error('Timed out waiting for new service worker controller to activate via controllerchange'));
+        }, 8000);
+        navigator.serviceWorker.addEventListener('controllerchange', () => {
+          clearTimeout(timer);
+          resolve(true);
+        }, { once: true });
       });
     });
 
-    // 6. After update acceptance:
-    // Navigating to /ar/index.html reaches the static marketing page directly (bypasses SW)
+    // Verify the new production worker has activated and taken control
+    await page.waitForFunction(async () => {
+      const reg = await navigator.serviceWorker.getRegistration();
+      return !!reg && !!reg.active && reg.active.scriptURL.includes('sw.js') && !reg.waiting;
+    }, { timeout: 8000 });
+
+    const postUpdateSw = await page.evaluate(async () => {
+      const reg = await navigator.serviceWorker.getRegistration();
+      return {
+        activeScript: reg?.active?.scriptURL || '',
+        hasWaiting: !!reg?.waiting,
+      };
+    });
+    expect(postUpdateSw.activeScript).toContain('sw.js');
+    expect(postUpdateSw.hasWaiting).toBe(false);
+
+    // 7. Verify public marketing page after update:
+    // /ar/index.html reaches the static marketing page directly (bypasses SW network)
     await page.goto('/ar/index.html');
     await expect(page.locator('h1')).toHaveText('إدارة عيادة الأسنان من مكان واحد.');
     await expect(page.locator('#root')).toHaveCount(0); // Pure marketing HTML, NOT old app shell
+
+    // 8. Verify known application route after update:
+    // / continues to load the React app shell with login form and discovery link
+    await page.goto('/');
+    await expect(page.locator('#root')).toBeVisible();
+    const discoveryLink = page.locator('a[href="/ar"]');
+    await expect(discoveryLink).toBeVisible();
 
     // Clean up SW registration after test
     await page.evaluate(async () => {

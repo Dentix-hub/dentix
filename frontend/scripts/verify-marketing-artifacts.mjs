@@ -106,7 +106,25 @@ export function validateMarketingHtml(html, distDir = null) {
     errors.push(`Expected at least 2 login links pointing to '/', found ${loginCount}`);
   }
 
-  // 7. Check image assets on disk
+  // 7. Check <link> assets on disk (stylesheets, icons, touch icons)
+  if (distDir) {
+    const linkElements = doc.querySelectorAll('link');
+    for (const linkEl of linkElements) {
+      const rel = (linkEl.getAttribute('rel') || '').toLowerCase();
+      const href = linkEl.getAttribute('href') || '';
+      // Exclude canonical, dns-prefetch, preconnect
+      if (['stylesheet', 'icon', 'apple-touch-icon', 'shortcut icon'].some((r) => rel.includes(r))) {
+        if (href.startsWith('/') && !href.startsWith('//')) {
+          const localFile = path.join(distDir, href.replace(/^\//, ''));
+          if (!existsSync(localFile)) {
+            errors.push(`Referenced <link rel="${rel}"> asset not found on disk: ${href}`);
+          }
+        }
+      }
+    }
+  }
+
+  // 8. Check <img> assets on disk
   if (distDir) {
     const images = doc.querySelectorAll('img');
     for (const img of images) {
@@ -140,16 +158,38 @@ export function validateSitemapXml(xml, allowedUrls = ALLOWED_SITEMAP_URLS) {
     return errors;
   }
 
+  // Validate root element
+  const root = doc.documentElement;
+  if (!root || root.tagName.toLowerCase() !== 'urlset') {
+    errors.push(`Invalid sitemap root element: expected '<urlset>', found '<${root ? root.tagName.toLowerCase() : 'null'}>'`);
+    return errors;
+  }
+
+  // Validate xmlns namespace
+  const xmlns = root.getAttribute('xmlns');
+  if (xmlns !== 'http://www.sitemaps.org/schemas/sitemap/0.9') {
+    errors.push(`Invalid sitemap xmlns namespace: expected 'http://www.sitemaps.org/schemas/sitemap/0.9', found '${xmlns}'`);
+  }
+
   const locs = Array.from(doc.querySelectorAll('url > loc'));
   if (locs.length === 0) {
     errors.push('sitemap.xml contains no <url><loc> entries');
     return errors;
   }
 
-  for (const loc of locs) {
-    const url = loc.textContent.trim();
+  const extractedUrls = new Set(locs.map((l) => l.textContent.trim()));
+
+  // Check for disallowed/unexpected URLs
+  for (const url of extractedUrls) {
     if (!allowedUrls.has(url)) {
       errors.push(`Disallowed or unexpected URL in sitemap.xml: ${url}`);
+    }
+  }
+
+  // Check for missing required URLs
+  for (const expectedUrl of allowedUrls) {
+    if (!extractedUrls.has(expectedUrl)) {
+      errors.push(`Required URL missing from sitemap.xml: ${expectedUrl}`);
     }
   }
 

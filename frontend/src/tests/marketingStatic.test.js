@@ -6,6 +6,7 @@ import {
     validateSitemapXml,
     validateRobotsTxt,
 } from '../../scripts/verify-marketing-artifacts.mjs';
+import { checkRoute } from '../../scripts/verify-vercel-preview-routes.mjs';
 
 const arHtmlPath = path.resolve('public/ar/index.html');
 const cssPath = path.resolve('public/marketing/marketing.css');
@@ -203,6 +204,48 @@ describe('Marketing Static Arabic Page Contract', () => {
             expect(errors.some((e) => e.includes('XML') || e.includes('Invalid') || e.includes('unclosed'))).toBe(true);
         });
 
+        it('proves rejection of sitemap with invalid root element like <not-a-sitemap>', () => {
+            const invalidRoot = `<?xml version="1.0" encoding="UTF-8"?>
+<not-a-sitemap xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://www.dentixs.app/ar</loc></url>
+</not-a-sitemap>`;
+            const errors = validateSitemapXml(invalidRoot);
+            expect(errors.length).toBeGreaterThan(0);
+            expect(errors.some((e) => e.includes('Invalid sitemap root element'))).toBe(true);
+        });
+
+        it('proves rejection of sitemap with wrong or missing namespace xmlns', () => {
+            const wrongNamespace = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://example.com/wrong-schema">
+  <url><loc>https://www.dentixs.app/ar</loc></url>
+</urlset>`;
+            const errors = validateSitemapXml(wrongNamespace);
+            expect(errors.length).toBeGreaterThan(0);
+            expect(errors.some((e) => e.includes('Invalid sitemap xmlns namespace'))).toBe(true);
+        });
+
+        it('proves rejection of sitemap missing the required /ar URL', () => {
+            const emptySitemap = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://www.dentixs.app/other</loc></url>
+</urlset>`;
+            const errors = validateSitemapXml(emptySitemap);
+            expect(errors.length).toBeGreaterThan(0);
+            expect(errors.some((e) => e.includes('Required URL missing'))).toBe(true);
+        });
+
+        it('proves rejection of missing stylesheet or icon in <link> elements', () => {
+            const htmlWithMissingCss = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>Test</title><link rel="canonical" href="https://www.dentixs.app/ar"><link rel="stylesheet" href="/marketing/nonexistent-css-file.css"></head><body><a href="/">تسجيل الدخول</a><a href="/">تسجيل الدخول</a></body></html>`;
+            const errorsCss = validateMarketingHtml(htmlWithMissingCss, path.resolve('public'));
+            expect(errorsCss.length).toBeGreaterThan(0);
+            expect(errorsCss.some((e) => e.includes('Referenced <link rel="stylesheet"> asset not found on disk'))).toBe(true);
+
+            const htmlWithMissingIcon = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>Test</title><link rel="canonical" href="https://www.dentixs.app/ar"><link rel="icon" href="/icons/missing-icon-file.png"></head><body><a href="/">تسجيل الدخول</a><a href="/">تسجيل الدخول</a></body></html>`;
+            const errorsIcon = validateMarketingHtml(htmlWithMissingIcon, path.resolve('public'));
+            expect(errorsIcon.length).toBeGreaterThan(0);
+            expect(errorsIcon.some((e) => e.includes('Referenced <link rel="icon"> asset not found on disk'))).toBe(true);
+        });
+
         it('proves rejection of disallowed or private routes like /patients in sitemap.xml', () => {
             const sitemapWithPatients = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
@@ -249,6 +292,65 @@ describe('Marketing Static Arabic Page Contract', () => {
             expect(validateMarketingHtml(actualHtml, path.resolve('public'))).toEqual([]);
             expect(validateSitemapXml(actualSitemap)).toEqual([]);
             expect(validateRobotsTxt(actualRobots)).toEqual([]);
+        });
+    });
+
+    describe('Vercel Preview HTTP Route Validator Robustness Tests', () => {
+        it('proves checkRoute catches and rejects cross-domain redirect attempt (open-redirect)', async () => {
+            const originalFetch = globalThis.fetch;
+            globalThis.fetch = async () => new Response(null, {
+                status: 308,
+                headers: { location: 'https://evil.attacker.com/ar' },
+            });
+
+            try {
+                const res = await checkRoute('Trailing slash redirect', '/ar/', { status: 308, location: '/ar' });
+                expect(res.passed).toBe(false);
+                expect(res.details.some((d) => d.includes('Location origin mismatch'))).toBe(true);
+            } finally {
+                globalThis.fetch = originalFetch;
+            }
+        });
+
+        it('proves checkRoute catches and rejects robots.txt served as text/html', async () => {
+            const originalFetch = globalThis.fetch;
+            globalThis.fetch = async () => new Response('User-agent: *\nDisallow: /api/\nSitemap: https://www.dentixs.app/sitemap.xml', {
+                status: 200,
+                headers: { 'content-type': 'text/html; charset=utf-8' },
+            });
+
+            try {
+                const res = await checkRoute('Robots check', '/robots.txt', {
+                    status: 200,
+                    contentType: 'text/plain',
+                    contentTypeNot: 'text/html',
+                    validator: validateRobotsTxt,
+                });
+                expect(res.passed).toBe(false);
+                expect(res.details.some((d) => d.includes('Content-Type'))).toBe(true);
+            } finally {
+                globalThis.fetch = originalFetch;
+            }
+        });
+
+        it('proves checkRoute catches and rejects sitemap.xml with invalid XML or bad schema', async () => {
+            const originalFetch = globalThis.fetch;
+            globalThis.fetch = async () => new Response('<not-a-sitemap></not-a-sitemap>', {
+                status: 200,
+                headers: { 'content-type': 'application/xml; charset=utf-8' },
+            });
+
+            try {
+                const res = await checkRoute('Sitemap check', '/sitemap.xml', {
+                    status: 200,
+                    contentType: 'xml',
+                    validator: validateSitemapXml,
+                });
+                expect(res.passed).toBe(false);
+                expect(res.details.some((d) => d.includes('Invalid sitemap root element'))).toBe(true);
+            } finally {
+                globalThis.fetch = originalFetch;
+            }
         });
     });
 });
