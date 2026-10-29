@@ -53,7 +53,7 @@ seed data. No assertion in an existing test was changed.
 
 ```text
 python -m pytest backend/tests/test_archive_adjacent_recovery.py backend/tests/test_archive_deleted_treatments.py backend/tests/test_archive_learning_history.py backend/tests/test_tenant_archive.py backend/tests/test_tenant_backup_api.py backend/tests/test_backup_restore_fk.py backend/tests/test_backup_disconnect_scope.py backend/tests/test_rbac.py backend/tests/services/test_treatment_service.py backend/tests/services/test_lab_service.py backend/tests/test_lab_finance_linkage_audit.py backend/tests/test_lab_debt_l1.py backend/tests/services/test_care_session_service.py backend/tests/services/test_care_session_appointment_integration.py backend/tests/services/test_care_session_material_consumption.py backend/tests/services/test_care_session_resume_and_rct_scenario.py -q --tb=short --show-capture=no --disable-warnings -o log_level=WARNING
-PASS: 213 passed, 0 failed, 0 skipped; exit 0.
+PASS: 214 passed, 0 failed, 0 skipped; exit 0.
 
 python -m pytest backend/ci_tests/test_tenant_archive_restore_pg.py backend/ci_tests/test_restore_transaction_gate_pg.py backend/ci_tests/test_tenant_data_operations_rls.py backend/ci_tests/test_drive_backup_operations_pg.py backend/ci_tests/test_treatment_lab_atomic_pg.py backend/ci_tests/test_cross_tenant_http_postgres.py -q --tb=short --show-capture=no --disable-warnings --confcutdir=backend/ci_tests
 PASS: 15 passed, 0 failed, 0 skipped; exit 0.
@@ -83,10 +83,28 @@ as review evidence; they are not used as successful functionality tests.
 Full suites were not repeated; CI remains the integration authority. Existing
 deprecation/tracer warnings did not fail the final commands.
 
+## Final pre-delivery review
+
+The cumulative diff was reviewed against the current staging head `94769aa`.
+No schema, CI or governance file changed, and no existing test assertion was
+weakened. A new regression reproduced an overly strict historical-snapshot
+check: the learning writer can retain zero-weight distribution entries while
+another entry gives the calculation a positive total. The recognition rule now
+permits finite non-negative entry weights while still requiring a positive
+total and rejecting the existing negative-weight/incomplete-evidence cases.
+
+After this correction the final commands above were rerun: 214 backend tests
+and 15 PostgreSQL tests passed with real exit 0. An initial PostgreSQL rerun
+collided with fixed tenant fixture IDs in the previously used disposable
+database. A fresh disposable database was migrated to the existing head and
+the entire 15-test gate passed without changing any assertion or deleting
+old fixture data. Targeted test counts are functionality evidence; CI owns
+coverage acceptance. No remaining actionable blocker was found in this review.
+
 ## Remaining delivery boundary
 
-Local implementation and targeted verification: **DONE**. Remote delivery,
-deployment and affected-clinic acceptance have not been performed. After delivery
+Local implementation, review and targeted verification: **DONE**. PR delivery
+is authorized; deployment and affected-clinic acceptance remain pending. After delivery
 and deployment, download and preview a fresh same-clinic `.dentix` archive,
 preview the previously failing encrypted file, and trigger one manual Drive
 backup. A confirmed restore on real clinic data is a separate destructive action

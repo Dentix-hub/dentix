@@ -138,7 +138,7 @@ def inventory_treatment_history(data):
                 continue
             if any(not isinstance(entry, dict) or set(entry) != {'treatment_id', 'procedure', 'weight'}
                    or not _positive_id(entry['treatment_id']) or not isinstance(entry['procedure'], str)
-                   or not entry['procedure'] or not _finite(entry['weight'], positive=True) for entry in distribution):
+                   or not entry['procedure'] or not _finite(entry['weight']) for entry in distribution):
                 continue
             ids = {entry['treatment_id'] for entry in distribution}
             if len(ids) != len(distribution) or not isinstance(usages, list) or any(

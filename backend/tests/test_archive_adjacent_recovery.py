@@ -286,3 +286,21 @@ def test_learning_history_requires_complete_closed_same_clinic_snapshot(mutation
     data['material_learning_logs'][0]['calculation_data'] = json.dumps(snapshot)
     with pytest.raises(ArchiveError):
         validate_embedded_references(data, tenant_id=7)
+
+
+def test_closed_learning_history_preserves_zero_weight_entries_in_positive_total():
+    # The existing learning writer records zero-weight catalogue entries even
+    # when another procedure gives the session a positive total weight.
+    snapshot = {'treatments_count': 2, 'total_weight_score': 1, 'unit_weight_value': 1,
+        'dist_log': [{'treatment_id': 9, 'procedure': 'Excluded from distribution', 'weight': 0},
+                     {'treatment_id': 10, 'procedure': 'Included in distribution', 'weight': 1}],
+        'usage_updates': [], 'learning_updates': {}}
+    data = {'staff_references': [], 'treatments': [],
+        'stock_items': [{'id': 1, 'tenant_id': 7, 'batch_id': 2}],
+        'batches': [{'id': 2, 'tenant_id': 7, 'material_id': 3}],
+        'materials': [{'id': 3, 'tenant_id': 7}],
+        'material_sessions': [{'id': 4, 'tenant_id': 7, 'stock_item_id': 1, 'status': 'CLOSED'}],
+        'material_learning_logs': [{'id': 5, 'tenant_id': 7, 'session_id': 4,
+            'material_id': 3, 'total_consumed': 1, 'calculation_data': json.dumps(snapshot)}]}
+    validate_embedded_references(data, tenant_id=7)
+    assert json.loads(data['material_learning_logs'][0]['calculation_data']) == snapshot
