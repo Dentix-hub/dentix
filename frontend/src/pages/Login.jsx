@@ -194,6 +194,8 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                 )}
                 <div className="mt-8 pt-6 border-t border-slate-100/10 flex flex-col gap-2">
                     <div className="flex justify-center gap-4 text-xs font-medium text-text-secondary">
+                        <a href={i18n.language === 'ar' || i18n.language?.startsWith('ar') ? '/ar' : '/en'} className="hover:text-primary transition-colors">{t('auth.login.about')}</a>
+                        <span>•</span>
                         <Link to="/terms" className="hover:text-primary transition-colors">{t('auth.login.terms')}</Link>
                         <span>•</span>
                         <Link to="/privacy" className="hover:text-primary transition-colors">{t('auth.login.privacy')}</Link>

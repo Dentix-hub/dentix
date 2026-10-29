@@ -119,6 +119,83 @@ describe('custom service worker contract (plan §11)', () => {
         expect(event.respondWith).not.toHaveBeenCalled();
     });
 
+    it('bypasses service worker for marketing routes, robots.txt, and sitemap.xml (NetworkOnly)', () => {
+        const bypassedPaths = [
+            '/ar',
+            '/ar/',
+            '/ar/unknown',
+            '/en',
+            '/en/',
+            '/en/unknown',
+            '/marketing/marketing.css',
+            '/marketing/other.css',
+            '/robots.txt',
+            '/sitemap.xml',
+        ];
+
+        for (const p of bypassedPaths) {
+            const navEvent = {
+                request: { url: `https://www.dentixs.app${p}`, mode: 'navigate', method: 'GET' },
+                respondWith: vi.fn(),
+            };
+            stubs.listeners.fetch(navEvent);
+            expect(navEvent.respondWith, `Expected bypass for ${p}`).not.toHaveBeenCalled();
+        }
+    });
+
+    it('preserves boundary and intercepts normal SPA routes including /archive and /enterprise', () => {
+        const preservedPaths = [
+            '/patients',
+            '/appointments',
+            '/archive',
+            '/enterprise',
+            '/',
+        ];
+
+        for (const p of preservedPaths) {
+            const navEvent = {
+                request: { url: `https://www.dentixs.app${p}`, mode: 'navigate', method: 'GET' },
+                respondWith: vi.fn(),
+            };
+            stubs.listeners.fetch(navEvent);
+            expect(navEvent.respondWith, `Expected shell intercept for ${p}`).toHaveBeenCalled();
+        }
+    });
+
+    it('implements user-controlled update cycle: no skipWaiting on install, waits for SKIP_WAITING message, then activates and bypasses /ar', async () => {
+        // Step 1: Install event does not call skipWaiting
+        const installEvent = { waitUntil: vi.fn() };
+        stubs.listeners.install(installEvent);
+        expect(stubs.selfStub.skipWaiting).not.toHaveBeenCalled();
+
+        // Step 2: Message event triggers skipWaiting on explicit user confirmation
+        const messageEvent = { data: { type: 'SKIP_WAITING' } };
+        stubs.listeners.message(messageEvent);
+        expect(stubs.selfStub.skipWaiting).toHaveBeenCalledTimes(1);
+
+        // Step 3: Activate event deletes older generations
+        stubs.cachesStub.keys.mockResolvedValue(['dentix-precache-oldgen', 'dentix-precache-other']);
+        const activateEvent = { waitUntil: (p) => p };
+        stubs.listeners.activate(activateEvent);
+        await vi.waitFor(() => expect(stubs.cachesStub.delete).toHaveBeenCalledWith('dentix-precache-oldgen'));
+
+        // Step 4: After activation, /ar bypasses worker (NetworkOnly)
+        const arNavEvent = {
+            request: { url: 'https://www.dentixs.app/ar', mode: 'navigate', method: 'GET' },
+            respondWith: vi.fn(),
+        };
+        stubs.listeners.fetch(arNavEvent);
+        expect(arNavEvent.respondWith).not.toHaveBeenCalled();
+
+        // Step 5: Normal app route /patients still serves precached app shell
+        const appNavEvent = {
+            request: { url: 'https://www.dentixs.app/patients', mode: 'navigate', method: 'GET' },
+            respondWith: vi.fn(),
+        };
+        stubs.listeners.fetch(appNavEvent);
+        expect(appNavEvent.respondWith).toHaveBeenCalled();
+    });
+
     it('serves the precached shell for SPA navigations and cached assets cache-first', async () => {
         const shell = new Response('<html>shell</html>');
         // The worker passes either a Request or a URL to caches.match.

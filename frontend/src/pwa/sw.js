@@ -68,6 +68,19 @@ function isApiUrl(url) {
     return url.pathname.startsWith('/api/');
 }
 
+function isMarketingOrCrawlUrl(url) {
+    const p = url.pathname;
+    return (
+        p === '/robots.txt' ||
+        p === '/sitemap.xml' ||
+        p === '/ar' ||
+        p.startsWith('/ar/') ||
+        p === '/en' ||
+        p.startsWith('/en/') ||
+        p.startsWith('/marketing/')
+    );
+}
+
 async function handleRequest(request) {
     if (request.mode === 'navigate') {
         // SPA navigation fallback: serve the precached app shell offline.
@@ -128,6 +141,7 @@ self.addEventListener('fetch', (event) => {
     const url = new URL(request.url);
     if (url.origin !== self.location.origin) return; // cross-origin: network only
     if (isApiUrl(url)) return; // NetworkOnly: clinical/financial traffic is never cached
+    if (isMarketingOrCrawlUrl(url)) return; // NetworkOnly: marketing and crawler routes bypass service worker
 
     event.respondWith(handleRequest(request));
 });
