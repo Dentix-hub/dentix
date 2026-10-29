@@ -76,13 +76,13 @@ class User(Base):
 
     # Compensation settings
     commission_percent: Mapped[Decimal | None] = mapped_column(
-        Numeric(7, 4), nullable=True, default=Decimal("0.0000")
+        Numeric(7, 4), nullable=True, default=None
     )
     fixed_salary: Mapped[Decimal | None] = mapped_column(
-        Numeric(14, 2), nullable=True, default=Decimal("0.00")
+        Numeric(14, 2), nullable=True, default=None
     )
     per_appointment_fee: Mapped[Decimal | None] = mapped_column(
-        Numeric(14, 2), nullable=True, default=Decimal("0.00")
+        Numeric(14, 2), nullable=True, default=None
     )
     hire_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
