@@ -212,6 +212,10 @@ dist
 public
 !frontend/public/
 frontend/public/*
+!frontend/public/ar/
+!frontend/public/marketing/
+!frontend/public/robots.txt
+!frontend/public/sitemap.xml
 !frontend/public/icons/
 frontend/public/icons/*
 !frontend/public/icons/icon-192.png

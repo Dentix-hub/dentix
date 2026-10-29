@@ -119,6 +119,45 @@ describe('custom service worker contract (plan §11)', () => {
         expect(event.respondWith).not.toHaveBeenCalled();
     });
 
+    it('bypasses service worker for marketing routes, robots.txt, and sitemap.xml (NetworkOnly)', () => {
+        const bypassedPaths = [
+            '/ar',
+            '/ar/',
+            '/ar/unknown',
+            '/marketing/marketing.css',
+            '/marketing/other.css',
+            '/robots.txt',
+            '/sitemap.xml',
+        ];
+
+        for (const p of bypassedPaths) {
+            const navEvent = {
+                request: { url: `https://www.dentixs.app${p}`, mode: 'navigate', method: 'GET' },
+                respondWith: vi.fn(),
+            };
+            stubs.listeners.fetch(navEvent);
+            expect(navEvent.respondWith, `Expected bypass for ${p}`).not.toHaveBeenCalled();
+        }
+    });
+
+    it('preserves boundary and intercepts normal SPA routes including /archive', () => {
+        const preservedPaths = [
+            '/patients',
+            '/appointments',
+            '/archive',
+            '/',
+        ];
+
+        for (const p of preservedPaths) {
+            const navEvent = {
+                request: { url: `https://www.dentixs.app${p}`, mode: 'navigate', method: 'GET' },
+                respondWith: vi.fn(),
+            };
+            stubs.listeners.fetch(navEvent);
+            expect(navEvent.respondWith, `Expected shell intercept for ${p}`).toHaveBeenCalled();
+        }
+    });
+
     it('serves the precached shell for SPA navigations and cached assets cache-first', async () => {
         const shell = new Response('<html>shell</html>');
         // The worker passes either a Request or a URL to caches.match.

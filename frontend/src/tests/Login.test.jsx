@@ -119,4 +119,11 @@ describe('Login Component', () => {
         expect(screen.getByText('auth.login.terms')).toBeInTheDocument();
         expect(screen.getByText('auth.login.privacy')).toBeInTheDocument();
     });
+
+    it('renders native discovery link to Arabic marketing page', () => {
+        renderLogin();
+        const aboutLink = screen.getByText('auth.login.about');
+        expect(aboutLink).toBeInTheDocument();
+        expect(aboutLink.closest('a')).toHaveAttribute('href', '/ar');
+    });
 });

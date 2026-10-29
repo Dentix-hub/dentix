@@ -2,6 +2,9 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Marketing & Discovery Batch 1 (feat/marketing-arabic-page, 2026-10-29): Implemented standalone static Arabic landing page (/ar) and isolated CSS, valid robots.txt & sitemap.xml, precise SW/Vercel network bypasses, and native discovery link in Login (<a href="/ar">).
+- Batch 1 Verification: 47 Vitest tests (6 files) PASS; 29 Playwright tests (5 projects) PASS (1 skipped); build verification script PASS (CSS gzip 2.69 KiB < 25 KiB budget); zero API/auth/bundle leakage. Status: READY FOR REVIEW.
+
 - Restore confirmation policy (user request, 2026-10-29): Current-password reauthentication replaces per-restore OTP; active clinic-admin/RBAC, preview actor/digest/token binding and rate limiting remain. Login 2FA settings/flows are unchanged; old clients' optional otp_code remains accepted for compatibility. Wrong password now has a specific Arabic error and the UI explains which account password to use.
 - Verification: 49 targeted backend/archive/RBAC/2FA tests + 14 frontend tests PASS; final API assertions rechecked separately. Ruff, targeted ESLint and frontend production build PASS. No live confirmed restore or deployment performed.
 
