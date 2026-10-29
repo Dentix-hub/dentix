@@ -3,6 +3,7 @@ import json
 import re
 
 from backend.services.tenant_archive import ArchiveError
+from backend.services.tenant_archive_history import deleted_treatment_contexts, historical_treatment_ids
 
 EVENT_IDS = {
     'treatment_id': 'treatments', 'legacy_treatment_id': 'treatments',
@@ -18,7 +19,7 @@ NON_DATABASE_IDS = {'version_id', 'expected_version_id', 'root_id', 'canal_id', 
 REFERENCE_PREFIXES = {'TREATMENT': 'treatments', 'TREATMENT_MATERIALS': 'treatments', 'CARE_SESSION': 'care_sessions'}
 
 
-def _mapped(mapping, table, old_id, *, section=None, field=None):
+def _mapped(mapping, table, old_id, *, section=None, field=None, historical_mapping=None):
     suffix = f' ({section}.{field})' if section and field else ''
     if not isinstance(old_id, int) or isinstance(old_id, bool):
         raise ArchiveError(
@@ -27,6 +28,8 @@ def _mapped(mapping, table, old_id, *, section=None, field=None):
             category='invalid_reference_type', counts=1,
         )
     if old_id not in mapping.get(table, {}):
+        if table == 'treatments' and historical_mapping and old_id in historical_mapping:
+            return historical_mapping[old_id]
         raise ArchiveError(
             f'تحتوي النسخة الاحتياطية على مرجع غير صالح{suffix}',
             section=section, field=field, referenced_section=table,
@@ -35,7 +38,7 @@ def _mapped(mapping, table, old_id, *, section=None, field=None):
     return mapping[table][old_id]
 
 
-def remap_event_payload(payload, mapping, *, section='clinical_events', field_prefix='payload'):
+def remap_event_payload(payload, mapping, *, section='clinical_events', field_prefix='payload', historical_mapping=None):
     if payload is None:
         return None
     if not isinstance(payload, dict):
@@ -52,7 +55,8 @@ def remap_event_payload(payload, mapping, *, section='clinical_events', field_pr
         for key, item in value.items():
             canonical_field = f'{current_prefix}.{key}' if current_prefix else key
             if key in EVENT_IDS and item is not None:
-                result[key] = _mapped(mapping, EVENT_IDS[key], item, section=section, field=canonical_field)
+                result[key] = _mapped(mapping, EVENT_IDS[key], item, section=section, field=canonical_field,
+                                      historical_mapping=historical_mapping)
             elif key == 'bulk_work_item_ids':
                 if not isinstance(item, list):
                     raise ArchiveError(
@@ -71,7 +75,7 @@ def remap_event_payload(payload, mapping, *, section='clinical_events', field_pr
     return visit(payload, field_prefix)
 
 
-def remap_stock_reference(value, mapping, *, section='stock_movements', field='reference_id'):
+def remap_stock_reference(value, mapping, *, section='stock_movements', field='reference_id', historical_mapping=None):
     if value is None:
         return None
     if not isinstance(value, str):
@@ -83,7 +87,7 @@ def remap_stock_reference(value, mapping, *, section='stock_movements', field='r
     if match:
         prefix, kind, old_id = match.groups()
         target_table = REFERENCE_PREFIXES[kind]
-        return f'{prefix or ""}{kind}:{_mapped(mapping, target_table, int(old_id), section=section, field=field)}'
+        return f'{prefix or ""}{kind}:{_mapped(mapping, target_table, int(old_id), section=section, field=field, historical_mapping=historical_mapping)}'
     # Unknown references cannot be safely rebound to regenerated IDs.
     raise ArchiveError(
         f'مرجع المخزون غير مدعوم في النسخة الاحتياطية ({section}.{field})',
@@ -119,7 +123,7 @@ def remap_price_snapshot(value, mapping, *, section='treatments', field='price_s
         ) from exc
 
 
-def remap_learning_data(value, mapping, *, section='material_learning_logs', field='calculation_data'):
+def remap_learning_data(value, mapping, *, section='material_learning_logs', field='calculation_data', historical_mapping=None):
     if value is None:
         return None
     try:
@@ -133,7 +137,7 @@ def remap_learning_data(value, mapping, *, section='material_learning_logs', fie
                 for entry in data[sub_field]:
                     if not isinstance(entry, dict) or 'treatment_id' not in entry:
                         raise ValueError
-                    entry['treatment_id'] = _mapped(mapping, 'treatments', entry['treatment_id'], section=section, field=f'{field}.{sub_field}.treatment_id')
+                    entry['treatment_id'] = _mapped(mapping, 'treatments', entry['treatment_id'], section=section, field=f'{field}.{sub_field}.treatment_id', historical_mapping=historical_mapping)
         if 'learning_updates' in data:
             if not isinstance(data['learning_updates'], dict):
                 raise ValueError
@@ -184,19 +188,25 @@ def validate_embedded_references(data, *, tenant_id, external_ids=None):
     for name, ids in (external_ids or {}).items():
         mapping.setdefault(name, {}).update({value: value for value in ids})
 
+    contexts = deleted_treatment_contexts(data)
+    historical = {value: value for value in historical_treatment_ids(contexts)}
+
     _validate_section_rows(
         data.get('clinical_events', []),
-        lambda row: remap_event_payload(row.get('payload'), mapping, section='clinical_events', field_prefix='payload'),
+        lambda row: remap_event_payload(
+            row.get('payload'), mapping, section='clinical_events', field_prefix='payload',
+            historical_mapping={value: value for value in contexts.get((row.get('patient_id'), row.get('work_item_id')), ())},
+        ),
         'clinical_events',
     )
     _validate_section_rows(
         data.get('stock_movements', []),
-        lambda row: remap_stock_reference(row.get('reference_id'), mapping, section='stock_movements', field='reference_id'),
+        lambda row: remap_stock_reference(row.get('reference_id'), mapping, section='stock_movements', field='reference_id', historical_mapping=historical),
         'stock_movements',
     )
     _validate_section_rows(
         data.get('material_learning_logs', []),
-        lambda row: remap_learning_data(row.get('calculation_data'), mapping, section='material_learning_logs', field='calculation_data'),
+        lambda row: remap_learning_data(row.get('calculation_data'), mapping, section='material_learning_logs', field='calculation_data', historical_mapping=historical),
         'material_learning_logs',
     )
     def _validate_treatment(row):
