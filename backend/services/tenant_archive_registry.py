@@ -118,16 +118,40 @@ def validate_archive_references(data, *, tenant_id, external_ids=None):
                         raise ArchiveError('تحتوي النسخة الاحتياطية على مرجع غير صالح')
 
 
+def _is_valid_scalar(kind, value):
+    import math
+    from datetime import date, datetime
+    from decimal import Decimal, InvalidOperation
+    from sqlalchemy import Boolean, Date, DateTime, Float, Integer, Numeric, String
+
+    if value is None:
+        return True
+    try:
+        if isinstance(kind, Boolean):
+            return isinstance(value, bool)
+        if isinstance(kind, Integer):
+            return isinstance(value, int) and not isinstance(value, bool)
+        if isinstance(kind, Float):
+            return isinstance(value, (int, float, str)) and not isinstance(value, bool) and math.isfinite(float(value))
+        if isinstance(kind, Numeric):
+            return isinstance(value, (str, int)) and not isinstance(value, bool) and Decimal(value).is_finite()
+        if isinstance(kind, DateTime):
+            return isinstance(value, str) and bool(datetime.fromisoformat(value.replace('Z', '+00:00')))
+        if isinstance(kind, Date):
+            return isinstance(value, str) and bool(date.fromisoformat(value))
+        if isinstance(kind, String):
+            return isinstance(value, str) and (kind.length is None or len(value) <= kind.length)
+        return True
+    except (ValueError, TypeError, OverflowError, InvalidOperation):
+        return False
+
+
 def validate_archive_values(data):
     """Validate scalar database column types before any destructive operation.
 
     Business rules, nested JSON semantics and identity mapping must also be
     checked by the restore coordinator before this data is imported.
     """
-    import math
-    from datetime import date, datetime
-    from decimal import Decimal, InvalidOperation
-    from sqlalchemy import Boolean, Date, DateTime, Float, Integer, Numeric, String
     from backend import models
     from backend.services.tenant_archive import ArchiveError
 
@@ -138,29 +162,42 @@ def validate_archive_values(data):
                 column = table.c[key]
                 if value is None:
                     if not column.nullable and not column.primary_key:
-                        raise ArchiveError('قيمة مطلوبة مفقودة في النسخة الاحتياطية')
+                        missing_count = sum(1 for r in rows if r.get(key) is None)
+                        raise ArchiveError(
+                            f'قيمة مطلوبة مفقودة في النسخة الاحتياطية ({name}.{key})',
+                            section=name, field=key, category='missing_required_value', counts=missing_count,
+                        )
                     continue
                 kind = column.type
-                try:
-                    if isinstance(kind, Boolean):
-                        valid = isinstance(value, bool)
-                    elif isinstance(kind, Integer):
-                        valid = isinstance(value, int) and not isinstance(value, bool)
-                    elif isinstance(kind, Float):
-                        valid = isinstance(value, (int, float, str)) and not isinstance(value, bool) and math.isfinite(float(value))
-                    elif isinstance(kind, Numeric):
-                        valid = isinstance(value, (str, int)) and not isinstance(value, bool) and Decimal(value).is_finite()
-                    elif isinstance(kind, DateTime):
-                        valid = isinstance(value, str) and bool(datetime.fromisoformat(value.replace('Z', '+00:00')))
-                    elif isinstance(kind, Date):
-                        valid = isinstance(value, str) and bool(date.fromisoformat(value))
-                    elif isinstance(kind, String):
-                        valid = isinstance(value, str) and (kind.length is None or len(value) <= kind.length)
-                    else:
-                        # JSON and other structured columns need specific
-                        # validation in the archive version adapter.
-                        valid = True
-                except (ValueError, TypeError, OverflowError, InvalidOperation):
-                    valid = False
-                if not valid:
-                    raise ArchiveError('نوع أو قيمة غير صالحة في النسخة الاحتياطية')
+                if not _is_valid_scalar(kind, value):
+                    invalid_count = sum(1 for r in rows if not _is_valid_scalar(table.c[key].type, r.get(key)))
+                    raise ArchiveError(
+                        f'نوع أو قيمة غير صالحة في النسخة الاحتياطية ({name}.{key})',
+                        section=name, field=key, category='invalid_value_type', counts=invalid_count,
+                    )
+
+
+async def validate_archive_compatibility(db, payload, *, tenant_id, external_ids=None):
+    """Run all non-destructive restore preflight checks on an archive payload.
+
+    Validates section completeness, scalar values/types, attachment metadata,
+    SQL foreign keys, embedded JSON payload references, and staff mapping.
+    Raises ArchiveError with safe structured diagnostics if incompatible.
+    """
+    from backend.services.tenant_archive_attachments import validate_attachment_metadata
+    from backend.services.tenant_archive_embedded_refs import validate_embedded_references
+    from backend.services.tenant_archive_identity import resolve_staff_mapping
+    from backend.services.tenant_archive_legacy import ensure_missing_sections_empty, missing_legacy_sections
+    from backend.services.tenant_restore_coordinator import known_global_references
+
+    if external_ids is None:
+        external_ids = await known_global_references(db)
+    missing = missing_legacy_sections(payload)
+    data = validate_archive_sections(payload, tenant_id=tenant_id)
+    await ensure_missing_sections_empty(db, tenant_id=tenant_id, missing_sections=missing)
+    validate_archive_values(data)
+    validate_attachment_metadata(data, tenant_id)
+    validate_archive_references(data, tenant_id=tenant_id, external_ids=external_ids)
+    validate_embedded_references(data, tenant_id=tenant_id, external_ids=external_ids)
+    staff_mapping = await resolve_staff_mapping(db, tenant_id, data['staff_references'])
+    return data, staff_mapping

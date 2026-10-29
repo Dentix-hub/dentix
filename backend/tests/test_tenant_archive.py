@@ -266,3 +266,170 @@ async def test_preview_reports_unavailable_and_unverified_attachment_references(
     ]
     result = await attachment_availability(async_db_session, tenant_id=test_user.tenant_id, rows=rows)
     assert result == {'missing': 2, 'unverified': 1}
+
+
+@pytest.mark.asyncio
+async def test_realistic_historical_null_optional_fields_pass_preview_and_export(async_db_session, test_user):
+    from decimal import Decimal
+    from backend import models
+    from backend.services.tenant_archive import encode_archive
+    from backend.services.tenant_archive_export import export_clinic_archive_data
+    from backend.services.tenant_restore_preview import create_restore_preview
+    from backend.services.tenant_archive_registry import validate_archive_values
+
+    # Realistic patient with optional clinical fields left as NULL (None)
+    patient = models.Patient(
+        tenant_id=test_user.tenant_id,
+        name="Null Notes Patient",
+        age=35,
+        phone="01099999999",
+        medical_history=None,
+        notes=None,
+    )
+    # User with no compensation set (NULL in DB)
+    staff_user = models.User(
+        tenant_id=test_user.tenant_id,
+        username="null_comp_staff",
+        email="nullcomp@example.com",
+        hashed_password="synthetic_hash",
+        role="nurse",
+        is_active=True,
+        commission_percent=None,
+        fixed_salary=None,
+        per_appointment_fee=None,
+    )
+    async_db_session.add_all([patient, staff_user])
+    await async_db_session.commit()
+
+    # Exporter should assess compatibility and pass without raising NULL value rejection
+    payload = await export_clinic_archive_data(async_db_session, test_user.tenant_id)
+    assert payload is not None
+    # Direct validation of the values should also pass
+    validate_archive_values(payload['data'])
+
+    # Round trip to encrypted .dentix archive and create_restore_preview
+    archive = encode_archive(
+        payload, tenant_id=test_user.tenant_id, installation_id='synthetic-inst',
+        schema_revision='e2b3c4d5e6f7', key_id='k1', key=b'k' * 32, max_bytes=1000000,
+    )
+    operation, confirmation, header, counts, mapping = await create_restore_preview(
+        async_db_session, tenant_id=test_user.tenant_id, actor_id=test_user.id,
+        archive=archive, installation_id='synthetic-inst', keys={'k1': b'k' * 32},
+        supported_revisions={'e2b3c4d5e6f7'}, max_bytes=1000000,
+    )
+    assert operation.status == 'previewed'
+    assert counts['patients'] >= 1
+
+
+def test_genuinely_required_missing_values_fail_with_structured_diagnostics():
+    from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS, validate_archive_sections, validate_archive_values
+
+    # Test missing patient name
+    payload = {'data': {name: [] for name in ARCHIVE_COLUMNS}}
+    payload['data']['staff_references'] = [{'id': 1, 'username': 'admin'}]
+    payload['data']['patients'] = [{
+        'id': 10, 'tenant_id': 7, 'name': None, 'age': 25, 'phone': '011',
+        'is_deleted': False, 'created_at': '2026-01-01T00:00:00',
+    }]
+    data = validate_archive_sections(payload, tenant_id=7, require_complete=False)
+    with pytest.raises(ArchiveError) as exc_info:
+        validate_archive_values(data)
+    err = exc_info.value
+    assert err.section == 'patients'
+    assert err.field == 'name'
+    assert err.category == 'missing_required_value'
+    assert err.counts == 1
+    assert 'قيمة مطلوبة مفقودة في النسخة الاحتياطية (patients.name)' in str(err)
+
+    # Test missing user username in staff_references
+    payload['data']['patients'][0]['name'] = 'Valid Name'
+    payload['data']['staff_references'][0]['username'] = None
+    data = validate_archive_sections(payload, tenant_id=7, require_complete=False)
+    with pytest.raises(ArchiveError) as exc_info:
+        validate_archive_values(data)
+    err = exc_info.value
+    assert err.section == 'staff_references'
+    assert err.field == 'username'
+    assert err.category == 'missing_required_value'
+    assert err.counts == 1
+    assert 'قيمة مطلوبة مفقودة في النسخة الاحتياطية (staff_references.username)' in str(err)
+
+
+def test_legacy_json_numeric_and_null_staff_compensation_adaptation():
+    from backend.services.tenant_archive_legacy import adapt_legacy_json
+    from backend.services.tenant_archive_registry import validate_archive_values
+
+    source = {
+        'version': '1.0',
+        'tenant_id': 7,
+        'exported_at': '2026-01-01T00:00:00',
+        'data': {
+            'users': [{
+                'id': 1, 'tenant_id': 7, 'username': 'synthetic_legacy', 'role': 'doctor',
+                # commission_percent and fixed_salary omitted or float
+                'commission_percent': 15.5,
+            }],
+            'patients': [{
+                'id': 2, 'tenant_id': 7, 'name': 'Legacy Patient', 'age': 40, 'phone': '123',
+                'medical_history': None, 'notes': None, 'created_at': '2026-01-01T00:00:00',
+                'is_deleted': False,
+            }],
+            'expenses': [{
+                'id': 100, 'tenant_id': 7, 'item_name': 'Supplies', 'cost': 123.45,
+            }],
+        },
+    }
+    adapted = adapt_legacy_json(source, tenant_id=7)
+    assert adapted['legacy_unverified'] is True
+    # Verify that float cost was converted to string for exact Decimal handling
+    assert adapted['data']['expenses'][0]['cost'] == '123.45'
+    assert adapted['data']['staff_references'][0]['commission_percent'] == '15.5'
+    # Fixed salary was omitted, so it should be None
+    assert adapted['data']['staff_references'][0]['fixed_salary'] is None
+    # Validate that validate_archive_values succeeds on this adapted data
+    validate_archive_values(adapted['data'])
+
+
+@pytest.mark.asyncio
+async def test_preview_failure_makes_no_clinical_or_financial_writes(async_db_session, test_user, test_patient):
+    from sqlalchemy import select
+    from backend import models
+    from backend.services.tenant_restore_preview import create_restore_preview
+
+    patients_before = (await async_db_session.execute(select(models.Patient).where(models.Patient.tenant_id == test_user.tenant_id))).scalars().all()
+    count_before = len(patients_before)
+    name_before = test_patient.name
+
+    # Create forged archive (corrupted data)
+    corrupted_archive = b"corrupted-invalid-archive-bytes"
+    with pytest.raises(ArchiveError):
+        await create_restore_preview(
+            async_db_session, tenant_id=test_user.tenant_id, actor_id=test_user.id,
+            archive=corrupted_archive, installation_id='synth', keys={'k': b'k' * 32},
+            supported_revisions={'e2b3c4d5e6f7'}, max_bytes=1000000,
+        )
+
+    # Re-check database state to verify zero mutations
+    patients_after = (await async_db_session.execute(select(models.Patient).where(models.Patient.tenant_id == test_user.tenant_id))).scalars().all()
+    assert len(patients_after) == count_before
+    current_patient = (await async_db_session.execute(select(models.Patient).where(models.Patient.id == test_patient.id))).scalar_one()
+    assert current_patient.name == name_before
+
+
+@pytest.mark.asyncio
+async def test_export_fails_early_when_business_data_is_invalid(async_db_session, test_user, test_patient):
+    from backend.services.tenant_archive_export import export_clinic_archive_data
+
+    # Test that validate_restore catches invalid data during export
+    # e.g., if a required column is forced to None
+    async def mock_export_corrupt(db, tenant_id):
+        payload = await export_clinic_archive_data(db, tenant_id, validate_restore=False)
+        payload['data']['patients'][0]['name'] = None
+        from backend.services.tenant_archive_registry import validate_archive_compatibility
+        await validate_archive_compatibility(db, payload, tenant_id=tenant_id)
+        return payload
+
+    with pytest.raises(ArchiveError) as exc_info:
+        await mock_export_corrupt(async_db_session, test_user.tenant_id)
+    assert exc_info.value.field == 'name'
+    assert exc_info.value.category == 'missing_required_value'

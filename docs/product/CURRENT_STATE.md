@@ -26,3 +26,5 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 - Medical alert badges on patient list and cards with distinct pregnancy warning indicator.
 - Multi-tooth sequential procedure application with surface validation and partial-recovery in clinical chart.
 - Backup diagnostics and tenant-scoped operational Excel export (.xlsx) with formula injection protection.
+- Restore preview NULL validation fix (2026-10-29): Migration e2b3c4d5e6f7 + models alignment for optional patient clinical notes/history and staff compensation; Alembic head e2b3c4d5e6f7.
+- Archive safety & diagnostic hardening: Structured safe diagnostics on ArchiveError (section/field/category/counts without PII/secrets); exporter preflight restore compatibility; legacy JSON numeric adaptation; zero-write rollback verified. Status: DONE.

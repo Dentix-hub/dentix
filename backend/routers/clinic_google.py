@@ -188,6 +188,11 @@ async def preview_drive_backup(file_id: str, db: AsyncSession = Depends(get_asyn
         await _drive_error(db, tenant_id, generation, exc)
     except ArchiveError as exc:
         await db.rollback()
+        logger.warning(
+            'Drive backup restore preview rejected for tenant %s: category=%s section=%s field=%s counts=%s',
+            tenant_id, getattr(exc, 'category', None), getattr(exc, 'section', None),
+            getattr(exc, 'field', None), getattr(exc, 'counts', None),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception:
         await db.rollback()

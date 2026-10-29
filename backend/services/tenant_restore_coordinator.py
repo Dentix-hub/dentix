@@ -9,13 +9,10 @@ from sqlalchemy import select
 
 from backend import models
 from backend.services.tenant_archive import ArchiveError, decode_archive
-from backend.services.tenant_archive_embedded_refs import validate_embedded_references
-from backend.services.tenant_archive_identity import resolve_staff_mapping
 from backend.services.tenant_archive_adapters import adapt_archive_version
-from backend.services.tenant_archive_attachments import validate_attachment_metadata
 from backend.services.tenant_archive_legacy import missing_legacy_sections
 from backend.services.tenant_archive_import import replace_clinic_business_data
-from backend.services.tenant_archive_registry import validate_archive_references, validate_archive_sections, validate_archive_values
+from backend.services.tenant_archive_registry import validate_archive_compatibility
 
 
 async def known_global_references(db):
@@ -52,13 +49,10 @@ async def run_confirmed_restore(db, *, tenant_id, operation_id, installation_id,
             raise ArchiveError('إصدار قاعدة بيانات النسخة الاحتياطية غير مدعوم')
         payload = adapt_archive_version(payload, header.get('schema_revision'))
         missing = missing_legacy_sections(payload)
-        data = validate_archive_sections(payload, tenant_id=tenant_id)
-        validate_archive_values(data)
-        validate_attachment_metadata(data, tenant_id)
         external_ids = await known_global_references(db)
-        validate_archive_references(data, tenant_id=tenant_id, external_ids=external_ids)
-        validate_embedded_references(data, tenant_id=tenant_id, external_ids=external_ids)
-        staff = await resolve_staff_mapping(db, tenant_id, data['staff_references'])
+        data, staff = await validate_archive_compatibility(
+            db, payload, tenant_id=tenant_id, external_ids=external_ids,
+        )
         if header.get('counts') != {name: len(rows) for name, rows in data.items()}:
             raise ArchiveError('أعداد سجلات النسخة الاحتياطية غير متطابقة')
         counts, mapping = await replace_clinic_business_data(db, tenant_id=tenant_id, data=data, staff_mapping=staff, external_ids=external_ids, missing_sections=missing)

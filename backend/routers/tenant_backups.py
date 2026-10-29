@@ -116,6 +116,11 @@ async def preview_clinic_restore(request: Request, db: AsyncSession = Depends(ge
         })
     except ArchiveError as exc:
         await db.rollback()
+        logger.warning(
+            'Clinic restore preview rejected for tenant %s: category=%s section=%s field=%s counts=%s',
+            tenant_id, getattr(exc, 'category', None), getattr(exc, 'section', None),
+            getattr(exc, 'field', None), getattr(exc, 'counts', None),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception:
         await db.rollback()
@@ -139,6 +144,11 @@ async def confirm_clinic_restore(request: Request, payload: ConfirmRestore, db: 
         return success_response(data={'operation_id': operation.id, 'status': operation.status})
     except ArchiveError as exc:
         await db.rollback()
+        logger.warning(
+            'Clinic restore preview rejected for tenant %s: category=%s section=%s field=%s counts=%s',
+            tenant_id, getattr(exc, 'category', None), getattr(exc, 'section', None),
+            getattr(exc, 'field', None), getattr(exc, 'counts', None),
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 

@@ -22,9 +22,9 @@ async def test_restore_round_trip_preserves_other_tenant_and_live_identity():
             a, b = models.Tenant(name='Archive clinic A'), models.Tenant(name='Archive clinic B')
             db.add_all([a, b])
             await db.flush()
-            user = models.User(tenant_id=a.id, username='archive_' + suffix, email=suffix + '@example.com', hashed_password='unchanged-synthetic', role='admin', is_active=True)
-            patient = models.Patient(tenant_id=a.id, name='Original patient', age=30, phone='0', medical_history='', notes='')
-            other = models.Patient(tenant_id=b.id, name='Other tenant patient', age=40, phone='0', medical_history='', notes='')
+            user = models.User(tenant_id=a.id, username='archive_' + suffix, email=suffix + '@example.com', hashed_password='unchanged-synthetic', role='admin', is_active=True, commission_percent=None, fixed_salary=None, per_appointment_fee=None)
+            patient = models.Patient(tenant_id=a.id, name='Original patient', age=30, phone='0', medical_history=None, notes=None)
+            other = models.Patient(tenant_id=b.id, name='Other tenant patient', age=40, phone='0', medical_history=None, notes=None)
             db.add_all([user, patient, other])
             await db.flush()
             treatment = models.Treatment(tenant_id=a.id, patient_id=patient.id, doctor_id=user.id, tooth_number=16, procedure='Crown', lab_choice='in_clinic', cost=Decimal('123.45'), discount=Decimal('1.25'))
@@ -50,9 +50,11 @@ async def test_restore_round_trip_preserves_other_tenant_and_live_identity():
             treatment = (await db.execute(select(models.Treatment).where(models.Treatment.patient_id == restored.id))).scalar_one()
             current_user = (await db.execute(select(models.User).where(models.User.id == actor))).scalar_one()
             assert restored.name == 'Original patient'
+            assert restored.medical_history is None and restored.notes is None
             assert treatment.cost == Decimal('123.45') and treatment.discount == Decimal('1.25')
             assert treatment.lab_choice == 'in_clinic' and treatment.doctor_id == actor
             assert current_user.hashed_password == 'unchanged-synthetic' and current_user.role == 'admin'
+            assert current_user.commission_percent is None and current_user.fixed_salary is None
     finally:
         clear_tenant_context(tenant_token=token)
     token = set_current_tenant_id(tenant_b)
@@ -72,8 +74,8 @@ async def test_failure_mid_import_rolls_back_deleted_business_data():
             tenant = models.Tenant(name='Archive rollback clinic')
             db.add(tenant)
             await db.flush()
-            user = models.User(tenant_id=tenant.id, username='rollback_' + suffix, email=suffix + '@example.com', hashed_password='synthetic', role='admin', is_active=True)
-            patient = models.Patient(tenant_id=tenant.id, name='Rollback patient', age=30, phone='0', medical_history='', notes='')
+            user = models.User(tenant_id=tenant.id, username='rollback_' + suffix, email=suffix + '@example.com', hashed_password='synthetic', role='admin', is_active=True, commission_percent=None, fixed_salary=None, per_appointment_fee=None)
+            patient = models.Patient(tenant_id=tenant.id, name='Rollback patient', age=30, phone='0', medical_history=None, notes=None)
             db.add_all([user, patient])
             await db.flush()
             db.add(models.Treatment(tenant_id=tenant.id, patient_id=patient.id, doctor_id=user.id, tooth_number=16, procedure='Crown', cost=Decimal('50'), discount=Decimal('0')))
@@ -112,8 +114,8 @@ async def test_confirmed_restore_coordinator_preserves_outcome():
             tenant = models.Tenant(name='Restore coordinator clinic')
             db.add(tenant)
             await db.flush()
-            user = models.User(tenant_id=tenant.id, username='coordinator_' + suffix, email=suffix + '@example.com', hashed_password='synthetic', role='admin', is_active=True)
-            patient = models.Patient(tenant_id=tenant.id, name='Original', age=30, phone='0', medical_history='', notes='')
+            user = models.User(tenant_id=tenant.id, username='coordinator_' + suffix, email=suffix + '@example.com', hashed_password='synthetic', role='admin', is_active=True, commission_percent=None, fixed_salary=None, per_appointment_fee=None)
+            patient = models.Patient(tenant_id=tenant.id, name='Original', age=30, phone='0', medical_history=None, notes=None)
             db.add_all([user, patient])
             await db.commit()
             tenant_id, user_id, patient_id = tenant.id, user.id, patient.id
@@ -149,7 +151,7 @@ async def test_restore_preserves_lab_payment_inventory_and_embedded_links():
             db.add(tenant)
             await db.flush()
             user = models.User(tenant_id=tenant.id, username='finance_' + suffix, email=suffix + '@example.com', hashed_password='synthetic', role='admin', is_active=True)
-            patient = models.Patient(tenant_id=tenant.id, name='Synthetic', age=30, phone='0', medical_history='', notes='')
+            patient = models.Patient(tenant_id=tenant.id, name='Synthetic', age=30, phone='0', medical_history=None, notes=None)
             lab = models.Laboratory(tenant_id=tenant.id, name='Synthetic lab')
             warehouse = models.Warehouse(tenant_id=tenant.id, name='Synthetic warehouse')
             material = models.Material(tenant_id=tenant.id, name='Synthetic material', type='DIVISIBLE', base_unit='g')

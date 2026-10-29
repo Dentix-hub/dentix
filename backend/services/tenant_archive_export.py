@@ -16,11 +16,13 @@ def _serialize(value):
     return value
 
 
-async def export_clinic_archive_data(db, tenant_id):
+async def export_clinic_archive_data(db, tenant_id, *, validate_restore=True):
     """Export only explicit business columns, preserving exact decimal values.
 
     Staff references never contain login credentials, roles, permissions or
     sessions. The importer must map every reference to a live tenant user.
+    When validate_restore is True, executes shared restore preflight checks so
+    the export fails early if business data is incompatible with recovery.
     """
     from backend.services.drive_image_safety import ensure_no_active_image_operations
     await ensure_no_active_image_operations(db, tenant_id)
@@ -42,4 +44,8 @@ async def export_clinic_archive_data(db, tenant_id):
         {column: _serialize(getattr(user, column)) for column in STAFF_REFERENCE_COLUMNS}
         for user in (await db.execute(query)).scalars().all()
     ]
-    return {'data': result}
+    payload = {'data': result}
+    if validate_restore:
+        from backend.services.tenant_archive_registry import validate_archive_compatibility
+        await validate_archive_compatibility(db, payload, tenant_id=tenant_id)
+    return payload
