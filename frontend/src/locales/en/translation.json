@@ -2204,6 +2204,7 @@
     "legacy_unverified": "This older backup is unverified",
     "missing_sections": "Sections missing from backup",
     "confirm_password": "Current password",
+    "confirm_password_hint": "Enter the password for the account you are currently signed in with.",
     "confirm_otp": "Two-factor code",
     "confirm_restore": "Confirm restore",
     "cancel_restore": "Cancel",

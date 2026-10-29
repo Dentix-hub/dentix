@@ -2,6 +2,9 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Restore confirmation policy (user request, 2026-10-29): Current-password reauthentication replaces per-restore OTP; active clinic-admin/RBAC, preview actor/digest/token binding and rate limiting remain. Login 2FA settings/flows are unchanged; old clients' optional otp_code remains accepted for compatibility. Wrong password now has a specific Arabic error and the UI explains which account password to use.
+- Verification: 49 targeted backend/archive/RBAC/2FA tests + 14 frontend tests PASS; final API assertions rechecked separately. Ruff, targeted ESLint and frontend production build PASS. No live confirmed restore or deployment performed.
+
 - Plan: Odontogram & Clinical VNext (docs/product/ODONTOGRAM_EXECUTION_QUEUE.md)
 - Baseline: staging @ 1907061 (PR #291).
 - Pre-production auth PR-A (2026-10-27): optional email migration 1e2f3a4b5c6d; symmetric username lookup; JSON registration; no production data rewrite.
