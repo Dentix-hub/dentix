@@ -40,17 +40,18 @@ describe('BackupSettings - Excel Export', () => {
         window.URL.revokeObjectURL = vi.fn();
     });
 
-    it('previews before confirmation and submits current credentials', async () => {
+    it.each([false, true])('confirms with current password when login 2FA enabled=%s', async (is2faEnabled) => {
         api.previewClinicRestore.mockResolvedValueOnce({ data: {
             operation_id: 'operation-1', confirmation: 'token', archive_digest: 'digest',
             counts: { patients: 2 }, backup_date: '2026-01-01', legacy_unverified: true, missing_sections: ['material_sessions'],
         } });
         api.confirmClinicRestore.mockResolvedValueOnce({ data: { operation_id: 'operation-1', status: 'confirmed' } });
-        render(<BackupSettings backupStatus={mockBackupStatus} currentUser={mockCurrentUser} setMessage={mockSetMessage} loadUserInfo={mockLoadUserInfo} />);
+        render(<BackupSettings backupStatus={mockBackupStatus} currentUser={{ ...mockCurrentUser, is_2fa_enabled: is2faEnabled }} setMessage={mockSetMessage} loadUserInfo={mockLoadUserInfo} />);
         const file = new File(['synthetic'], 'clinic.dentix', { type: 'application/octet-stream' });
         fireEvent.change(screen.getByLabelText('backup.restore_btn'), { target: { files: [file] } });
         expect(await screen.findByText('backup.legacy_unverified')).toBeInTheDocument();
         expect(api.confirmClinicRestore).not.toHaveBeenCalled();
+        expect(screen.queryByLabelText('backup.confirm_otp')).not.toBeInTheDocument();
         fireEvent.change(screen.getByLabelText('backup.confirm_password'), { target: { value: 'synthetic-password' } });
         fireEvent.click(screen.getByRole('button', { name: 'backup.confirm_restore' }));
         await waitFor(() => expect(api.confirmClinicRestore).toHaveBeenCalledWith({

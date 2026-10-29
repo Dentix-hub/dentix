@@ -8,7 +8,6 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo, r
     const [exportingXlsx, setExportingXlsx] = useState(false);
     const [restorePreview, setRestorePreview] = useState(null);
     const [restorePassword, setRestorePassword] = useState('');
-    const [restoreOtp, setRestoreOtp] = useState('');
     const [restoreOperation, setRestoreOperation] = useState(null);
     const [backupOperation, setBackupOperation] = useState(null);
     const [driveBackups, setDriveBackups] = useState([]);
@@ -169,7 +168,6 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo, r
                 confirmation: restorePreview.confirmation,
                 archive_digest: restorePreview.archive_digest,
                 password: restorePassword,
-                ...(restoreOtp ? { otp_code: restoreOtp } : {}),
             });
             setRestoreOperation(response.data);
             setRestorePreview(null);
@@ -178,7 +176,6 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo, r
             setMessage({ type: 'error', text: await extractErrorMessage(err, t('backup.restore_fail')) });
         } finally {
             setRestorePassword('');
-            setRestoreOtp('');
             setRestoring(false);
         }
     };
@@ -422,9 +419,9 @@ const BackupSettings = ({ backupStatus, currentUser, setMessage, loadUserInfo, r
                         {restorePreview.legacy_unverified && <p className="font-bold">{t('backup.legacy_unverified')}</p>}
                         {restorePreview.missing_sections?.length > 0 && <p>{t('backup.missing_sections')}: {restorePreview.missing_sections.map((section) => t(`backup.sections.${section}`, section)).join('، ')}</p>}
                         <label className="block">{t('backup.confirm_password')}<input required type="password" autoComplete="current-password" value={restorePassword} onChange={(event) => setRestorePassword(event.target.value)} className="block w-full rounded border p-2" /></label>
-                        <label className="block">{t('backup.confirm_otp')}<input required={Boolean(currentUser?.is_2fa_enabled)} inputMode="numeric" autoComplete="one-time-code" value={restoreOtp} onChange={(event) => setRestoreOtp(event.target.value)} className="block w-full rounded border p-2" /></label>
+                        <p className="text-sm text-slate-600">{t('backup.confirm_password_hint')}</p>
                         <button type="submit" disabled={restoring || !restorePassword} className="rounded bg-amber-700 px-4 py-2 font-bold text-white disabled:opacity-50">{t('backup.confirm_restore')}</button>
-                        <button type="button" onClick={() => { setRestorePreview(null); setRestorePassword(''); setRestoreOtp(''); }} className="ms-3 rounded border px-4 py-2">{t('backup.cancel_restore')}</button>
+                        <button type="button" onClick={() => { setRestorePreview(null); setRestorePassword(''); }} className="ms-3 rounded border px-4 py-2">{t('backup.cancel_restore')}</button>
                     </form>
                 )}
                 {restoreOperation && <div className="rounded-xl border p-4" role="status">

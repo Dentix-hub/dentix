@@ -2,7 +2,6 @@
 import json
 import logging
 
-import pyotp
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
@@ -51,7 +50,7 @@ class ConfirmRestore(BaseModel):
     confirmation: str = Field(min_length=1, max_length=100)
     archive_digest: str = Field(min_length=64, max_length=64)
     password: str = Field(min_length=1, max_length=256)
-    otp_code: str | None = Field(default=None, max_length=16)
+    otp_code: str | None = Field(default=None, max_length=16, deprecated=True)  # Accepted for older clients; restore uses password confirmation.
 
 
 @router.get('/archive')
@@ -139,9 +138,7 @@ async def preview_clinic_restore(request: Request, db: AsyncSession = Depends(ge
 async def confirm_clinic_restore(request: Request, payload: ConfirmRestore, db: AsyncSession = Depends(get_async_db), user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
     tenant_id = _clinic_admin(user)
     if not user.hashed_password or not verify_password(payload.password, user.hashed_password):
-        raise HTTPException(status_code=403, detail='تعذر التحقق من الهوية')
-    if user.is_2fa_enabled and (not user.otp_secret or not payload.otp_code or not pyotp.TOTP(user.otp_secret).verify(payload.otp_code)):
-        raise HTTPException(status_code=403, detail='تعذر التحقق من الهوية')
+        raise HTTPException(status_code=403, detail='كلمة المرور الحالية غير صحيحة')
     try:
         log_admin_action(db, user, action='restore_confirmed', entity_type='tenant_backup', tenant_id=tenant_id)
         operation = await confirm_restore_preview(db, tenant_id=tenant_id, actor_id=user.id,

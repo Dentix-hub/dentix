@@ -2204,6 +2204,7 @@
     "legacy_unverified": "هذه نسخة قديمة غير موثقة",
     "missing_sections": "أقسام غير موجودة في النسخة",
     "confirm_password": "كلمة المرور الحالية",
+    "confirm_password_hint": "اكتب كلمة مرور الحساب المستخدم لتسجيل الدخول الآن.",
     "confirm_otp": "رمز التحقق الثنائي",
     "confirm_restore": "تأكيد الاستعادة",
     "cancel_restore": "إلغاء",

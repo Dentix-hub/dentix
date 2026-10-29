@@ -35,6 +35,7 @@ def test_archive_preview_confirmation_and_role_enforcement(client, db_session, a
                'archive_digest': data['archive_digest'], 'password': 'wrong'}
     assert client.post('/api/v1/settings/backup/confirm', headers=_headers(admin_user), json=request).status_code == 403
     request['password'] = 'adminpass123'
+    assert client.post('/api/v1/settings/backup/confirm', headers=_headers(test_user), json=request).status_code == 403
     confirmed = client.post('/api/v1/settings/backup/confirm', headers=_headers(admin_user), json=request)
     assert confirmed.status_code == 200, confirmed.text
     assert confirmed.json()['data']['status'] == 'confirmed'
@@ -43,19 +44,29 @@ def test_archive_preview_confirmation_and_role_enforcement(client, db_session, a
     assert event.event_type == 'tenant.restore.confirmed' and event.payload == {}
 
 
-def test_confirm_requires_otp_when_enabled(client, db_session, admin_user, backup_config):
+@pytest.mark.parametrize('legacy_otp', [None, '000000'])
+def test_confirm_uses_password_for_2fa_accounts_without_changing_login_security(client, db_session, admin_user, backup_config, legacy_otp):
     admin_user.is_2fa_enabled = True
-    admin_user.otp_secret = pyotp.random_base32()
+    original_secret = pyotp.random_base32()
+    admin_user.otp_secret = original_secret
     db_session.commit()
     archive = client.get('/api/v1/settings/backup/archive', headers=_headers(admin_user))
     preview = client.post('/api/v1/settings/backup/preview', content=archive.content, headers={**_headers(admin_user), 'Content-Type': 'application/octet-stream'})
     assert preview.status_code == 200, preview.text
     data = preview.json()['data']
     request = {'operation_id': data['operation_id'], 'confirmation': data['confirmation'],
-               'archive_digest': data['archive_digest'], 'password': 'adminpass123'}
-    assert client.post('/api/v1/settings/backup/confirm', headers=_headers(admin_user), json=request).status_code == 403
-    request['otp_code'] = pyotp.TOTP(admin_user.otp_secret).now()
+               'archive_digest': data['archive_digest'], 'password': 'wrong-password'}
+    if legacy_otp is not None:
+        request['otp_code'] = legacy_otp
+    rejected = client.post('/api/v1/settings/backup/confirm', headers=_headers(admin_user), json=request)
+    assert rejected.status_code == 403
+    assert rejected.json()['detail'] == 'كلمة المرور الحالية غير صحيحة'
+    operation = db_session.execute(select(models.TenantDataOperation).where(models.TenantDataOperation.id == data['operation_id'])).scalar_one()
+    assert operation.status == 'previewed'
+    request['password'] = 'adminpass123'
     assert client.post('/api/v1/settings/backup/confirm', headers=_headers(admin_user), json=request).status_code == 200
+    db_session.refresh(admin_user)
+    assert admin_user.is_2fa_enabled and admin_user.otp_secret == original_secret
 
 
 def test_legacy_json_export_omits_account_security_fields(client, admin_user):
