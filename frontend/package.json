@@ -11,7 +11,8 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "test:coverage": "vitest run --coverage",
-        "design:guardrails": "node scripts/check-design-system-guardrails.mjs"
+        "design:guardrails": "node scripts/check-design-system-guardrails.mjs",
+        "test:vercel-routes": "node scripts/verify-vercel-preview-routes.mjs"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",

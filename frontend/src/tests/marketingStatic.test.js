@@ -1,6 +1,11 @@
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import {
+    validateMarketingHtml,
+    validateSitemapXml,
+    validateRobotsTxt,
+} from '../../scripts/verify-marketing-artifacts.mjs';
 
 const arHtmlPath = path.resolve('public/ar/index.html');
 const cssPath = path.resolve('public/marketing/marketing.css');
@@ -188,5 +193,62 @@ describe('Marketing Static Arabic Page Contract', () => {
         expect(pattern.test('/robots.txt')).toBe(false);
         expect(pattern.test('/sitemap.xml')).toBe(false);
         expect(pattern.test('/api/v1/patients')).toBe(false);
+    });
+
+    describe('Build Artifacts Semantic Parser & Negative Failure Proofs', () => {
+        it('proves rejection of invalid XML in sitemap.xml', () => {
+            const invalidXml = '<urlset><url><loc>https://www.dentixs.app/ar</loc></urlset';
+            const errors = validateSitemapXml(invalidXml);
+            expect(errors.length).toBeGreaterThan(0);
+            expect(errors.some((e) => e.includes('XML') || e.includes('Invalid') || e.includes('unclosed'))).toBe(true);
+        });
+
+        it('proves rejection of disallowed or private routes like /patients in sitemap.xml', () => {
+            const sitemapWithPatients = `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://www.dentixs.app/ar</loc></url>
+  <url><loc>https://www.dentixs.app/patients</loc></url>
+</urlset>`;
+            const errors = validateSitemapXml(sitemapWithPatients);
+            expect(errors.length).toBeGreaterThan(0);
+            expect(errors.some((e) => e.includes('https://www.dentixs.app/patients'))).toBe(true);
+        });
+
+        it('proves rejection of Disallow: / blocking crawl in robots.txt', () => {
+            const blockingRobots = `User-agent: *\nDisallow: /\n\nSitemap: https://www.dentixs.app/sitemap.xml`;
+            const errors = validateRobotsTxt(blockingRobots);
+            expect(errors.length).toBeGreaterThan(0);
+            expect(errors.some((e) => e.includes('blocks full site crawling'))).toBe(true);
+        });
+
+        it('proves rejection of executable JavaScript inside marketing HTML', () => {
+            // Case A: inline executable <script>
+            const htmlWithScript = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>Test</title><link rel="canonical" href="https://www.dentixs.app/ar"><script>alert(1)</script></head><body><a href="/">تسجيل الدخول</a><a href="/">تسجيل الدخول</a></body></html>`;
+            const errorsA = validateMarketingHtml(htmlWithScript);
+            expect(errorsA.length).toBeGreaterThan(0);
+            expect(errorsA.some((e) => e.includes('Executable script found'))).toBe(true);
+
+            // Case B: external <script src="...">
+            const htmlWithSrc = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>Test</title><link rel="canonical" href="https://www.dentixs.app/ar"><script src="/assets/index-app.js"></script></head><body><a href="/">تسجيل الدخول</a><a href="/">تسجيل الدخول</a></body></html>`;
+            const errorsB = validateMarketingHtml(htmlWithSrc);
+            expect(errorsB.length).toBeGreaterThan(0);
+            expect(errorsB.some((e) => e.includes('External script tag found'))).toBe(true);
+
+            // Case C: inline event handler (e.g. onclick)
+            const htmlWithEvent = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>Test</title><link rel="canonical" href="https://www.dentixs.app/ar"></head><body><button onclick="console.log(1)">Click</button><a href="/">تسجيل الدخول</a><a href="/">تسجيل الدخول</a></body></html>`;
+            const errorsC = validateMarketingHtml(htmlWithEvent);
+            expect(errorsC.length).toBeGreaterThan(0);
+            expect(errorsC.some((e) => e.includes('Inline event handler attribute found'))).toBe(true);
+        });
+
+        it('passes semantic validation cleanly on actual project source files', () => {
+            const actualHtml = readFileSync(arHtmlPath, 'utf8');
+            const actualSitemap = readFileSync(sitemapPath, 'utf8');
+            const actualRobots = readFileSync(robotsPath, 'utf8');
+
+            expect(validateMarketingHtml(actualHtml, path.resolve('public'))).toEqual([]);
+            expect(validateSitemapXml(actualSitemap)).toEqual([]);
+            expect(validateRobotsTxt(actualRobots)).toEqual([]);
+        });
     });
 });

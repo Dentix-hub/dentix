@@ -12,10 +12,10 @@
   --color-text-muted: #475569;
   --color-text-light: #64748b;
   --color-primary: #0ea5e9;
-  --color-primary-dark: #0284c7;
+  --color-primary-dark: #0369a1;
   --color-primary-light: #e0f2fe;
-  --color-secondary: #10b981;
-  --color-secondary-dark: #059669;
+  --color-secondary: #047857;
+  --color-secondary-dark: #065f46;
   --color-secondary-light: #d1fae5;
   --color-border: #e2e8f0;
   --color-border-subtle: #f1f5f9;
@@ -459,7 +459,7 @@ summary:focus-visible {
 
 .cta-desc {
   font-size: 1.1rem;
-  color: #94a3b8;
+  color: #cbd5e1;
   max-width: 640px;
   margin: 0 auto 2rem;
   line-height: 1.7;
