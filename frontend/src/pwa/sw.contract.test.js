@@ -124,6 +124,9 @@ describe('custom service worker contract (plan §11)', () => {
             '/ar',
             '/ar/',
             '/ar/unknown',
+            '/en',
+            '/en/',
+            '/en/unknown',
             '/marketing/marketing.css',
             '/marketing/other.css',
             '/robots.txt',
@@ -140,11 +143,12 @@ describe('custom service worker contract (plan §11)', () => {
         }
     });
 
-    it('preserves boundary and intercepts normal SPA routes including /archive', () => {
+    it('preserves boundary and intercepts normal SPA routes including /archive and /enterprise', () => {
         const preservedPaths = [
             '/patients',
             '/appointments',
             '/archive',
+            '/enterprise',
             '/',
         ];
 

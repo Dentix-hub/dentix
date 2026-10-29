@@ -27,6 +27,16 @@
       "source": "/ar/index.html",
       "destination": "/ar",
       "permanent": true
+    },
+    {
+      "source": "/en/",
+      "destination": "/en",
+      "permanent": true
+    },
+    {
+      "source": "/en/index.html",
+      "destination": "/en",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -39,7 +49,11 @@
       "destination": "/ar/index.html"
     },
     {
-      "source": "/((?!api/|assets/|icons/|marketing/|ar(?:/.*)?$|robots\\.txt$|sitemap\\.xml$|sw\\.js|workbox-|registerSW\\.js|manifest\\.webmanifest|favicon\\.ico).*)",
+      "source": "/en",
+      "destination": "/en/index.html"
+    },
+    {
+      "source": "/((?!api/|assets/|icons/|marketing/|ar(?:/.*)?$|en(?:/.*)?$|robots\\.txt$|sitemap\\.xml$|sw\\.js|workbox-|registerSW\\.js|manifest\\.webmanifest|favicon\\.ico).*)",
       "destination": "/index.html"
     }
   ]

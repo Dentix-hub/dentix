@@ -2,8 +2,8 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
-- Marketing & Discovery Batch 1 (feat/marketing-arabic-page, 2026-10-29): Implemented standalone static Arabic landing page (/ar) and isolated CSS with WCAG AA contrast (5.48:1 normal, 7.68:1 hover), valid robots.txt & sitemap.xml, precise SW/Vercel network bypasses, and native discovery link in Login (<a href="/ar">).
-- Batch 1 Review 4 Updates: Fixed PWA e2e pathname precision (exact new URL(scriptURL).pathname check for /sw.js vs /mock-old-sw.js, pre-click listener, reload synchronization, and state diagnostics; 60 Vitest / 33 Playwright PASS). Status: READY FOR RE-REVIEW.
+- Marketing & Discovery Batch 1 & 2 (feat/marketing-english-page, 2026-10-29): Standalone static landing pages in Arabic (/ar) and English (/en), isolated CSS with LTR/RTL support, WCAG AA contrast, bidirectional hreflang (ar, en, x-default), language switchers, sitemap with both URLs, SW/Vercel clean network bypasses, and dynamic Login discovery link.
+- Verification: 158 frontend test files (1042 Vitest tests) PASS; 55 Playwright marketing tests PASS across 5 viewport projects (2 skipped for no-js); production build PASS with 120 precache entries; 0 lint warnings; 0 new design guardrail violations. Status: READY FOR REVIEW.
 
 - Restore confirmation policy (user request, 2026-10-29): Current-password reauthentication replaces per-restore OTP; active clinic-admin/RBAC, preview actor/digest/token binding and rate limiting remain. Login 2FA settings/flows are unchanged; old clients' optional otp_code remains accepted for compatibility. Wrong password now has a specific Arabic error and the UI explains which account password to use.
 - Verification: 49 targeted backend/archive/RBAC/2FA tests + 14 frontend tests PASS; final API assertions rechecked separately. Ruff, targeted ESLint and frontend production build PASS. No live confirmed restore or deployment performed.

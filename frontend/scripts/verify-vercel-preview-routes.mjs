@@ -140,7 +140,13 @@ export const routeTests = [
     expected: {
       status: 200,
       contentType: 'text/html',
-      validator: (html) => validateMarketingHtml(html),
+      validator: (html) => validateMarketingHtml(html, null, {
+        lang: 'ar',
+        dir: 'rtl',
+        canonical: 'https://www.dentixs.app/ar',
+        loginTexts: ['تسجيل الدخول'],
+        targetLangSwitch: '/en',
+      }),
     },
   },
   {
@@ -165,6 +171,45 @@ export const routeTests = [
   {
     desc: 'Unknown path /ar/unknown returns 404 (NOT 200 SPA login)',
     path: '/ar/unknown',
+    expected: { status: 404 },
+  },
+  {
+    desc: 'Clean /en serves English static landing page (HTTP 200)',
+    path: '/en',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      validator: (html) => validateMarketingHtml(html, null, {
+        lang: 'en',
+        dir: 'ltr',
+        canonical: 'https://www.dentixs.app/en',
+        loginTexts: ['log in', 'login'],
+        targetLangSwitch: '/ar',
+      }),
+    },
+  },
+  {
+    desc: 'Trailing slash /en/ redirects with 308 to /en on same origin',
+    path: '/en/',
+    expected: { status: 308, location: '/en' },
+  },
+  {
+    desc: '/en/index.html redirects with 308 to /en on same origin',
+    path: '/en/index.html',
+    expected: { status: 308, location: '/en' },
+  },
+  {
+    desc: '/en with query parameters preserves canonical to /en (HTTP 200)',
+    path: '/en?utm_source=preview_test',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      bodyContains: ['<link rel="canonical" href="https://www.dentixs.app/en">'],
+    },
+  },
+  {
+    desc: 'Unknown path /en/unknown returns 404 (NOT 200 SPA login)',
+    path: '/en/unknown',
     expected: { status: 404 },
   },
   {
@@ -200,6 +245,16 @@ export const routeTests = [
   {
     desc: 'Security headers present on /ar',
     path: '/ar',
+    expected: {
+      headers: {
+        'x-content-type-options': 'nosniff',
+        'referrer-policy': 'strict-origin-when-cross-origin',
+      },
+    },
+  },
+  {
+    desc: 'Security headers present on /en',
+    path: '/en',
     expected: {
       headers: {
         'x-content-type-options': 'nosniff',

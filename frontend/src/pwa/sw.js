@@ -75,6 +75,8 @@ function isMarketingOrCrawlUrl(url) {
         p === '/sitemap.xml' ||
         p === '/ar' ||
         p.startsWith('/ar/') ||
+        p === '/en' ||
+        p.startsWith('/en/') ||
         p.startsWith('/marketing/')
     );
 }

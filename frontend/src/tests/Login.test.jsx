@@ -9,11 +9,15 @@ import Login from '@/pages/Login';
 
 const loginMock = vi.fn();
 const verify2FAMock = vi.fn();
+let currentLanguage = 'ar';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key) => key,
-        i18n: { language: 'ar', changeLanguage: vi.fn() },
+        i18n: {
+            get language() { return currentLanguage; },
+            changeLanguage: vi.fn((lang) => { currentLanguage = lang; }),
+        },
     }),
 }));
 
@@ -39,6 +43,7 @@ const renderLoginAt = (path) => render(
 describe('Login Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        currentLanguage = 'ar';
         loginMock.mockResolvedValue({ role: 'admin' });
     });
 
@@ -120,10 +125,19 @@ describe('Login Component', () => {
         expect(screen.getByText('auth.login.privacy')).toBeInTheDocument();
     });
 
-    it('renders native discovery link to Arabic marketing page', () => {
+    it('renders native discovery link to Arabic marketing page when language is ar', () => {
+        currentLanguage = 'ar';
         renderLogin();
         const aboutLink = screen.getByText('auth.login.about');
         expect(aboutLink).toBeInTheDocument();
         expect(aboutLink.closest('a')).toHaveAttribute('href', '/ar');
+    });
+
+    it('renders native discovery link to English marketing page when language is en', () => {
+        currentLanguage = 'en';
+        renderLogin();
+        const aboutLink = screen.getByText('auth.login.about');
+        expect(aboutLink).toBeInTheDocument();
+        expect(aboutLink.closest('a')).toHaveAttribute('href', '/en');
     });
 });

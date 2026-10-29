@@ -82,6 +82,7 @@ export default defineConfig(({ mode }) => ({
                     'assets/vendor-calendar-*.js',
                     'assets/es-*.js',
                     'ar/**',
+                    'en/**',
                     'marketing/**',
                 ],
             },
