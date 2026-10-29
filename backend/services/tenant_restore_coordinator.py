@@ -18,7 +18,15 @@ from backend.services.tenant_archive_registry import validate_archive_compatibil
 async def known_global_references(db):
     """Resolve shared references from this installation, never from an archive."""
     categories = (await db.execute(select(models.MaterialCategory.id))).scalars().all()
-    procedures = (await db.execute(select(models.Procedure.id).where(models.Procedure.tenant_id.is_(None)))).scalars().all()
+    query = select(models.Procedure.id).where(models.Procedure.tenant_id.is_(None))
+    if db.bind.dialect.name == 'postgresql':
+        # The tenant RLS policy hides NULL-owner catalogue rows. Use the existing
+        # isolated system connection only for this explicit global-ID allowlist;
+        # never include clinic-owned rows or use the archive to authorize IDs.
+        async with db.bypass_rls() as catalog_db:
+            procedures = (await catalog_db.execute(query)).scalars().all()
+    else:
+        procedures = (await db.execute(query)).scalars().all()
     return {'material_categories': set(categories), 'procedures': set(procedures)}
 
 

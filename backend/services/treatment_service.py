@@ -672,7 +672,7 @@ class TreatmentService:
             work_item_id=work_item.id,
             event_type="procedure_cancelled",
             occurred_at=datetime.now(timezone.utc).replace(tzinfo=None),
-            actor_user_id=self.current_user.id,
+            actor_user_id=getattr(self.current_user, 'id', None),
             payload={
                 "kind": "procedure",
                 "canonical_code": work_item.code,
@@ -1150,8 +1150,8 @@ class TreatmentService:
 
         return updated_treatment
 
-    async def delete_treatment(self, treatment_id: int) -> dict:
-        """Delete a treatment record and reverse its stock movements."""
+    async def delete_treatment(self, treatment_id: int, *, commit: bool = True) -> dict:
+        """Delete and reverse stock; commit=False joins the caller's transaction."""
         from backend import crud
         from backend.models import inventory as inv_models
 
@@ -1163,11 +1163,10 @@ class TreatmentService:
         treatment = (await self.db.execute(stmt_t)).scalars().first()
 
         # 1. Reverse stock movements for this treatment
-        await inventory_service.reverse_stock_by_reference(
-            reference_id=f"TREATMENT:{treatment_id}",
-            user_id=self.current_user.id,
-            db=self.db,
-        )
+        for reference in (f"TREATMENT:{treatment_id}", f"TREATMENT_MATERIALS:{treatment_id}"):
+            await inventory_service.reverse_stock_by_reference(
+                reference_id=reference, user_id=getattr(self.current_user, 'id', None), db=self.db,
+            )
 
         # 1.5. Clear associated usage records
         stmt_del = delete(inv_models.TreatmentMaterialUsage).where(
@@ -1188,9 +1187,15 @@ class TreatmentService:
             entity_type="treatment",
             entity_id=treatment_id,
             details=f"Deleted treatment #{treatment_id} (stock reversed)",
+            tenant_id=self.tenant_id,
         )
 
         # 3. Delete treatment
+        if not commit:
+            if treatment:
+                await self.db.delete(treatment)
+                await self.db.flush()
+            return treatment
         return await crud.billing.delete_treatment(self.db, treatment_id, self.tenant_id)
 
     async def persist_treatment_material_usages(

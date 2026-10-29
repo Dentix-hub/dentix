@@ -1,9 +1,10 @@
 """Validate and remap business IDs stored in version-one structured fields."""
 import json
+import math
 import re
 
 from backend.services.tenant_archive import ArchiveError
-from backend.services.tenant_archive_history import deleted_treatment_contexts, historical_treatment_ids
+from backend.services.tenant_archive_history import deleted_treatment_contexts, historical_treatment_ids, inventory_treatment_history
 
 EVENT_IDS = {
     'treatment_id': 'treatments', 'legacy_treatment_id': 'treatments',
@@ -14,7 +15,13 @@ EVENT_IDS = {
     'care_session_id': 'care_sessions', 'event_id': 'clinical_events',
     'price_list_id': 'price_lists', 'tenant_id': 'tenants',
     'actor_user_id': 'users', 'created_by_user_id': 'users', 'user_id': 'users',
+    'session_id': 'care_sessions', 'appointment_id': 'appointments',
+    'provider_user_id': 'users', 'doctor_id': 'users',
+    'resume_work_item_id': 'clinical_work_items', 'resume_from_session_id': 'care_sessions',
+    'step_id': 'care_session_steps', 'observation_id': 'care_observations',
+    'request_id': 'next_visit_requests', 'material_id': 'materials',
 }
+EVENT_ID_LISTS = {'bulk_work_item_ids': 'clinical_work_items', 'usage_ids': 'treatment_material_usages'}
 NON_DATABASE_IDS = {'version_id', 'expected_version_id', 'root_id', 'canal_id', 'idempotency_key'}
 REFERENCE_PREFIXES = {'TREATMENT': 'treatments', 'TREATMENT_MATERIALS': 'treatments', 'CARE_SESSION': 'care_sessions'}
 
@@ -57,13 +64,13 @@ def remap_event_payload(payload, mapping, *, section='clinical_events', field_pr
             if key in EVENT_IDS and item is not None:
                 result[key] = _mapped(mapping, EVENT_IDS[key], item, section=section, field=canonical_field,
                                       historical_mapping=historical_mapping)
-            elif key == 'bulk_work_item_ids':
+            elif key in EVENT_ID_LISTS:
                 if not isinstance(item, list):
                     raise ArchiveError(
                         f'بيانات الحدث السريري غير صالحة ({section}.{canonical_field})',
                         section=section, field=canonical_field, category='invalid_payload', counts=1,
                     )
-                result[key] = [_mapped(mapping, 'clinical_work_items', entry, section=section, field=canonical_field) for entry in item]
+                result[key] = [_mapped(mapping, EVENT_ID_LISTS[key], entry, section=section, field=canonical_field) for entry in item]
             elif key.endswith(('_id', '_ids')) and key not in NON_DATABASE_IDS and item is not None:
                 raise ArchiveError(
                     f'مرجع الحدث السريري غير مدعوم ({section}.{canonical_field})',
@@ -104,6 +111,21 @@ def remap_treatment_note(value, mapping, *, section='treatments', field='notes')
     return value
 
 
+def remap_next_visit_note(value, mapping):
+    """Rebind the scheduler's functional tokens, retaining all other note text."""
+    if value is None:
+        return None
+    def replace(match):
+        try:
+            old_id = int(match.group(1))
+        except ValueError as exc:
+            raise ArchiveError('مرجع الموعد غير صالح', section='next_visit_requests', field='notes',
+                               category='invalid_reference_type', counts=1) from exc
+        new_id = _mapped(mapping, 'appointments', old_id, section='next_visit_requests', field='notes')
+        return f'[APPOINTMENT:{new_id}]'
+    return re.sub(r'\[APPOINTMENT:(\d+)\]', replace, value)
+
+
 def remap_price_snapshot(value, mapping, *, section='treatments', field='price_snapshot'):
     if value is None:
         return None
@@ -123,7 +145,42 @@ def remap_price_snapshot(value, mapping, *, section='treatments', field='price_s
         ) from exc
 
 
-def remap_learning_data(value, mapping, *, section='material_learning_logs', field='calculation_data', historical_mapping=None):
+def learning_procedure_ids(value, *, section='material_learning_logs', field='calculation_data'):
+    """Read catalogue IDs from immutable old/observed/new learning snapshots.
+
+    Catalogue deletion intentionally retains these audit entries. They are not
+    live weight rules or foreign keys and must never recreate a procedure.
+    """
+    if value is None:
+        return set()
+    try:
+        data = json.loads(value)
+        if not isinstance(data, dict):
+            raise ValueError
+        updates = data.get('learning_updates', {})
+        if not isinstance(updates, dict):
+            raise ValueError
+        ids = set()
+        for key, entry in updates.items():
+            if not re.fullmatch(r'[1-9][0-9]{0,9}', key) or int(key) > 2147483647:
+                raise ValueError
+            if not isinstance(entry, dict) or set(entry) != {'old', 'observed', 'new'}:
+                raise ValueError
+            if any(isinstance(number, bool) or not isinstance(number, (int, float, str))
+                   or not math.isfinite(float(number)) for number in entry.values()):
+                raise ValueError
+            ids.add(int(key))
+        return ids
+    except (ValueError, TypeError, OverflowError) as exc:
+        raise ArchiveError(
+            f'سجل تعلم المواد غير صالح ({section}.{field}.learning_updates)',
+            section=section, field=f'{field}.learning_updates',
+            category='invalid_learning_data', counts=1,
+        ) from exc
+
+
+def remap_learning_data(value, mapping, *, section='material_learning_logs', field='calculation_data',
+                        historical_mapping=None, historical_procedure_mapping=None):
     if value is None:
         return None
     try:
@@ -139,11 +196,11 @@ def remap_learning_data(value, mapping, *, section='material_learning_logs', fie
                         raise ValueError
                     entry['treatment_id'] = _mapped(mapping, 'treatments', entry['treatment_id'], section=section, field=f'{field}.{sub_field}.treatment_id', historical_mapping=historical_mapping)
         if 'learning_updates' in data:
-            if not isinstance(data['learning_updates'], dict):
-                raise ValueError
+            learning_procedure_ids(value, section=section, field=field)
+            procedures = {'procedures': {**(historical_procedure_mapping or {}), **mapping.get('procedures', {})}}
             updates = {}
             for key, entry in data['learning_updates'].items():
-                new_id = _mapped(mapping, 'procedures', int(key), section=section, field=f'{field}.learning_updates.procedure_id')
+                new_id = _mapped(procedures, 'procedures', int(key), section=section, field=f'{field}.learning_updates.procedure_id')
                 updates[str(new_id)] = entry
             data['learning_updates'] = updates
         return json.dumps(data, ensure_ascii=False, separators=(',', ':'))
@@ -189,7 +246,7 @@ def validate_embedded_references(data, *, tenant_id, external_ids=None):
         mapping.setdefault(name, {}).update({value: value for value in ids})
 
     contexts = deleted_treatment_contexts(data)
-    historical = {value: value for value in historical_treatment_ids(contexts)}
+    historical = {value: value for value in historical_treatment_ids(contexts) | inventory_treatment_history(data)}
 
     _validate_section_rows(
         data.get('clinical_events', []),
@@ -206,7 +263,10 @@ def validate_embedded_references(data, *, tenant_id, external_ids=None):
     )
     _validate_section_rows(
         data.get('material_learning_logs', []),
-        lambda row: remap_learning_data(row.get('calculation_data'), mapping, section='material_learning_logs', field='calculation_data', historical_mapping=historical),
+        lambda row: remap_learning_data(
+            row.get('calculation_data'), mapping, historical_mapping=historical,
+            historical_procedure_mapping={value: value for value in learning_procedure_ids(row.get('calculation_data'))},
+        ),
         'material_learning_logs',
     )
     def _validate_treatment(row):
@@ -218,3 +278,12 @@ def validate_embedded_references(data, *, tenant_id, external_ids=None):
         _validate_treatment,
         'treatments',
     )
+    appointments = {row['id']: row for row in data.get('appointments', [])}
+    def validate_visit(row):
+        remap_next_visit_note(row.get('notes'), mapping)
+        for match in re.finditer(r'\[APPOINTMENT:(\d+)\]', row.get('notes') or ''):
+            appointment = appointments[int(match.group(1))]
+            if (appointment.get('patient_id'), appointment.get('tenant_id')) != (row.get('patient_id'), row.get('tenant_id')):
+                raise ArchiveError('مرجع الموعد لا يخص المريض', section='next_visit_requests', field='notes',
+                                   referenced_section='appointments', category='invalid_reference', counts=1)
+    _validate_section_rows(data.get('next_visit_requests', []), validate_visit, 'next_visit_requests')

@@ -13,10 +13,10 @@ from sqlalchemy import Date, DateTime, Numeric, delete, select, text
 from backend import models
 from backend.services.tenant_archive import ArchiveError
 from backend.services.tenant_archive_embedded_refs import (
-    remap_event_payload, remap_learning_data, remap_price_snapshot, remap_stock_reference, remap_treatment_note,
+    learning_procedure_ids, remap_event_payload, remap_learning_data, remap_next_visit_note, remap_price_snapshot, remap_stock_reference, remap_treatment_note,
 )
 from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS
-from backend.services.tenant_archive_history import deleted_treatment_contexts, historical_treatment_ids
+from backend.services.tenant_archive_history import deleted_treatment_contexts, historical_treatment_ids, inventory_treatment_history
 
 GATE_NAMESPACE = 1146377304
 
@@ -47,6 +47,23 @@ def _convert(column, value):
     return value
 
 
+async def _reserve_historical_ids(db, table, old_ids, live_mapping):
+    """Allocate absent audit IDs without recreating rows or reusing live IDs."""
+    if not old_ids:
+        return {}
+    reserved = (await db.execute(text(
+        "SELECT nextval(pg_get_serial_sequence(:table, 'id')) "
+        "FROM generate_series(1, :count)"
+    ), {'table': table, 'count': len(old_ids)})).scalars().all()
+    if (
+        any(not isinstance(value, int) or value <= 0 for value in reserved)
+        or len(set(reserved)) != len(old_ids)
+        or set(reserved).intersection(live_mapping.values())
+    ):
+        raise ArchiveError('تعذر تخصيص مراجع آمنة للسجل التاريخي')
+    return dict(zip(sorted(old_ids), reserved, strict=True))
+
+
 async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, external_ids=None, missing_sections=()):
     if db.bind.dialect.name != 'postgresql':
         raise ArchiveError('الاستعادة الآمنة تتطلب قاعدة بيانات PostgreSQL')
@@ -60,6 +77,11 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
     await ensure_missing_sections_empty(db, tenant_id=tenant_id, missing_sections=missing_sections)
     classes = _model_classes()
     historical_contexts = deleted_treatment_contexts(data)
+    historical_inventory_ids = inventory_treatment_history(data)
+    learning_ids = {value for row in data['material_learning_logs']
+                    for value in learning_procedure_ids(row.get('calculation_data'))}
+    live_procedure_ids = {row['id'] for row in data['procedures']} | set((external_ids or {}).get('procedures', ()))
+    historical_procedure_ids = learning_ids - live_procedure_ids
     order = _order()
     for name in reversed(order):
         cls = classes[name]
@@ -103,6 +125,10 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
                     later[key] = value
                     values[key] = None
                     continue
+                if name == 'next_visit_requests' and key == 'notes':
+                    later[key] = value
+                    values[key] = None
+                    continue
                 for foreign in col.foreign_keys:
                     if value is not None:
                         try:
@@ -120,27 +146,26 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
             table_map[source['id']] = row.id
             if later:
                 deferred.append((name, row, later))
-    # Reserve sequence values without inserting treatments. Historical references
+    # Reserve sequence values without inserting business rows. Historical references
     # must stay absent after IDs are regenerated, even if an old ID is now used
-    # by another clinic or would collide with a newly restored live treatment.
-    historical = {}
-    historical_ids = sorted(historical_treatment_ids(historical_contexts))
-    if historical_ids:
-        reserved = (await db.execute(text(
-            "SELECT nextval(pg_get_serial_sequence('treatments', 'id')) "
-            "FROM generate_series(1, :count)"
-        ), {'count': len(historical_ids)})).scalars().all()
-        if (
-            any(not isinstance(value, int) or value <= 0 for value in reserved)
-            or len(set(reserved)) != len(historical_ids)
-            or set(reserved).intersection(mapping.get('treatments', {}).values())
-        ):
-            raise ArchiveError('تعذر تخصيص مراجع آمنة لسجل العلاجات المحذوفة')
-        historical = dict(zip(historical_ids, reserved, strict=True))
+    # by another clinic or would collide with newly restored live data.
+    historical = await _reserve_historical_ids(
+        db, 'treatments', historical_treatment_ids(historical_contexts) | historical_inventory_ids,
+        mapping.get('treatments', {}),
+    )
+    if historical:
         mapping['historical_treatments'] = historical
+    historical_procedures = await _reserve_historical_ids(
+        db, 'procedures', historical_procedure_ids, mapping.get('procedures', {}),
+    )
+    if historical_procedures:
+        mapping['historical_procedures'] = historical_procedures
     for name, row, later in deferred:
         if name == 'material_learning_logs':
-            row.calculation_data = remap_learning_data(later['calculation_data'], mapping, historical_mapping=historical)
+            row.calculation_data = remap_learning_data(
+                later['calculation_data'], mapping, historical_mapping=historical,
+                historical_procedure_mapping=historical_procedures,
+            )
         elif name == 'clinical_events':
             row.payload = remap_event_payload(later['payload'], mapping,
                                             historical_mapping={value: historical[value] for value in later['historical_ids']})
@@ -149,6 +174,8 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
         elif name == 'treatments':
             row.notes = remap_treatment_note(later['notes'], mapping)
             row.price_snapshot = remap_price_snapshot(later['price_snapshot'], mapping)
+        elif name == 'next_visit_requests':
+            row.notes = remap_next_visit_note(later['notes'], mapping)
     # Only the financial staff attributes are business backup data. Never
     # restore login credentials, permission/role fields, sessions, or 2FA.
     financial_fields = ('commission_percent', 'fixed_salary', 'per_appointment_fee', 'hire_date')
