@@ -129,7 +129,9 @@ async def run_drive_backup(*, tenant_id, operation_id, provider_factory=ClinicDr
             op.encrypted_payload = None
             await db.commit()
     except Exception as exc:
-        category = exc.category if isinstance(exc, DriveFailure) else ('configuration' if isinstance(exc, ArchiveError) else 'transient')
+        category = exc.category if isinstance(exc, DriveFailure) else (
+            'archive_data' if isinstance(exc, ArchiveError) and exc.category else
+            ('configuration' if isinstance(exc, ArchiveError) else 'transient'))
         async with AsyncSessionLocal(context=RlsContext(tenant_id=tenant_id)) as db:
             op = await _load_operation(db, tenant_id, operation_id)
             if op and op.status not in {'completed', 'failed', 'expired'}:

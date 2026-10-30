@@ -2,6 +2,14 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Image backup blocker diagnostics: clinic-admin/SYSTEM_CONFIG-only GET /settings/backup/image-operations reports bounded active job/outbox metadata and incomplete attachment counts, scoped to the authenticated tenant; private/no-store, no patient fields, remote IDs, payloads, raw errors or tokens.
+- Verification: 30 targeted diagnostics/archive/readiness/RBAC tests PASS; tenant contamination, role enforcement, read-only behavior, redaction and result bounds covered; Ruff/diff PASS. No queue edits, gate bypass, schema/config changes or deployment.
+- Status: PARTIAL; image 404 alone does not identify the backup-blocking job. Staging diagnostic response is required before selecting a recovery action.
+
+- Production archive history fix: exported copies explicitly disclose unresolved legacy treatment provenance only for completed, same-patient/tenant, matching-code procedures; restore reserves absent historical IDs without creating treatments or binding another clinic. Database events remain unchanged.
+- Validation: production-snapshot replay now passes all archive compatibility stages for the affected clinic; unrelated attachment issues remain rejected. 84 archive regressions + 13 restricted-role PostgreSQL backup/restore checks PASS; Ruff/diff PASS.
+- Drive status now distinguishes structured archive-data failures and reports configuration guidance safely. No migration, encryption-key change, production data repair or deployment. Status: DONE locally; staging and live provider acceptance pending.
+
 - Production backup/chart regressions (2026-10-30): Optional patient age/phone now preserve NULL through export/preview/restore; guarded migration f3c4d5e6a7b8 relaxes only those constraints without rewriting records. Required-field validation remains strict.
 - Mixed odontogram: Anatomical permanent-upper / primary-upper / primary-lower / permanent-lower rows retain all supplied teeth, original FDI identities, callbacks and existing single-dentition orientation; primary positions align with permanent successors.
 - Verification: 150 backend PASS + 1 existing PostgreSQL-only trigger skip; 13 restricted-role PostgreSQL backup/restore PASS; 360 frontend PASS; 10 synthetic browser checks PASS (ar/en, 320–1440px, aligned/unclipped labels); lint/build/Ruff/guardrails PASS.

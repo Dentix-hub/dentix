@@ -45,6 +45,8 @@ async def export_clinic_archive_data(db, tenant_id, *, validate_restore=True):
         for user in (await db.execute(query)).scalars().all()
     ]
     payload = {'data': result}
+    from backend.services.tenant_archive_history import disclose_unresolved_treatment_history
+    disclose_unresolved_treatment_history(result)
     if validate_restore:
         from backend.services.tenant_archive_registry import validate_archive_compatibility
         await validate_archive_compatibility(db, payload, tenant_id=tenant_id)
