@@ -729,6 +729,13 @@ async def test_optional_demographics_round_trip_does_not_touch_other_clinics(age
             db.add_all([actor, patient, other_patient])
             await db.commit()
             tenant_id, actor_id, patient_id, other_id, other_patient_id = tenant.id, actor.id, patient.id, other.id, other_patient.id
+            item = models.ClinicalWorkItem(tenant_id=tenant_id, patient_id=patient_id, kind='procedure', code='PROS_CROWN', status='completed')
+            db.add(item)
+            await db.flush()
+            db.add(models.ClinicalEvent(tenant_id=tenant_id, patient_id=patient_id, work_item_id=item.id,
+                event_type='procedure_recorded', payload={'kind':'procedure','canonical_code':'PROS_CROWN','treatment_id':2147000000}))
+            await db.commit()
+
 
     token = set_current_tenant_id(tenant_id)
     try:
@@ -754,6 +761,10 @@ async def test_optional_demographics_round_trip_does_not_touch_other_clinics(age
                 operation_id=operation_id, installation_id='synthetic', keys={'test': b'x' * 32},
                 supported_revisions={'f3c4d5e6a7b8'}, max_bytes=1000000)
             assert counts['patients'] == 1
+            history = (await db.execute(select(models.ClinicalEvent).where(models.ClinicalEvent.tenant_id == tenant_id))).scalar_one()
+            assert history.payload['archive_reference_state'] == 'unresolved_legacy_treatment'
+            assert history.payload['treatment_id'] != 2147000000
+            assert not (await db.execute(select(models.Treatment.id).where(models.Treatment.tenant_id == tenant_id))).all()
             restored = (await db.execute(select(models.Patient).where(
                 models.Patient.tenant_id == tenant_id, models.Patient.id == mapping['patients'][patient_id]))).scalar_one()
             assert restored.age == age and restored.phone is None and restored.date_of_birth == dob
