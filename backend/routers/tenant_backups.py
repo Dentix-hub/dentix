@@ -53,6 +53,15 @@ class ConfirmRestore(BaseModel):
     otp_code: str | None = Field(default=None, max_length=16, deprecated=True)  # Accepted for older clients; restore uses password confirmation.
 
 
+@router.get('/image-operations')
+async def image_operation_diagnostics(db: AsyncSession = Depends(get_async_db), user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+    from backend.services.image_backup_diagnostics import image_backup_diagnostics
+    tenant_id = _clinic_admin(user)
+    result = await image_backup_diagnostics(db, tenant_id)
+    return Response(content=json.dumps(success_response(data=result)), media_type='application/json',
+                    headers={'Cache-Control': 'private, no-store'})
+
+
 @router.get('/archive')
 async def download_clinic_archive(db: AsyncSession = Depends(get_async_db), user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
     tenant_id = _clinic_admin(user)
