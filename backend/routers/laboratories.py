@@ -550,19 +550,22 @@ async def update_lab_order(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
-    order = (
-        await db.execute(
-            select(models.LabOrder)
-            .options(
-                selectinload(models.LabOrder.patient),
-                selectinload(models.LabOrder.laboratory),
-            )
-            .where(
-                models.LabOrder.id == order_id,
-                models.LabOrder.tenant_id == current_user.tenant_id,
-            )
+    order_stmt = (
+        select(models.LabOrder)
+        .options(
+            selectinload(models.LabOrder.patient),
+            selectinload(models.LabOrder.laboratory),
         )
-    ).scalars().first()
+        .where(
+            models.LabOrder.id == order_id,
+            models.LabOrder.tenant_id == current_user.tenant_id,
+        )
+    )
+    bind = db.bind or db.get_bind()
+    if bind and bind.dialect.name == "postgresql":
+        # Serialize cost validation with payment creation/allocation on this order.
+        order_stmt = order_stmt.with_for_update(of=models.LabOrder).execution_options(populate_existing=True)
+    order = (await db.execute(order_stmt)).scalars().first()
     if not order:
         raise HTTPException(status_code=404, detail="Lab order not found")
     await ensure_patient_visible(db, current_user, order.patient_id, detail="Lab order not found")
@@ -901,7 +904,7 @@ async def create_lab_payment(
         )
         bind = db.bind or db.get_bind()
         if bind and bind.dialect.name == "postgresql":
-            stmt = stmt.with_for_update()
+            stmt = stmt.with_for_update().execution_options(populate_existing=True)
 
         order = (await db.execute(stmt)).scalars().first()
         if not order:
@@ -995,7 +998,7 @@ async def allocate_lab_payment(
         models.LabOrder.tenant_id == current_user.tenant_id,
     )
     if bind and bind.dialect.name == "postgresql":
-        stmt_order = stmt_order.with_for_update()
+        stmt_order = stmt_order.with_for_update().execution_options(populate_existing=True)
 
     order = (await db.execute(stmt_order)).scalars().first()
     if not order:

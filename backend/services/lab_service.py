@@ -235,11 +235,16 @@ class LabService:
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_lab_order(self, order_id: int) -> Optional[models.LabOrder]:
+    async def get_lab_order(self, order_id: int, *, for_update: bool = False) -> Optional[models.LabOrder]:
         stmt = select(models.LabOrder).where(
             models.LabOrder.id == order_id,
             models.LabOrder.tenant_id == self.tenant_id,
         )
+        if for_update:
+            bind = self.db.bind or self.db.get_bind()
+            if bind and bind.dialect.name == "postgresql":
+                # Re-read any cached order after waiting for a payment/cost writer.
+                stmt = stmt.with_for_update().execution_options(populate_existing=True)
         result = await self.db.execute(stmt)
         return result.scalars().first()
 
@@ -368,7 +373,7 @@ class LabService:
         self, order_id: int, data: schemas.LabOrderUpdate
     ) -> models.LabOrder:
         """Update lab order and sync linked treatment."""
-        order = await self.get_lab_order(order_id)
+        order = await self.get_lab_order(order_id, for_update=True)
         if not order:
             raise ValueError("Lab order not found")
 
@@ -694,15 +699,7 @@ class LabService:
             raise ValueError("Laboratory not found")
 
         if data.lab_order_id is not None:
-            stmt = select(models.LabOrder).where(
-                models.LabOrder.id == data.lab_order_id,
-                models.LabOrder.tenant_id == self.tenant_id,
-            )
-            bind = self.db.bind or self.db.get_bind()
-            if bind and bind.dialect.name == "postgresql":
-                stmt = stmt.with_for_update()
-
-            order = (await self.db.execute(stmt)).scalars().first()
+            order = await self.get_lab_order(data.lab_order_id, for_update=True)
             if not order:
                 raise ValueError("طلب المعمل غير موجود")
             if order.laboratory_id != lab_id:
@@ -770,14 +767,7 @@ class LabService:
         if payment.lab_order_id is not None:
             raise ValueError("الدفعة مرتبطة بطلب بالفعل")
 
-        stmt_order = select(models.LabOrder).where(
-            models.LabOrder.id == lab_order_id,
-            models.LabOrder.tenant_id == self.tenant_id,
-        )
-        if bind and bind.dialect.name == "postgresql":
-            stmt_order = stmt_order.with_for_update()
-
-        order = (await self.db.execute(stmt_order)).scalars().first()
+        order = await self.get_lab_order(lab_order_id, for_update=True)
         if not order:
             raise ValueError("طلب المعمل غير موجود")
         if order.laboratory_id != lab_id:
