@@ -2,9 +2,13 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Final cumulative production review (2026-10-30): technical PASS for main 1b7c1bd -> staging ebb98e4; acceptance recorded by protected review/merge of this review-record PR. Evidence and limits: docs/reports/production-release-review-2026-10-30.md.
+- Gates: all final PR #329 CI jobs + exact staging smoke PASS; encrypted DB snapshot, 86-table application restoration and unchanged migration rehearsal PASS. Owner confirmed the one pre-existing local attachment is not required; its DB record is retained.
+- Promotion preserves clinical flags and persistent keys; live SMTP/Google provider acceptance remains NOT VERIFIED. Refresh recovery snapshot near cutover; production has not been deployed.
+
 - Lab cost/payment race (2026-10-30): Tenant-scoped PostgreSQL order locks now serialize cost edits with payment creation/allocation in HTTP and service paths; locked reads refresh cached order values. No migration or accounting formula change.
 - Verification: regression failed on the prior code; 26 restricted-role PostgreSQL checks (both operation orders, four payment paths, independent orders, finance/RLS) + 77 lab/RBAC regressions PASS, 0 skipped; targeted Ruff and diff checks PASS.
-- Status: DONE locally; CI/staging acceptance pending. Production unchanged; cumulative final release review remains PENDING.
+- Status: DONE; PR #329 merged, final CI and exact staging deployment/smoke PASS. Production unchanged; final cumulative review recorded in the release report.
 
 - Marketing visual redesign (2026-10-29): Arabic/English pages now use the app's sky/navy/teal palette, practical clinic-day copy, six actual React screenshots with fictional-data disclosures, self-hosted licensed Cairo, native image enlargement and responsive layouts. SEO, zero-JS public delivery and PWA exclusions retained.
 - Verification: 65 targeted Vitest tests PASS; full marketing browser run 63 passed + 2 intentional no-JS skips; final visual/image checks 30 PASS; backend 39 passed + 1 existing refresh-tracking skip; build/lint/guardrails PASS; 120 precache entries. Status: DONE locally, awaiting visual review; no push/deployment.
@@ -34,7 +38,7 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 - Last merged PR: #313
 - Current brief: Pre-production polish (2026-10-26) + lazy default procedure seeding for pre-existing empty clinics & SW cache recovery (`fix/mobile-white-screen-recovery`).
 - Status: READY (lazy default procedure seeding on empty clinic read, non-blocking cache cleanup, SW cache recovery, PERF_DIAGNOSTICS default OFF).
-- Promotion to main: All 37 slices (S00–S36) complete. Blocked until staging smoke test and the mandatory stronger-model final review are done (DEVELOPMENT_WORKFLOW §6). Final review: PENDING.
+- Promotion to main: All 37 slices (S00–S36) complete. Final cumulative technical review: PASS (docs/reports/production-release-review-2026-10-30.md); owner acceptance via protected review-record PR merge, then exact current staging smoke and normal protected promotion.
 
 ## R1 Additions & Completion (feat/r1-completion-and-additions)
 - F-17/F-18/F-11/F-05 fixes: plan overlay multi-surface counting, care session translations, safe interim tooth condition update, invoiced charge correction warnings/audits/notifications.
