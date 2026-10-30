@@ -11,13 +11,15 @@ Proves:
 
 import asyncio
 from decimal import Decimal
+from itertools import product
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from backend import models, schemas
-from backend.database import AsyncSessionLocal, RlsContext
-from backend.routers.laboratories import create_lab_payment, allocate_lab_payment
+from backend.database import AsyncSessionLocal, RlsContext, system_async_engine
+from backend.routers.laboratories import create_lab_payment, allocate_lab_payment, update_lab_order
+from backend.services.lab_service import LabService
 
 TENANT_ID = 99840
 USER_ID = 998401
@@ -320,3 +322,169 @@ async def test_concurrent_allocations_never_exceed_order_cost():
             )
         ).scalar()
         assert count == 1
+
+
+async def _new_cost_race_order():
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=TENANT_ID)) as db:
+        order = models.LabOrder(
+            tenant_id=TENANT_ID, patient_id=PATIENT_ID, laboratory_id=LAB_ID,
+            work_type="Cost/payment serialization", cost=Decimal("100.00"),
+            price_to_patient=Decimal("0.00"), status="pending",
+        )
+        db.add(order)
+        await db.commit()
+        return order.id
+
+
+async def _edit_order_cost(db, user, order_id, path):
+    payload = schemas.LabOrderUpdate(cost=Decimal("50.00"))
+    if path == "router":
+        return await update_lab_order(order_id=order_id, order_update=payload, db=db, current_user=user)
+    return await LabService(db, TENANT_ID).update_lab_order(order_id, payload)
+
+
+async def _record_order_payment(db, user, order_id, path, payment_id):
+    if path.endswith("allocate"):
+        if path.startswith("router"):
+            return await allocate_lab_payment(
+                lab_id=LAB_ID, payment_id=payment_id,
+                payload=schemas.LabPaymentAllocate(lab_order_id=order_id), db=db, current_user=user,
+            )
+        return await LabService(db, TENANT_ID).allocate_payment(LAB_ID, payment_id, order_id)
+    payload = schemas.LabPaymentCreate(
+        laboratory_id=LAB_ID, lab_order_id=order_id, amount=Decimal("100.00"), method="Cash",
+    )
+    if path.startswith("router"):
+        return await create_lab_payment(lab_id=LAB_ID, payment=payload, db=db, current_user=user)
+    return await LabService(db, TENANT_ID).create_lab_payment(LAB_ID, payload)
+
+
+def _pause_after_payment_total(monkeypatch, db, reached, release):
+    scalar = db.scalar
+
+    async def paused(statement, *args, **kwargs):
+        value = await scalar(statement, *args, **kwargs)
+        if "sum(lab_payments.amount)" in str(statement):
+            reached.set()
+            await asyncio.wait_for(release.wait(), timeout=15)
+        return value
+
+    monkeypatch.setattr(db, "scalar", paused)
+
+
+async def _assert_database_waiter(task, waiter_pid, holder_pid):
+    """Observe the real PostgreSQL lock, rather than guessing with a sleep."""
+    async with system_async_engine.connect() as observer:
+        async def wait():
+            while True:
+                blockers = await observer.scalar(text("SELECT pg_blocking_pids(:pid)"), {"pid": waiter_pid})
+                if holder_pid in blockers:
+                    return
+                assert not task.done(), "Competing operation completed before the order lock was released"
+                await asyncio.sleep(0.01)
+
+        await asyncio.wait_for(wait(), timeout=10)
+
+
+_COST_PAYMENT_CASES = list(product(
+    ["router", "service"],
+    ["router_create", "router_allocate", "service_create", "service_allocate"],
+    ["payment", "cost"],
+))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "update_path,payment_path,winner", _COST_PAYMENT_CASES,
+    ids=[f"{winner}-{update}-{payment}" for update, payment, winner in _COST_PAYMENT_CASES],
+)
+async def test_cost_edits_serialize_with_payments(monkeypatch, update_path, payment_path, winner):
+    """Both lock orders preserve paid <= cost, including preloaded ORM objects."""
+    user = await _seed()
+    order_id = await _new_cost_race_order()
+    payment_id = None
+    if payment_path.endswith("allocate"):
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=TENANT_ID)) as db:
+            payment = models.LabPayment(tenant_id=TENANT_ID, laboratory_id=LAB_ID, amount=Decimal("100.00"))
+            db.add(payment)
+            await db.commit()
+            payment_id = payment.id
+
+    reached, release = asyncio.Event(), asyncio.Event()
+    async with (
+        AsyncSessionLocal(context=RlsContext(tenant_id=TENANT_ID)) as update_db,
+        AsyncSessionLocal(context=RlsContext(tenant_id=TENANT_ID)) as payment_db,
+    ):
+        # Keep strong references so the identity map really contains stale data
+        # when the other transaction commits a new cost.
+        cached_orders = [
+            (await db.execute(select(models.LabOrder).where(
+                models.LabOrder.id == order_id, models.LabOrder.tenant_id == TENANT_ID,
+            ))).scalar_one()
+            for db in (update_db, payment_db)
+        ]
+        assert all(order.cost == Decimal("100.00") for order in cached_orders)
+        update_pid = await update_db.scalar(text("SELECT pg_backend_pid()"))
+        payment_pid = await payment_db.scalar(text("SELECT pg_backend_pid()"))
+        holder, holder_pid, waiter_pid = (
+            (payment_db, payment_pid, update_pid) if winner == "payment"
+            else (update_db, update_pid, payment_pid)
+        )
+        _pause_after_payment_total(monkeypatch, holder, reached, release)
+        actions = {
+            "cost": lambda: _edit_order_cost(update_db, user, order_id, update_path),
+            "payment": lambda: _record_order_payment(payment_db, user, order_id, payment_path, payment_id),
+        }
+        other = "cost" if winner == "payment" else "payment"
+        tasks = [asyncio.create_task(actions[winner]())]
+        try:
+            await asyncio.wait_for(reached.wait(), timeout=10)
+            tasks.append(asyncio.create_task(actions[other]()))
+            await _assert_database_waiter(tasks[1], waiter_pid, holder_pid)
+        finally:
+            release.set()
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        assert not isinstance(results[0], Exception), results[0]
+        failure = results[1]
+        rejected_path = update_path if other == "cost" else payment_path
+        if rejected_path.startswith("router"):
+            assert isinstance(failure, HTTPException), results
+            assert failure.status_code == 400
+            message = failure.detail
+        else:
+            assert isinstance(failure, ValueError), results
+            message = str(failure)
+        assert ("أقل" if other == "cost" else "يتجاوز") in message
+
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=TENANT_ID)) as db:
+        cost = await db.scalar(select(models.LabOrder.cost).where(
+            models.LabOrder.id == order_id, models.LabOrder.tenant_id == TENANT_ID,
+        ))
+        paid = await db.scalar(select(func.coalesce(func.sum(models.LabPayment.amount), 0)).where(
+            models.LabPayment.lab_order_id == order_id, models.LabPayment.tenant_id == TENANT_ID,
+        ))
+        assert paid <= cost
+        assert (cost, paid) == (
+            (Decimal("100.00"), Decimal("100.00")) if winner == "payment"
+            else (Decimal("50.00"), Decimal("0.00"))
+        )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("update_path", ["router", "service"])
+async def test_cost_edit_does_not_block_payment_to_another_order(monkeypatch, update_path):
+    user = await _seed()
+    order_id, other_order_id = await _new_cost_race_order(), await _new_cost_race_order()
+    reached, release = asyncio.Event(), asyncio.Event()
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=TENANT_ID)) as update_db:
+        _pause_after_payment_total(monkeypatch, update_db, reached, release)
+        task = asyncio.create_task(_edit_order_cost(update_db, user, order_id, update_path))
+        try:
+            await asyncio.wait_for(reached.wait(), timeout=10)
+            async with AsyncSessionLocal(context=RlsContext(tenant_id=TENANT_ID)) as payment_db:
+                await asyncio.wait_for(
+                    _record_order_payment(payment_db, user, other_order_id, "router_create", None), timeout=10,
+                )
+        finally:
+            release.set()
+            await task

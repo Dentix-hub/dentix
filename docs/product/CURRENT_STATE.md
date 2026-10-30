@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Lab cost/payment race (2026-10-30): Tenant-scoped PostgreSQL order locks now serialize cost edits with payment creation/allocation in HTTP and service paths; locked reads refresh cached order values. No migration or accounting formula change.
+- Verification: regression failed on the prior code; 26 restricted-role PostgreSQL checks (both operation orders, four payment paths, independent orders, finance/RLS) + 77 lab/RBAC regressions PASS, 0 skipped; targeted Ruff and diff checks PASS.
+- Status: DONE locally; CI/staging acceptance pending. Production unchanged; cumulative final release review remains PENDING.
+
 - Marketing visual redesign (2026-10-29): Arabic/English pages now use the app's sky/navy/teal palette, practical clinic-day copy, six actual React screenshots with fictional-data disclosures, self-hosted licensed Cairo, native image enlargement and responsive layouts. SEO, zero-JS public delivery and PWA exclusions retained.
 - Verification: 65 targeted Vitest tests PASS; full marketing browser run 63 passed + 2 intentional no-JS skips; final visual/image checks 30 PASS; backend 39 passed + 1 existing refresh-tracking skip; build/lint/guardrails PASS; 120 precache entries. Status: DONE locally, awaiting visual review; no push/deployment.
 
