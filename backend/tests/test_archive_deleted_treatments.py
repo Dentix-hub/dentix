@@ -103,3 +103,43 @@ async def test_export_after_real_treatment_deletion_keeps_clinical_history(
     )
     assert operation.status == 'previewed' and counts['clinical_events'] == 2
     assert counts['treatments'] == 0
+
+
+def test_disclosed_unresolved_completed_history_is_explicit_and_non_mutating():
+    from copy import deepcopy
+    from backend.services.tenant_archive_history import disclose_unresolved_treatment_history
+    source = _history_data()
+    source['clinical_events'] = source['clinical_events'][:1]
+    source['clinical_work_items'][0].update(status='completed', code='PROS_CROWN')
+    source['clinical_events'][0]['payload'].update(kind='procedure', canonical_code='PROS_CROWN')
+    exported = deepcopy(source)
+    with pytest.raises(ArchiveError):
+        validate_embedded_references(exported, tenant_id=7)
+    disclose_unresolved_treatment_history(exported)
+    validate_embedded_references(exported, tenant_id=7)
+    assert exported['clinical_events'][0]['payload']['archive_reference_state'] == 'unresolved_legacy_treatment'
+    assert 'archive_reference_state' not in source['clinical_events'][0]['payload']
+    assert exported['treatments'] == []
+
+
+@pytest.mark.parametrize('mutation', ['wrong_patient', 'wrong_tenant', 'wrong_code', 'active', 'boolean_id'])
+def test_disclosure_does_not_authorize_unrelated_history(mutation):
+    from backend.services.tenant_archive_history import disclose_unresolved_treatment_history
+    data = _history_data()
+    data['clinical_events'] = data['clinical_events'][:1]
+    data['clinical_work_items'][0].update(status='completed', code='PROS_CROWN')
+    data['clinical_events'][0]['payload'].update(kind='procedure', canonical_code='PROS_CROWN')
+    data['clinical_events'][0]['payload']['archive_reference_state'] = 'unresolved_legacy_treatment'
+    if mutation == 'wrong_patient':
+        data['clinical_events'][0]['patient_id'] = 2
+    elif mutation == 'wrong_tenant':
+        data['clinical_events'][0]['tenant_id'] = 8
+    elif mutation == 'wrong_code':
+        data['clinical_events'][0]['payload']['canonical_code'] = 'OTHER'
+    elif mutation == 'active':
+        data['clinical_work_items'][0]['status'] = 'active'
+    else:
+        data['clinical_events'][0]['payload']['treatment_id'] = True
+    disclose_unresolved_treatment_history(data)
+    with pytest.raises(ArchiveError):
+        validate_embedded_references(data, tenant_id=7)
