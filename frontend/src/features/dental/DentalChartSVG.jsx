@@ -100,15 +100,6 @@ const PRIMARY_LAYOUT = Object.freeze({
     lowerRight: Object.freeze(['P', 'Q', 'R', 'S', 'T']),
 });
 
-const SOURCE_IDS = Object.freeze([
-    ...Object.values(ADULT_LAYOUT).flat(),
-    ...Object.values(PRIMARY_LAYOUT).flat(),
-]);
-
-const SOURCE_ID_BY_TOOTH_KEY = Object.freeze(Object.fromEntries(
-    SOURCE_IDS.map((sourceId) => [String(toothToNumber(sourceId)), sourceId]),
-));
-
 const createLayoutEntry = (sourceId) => Object.freeze({
     sourceId,
     toothKey: String(toothToNumber(sourceId)),
@@ -123,29 +114,25 @@ const createLegacyLayout = (isPediatric) => {
     ])));
 };
 
-const MIXED_LAYOUT_QUADRANTS = Object.freeze({
-    upperLeft: Object.freeze(['2', '6']),
-    upperRight: Object.freeze(['1', '5']),
-    lowerLeft: Object.freeze(['3', '7']),
-    lowerRight: Object.freeze(['4', '8']),
-});
-
-const createMixedLayout = (toothOrder) => Object.freeze(Object.fromEntries(
-    Object.entries(MIXED_LAYOUT_QUADRANTS).map(([quadrant, quadrantCodes]) => [
-        quadrant,
-        Object.freeze(toothOrder
-            .map(String)
-            .filter((toothKey) => quadrantCodes.includes(toothKey[0]))
-            .map((toothKey) => {
-                const sourceId = SOURCE_ID_BY_TOOTH_KEY[toothKey];
-                return Object.freeze({
-                    sourceId,
-                    toothKey,
-                    isPediatric: typeof sourceId === 'string',
-                });
-            })),
-    ]),
-));
+const createMixedRows = (toothOrder) => {
+    const included = new Set(toothOrder.map(String));
+    const permanent = createLegacyLayout(false);
+    const primary = createLegacyLayout(true);
+    // Primary A–E occupy the corresponding 1–5 positions. Empty slots retain
+    // alignment with the permanent dentition without inventing extra teeth.
+    const padLeft = (teeth) => [null, null, null, ...teeth];
+    const padRight = (teeth) => [...teeth, null, null, null];
+    return [
+        { id: 'permanent-upper', arch: 'upper', primary: false, left: permanent.upperLeft, right: permanent.upperRight },
+        { id: 'primary-upper', arch: 'upper', primary: true, left: padLeft(primary.upperLeft), right: padRight(primary.upperRight) },
+        { id: 'primary-lower', arch: 'lower', primary: true, left: padLeft(primary.lowerLeft), right: padRight(primary.lowerRight) },
+        { id: 'permanent-lower', arch: 'lower', primary: false, left: permanent.lowerLeft, right: permanent.lowerRight },
+    ].map((row) => ({
+        ...row,
+        left: row.left.map((tooth) => tooth && included.has(tooth.toothKey) ? tooth : null),
+        right: row.right.map((tooth) => tooth && included.has(tooth.toothKey) ? tooth : null),
+    })).filter((row) => [...row.left, ...row.right].some(Boolean));
+};
 
 const ToothRootLayer = memo(function ToothRootLayer({ toothKey, arch, opacity, toothVisual }) {
     const roots = getRootGeometry(toothKey);
@@ -487,9 +474,8 @@ export default memo(function DentalChartSVG({
 }) {
     const { t } = useTranslation();
     const isMixedDentition = Array.isArray(toothOrder);
-    const layout = isMixedDentition
-        ? createMixedLayout(toothOrder)
-        : createLegacyLayout(isPediatric);
+    const layout = createLegacyLayout(isPediatric);
+    const mixedRows = isMixedDentition ? createMixedRows(toothOrder) : [];
     const chartMinWidth = isMixedDentition
         ? 'min-w-[600px]'
         : (isPediatric ? 'min-w-[480px]' : 'min-w-[700px]');
@@ -542,6 +528,36 @@ export default memo(function DentalChartSVG({
                 tabIndex={0}
             >
                 <div className={chartMinWidth + ' inline-flex flex-col'} dir="ltr">
+                    {isMixedDentition ? (
+                        <div className="inline-flex flex-col gap-5">
+                            {mixedRows.map((row) => (
+                                <div key={row.id} data-dentition-row={row.id}>
+                                    <p className="mb-2 text-xs font-medium text-slate-500">
+                                        {row.primary
+                                            ? t('dental_chart.primary_teeth', 'Primary teeth')
+                                            : t('dental_chart.permanent_teeth', 'Permanent teeth')}
+                                    </p>
+                                    <div className="relative flex justify-center gap-1">
+                                        <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
+                                        <div className={`absolute inset-x-0 h-0.5 bg-slate-300 ${row.arch === 'upper' ? 'bottom-0' : 'top-0'}`} aria-hidden="true" />
+                                        {['left', 'right'].map((side) => (
+                                            <div
+                                                key={side}
+                                                data-chart-quadrant={side}
+                                                className={`grid grid-cols-8 gap-1 px-3 sm:px-4 ${row.arch === 'upper' ? 'pb-4' : 'pt-4'}`}
+                                            >
+                                                {row[side].map((tooth, index) => (
+                                                    <div key={index} className="min-w-[50px] pb-6" data-tooth-slot={index}>
+                                                        {tooth ? renderTooth(tooth, row.arch) : null}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
                     <div className="inline-flex flex-col gap-14 sm:gap-16">
                         <div className="relative flex justify-center gap-1">
                             <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
@@ -567,6 +583,7 @@ export default memo(function DentalChartSVG({
                             </div>
                         </div>
                     </div>
+                    )}
                 </div>
             </div>
 

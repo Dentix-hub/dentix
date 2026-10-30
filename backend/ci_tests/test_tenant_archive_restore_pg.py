@@ -1,5 +1,7 @@
 """Synthetic PostgreSQL round trip for tenant business data and identities."""
 import uuid
+import hashlib
+from datetime import date
 import json
 from decimal import Decimal
 
@@ -9,7 +11,10 @@ from sqlalchemy import select
 from backend import models
 from backend.core.tenancy import clear_tenant_context, set_current_tenant_id
 from backend.database import AsyncSessionLocal, RlsContext
+from backend.services.tenant_archive import encode_archive
 from backend.services.tenant_archive_export import export_clinic_archive_data
+from backend.services.tenant_restore_coordinator import run_confirmed_restore
+from backend.services.tenant_restore_preview import create_restore_preview, confirm_restore_preview
 from backend.services.tenant_archive_identity import resolve_staff_mapping
 from backend.services.tenant_archive_import import replace_clinic_business_data
 from backend.services.tenant_archive_registry import validate_archive_references, validate_archive_sections, validate_archive_values
@@ -702,5 +707,61 @@ async def test_native_and_legacy_workflows_survive_two_encrypted_restores():
                 'Cancelled', tid)
             await db.refresh(restored)
             assert restored.status == 'requested'
+    finally:
+        clear_tenant_context(tenant_token=token)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('age,dob', [(None, None), (None, date(2015, 3, 10)), (0, None)])
+async def test_optional_demographics_round_trip_does_not_touch_other_clinics(age, dob):
+    suffix = uuid.uuid4().hex
+    async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
+        async with session.bypass_rls() as db:
+            tenant = models.Tenant(name='Synthetic demographics')
+            other = models.Tenant(name='Synthetic isolation')
+            db.add_all([tenant, other])
+            await db.flush()
+            actor = models.User(tenant_id=tenant.id, username='demographics_' + suffix,
+                                hashed_password='synthetic', role='admin', is_active=True)
+            patient = models.Patient(tenant_id=tenant.id, name='Synthetic unknown', age=age,
+                                     phone=None, date_of_birth=dob)
+            other_patient = models.Patient(tenant_id=other.id, name='Synthetic other', age=45, phone='synthetic')
+            db.add_all([actor, patient, other_patient])
+            await db.commit()
+            tenant_id, actor_id, patient_id, other_id, other_patient_id = tenant.id, actor.id, patient.id, other.id, other_patient.id
+
+    token = set_current_tenant_id(tenant_id)
+    try:
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=tenant_id)) as db:
+            payload = await export_clinic_archive_data(db, tenant_id)
+            assert len(payload['data']['patients']) == 1
+            assert payload['data']['patients'][0]['age'] == age
+            assert payload['data']['patients'][0]['phone'] is None
+            archive = encode_archive(payload, tenant_id=tenant_id, installation_id='synthetic',
+                schema_revision='f3c4d5e6a7b8', key_id='test', key=b'x' * 32)
+            operation, confirmation, _, _, _ = await create_restore_preview(
+                db, tenant_id=tenant_id, actor_id=actor_id, archive=archive,
+                installation_id='synthetic', keys={'test': b'x' * 32},
+                supported_revisions={'f3c4d5e6a7b8'}, max_bytes=1000000)
+            await confirm_restore_preview(db, tenant_id=tenant_id, actor_id=actor_id,
+                operation_id=operation.id, confirmation=confirmation, archive_digest=hashlib.sha256(archive).hexdigest())
+            operation_id = operation.id
+            patient = (await db.execute(select(models.Patient).where(
+                models.Patient.tenant_id == tenant_id, models.Patient.id == patient_id))).scalar_one()
+            patient.age, patient.phone = 60, 'changed'
+            await db.commit()
+            counts, mapping = await run_confirmed_restore(db, tenant_id=tenant_id,
+                operation_id=operation_id, installation_id='synthetic', keys={'test': b'x' * 32},
+                supported_revisions={'f3c4d5e6a7b8'}, max_bytes=1000000)
+            assert counts['patients'] == 1
+            restored = (await db.execute(select(models.Patient).where(
+                models.Patient.tenant_id == tenant_id, models.Patient.id == mapping['patients'][patient_id]))).scalar_one()
+            assert restored.age == age and restored.phone is None and restored.date_of_birth == dob
+        clear_tenant_context(tenant_token=token)
+        token = set_current_tenant_id(other_id)
+        async with AsyncSessionLocal(context=RlsContext(tenant_id=other_id)) as db:
+            untouched = (await db.execute(select(models.Patient).where(
+                models.Patient.tenant_id == other_id, models.Patient.id == other_patient_id))).scalar_one()
+            assert untouched.age == 45 and untouched.phone == 'synthetic'
     finally:
         clear_tenant_context(tenant_token=token)
