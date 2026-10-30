@@ -29,10 +29,21 @@ import {
     List as ListIcon,
     Home,
     GripVertical,
-    StickyNote
+    StickyNote,
+    Edit2,
+    CalendarClock
 } from 'lucide-react';
 import { createAppointment, deleteAppointment, updateAppointmentStatus } from '@/api';
-import { useAppointments, useUpdateAppointmentStatus, useUpdateAppointment } from '@/hooks/useAppointments';
+import { getDoctors } from '@/api/admin';
+import {
+    useAppointments,
+    useUpdateAppointmentStatus,
+    useUpdateAppointment,
+    useNextVisitRequests,
+    useScheduleNextVisitRequest,
+    useCancelNextVisitRequest
+} from '@/hooks/useAppointments';
+import NextVisitQueue from '@/features/appointments/components/NextVisitQueue';
 import { usePatients, useCreatePatient } from '@/hooks/usePatients';
 import { getTodayDateTimeStr } from '@/utils/toothUtils';
 import { getDateInTimeZone, selectAppointmentsForBusinessDate } from '@/utils/dateTime';
@@ -81,11 +92,13 @@ export default function Appointments() {
     const [viewMode, setViewMode] = useState(getInitialViewMode);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null });
+    const [activeRequestId, setActiveRequestId] = useState(null);
     const [newAppt, setNewAppt] = useState({
         patient_id: '',
         date_time: getTodayDateTimeStr(),
         notes: '',
-        doctor_id: user?.role === 'doctor' ? user.id : ''
+        doctor_id: user?.role === 'doctor' ? user.id : '',
+        duration_minutes: 30
     });
     const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
     const [quickPatient, setQuickPatient] = useState({ name: '', phone: '' });
@@ -114,9 +127,130 @@ export default function Appointments() {
 
     const { data: appointments = [], isLoading: apptsLoading, refetch: refetchAppointments } = useAppointments();
     const { data: patients = [], isLoading: patientsLoading, refetch: refetchPatients } = usePatients();
+    const { data: nextVisitRequests = [], isLoading: nvrLoading } = useNextVisitRequests({ status: 'all' });
     const updateMutation = useUpdateAppointment();
     const createPatientMutation = useCreatePatient();
+    const scheduleRequestMutation = useScheduleNextVisitRequest();
+    const cancelRequestMutation = useCancelNextVisitRequest();
     const loading = apptsLoading || patientsLoading;
+
+    const [doctors, setDoctors] = useState([]);
+
+    useEffect(() => {
+        let active = true;
+        getDoctors()
+            .then((res) => {
+                if (active) {
+                    setDoctors(res?.data?.doctors || res?.data || []);
+                }
+            })
+            .catch(() => {});
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    const [editModal, setEditModal] = useState({
+        open: false,
+        appt: null,
+        date_time: '',
+        duration_minutes: 30,
+        doctor_id: '',
+        notes: ''
+    });
+
+    const [postponeModal, setPostponeModal] = useState({
+        open: false,
+        appt: null,
+        date_time: ''
+    });
+
+    const handleOpenEdit = useCallback((appt) => {
+        setEditModal({
+            open: true,
+            appt,
+            date_time: appt.date_time ? appt.date_time.substring(0, 16) : '',
+            duration_minutes: appt.duration_minutes || 30,
+            doctor_id: appt.doctor_id ? appt.doctor_id.toString() : '',
+            notes: appt.notes || ''
+        });
+    }, []);
+
+    const handleUpdateAppointment = async () => {
+        if (!editModal.appt) return;
+        const toastId = toast.loading(t('appointments.messages.updating'));
+        try {
+            const formattedDate = editModal.date_time ? editModal.date_time.substring(0, 19) : undefined;
+            const payload = {
+                date_time: formattedDate,
+                duration_minutes: editModal.duration_minutes ? parseInt(editModal.duration_minutes, 10) : 30,
+                doctor_id: editModal.doctor_id ? parseInt(editModal.doctor_id, 10) : null,
+                notes: editModal.notes || ''
+            };
+            await updateMutation.mutateAsync({ id: editModal.appt.id, data: payload });
+            toast.success(t('appointments.messages.update_success'), { id: toastId });
+            setEditModal({ open: false, appt: null, date_time: '', duration_minutes: 30, doctor_id: '', notes: '' });
+            refetchAppointments();
+        } catch (err) {
+            const errorMsg = err.response?.data?.detail || t('appointments.messages.update_error');
+            toast.error(errorMsg, { id: toastId });
+        }
+    };
+
+    const handleOpenPostpone = useCallback((appt) => {
+        setPostponeModal({
+            open: true,
+            appt,
+            date_time: ''
+        });
+    }, []);
+
+    const handleConfirmPostpone = async () => {
+        if (!postponeModal.appt) return;
+        const toastId = toast.loading(t('appointments.messages.updating'));
+        try {
+            const payload = {
+                status: 'Postponed',
+                ...(postponeModal.date_time ? { date_time: postponeModal.date_time.substring(0, 19) } : {})
+            };
+            await updateMutation.mutateAsync({ id: postponeModal.appt.id, data: payload });
+            toast.success(t('appointments.messages.update_success'), { id: toastId });
+            setPostponeModal({ open: false, appt: null, date_time: '' });
+            refetchAppointments();
+        } catch (err) {
+            const errorMsg = err.response?.data?.detail || t('appointments.messages.update_error');
+            toast.error(errorMsg, { id: toastId });
+        }
+    };
+
+    const handleScheduleRequest = useCallback((request) => {
+        setActiveRequestId(request.id);
+        const preferredDate = request.preferred_time_window_start
+            ? new Date(request.preferred_time_window_start).toISOString().substring(0, 16)
+            : getTodayDateTimeStr();
+
+        setNewAppt({
+            patient_id: request.patient_id.toString(),
+            date_time: preferredDate,
+            notes: request.reason || '',
+            doctor_id: user?.role === 'doctor' ? user.id : '',
+            duration_minutes: request.suggested_duration_minutes || 30
+        });
+        setIsModalOpen(true);
+    }, [user]);
+
+    const handleDismissRequest = useCallback(async (request) => {
+        const toastId = toast.loading(t('common.processing', 'Processing...'));
+        try {
+            await cancelRequestMutation.mutateAsync({
+                requestId: request.id,
+                data: { reason: 'Dismissed from reception triage' }
+            });
+            toast.success(t('appointments.request_dismissed', 'Next-visit request dismissed'), { id: toastId });
+        } catch {
+            toast.error(t('common.error_occurred', 'Failed to dismiss request'), { id: toastId });
+        }
+    }, [cancelRequestMutation, t]);
 
     const handleCreate = useCallback(async () => {
         if (!newAppt.patient_id || !newAppt.date_time) {
@@ -125,26 +259,41 @@ export default function Appointments() {
         }
         const toastId = toast.loading(t('appointments.messages.booking'));
         try {
-            const payload = {
-                ...newAppt,
-                patient_id: parseInt(newAppt.patient_id, 10),
-                doctor_id: newAppt.doctor_id ? parseInt(newAppt.doctor_id, 10) : null,
-                price_list_id: newAppt.price_list_id ? parseInt(newAppt.price_list_id, 10) : null
-            };
-            await createAppointment(payload);
+            if (activeRequestId) {
+                await scheduleRequestMutation.mutateAsync({
+                    requestId: activeRequestId,
+                    data: {
+                        date_time: newAppt.date_time,
+                        doctor_id: newAppt.doctor_id ? parseInt(newAppt.doctor_id, 10) : null,
+                        duration_minutes: newAppt.duration_minutes || 30,
+                        price_list_id: newAppt.price_list_id ? parseInt(newAppt.price_list_id, 10) : null,
+                        notes: newAppt.notes,
+                    }
+                });
+            } else {
+                const payload = {
+                    ...newAppt,
+                    patient_id: parseInt(newAppt.patient_id, 10),
+                    doctor_id: newAppt.doctor_id ? parseInt(newAppt.doctor_id, 10) : null,
+                    price_list_id: newAppt.price_list_id ? parseInt(newAppt.price_list_id, 10) : null
+                };
+                await createAppointment(payload);
+            }
             setIsModalOpen(false);
+            setActiveRequestId(null);
             setNewAppt({
                 patient_id: '',
                 date_time: getTodayDateTimeStr(),
                 notes: '',
-                doctor_id: user?.role === 'doctor' ? user.id : ''
+                doctor_id: user?.role === 'doctor' ? user.id : '',
+                duration_minutes: 30
             });
             refetchAppointments();
             toast.success(t('appointments.messages.booking_success'), { id: toastId });
         } catch {
             toast.error(t('appointments.messages.booking_error'), { id: toastId });
         }
-    }, [newAppt, refetchAppointments, t, user]);
+    }, [activeRequestId, newAppt, refetchAppointments, scheduleRequestMutation, t, user]);
 
     const handleEventDrop = async (id, newDateTime) => {
         const toastId = toast.loading(t('appointments.messages.updating'));
@@ -152,8 +301,11 @@ export default function Appointments() {
             const formattedDate = newDateTime.substring(0, 19);
             await updateMutation.mutateAsync({ id, data: { date_time: formattedDate } });
             toast.success(t('appointments.messages.update_success'), { id: toastId });
-        } catch {
-            toast.error(t('appointments.messages.update_error'), { id: toastId });
+            refetchAppointments();
+        } catch (err) {
+            const errorMsg = err.response?.data?.detail || t('appointments.messages.update_error');
+            toast.error(errorMsg, { id: toastId });
+            refetchAppointments();
         }
     };
 
@@ -329,6 +481,13 @@ export default function Appointments() {
                 ))}
             </div>
 
+            <NextVisitQueue
+                requests={nextVisitRequests}
+                isLoading={nvrLoading}
+                onSchedule={handleScheduleRequest}
+                onDismiss={handleDismissRequest}
+            />
+
             {loading ? (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
                     <SkeletonBox className="h-72 w-full rounded-3xl md:h-96" />
@@ -363,6 +522,8 @@ export default function Appointments() {
                     getStatusVariant={getStatusVariant}
                     onStatusChange={handleStatus}
                     onDelete={(id) => setConfirmDelete({ open: true, id })}
+                    onEdit={handleOpenEdit}
+                    onPostpone={handleOpenPostpone}
                 />
             ) : (
                 <DndContext
@@ -392,6 +553,8 @@ export default function Appointments() {
                                         formatAppointmentDateTime={formatAppointmentDateTime}
                                         onStatusChange={handleStatus}
                                         onDelete={(id) => setConfirmDelete({ open: true, id })}
+                                        onEdit={handleOpenEdit}
+                                        onPostpone={handleOpenPostpone}
                                     />
                                 </SortableContext>
                             ))}
@@ -409,6 +572,8 @@ export default function Appointments() {
                                 formatAppointmentDateTime={formatAppointmentDateTime}
                                 onStatusChange={handleStatus}
                                 onDelete={(id) => setConfirmDelete({ open: true, id })}
+                                onEdit={handleOpenEdit}
+                                onPostpone={handleOpenPostpone}
                                 isOverlay
                             />
                         ) : null}
@@ -421,8 +586,9 @@ export default function Appointments() {
                 onClose={() => {
                     setIsModalOpen(false);
                     setIsQuickAddOpen(false);
+                    setActiveRequestId(null);
                 }}
-                title={t('appointments.form.title')}
+                title={activeRequestId ? (i18n.language === 'ar' ? 'تأكيد حجز موعد المتابعة' : 'Schedule Next-Visit Follow-up') : t('appointments.form.title')}
                 size="md"
             >
                 <div className="min-w-0 space-y-4">
@@ -482,7 +648,7 @@ export default function Appointments() {
                                 <Button variant="ghost" onClick={() => setIsQuickAddOpen(false)} className="min-h-11 flex-1 justify-center">
                                     {t('common.back', 'Back')}
                                 </Button>
-                                <Button onClick={handleQuickCreatePatient} loading={createPatientMutation.isPending} className="min-h-11 flex-[2] justify-center">
+                                <Button onClick={handleQuickCreatePatient} isLoading={createPatientMutation.isPending} className="min-h-11 flex-[2] justify-center">
                                     {t('patients.form.create_btn', 'Create & Select')}
                                 </Button>
                             </div>
@@ -498,6 +664,112 @@ export default function Appointments() {
                 title={t('appointments.confirm_delete')}
                 message={t('appointments.confirm_delete_desc', 'هل أنت متأكد من حذف هذا الموعد؟ هذه العملية لا يمكن التراجع عنها.')}
             />
+
+            <Modal
+                isOpen={editModal.open}
+                onClose={() => setEditModal({ open: false, appt: null, date_time: '', duration_minutes: 30, doctor_id: '', notes: '' })}
+                title={t('appointments.edit_form.title')}
+                size="md"
+            >
+                <div className="min-w-0 space-y-4">
+                    <div>
+                        <label className="mb-2 block text-sm font-bold text-text-primary">{t('appointments.edit_form.patient')}</label>
+                        <div className="rounded-xl border border-border bg-surface-subtle p-3 text-sm font-bold text-text-primary">
+                            {patients.find(p => p.id === editModal.appt?.patient_id)?.name || editModal.appt?.patient_name || t('common.unknown', 'Unknown')}
+                        </div>
+                    </div>
+                    <DateTimePicker
+                        label={t('appointments.edit_form.datetime')}
+                        value={editModal.date_time}
+                        onChange={event => setEditModal(prev => ({ ...prev, date_time: event.target.value }))}
+                    />
+                    <div>
+                        <label className="mb-2 block text-sm font-bold text-text-primary">{t('appointments.edit_form.duration')}</label>
+                        <Input
+                            type="number"
+                            min="5"
+                            step="5"
+                            value={editModal.duration_minutes}
+                            onChange={event => setEditModal(prev => ({ ...prev, duration_minutes: event.target.value }))}
+                        />
+                    </div>
+                    {doctors && doctors.length > 0 && (
+                        <div>
+                            <label className="mb-2 block text-sm font-bold text-text-primary">{t('appointments.edit_form.doctor')}</label>
+                            <select
+                                className="w-full rounded-xl border border-border bg-surface p-3 text-sm font-bold text-text-primary outline-none focus:ring-2 focus:ring-primary/20"
+                                value={editModal.doctor_id}
+                                onChange={event => setEditModal(prev => ({ ...prev, doctor_id: event.target.value }))}
+                            >
+                                <option value="">{t('appointments.edit_form.select_doctor')}</option>
+                                {doctors.map(doc => (
+                                    <option key={doc.id} value={doc.id}>{doc.name || doc.username}</option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
+                    <div>
+                        <label className="mb-2 block text-sm font-bold text-text-primary">{t('appointments.edit_form.notes')}</label>
+                        <textarea
+                            className="w-full resize-none rounded-xl border border-border bg-surface p-3 text-sm font-bold outline-none focus:ring-2 focus:ring-primary/20"
+                            rows={3}
+                            placeholder={t('appointments.edit_form.notes_placeholder')}
+                            value={editModal.notes}
+                            onChange={event => setEditModal(prev => ({ ...prev, notes: event.target.value }))}
+                        />
+                    </div>
+                    <div className="sticky bottom-0 z-10 -mx-3 flex gap-2 border-t border-border bg-surface-elevated px-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-4 sm:px-4">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setEditModal({ open: false, appt: null, date_time: '', duration_minutes: 30, doctor_id: '', notes: '' })}
+                            className="min-h-11 flex-1 justify-center"
+                        >
+                            {t('appointments.edit_form.cancel_btn')}
+                        </Button>
+                        <Button
+                            onClick={handleUpdateAppointment}
+                            isLoading={updateMutation.isPending}
+                            className="min-h-11 flex-[2] justify-center"
+                        >
+                            {t('appointments.edit_form.save_btn')}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
+
+            <Modal
+                isOpen={postponeModal.open}
+                onClose={() => setPostponeModal({ open: false, appt: null, date_time: '' })}
+                title={t('appointments.postpone.title')}
+                size="md"
+            >
+                <div className="min-w-0 space-y-4">
+                    <p className="text-sm text-text-secondary leading-relaxed">
+                        {t('appointments.postpone.desc')}
+                    </p>
+                    <DateTimePicker
+                        label={t('appointments.postpone.new_datetime')}
+                        value={postponeModal.date_time}
+                        onChange={event => setPostponeModal(prev => ({ ...prev, date_time: event.target.value }))}
+                    />
+                    <div className="sticky bottom-0 z-10 -mx-3 flex gap-2 border-t border-border bg-surface-elevated px-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-4 sm:px-4">
+                        <Button
+                            variant="ghost"
+                            onClick={() => setPostponeModal({ open: false, appt: null, date_time: '' })}
+                            className="min-h-11 flex-1 justify-center"
+                        >
+                            {t('appointments.postpone.cancel_btn')}
+                        </Button>
+                        <Button
+                            onClick={handleConfirmPostpone}
+                            isLoading={updateMutation.isPending}
+                            className="min-h-11 flex-[2] justify-center"
+                        >
+                            {t('appointments.postpone.confirm_btn')}
+                        </Button>
+                    </div>
+                </div>
+            </Modal>
         </div>
     );
 }
@@ -548,7 +820,9 @@ function AppointmentList({
     getStatusLabel,
     getStatusVariant,
     onStatusChange,
-    onDelete
+    onDelete,
+    onEdit,
+    onPostpone
 }) {
     return (
         <div className="min-w-0">
@@ -568,14 +842,34 @@ function AppointmentList({
                                         <span dir="ltr" className="min-w-0 truncate">{formatAppointmentDateTime(appt.date_time)}</span>
                                     </p>
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => onDelete(appt.id)}
-                                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-muted transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
-                                    aria-label={t('common.delete', 'Delete')}
-                                >
-                                    <Trash2 size={17} aria-hidden="true" />
-                                </button>
+                                <div className="flex items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => onPostpone(appt)}
+                                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-muted transition-colors hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-900/20"
+                                        title={t('appointments.actions.postpone')}
+                                        aria-label={t('appointments.actions.postpone')}
+                                    >
+                                        <CalendarClock size={17} aria-hidden="true" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => onEdit(appt)}
+                                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-muted transition-colors hover:bg-primary/10 hover:text-primary dark:hover:bg-primary/20"
+                                        title={t('appointments.actions.edit')}
+                                        aria-label={t('appointments.actions.edit')}
+                                    >
+                                        <Edit2 size={17} aria-hidden="true" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => onDelete(appt.id)}
+                                        className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-muted transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                                        aria-label={t('common.delete', 'Delete')}
+                                    >
+                                        <Trash2 size={17} aria-hidden="true" />
+                                    </button>
+                                </div>
                             </div>
 
                             {appt.notes && (
@@ -638,14 +932,32 @@ function AppointmentList({
                                             <StatusSelect appt={appt} t={t} onStatusChange={onStatusChange} className="min-w-36" />
                                         </td>
                                         <td className="p-4">
-                                            <div className="flex justify-center">
+                                            <div className="flex justify-center gap-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onPostpone(appt)}
+                                                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-text-secondary transition-colors hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-900/20"
+                                                    title={t('appointments.actions.postpone')}
+                                                    aria-label={t('appointments.actions.postpone')}
+                                                >
+                                                    <CalendarClock size={16} aria-hidden="true" />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onEdit(appt)}
+                                                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-text-secondary transition-colors hover:bg-primary/10 hover:text-primary dark:hover:bg-primary/20"
+                                                    title={t('appointments.actions.edit')}
+                                                    aria-label={t('appointments.actions.edit')}
+                                                >
+                                                    <Edit2 size={16} aria-hidden="true" />
+                                                </button>
                                                 <button
                                                     type="button"
                                                     onClick={() => onDelete(appt.id)}
-                                                    className="inline-flex h-11 w-11 items-center justify-center rounded-xl text-text-secondary transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                                                    className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-text-secondary transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
                                                     aria-label={t('common.delete', 'Delete')}
                                                 >
-                                                    <Trash2 size={17} aria-hidden="true" />
+                                                    <Trash2 size={16} aria-hidden="true" />
                                                 </button>
                                             </div>
                                         </td>
@@ -669,7 +981,9 @@ const KanbanColumn = ({
     getStatusLabel,
     formatAppointmentDateTime,
     onStatusChange,
-    onDelete
+    onDelete,
+    onEdit,
+    onPostpone
 }) => {
     const { setNodeRef } = useSortable({ id: col.id });
 
@@ -700,6 +1014,8 @@ const KanbanColumn = ({
                         formatAppointmentDateTime={formatAppointmentDateTime}
                         onStatusChange={onStatusChange}
                         onDelete={onDelete}
+                        onEdit={onEdit}
+                        onPostpone={onPostpone}
                     />
                 ))}
                 {appointments.length === 0 && (
@@ -722,6 +1038,8 @@ const AppointmentCard = ({
     formatAppointmentDateTime,
     onStatusChange,
     onDelete,
+    onEdit,
+    onPostpone,
     isOverlay
 }) => {
     const {
@@ -769,15 +1087,37 @@ const AppointmentCard = ({
                     <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">#{appt.id}</p>
                 </div>
                 {!isOverlay && (
-                    <button
-                        type="button"
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={() => onDelete(appt.id)}
-                        className="inline-flex h-11 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
-                        aria-label={t('common.delete', 'Delete')}
-                    >
-                        <Trash2 size={16} aria-hidden="true" />
-                    </button>
+                    <div className="flex items-center gap-0.5">
+                        <button
+                            type="button"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={() => onPostpone(appt)}
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-amber-50 hover:text-amber-600 dark:hover:bg-amber-900/20"
+                            title={t('appointments.actions.postpone')}
+                            aria-label={t('appointments.actions.postpone')}
+                        >
+                            <CalendarClock size={15} aria-hidden="true" />
+                        </button>
+                        <button
+                            type="button"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={() => onEdit(appt)}
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-primary/10 hover:text-primary dark:hover:bg-primary/20"
+                            title={t('appointments.actions.edit')}
+                            aria-label={t('appointments.actions.edit')}
+                        >
+                            <Edit2 size={15} aria-hidden="true" />
+                        </button>
+                        <button
+                            type="button"
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={() => onDelete(appt.id)}
+                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                            aria-label={t('common.delete', 'Delete')}
+                        >
+                            <Trash2 size={15} aria-hidden="true" />
+                        </button>
+                    </div>
                 )}
             </div>
 

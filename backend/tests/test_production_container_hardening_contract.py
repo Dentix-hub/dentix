@@ -57,3 +57,10 @@ def test_runtime_uses_frozen_virtual_environment_on_path():
 
     assert 'PATH="/app/.venv/bin:${PATH}"' in runtime
     assert "uv sync --frozen --no-dev" not in runtime
+
+
+def test_runtime_packages_guarded_ops_scripts_as_root_owned():
+    runtime = _runtime_stage()
+
+    assert "COPY scripts/ops/ scripts/ops/" in runtime
+    assert "/app/scripts" not in runtime.split("chown -R dentix:dentix", 1)[1].split("COPY", 1)[0]

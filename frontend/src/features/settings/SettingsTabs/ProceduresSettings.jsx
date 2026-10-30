@@ -4,6 +4,12 @@ import { getMaterials, getProcedureWeights, setProcedureWeight, deleteProcedureW
 import * as api from '@/api';
 import { Package, X, Search, Plus, Edit2, Trash2 } from 'lucide-react';
 import { useProcedures } from '@/shared/context/ProceduresContext';
+import { useProcedureChartStyles } from '@/features/clinical-chart/hooks/useProcedureChartStyles';
+import {
+    NEW_PROCEDURE_DEFAULT_CHART_STYLE,
+    suggestProcedureChartTemplate,
+} from '@/features/clinical-chart/domain/procedureChartAppearance';
+import ProcedureChartAppearanceControl from './ProcedureChartAppearanceControl';
 const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
     const [materials, setMaterials] = useState([]);
     const [weights, setWeights] = useState([]);
@@ -127,17 +133,124 @@ const ProceduresMaterialsModal = ({ isOpen, onClose, procedure }) => {
 };
 const ProceduresSettings = ({ setMessage }) => {
     const { procedures, loading: isProcLoading, refresh: refreshProcedures } = useProcedures();
+    const { styles, savingByName, saveStyle, clearStyle } = useProcedureChartStyles();
     const [isProcModalOpen, setIsProcModalOpen] = useState(false);
     const [editingProc, setEditingProc] = useState(null);
     const [newProc, setNewProc] = useState({ name: '', price: '' });
+    const [newProcStyle, setNewProcStyle] = useState({
+        template: NEW_PROCEDURE_DEFAULT_CHART_STYLE.template,
+        color_key: NEW_PROCEDURE_DEFAULT_CHART_STYLE.color_key,
+    });
+    const [draftStylesById, setDraftStylesById] = useState({});
     const [procSearch, setProcSearch] = useState('');
     // Material Modal State
     const [materialModal, setMaterialModal] = useState({ open: false, procedure: null });
+
+    const notify = (msg) => {
+        if (typeof setMessage === 'function') {
+            setMessage(msg);
+            if (msg) {
+                setTimeout(() => setMessage(null), 3000);
+            }
+        }
+    };
+
+    const resolveInitialRowStyle = (proc) => {
+        const fromProc = proc?.chart_style;
+        if (fromProc?.template) {
+            return {
+                template: fromProc.template,
+                color_key: fromProc.color_key || null,
+                hasSavedOverride: true,
+            };
+        }
+        const matchedSaved = styles.find((s) => s.procedure_name === proc?.name);
+        if (matchedSaved?.template) {
+            return {
+                template: matchedSaved.template,
+                color_key: matchedSaved.color_key || null,
+                hasSavedOverride: true,
+                styleId: matchedSaved.id,
+            };
+        }
+        return {
+            template: proc?.canonical_code || '',
+            color_key: null,
+            hasSavedOverride: false,
+        };
+    };
+
+    const getRowDraftStyle = (proc) => {
+        const draft = draftStylesById[proc.id];
+        if (draft) {
+            return draft;
+        }
+        const initial = resolveInitialRowStyle(proc);
+        return {
+            template: initial.template,
+            color_key: initial.color_key,
+        };
+    };
+
+    const updateRowDraftStyle = (proc, patch) => {
+        const current = getRowDraftStyle(proc);
+        const nextTemplate = patch.template !== undefined ? patch.template : current.template;
+        const nextColorKey = nextTemplate === 'NONE'
+            ? null
+            : (patch.color_key !== undefined ? patch.color_key : current.color_key);
+        setDraftStylesById((prev) => ({
+            ...prev,
+            [proc.id]: {
+                template: nextTemplate,
+                color_key: nextColorKey,
+            },
+        }));
+    };
+
+    const handleSaveRowStyle = async (proc) => {
+        const draft = getRowDraftStyle(proc);
+        if (!draft.template) {
+            await handleClearRowStyle(proc);
+            return;
+        }
+        try {
+            await saveStyle({
+                procedure_name: proc.name,
+                template: draft.template,
+                color_key: draft.template === 'NONE' ? null : (draft.color_key || null),
+            });
+            setDraftStylesById((prev) => {
+                const next = { ...prev };
+                delete next[proc.id];
+                return next;
+            });
+            notify({ type: 'success', text: 'تم حفظ مظهر الإجراء على المخطط بنجاح' });
+        } catch (err) {
+            notify({ type: 'error', text: 'فشل حفظ مظهر الإجراء' });
+        }
+    };
+
+    const handleClearRowStyle = async (proc) => {
+        try {
+            const matchedSaved = styles.find((s) => s.procedure_name === proc.name);
+            await clearStyle({ id: matchedSaved?.id, procedure_name: proc.name });
+            setDraftStylesById((prev) => {
+                const next = { ...prev };
+                delete next[proc.id];
+                return next;
+            });
+            notify({ type: 'success', text: 'تم استعادة المظهر الافتراضي للإجراء' });
+        } catch (err) {
+            notify({ type: 'error', text: 'فشل استعادة المظهر الافتراضي' });
+        }
+    };
+
     const handleSaveProcedure = async (e) => {
         e.preventDefault();
         try {
+            const cleanName = String(newProc.name || '').trim();
             const payload = {
-                name: newProc.name,
+                name: cleanName,
                 price: parseFloat(newProc.price) || 0
             };
             if (editingProc) {
@@ -145,14 +258,24 @@ const ProceduresSettings = ({ setMessage }) => {
             } else {
                 await api.createProcedure(payload);
             }
+            if (newProcStyle.template) {
+                await saveStyle({
+                    procedure_name: cleanName,
+                    template: newProcStyle.template,
+                    color_key: newProcStyle.template === 'NONE' ? null : (newProcStyle.color_key || null),
+                });
+            }
             setIsProcModalOpen(false);
             setNewProc({ name: '', price: '' });
+            setNewProcStyle({
+                template: NEW_PROCEDURE_DEFAULT_CHART_STYLE.template,
+                color_key: NEW_PROCEDURE_DEFAULT_CHART_STYLE.color_key,
+            });
             setEditingProc(null);
             await refreshProcedures();
-            setMessage({ type: 'success', text: editingProc ? 'تم تعديل الإجراء بنجاح' : 'تم إضافة الإجراء بنجاح' });
-            setTimeout(() => setMessage(null), 3000);
+            notify({ type: 'success', text: editingProc ? 'تم تعديل الإجراء بنجاح' : 'تم إضافة الإجراء بنجاح' });
         } catch (err) {
-            setMessage({ type: 'error', text: 'حدث خطأ أثناء الحفظ' });
+            notify({ type: 'error', text: 'حدث خطأ أثناء الحفظ' });
         }
     };
     const handleDeleteProcedure = async (id) => {
@@ -160,15 +283,20 @@ const ProceduresSettings = ({ setMessage }) => {
         try {
             await api.deleteProcedure(id);
             await refreshProcedures();
-            setMessage({ type: 'success', text: 'تم حذف الإجراء بنجاح' });
-            setTimeout(() => setMessage(null), 3000);
+            notify({ type: 'success', text: 'تم حذف الإجراء بنجاح' });
         } catch (err) {
-            setMessage({ type: 'error', text: 'فشل الحذف' });
+            notify({ type: 'error', text: 'فشل الحذف' });
         }
     };
     const openEditProc = (proc) => {
+        if (proc && 'tenant_id' in proc && proc.tenant_id === null) return;
         setEditingProc(proc);
         setNewProc({ name: proc.name, price: proc.price });
+        const initialStyle = resolveInitialRowStyle(proc);
+        setNewProcStyle({
+            template: initialStyle.template || NEW_PROCEDURE_DEFAULT_CHART_STYLE.template,
+            color_key: initialStyle.color_key || null,
+        });
         setIsProcModalOpen(true);
     };
     const filteredProcedures = procedures.filter(p => p.name.toLowerCase().includes(procSearch.toLowerCase()));
@@ -189,6 +317,10 @@ const ProceduresSettings = ({ setMessage }) => {
                     onClick={() => {
                         setEditingProc(null);
                         setNewProc({ name: '', price: '' });
+                        setNewProcStyle({
+                            template: NEW_PROCEDURE_DEFAULT_CHART_STYLE.template,
+                            color_key: NEW_PROCEDURE_DEFAULT_CHART_STYLE.color_key,
+                        });
                         setIsProcModalOpen(true);
                     }}
                     className="px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition flex items-center gap-2"
@@ -200,25 +332,82 @@ const ProceduresSettings = ({ setMessage }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {isProcLoading ? (
                     <div className="col-span-2 text-center py-10 text-slate-500">جاري التحميل...</div>
-                ) : filteredProcedures.map(proc => (
-                    <div key={proc.id} className="group p-4 bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-slate-100 dark:border-white/5 flex justify-between items-center hover:bg-white dark:hover:bg-slate-800 transition-colors shadow-sm hover:shadow-md">
-                        <div>
-                            <h4 className="font-bold text-slate-800 dark:text-white">{proc.name}</h4>
-                            <p className="text-indigo-600 font-bold mt-1">{proc.price} ج.م</p>
+                ) : filteredProcedures.map(proc => {
+                    const isGlobalTemplate = 'tenant_id' in proc && proc.tenant_id === null;
+                    const initialStyle = resolveInitialRowStyle(proc);
+                    const draftStyle = getRowDraftStyle(proc);
+                    const isDirty = draftStyle.template !== initialStyle.template || (draftStyle.color_key || null) !== (initialStyle.color_key || null);
+                    const suggestion = !initialStyle.hasSavedOverride
+                        ? suggestProcedureChartTemplate(proc)
+                        : null;
+                    return (
+                        <div
+                            key={proc.id}
+                            data-testid={`procedure-settings-row-${proc.id}`}
+                            data-is-global={isGlobalTemplate ? 'true' : 'false'}
+                            className="group p-4 bg-slate-50 dark:bg-slate-900/30 rounded-xl border border-slate-100 dark:border-white/5 flex flex-col justify-between hover:bg-white dark:hover:bg-slate-800 transition-colors shadow-sm hover:shadow-md"
+                        >
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="font-bold text-slate-800 dark:text-white">{proc.name}</h4>
+                                        {isGlobalTemplate && (
+                                            <span
+                                                data-testid={`global-procedure-badge-${proc.id}`}
+                                                className="rounded-md bg-slate-200/80 px-2 py-0.5 text-xs font-semibold text-slate-700 dark:bg-slate-700 dark:text-slate-200"
+                                            >
+                                                قالب عام (للقراءة فقط)
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-indigo-600 font-bold mt-1">{proc.price} ج.م</p>
+                                </div>
+                                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={() => setMaterialModal({ open: true, procedure: proc })}
+                                        className="p-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
+                                        title="المواد المستهلكة"
+                                    >
+                                        <Package size={18} />
+                                    </button>
+                                    <button
+                                        data-testid={`edit-procedure-${proc.id}`}
+                                        disabled={isGlobalTemplate}
+                                        onClick={() => openEditProc(proc)}
+                                        title={isGlobalTemplate ? 'القوالب العامة للقراءة فقط (يمكن تخصيص مظهر المخطط فقط)' : 'تعديل'}
+                                        className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        <Edit2 size={18} />
+                                    </button>
+                                    <button
+                                        data-testid={`delete-procedure-${proc.id}`}
+                                        disabled={isGlobalTemplate}
+                                        onClick={() => handleDeleteProcedure(proc.id)}
+                                        title={isGlobalTemplate ? 'القوالب العامة للقراءة فقط' : 'حذف'}
+                                        className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg disabled:cursor-not-allowed disabled:opacity-40"
+                                    >
+                                        <Trash2 size={18} />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <ProcedureChartAppearanceControl
+                                controlId={proc.id}
+                                template={draftStyle.template}
+                                colorKey={draftStyle.color_key}
+                                onChangeTemplate={(nextTemplate) => updateRowDraftStyle(proc, { template: nextTemplate })}
+                                onChangeColorKey={(nextColorKey) => updateRowDraftStyle(proc, { color_key: nextColorKey })}
+                                suggestion={suggestion}
+                                onApplySuggestion={(suggestedTemplate) => updateRowDraftStyle(proc, { template: suggestedTemplate })}
+                                onSave={() => handleSaveRowStyle(proc)}
+                                onClear={() => handleClearRowStyle(proc)}
+                                hasSavedOverride={initialStyle.hasSavedOverride}
+                                isDirty={isDirty}
+                                isSaving={Boolean(savingByName[proc.name])}
+                            />
                         </div>
-                        <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                                onClick={() => setMaterialModal({ open: true, procedure: proc })}
-                                className="p-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg"
-                                title="المواد المستهلكة"
-                            >
-                                <Package size={18} />
-                            </button>
-                            <button onClick={() => openEditProc(proc)} className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"><Edit2 size={18} /></button>
-                            <button onClick={() => handleDeleteProcedure(proc.id)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 size={18} /></button>
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
             {/* Proc Modal */}
             {isProcModalOpen && (
@@ -229,6 +418,7 @@ const ProceduresSettings = ({ setMessage }) => {
                             <div>
                                 <label className="text-sm font-bold text-slate-600 dark:text-slate-400 mb-2 block">اسم الخدمة</label>
                                 <input
+                                    data-testid="procedure-modal-name-input"
                                     value={newProc.name}
                                     onChange={e => setNewProc({ ...newProc, name: e.target.value })}
                                     className="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-xl outline-none border focus:border-indigo-500 font-bold"
@@ -238,6 +428,7 @@ const ProceduresSettings = ({ setMessage }) => {
                             <div>
                                 <label className="text-sm font-bold text-slate-600 dark:text-slate-400 mb-2 block">السعر (ج.م)</label>
                                 <input
+                                    data-testid="procedure-modal-price-input"
                                     value={newProc.price}
                                     onChange={e => setNewProc({ ...newProc, price: e.target.value })}
                                     type="number"
@@ -245,9 +436,28 @@ const ProceduresSettings = ({ setMessage }) => {
                                     required
                                 />
                             </div>
+                            <ProcedureChartAppearanceControl
+                                controlId="modal-new"
+                                template={newProcStyle.template}
+                                colorKey={newProcStyle.color_key}
+                                onChangeTemplate={(nextTemplate) => setNewProcStyle((prev) => ({
+                                    template: nextTemplate,
+                                    color_key: nextTemplate === 'NONE' ? null : prev.color_key,
+                                }))}
+                                onChangeColorKey={(nextColorKey) => setNewProcStyle((prev) => ({
+                                    ...prev,
+                                    color_key: nextColorKey,
+                                }))}
+                                suggestion={suggestProcedureChartTemplate(newProc.name)}
+                                onApplySuggestion={(suggestedTemplate) => setNewProcStyle((prev) => ({
+                                    ...prev,
+                                    template: suggestedTemplate,
+                                }))}
+                                showCreateDefaultHint={!editingProc}
+                            />
                             <div className="flex gap-3 mt-8">
                                 <button type="button" onClick={() => setIsProcModalOpen(false)} className="flex-1 py-3 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl font-bold text-slate-600 transition">إلغاء</button>
-                                <button type="submit" className="flex-1 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold shadow-lg shadow-indigo-500/20 transition">حفظ</button>
+                                <button data-testid="procedure-modal-submit-button" type="submit" className="flex-1 py-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 font-bold shadow-lg shadow-indigo-500/20 transition">حفظ</button>
                             </div>
                         </form>
                     </div>

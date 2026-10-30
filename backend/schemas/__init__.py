@@ -13,6 +13,7 @@ from .patient import (
     Patient,
     PatientSummary,
     PatientDirectoryItem,
+    MedicalAlert,
     AttachmentBase,
     AttachmentCreate,
     Attachment,
@@ -53,6 +54,43 @@ from .clinical import (
     ToothClinicalRecordResponse,
 )
 
+# Clinical Treatment Plans (Slice G9a & G9b)
+from .treatment_plan import (
+    ClinicalWorkItemTargetRead,
+    ClinicalWorkItemSummaryRead,
+    ClinicalTreatmentPlanItemCreate,
+    ClinicalTreatmentPlanItemRead,
+    ClinicalTreatmentPlanPhaseCreate,
+    ClinicalTreatmentPlanPhaseUpdate,
+    ClinicalTreatmentPlanPhaseReorder,
+    ClinicalTreatmentPlanPhaseRead,
+    ClinicalTreatmentPlanCreate,
+    ClinicalTreatmentPlanRead,
+    ClinicalTreatmentPlanTransition,
+    ClinicalTreatmentPlanPhaseEstimateRead,
+    ClinicalTreatmentPlanEstimateRead,
+)
+
+# Clinical Commands (Slice S04, S05, S06)
+from .clinical_commands import (
+    ClinicalTargetInput,
+    ClinicalTargetRead,
+    ClinicalWorkItemCreate,
+    ClinicalWorkItemUpdate,
+    ClinicalWorkItemRead,
+    ClinicalFindingCreate,
+    ClinicalFindingBulkCreate,
+    ClinicalProcedureCreate,
+    ClinicalProcedureBulkCreate,
+    ClinicalBulkWorkItemResponse,
+    ClinicalWorkItemCorrectionCreate,
+    ClinicalWorkItemCorrectionResponse,
+    ClinicalWorkItemCorrectionWarning,
+    ClinicalEventRead,
+    ClinicalToothDetailRead,
+)
+
+
 # Clinical Workspace Snapshot (Issue #205)
 from .clinical_workspace import (
     ClinicalWorkspaceWarning,
@@ -60,8 +98,82 @@ from .clinical_workspace import (
     WorkspaceVisualEntry,
     WorkspaceToothSummary,
     WorkspaceWorkItemSummary,
+    WorkspaceProcedureMarker,
     ClinicalWorkspaceSnapshot,
+    PatientClinicalDriftItem,
+    TenantClinicalDriftReport,
 )
+
+# Procedure Chart Styles (UX Stabilization U4)
+from .procedure_chart_style import (
+    ProcedureChartStyleBase,
+    ProcedureChartStyleCreate,
+    ProcedureChartStyleRead,
+    ProcedureChartStyleEmbedded,
+)
+
+# Care Sessions (Slices S18 & S19)
+from .care_session import (
+    CareSessionCreate,
+    CareSessionFinish,
+    CareSessionTransition,
+    CareSessionUpdate,
+    CareSessionRead,
+    CareSessionLinkAppointment,
+    CareSessionStepCreate,
+    CareSessionStepUpdate,
+    CareSessionStepRead,
+    CareSessionTemplateApply,
+    CareObservationCreate,
+    CareObservationRead,
+    NextVisitRequestCreate,
+    NextVisitRequestRead,
+    NextVisitRequestSchedule,
+    NextVisitRequestScheduleResult,
+    NextVisitSuggestionRead,
+    ResumableWorkItemRead,
+    CareSessionResumableResponse,
+)
+
+# Care Session Materials (Slice S30)
+from .care_session_material import (
+    CareSessionMaterialItem,
+    CareSessionMaterialUsageCreate,
+    CareSessionMaterialUsageRead,
+    MaterialSuggestionResponse,
+    WorkItemSessionMaterialCost,
+    WorkItemMaterialCostRead,
+)
+
+# Clinical Charges (Slice S33)
+from .clinical_charges import (
+    ClinicalChargeRead,
+    WorkItemBillingProjectionItem,
+    PatientClinicalChargesResponse,
+    ClinicalChargeActionRequest,
+)
+from .finance_parity import (
+    PatientFinanceParitySummary,
+    PatientFinanceParityDetail,
+    TenantFinanceParityReport,
+    LabDoubleChargeAnomaly,
+    TenantLabAnomalyReport,
+)
+from .clinical_attachment_link import (
+    CANONICAL_ATTACHMENT_PURPOSE_CODES,
+    AttachmentPurposeCode,
+    ClinicalAttachmentLinkBase,
+    ClinicalAttachmentLinkCreate,
+    ClinicalAttachmentLinkRead,
+    ClinicalAttachmentLinkFilter,
+)
+from .clinical_rollout import (
+    ClinicalRolloutTargetMode,
+    TenantClinicalRolloutStatus,
+    TenantClinicalRolloutModeRequest,
+    TenantClinicalRolloutResponse,
+)
+
 
 # Billing
 from .billing import (
@@ -86,6 +198,7 @@ from .auth import (
     TwoFactorVerifyRequest,
     User,
     UserUpdate,
+    UserRegisterRequest,
     UserAdminView,
     LoginHistory,
     BlockedIP,
@@ -129,10 +242,12 @@ from .laboratory import (
     Laboratory,
     LabOrderBase,
     LabOrderCreate,
+    LabHandoffCreate,
     LabOrderUpdate,
     LabOrder,
     LabPaymentBase,
     LabPaymentCreate,
+    LabPaymentAllocate,
     LabPayment,
 )
 
@@ -151,6 +266,7 @@ from .system import (
     FeatureFlagUpdate,
     TenantFeature,
     TenantFeatureOverride,
+    TenantFeatureOverrideDelete,
     AdminDashboardStats,
     DailySystemStats,
     BackgroundJob,
@@ -193,6 +309,7 @@ __all__ = [
     "Patient",
     "PatientSummary",
     "PatientDirectoryItem",
+    "MedicalAlert",
     "AttachmentBase",
     "AttachmentCreate",
     "Attachment",
@@ -238,6 +355,7 @@ __all__ = [
     "TwoFactorVerifyRequest",
     "User",
     "UserUpdate",
+    "UserRegisterRequest",
     "UserAdminView",
     "LoginHistory",
     "BlockedIP",
@@ -272,10 +390,12 @@ __all__ = [
     "Laboratory",
     "LabOrderBase",
     "LabOrderCreate",
+    "LabHandoffCreate",
     "LabOrderUpdate",
     "LabOrder",
     "LabPaymentBase",
     "LabPaymentCreate",
+    "LabPaymentAllocate",
     "LabPayment",
     # System
     "AuditLog",
@@ -291,6 +411,7 @@ __all__ = [
     "FeatureFlagUpdate",
     "TenantFeature",
     "TenantFeatureOverride",
+    "TenantFeatureOverrideDelete",
     "AdminDashboardStats",
     "DailySystemStats",
     "BackgroundJob",
@@ -326,5 +447,68 @@ __all__ = [
     "WorkspaceVisualEntry",
     "WorkspaceToothSummary",
     "WorkspaceWorkItemSummary",
+    "WorkspaceProcedureMarker",
     "ClinicalWorkspaceSnapshot",
+    # Procedure Chart Styles
+    "ProcedureChartStyleBase",
+    "ProcedureChartStyleCreate",
+    "ProcedureChartStyleRead",
+    "ProcedureChartStyleEmbedded",
+    # Clinical Treatment Plans (Slice G9a & G9b)
+    "ClinicalWorkItemTargetRead",
+    "ClinicalWorkItemSummaryRead",
+    "ClinicalTreatmentPlanItemCreate",
+    "ClinicalTreatmentPlanItemRead",
+    "ClinicalTreatmentPlanPhaseCreate",
+    "ClinicalTreatmentPlanPhaseUpdate",
+    "ClinicalTreatmentPlanPhaseReorder",
+    "ClinicalTreatmentPlanPhaseRead",
+    "ClinicalTreatmentPlanCreate",
+    "ClinicalTreatmentPlanRead",
+    "ClinicalTreatmentPlanTransition",
+    # Clinical Commands (Slice S04, S05, S06)
+    "ClinicalTargetInput",
+    "ClinicalTargetRead",
+    "ClinicalWorkItemCreate",
+    "ClinicalWorkItemUpdate",
+    "ClinicalWorkItemRead",
+    "ClinicalFindingCreate",
+    "ClinicalFindingBulkCreate",
+    "ClinicalProcedureCreate",
+    "ClinicalProcedureBulkCreate",
+    "ClinicalBulkWorkItemResponse",
+    "ClinicalWorkItemCorrectionCreate",
+    "ClinicalWorkItemCorrectionResponse",
+    "ClinicalWorkItemCorrectionWarning",
+    "ClinicalEventRead",
+    "ClinicalToothDetailRead",
+    # Care Sessions (Slices S18 & S19)
+    "CareSessionCreate",
+    "CareSessionFinish",
+    "CareSessionTransition",
+    "CareSessionUpdate",
+    "CareSessionRead",
+    "CareSessionStepCreate",
+    "CareSessionStepUpdate",
+    "CareSessionStepRead",
+    "CareSessionTemplateApply",
+    "CareObservationCreate",
+    "CareObservationRead",
+    # Clinical Attachment Links (Slice S23)
+    "CANONICAL_ATTACHMENT_PURPOSE_CODES",
+    "AttachmentPurposeCode",
+    "ClinicalAttachmentLinkBase",
+    "ClinicalAttachmentLinkCreate",
+    "ClinicalAttachmentLinkRead",
+    "ClinicalAttachmentLinkFilter",
+    # Clinical Charges (Slice S33)
+    "ClinicalChargeRead",
+    "WorkItemBillingProjectionItem",
+    "PatientClinicalChargesResponse",
+    "ClinicalChargeActionRequest",
+    # Finance Parity (Slice S34)
+    "PatientFinanceParitySummary",
+    "PatientFinanceParityDetail",
+    "TenantFinanceParityReport",
 ]
+

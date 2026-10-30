@@ -3,7 +3,7 @@ def test_super_admin_profile_update_policy(client, super_admin_user, super_admin
     res_empty = client.put(
         "/api/v1/admin/system/profile",
         headers=super_admin_headers,
-        json={"username": "", "email": "", "password": ""},
+        json={},
     )
     assert res_empty.status_code == 400
     assert "لم يتم تقديم أي بيانات" in res_empty.json()["detail"]

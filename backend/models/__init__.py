@@ -30,6 +30,7 @@ from .clinical import (
     Laboratory,
     LabOrder,
     Procedure,
+    ProcedureChartStyle,
     TreatmentSession,
 )
 from .financial import Payment, Expense, SalaryPayment, LabPayment
@@ -48,6 +49,7 @@ from .system import (
     TenantFeature,
     DailySystemStats,
     BackgroundJob,
+    UserOnboardingState,
 )
 from .inventory import (
     Warehouse,
@@ -57,6 +59,7 @@ from .inventory import (
     StockItem,
     MaterialSession,
     StockMovement,
+    MaterialLearningLog,
     ProcedureMaterialWeight,
     TreatmentMaterialUsage,
 )
@@ -76,6 +79,7 @@ from .clinical_core import (
     NextVisitRequest,
     ClinicalAttachmentLink,
     ClinicalProjectionCoverage,
+    ClinicalCharge,
     COVERAGE_DOMAINS,
     COVERAGE_STATES,
     DEFAULT_COVERAGE_STATE,
@@ -84,3 +88,5 @@ from .clinical_core import (
     ROOT_IDS,
     TARGET_KINDS,
 )
+from .tenant_data_operation import TenantDataOperation
+from .google_oauth_attempt import GoogleOAuthAttempt

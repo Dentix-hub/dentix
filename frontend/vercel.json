@@ -17,13 +17,43 @@
       ]
     }
   ],
+  "redirects": [
+    {
+      "source": "/ar/",
+      "destination": "/ar",
+      "permanent": true
+    },
+    {
+      "source": "/ar/index.html",
+      "destination": "/ar",
+      "permanent": true
+    },
+    {
+      "source": "/en/",
+      "destination": "/en",
+      "permanent": true
+    },
+    {
+      "source": "/en/index.html",
+      "destination": "/en",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/:path*",
       "destination": "https://dentix-dentix.hf.space/api/:path*"
     },
     {
-      "source": "/((?!api/|assets/|icons/|sw\\.js|workbox-|registerSW\\.js|manifest\\.webmanifest|favicon\\.ico).*)",
+      "source": "/ar",
+      "destination": "/ar/index.html"
+    },
+    {
+      "source": "/en",
+      "destination": "/en/index.html"
+    },
+    {
+      "source": "/((?!api/|assets/|icons/|marketing/|ar(?:/.*)?$|en(?:/.*)?$|robots\\.txt$|sitemap\\.xml$|sw\\.js|workbox-|registerSW\\.js|manifest\\.webmanifest|favicon\\.ico).*)",
       "destination": "/index.html"
     }
   ]

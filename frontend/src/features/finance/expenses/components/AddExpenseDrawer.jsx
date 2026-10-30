@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import {
     Plus,
@@ -17,7 +18,6 @@ const EXPENSE_CATEGORIES = [
     { value: 'Utilities', label: 'فواتير وخدمات (Utilities)' },
     { value: 'Rent', label: 'إيجار المقر (Rent)' },
     { value: 'Maintenance', label: 'صيانة دورية وأجهزة (Maintenance)' },
-    { value: 'Laboratory', label: 'معامل وتركيبات خارجية (Laboratory)' },
     { value: 'Salaries', label: 'أجور ورواتب إضافية (Salaries)' },
     { value: 'Other', label: 'مصاريف عامة أخرى (Other)' },
 ];
@@ -161,6 +161,12 @@ export default function AddExpenseDrawer({
                                 </option>
                             ))}
                         </select>
+                        <p className="text-[11px] text-text-secondary mt-1">
+                            {t('finance.expenses.lab_hint', 'مدفوعات المعامل تتسجل من صفحة المعامل، مش من المصروفات.')}{' '}
+                            <Link to="/labs" className="text-primary hover:underline font-medium">
+                                {t('finance.expenses.go_to_labs', 'صفحة المعامل')}
+                            </Link>
+                        </p>
                     </div>
 
                     <div className="space-y-1.5">

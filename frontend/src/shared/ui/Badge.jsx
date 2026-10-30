@@ -1,5 +1,5 @@
 
-const Badge = ({ children, variant = 'default', size = 'md', className = '' }) => {
+const Badge = ({ children, variant = 'default', size = 'md', className = '', ...props }) => {
     const variants = {
         default: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
         primary: "bg-primary/10 text-primary border border-primary/20",
@@ -16,7 +16,7 @@ const Badge = ({ children, variant = 'default', size = 'md', className = '' }) =
     };
 
     return (
-        <span className={`inline-flex items-center justify-center font-bold rounded-full ${variants[variant]} ${sizes[size]} ${className}`}>
+        <span className={`inline-flex items-center justify-center font-bold rounded-full ${variants[variant]} ${sizes[size]} ${className}`} {...props}>
             {children}
         </span>
     );

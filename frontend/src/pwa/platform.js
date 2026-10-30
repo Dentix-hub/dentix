@@ -21,3 +21,9 @@ export function isStandalone() {
 export function isIosInstallPlatform() {
     return detectPlatform() === 'ios';
 }
+
+export function isInAppBrowser() {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent || '';
+    return /FBAN|FBAV|Instagram|WhatsApp|Line|Snapchat|Telegram/i.test(ua);
+}

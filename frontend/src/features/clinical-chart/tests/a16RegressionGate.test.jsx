@@ -421,12 +421,17 @@ describe('A16-M07 mobile responsive behavior', () => {
             />,
         );
 
-        // Chart container provides horizontal touch scrolling
+        // Chart container provides horizontal touch scrolling and allows vertical page scrolling (no touch-pan-x alone)
         const chartWrapper = container.querySelector('[data-dentition]');
         const scrollViewport = chartWrapper.querySelector('[data-chart-scroll-viewport]');
         expect(scrollViewport).toHaveClass('overflow-x-auto');
+        expect(scrollViewport).toHaveClass('overflow-y-hidden');
         expect(scrollViewport).toHaveClass('overscroll-x-contain');
         expect(scrollViewport).toHaveClass('touch-pan-x');
+        expect(scrollViewport).toHaveClass('touch-pan-y');
+        // Viewport must permit both pan axes so finger gestures starting on chart can scroll the page vertically
+        expect(scrollViewport.className).toMatch(/\btouch-pan-x\b/);
+        expect(scrollViewport.className).toMatch(/\btouch-pan-y\b/);
         expect(scrollViewport).toHaveAttribute('tabindex', '0');
 
         // Minimum width ensures teeth do not wrap awkwardly

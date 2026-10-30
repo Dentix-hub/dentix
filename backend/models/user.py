@@ -19,6 +19,7 @@ from datetime import date
 from decimal import Decimal
 from rls.schemas import Permissive, ConditionArg, Command
 from sqlalchemy import CheckConstraint, column
+from sqlalchemy.orm import validates
 
 
 class User(Base):
@@ -46,8 +47,13 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     username: Mapped[str] = mapped_column(String, index=True)
     full_name: Mapped[str | None] = mapped_column(String, nullable=True)
-    email: Mapped[str] = mapped_column(String, unique=True, index=True)
+    email: Mapped[str | None] = mapped_column(String, unique=True, index=True, nullable=True)
     hashed_password: Mapped[str] = mapped_column(String)
+
+    @validates("email")
+    def normalize_email(self, key: str, value: str | None) -> str | None:
+        """Use NULL for absent addresses across every ORM create/update path."""
+        return (value.strip() or None) if value is not None else None
 
     # Enterprise Security Fields
     failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0)
@@ -69,14 +75,14 @@ class User(Base):
     can_view_other_doctors_history: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # Compensation settings
-    commission_percent: Mapped[Decimal] = mapped_column(
-        Numeric(7, 4), default=Decimal("0.0000")
+    commission_percent: Mapped[Decimal | None] = mapped_column(
+        Numeric(7, 4), nullable=True, default=None
     )
-    fixed_salary: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), default=Decimal("0.00")
+    fixed_salary: Mapped[Decimal | None] = mapped_column(
+        Numeric(14, 2), nullable=True, default=None
     )
-    per_appointment_fee: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), default=Decimal("0.00")
+    per_appointment_fee: Mapped[Decimal | None] = mapped_column(
+        Numeric(14, 2), nullable=True, default=None
     )
     hire_date: Mapped[date | None] = mapped_column(Date, nullable=True)
 
@@ -130,6 +136,7 @@ class UserSession(Base):
     last_active_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    remember_me: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None))
 
     user = relationship("User", backref="sessions")

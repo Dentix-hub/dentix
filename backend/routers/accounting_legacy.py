@@ -230,7 +230,7 @@ async def get_comprehensive_stats(
         total_expenses = 0.0
     else:
         total_expenses = await service.get_total_expenses(start, end)
-    total_lab_costs = await service.get_total_lab_costs(start, end, patient_id=patient_id)
+    total_lab_costs = await service.get_total_lab_payments(start, end, patient_id=patient_id)
 
     # 4. Net Profit
     # Net Profit = Collected (Cash In) - Expenses (Cash Out)

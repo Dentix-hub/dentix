@@ -211,6 +211,22 @@ export const createClinicalChartRendererAdapter = (input) => {
     const selectedSurface = normalizedInput.visualState.selection?.kind === 'surface'
         ? normalizedInput.visualState.selection
         : null;
+
+    const selectedToothKeys = normalizedInput.visualState.selectedToothKeys
+        || Object.keys(normalizedInput.visualState.teeth).filter(
+            (key) => normalizedInput.visualState.teeth[key]?.selection?.isSelected,
+        );
+
+    const selectedSurfacesByTooth = normalizedInput.visualState.selectedSurfacesByTooth
+        || Object.fromEntries(
+            Object.entries(normalizedInput.visualState.teeth).map(([key, tooth]) => [
+                key,
+                (tooth?.selection?.targets || [])
+                    .filter((t) => t.kind === 'surface')
+                    .map((t) => t.surfaceCode),
+            ]).filter(([, surfaces]) => surfaces.length > 0),
+        );
+
     const toothVisuals = resolveClinicalChartVisuals(normalizedInput.visualState);
 
     return Object.freeze({
@@ -226,9 +242,13 @@ export const createClinicalChartRendererAdapter = (input) => {
                 ? normalizedInput.visualState.toothOrder
                 : undefined,
             selectedSurface,
+            selectedToothKeys,
+            selectedSurfacesByTooth,
             onSurfaceClick: isReadOnly ? undefined : surfaceSelected,
             readOnly: isReadOnly,
             notationMode: normalizedInput.notationMode,
+            planOverlay: normalizedInput.visualState.planOverlay || null,
+            labStatusByTooth: normalizedInput.visualState.labStatusByTooth || null,
         }),
         intents: Object.freeze({
             toothSelected,

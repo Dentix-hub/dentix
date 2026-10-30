@@ -28,6 +28,7 @@ from backend.services.auth_bootstrap import (
     post_auth_write_scope,
     REASON_LOGIN,
     REASON_REFRESH,
+    REASON_2FA,
 )
 import uuid
 import logging
@@ -56,7 +57,7 @@ def _generate_csrf_token() -> str:
     return secrets.token_urlsafe(32)
 
 
-def _set_csrf_cookie(response: Response) -> str:
+def _set_csrf_cookie(response: Response, remember_me: bool = True) -> str:
     """Set CSRF token cookie (readable by JavaScript for double-submit pattern)."""
     token = _generate_csrf_token()
     response.set_cookie(
@@ -66,7 +67,7 @@ def _set_csrf_cookie(response: Response) -> str:
         secure=_COOKIE_SECURE,
         samesite=_COOKIE_SAMESITE,
         path="/",
-        max_age=60 * 60 * 24 * 30,  # 30 days
+        max_age=auth.REFRESH_TOKEN_EXPIRE_DAYS * 86400 if remember_me else None,
     )
     return token
 
@@ -105,7 +106,8 @@ def require_csrf(
 
 
 def _set_auth_cookies(
-    response: Response, access_token: str, refresh_token: str | None = None
+    response: Response, access_token: str, refresh_token: str | None = None,
+    remember_me: bool = True,
 ) -> None:
     """Set httpOnly auth cookies plus a non-sensitive PWA session hint."""
     response.set_cookie(
@@ -115,7 +117,7 @@ def _set_auth_cookies(
         secure=_COOKIE_SECURE,
         samesite=_COOKIE_SAMESITE,
         path="/",
-        max_age=15 * 60,  # 15 minutes
+        max_age=auth.ACCESS_TOKEN_EXPIRE_MINUTES * 60 if remember_me else None,
     )
     if refresh_token:
         from backend.core.config import API_V1_STR
@@ -127,7 +129,7 @@ def _set_auth_cookies(
             secure=_COOKIE_SECURE,
             samesite=_COOKIE_SAMESITE,
             path=f"{API_V1_STR}/auth/refresh",  # restrict to refresh endpoint only
-            max_age=7 * 24 * 60 * 60,  # 7 days
+            max_age=auth.REFRESH_TOKEN_EXPIRE_DAYS * 86400 if remember_me else None,
         )
         response.set_cookie(
             key=_SESSION_HINT_COOKIE_NAME,
@@ -136,7 +138,7 @@ def _set_auth_cookies(
             secure=_COOKIE_SECURE,
             samesite=_COOKIE_SAMESITE,
             path="/",
-            max_age=7 * 24 * 60 * 60,  # mirrors refresh session lifetime
+            max_age=auth.REFRESH_TOKEN_EXPIRE_DAYS * 86400 if remember_me else None,
         )
 
 
@@ -153,6 +155,7 @@ async def login_for_access_token(
     response: Response,
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
+    remember_me: bool = Form(True),
     db: AsyncSession = Depends(get_async_db),
 ):
     """Authenticate user and return JWT token."""
@@ -273,7 +276,7 @@ async def login_for_access_token(
 
         if is_2fa and secret:
             temp_token = auth.create_access_token(
-                data={"sub": user.username, "scope": "2fa_pending"},
+                data={"sub": user.username, "scope": "2fa_pending", "remember_me": remember_me},
                 expires_delta=timedelta(minutes=5),
             )
             return {
@@ -311,6 +314,8 @@ async def login_for_access_token(
                 ip_address=_request_client_ip(request),
                 user_agent=request.headers.get("user-agent"),
                 device_info=session_id,
+                remember_me=remember_me,
+                expires_at=datetime.fromtimestamp(auth.jwt.get_unverified_claims(refresh_token)["exp"], tz=timezone.utc).replace(tzinfo=None),
             )
         except Exception as session_error:
             await db.rollback()
@@ -342,8 +347,8 @@ async def login_for_access_token(
                 "session_id": session_id,
             }
         )
-        _set_auth_cookies(res, access_token, refresh_token)
-        _set_csrf_cookie(res)
+        _set_auth_cookies(res, access_token, refresh_token, remember_me)
+        _set_csrf_cookie(res, remember_me)
         return res
     except HTTPException as he:
         raise he
@@ -414,6 +419,7 @@ async def refresh_token(
             data={"sub": user.username, "sid": sid}
         )
         try:
+            remember_me = db_session.remember_me
             db_session.is_active = False
             await AuthService.create_session(
                 db,
@@ -422,6 +428,8 @@ async def refresh_token(
                 ip_address=_request_client_ip(request),
                 user_agent=request.headers.get("user-agent") if request else None,
                 device_info=sid,
+                remember_me=remember_me,
+                expires_at=datetime.fromtimestamp(auth.jwt.get_unverified_claims(new_refresh_token)["exp"], tz=timezone.utc).replace(tzinfo=None),
                 commit=False,
             )
             await db.commit()
@@ -456,8 +464,8 @@ async def refresh_token(
                 "session_id": sid,
             }
         )
-        _set_auth_cookies(res, access_token, new_refresh_token)
-        _set_csrf_cookie(res)
+        _set_auth_cookies(res, access_token, new_refresh_token, remember_me)
+        _set_csrf_cookie(res, remember_me)
         return res
     except HTTPException:
         raise
@@ -584,10 +592,18 @@ async def login_2fa(
             raise HTTPException(status_code=401, detail="Invalid 2FA token")
 
         username = payload.get("sub")
-        user = await crud.get_user(db, username=username)
-
-        if not user:
-            raise HTTPException(status_code=401, detail="User not found")
+        remember_me = payload.get("remember_me", True) is True
+        if not isinstance(username, str) or not username:
+            raise HTTPException(status_code=401, detail="Invalid 2FA token")
+        user = await lookup_user_for_authentication(db, username, reason=REASON_2FA)
+        if not user or not user.is_active or not user.is_2fa_enabled or not user.otp_secret:
+            raise HTTPException(status_code=401, detail="Invalid 2FA session")
+        if user.account_locked_until and user.account_locked_until.replace(tzinfo=timezone.utc) > datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="Invalid 2FA session")
+        if user.role != Role.SUPER_ADMIN.value and (
+            not user.tenant or not user.tenant.is_active or user.tenant.is_deleted
+        ):
+            raise HTTPException(status_code=401, detail="Invalid 2FA session")
 
         # Verify Code
         import pyotp
@@ -620,6 +636,8 @@ async def login_2fa(
                 ip_address=_request_client_ip(request) or "unknown",
                 user_agent=request.headers.get("user-agent") if request else "unknown",
                 device_info=session_id,
+                remember_me=remember_me,
+                expires_at=datetime.fromtimestamp(auth.jwt.get_unverified_claims(refresh_token)["exp"], tz=timezone.utc).replace(tzinfo=None),
             )
         except Exception as session_error:
             await db.rollback()
@@ -650,8 +668,8 @@ async def login_2fa(
                 "session_id": session_id,
             }
         )
-        _set_auth_cookies(res, access_token, refresh_token)
-        _set_csrf_cookie(res)
+        _set_auth_cookies(res, access_token, refresh_token, remember_me)
+        _set_csrf_cookie(res, remember_me)
         return res
     except HTTPException:
         raise

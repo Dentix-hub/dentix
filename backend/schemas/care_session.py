@@ -1,0 +1,362 @@
+"""
+Care Session Schemas (Slices S18 & S19).
+Defines request/response models for chairside CareSession lifecycle, steps, and observations.
+"""
+
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class CareSessionCreate(BaseModel):
+    appointment_id: Optional[int] = None
+    notes: Optional[str] = None
+    resume_work_item_id: Optional[int] = Field(None, description="Optional work item ID to resume in this new session")
+    resume_from_session_id: Optional[int] = Field(None, description="Optional previous care session ID to carry forward steps and observations from")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# ---------------------------------------------------------------------------
+# Appointment Integration & Next-Visit Request Schemas (Slice S22 / G11)
+# ---------------------------------------------------------------------------
+
+
+class CareSessionLinkAppointment(BaseModel):
+    appointment_id: Optional[int] = Field(None, description="Appointment ID to link to the care session, or None to unlink")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class NextVisitRequestCreate(BaseModel):
+    care_session_id: Optional[int] = Field(None, description="Optional care session ID generating this request")
+    work_item_id: Optional[int] = Field(None, description="Optional clinical work item ID")
+    reason: Optional[str] = Field(None, description="Reason for next visit (auto-populated if omitted)")
+    suggested_duration_minutes: int = Field(30, ge=5, le=480, description="Suggested appointment duration in minutes")
+    preferred_time_window_start: Optional[datetime] = Field(None, description="Preferred window start datetime")
+    preferred_time_window_end: Optional[datetime] = Field(None, description="Preferred window end datetime")
+    notes: Optional[str] = Field(None, description="Clinical or front-desk instructions/notes")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class NextVisitRequestSchedule(BaseModel):
+    date_time: datetime = Field(..., description="Scheduled appointment datetime (ISO format)")
+    doctor_id: Optional[int] = Field(None, description="Assigned doctor user ID")
+    duration_minutes: Optional[int] = Field(None, ge=5, le=480, description="Duration in minutes (defaults to suggested_duration_minutes)")
+    price_list_id: Optional[int] = Field(None, description="Optional price list ID")
+    notes: Optional[str] = Field(None, description="Appointment notes")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class NextVisitRequestRead(BaseModel):
+    id: int
+    tenant_id: int
+    patient_id: int
+    care_session_id: Optional[int] = None
+    work_item_id: Optional[int] = None
+    requested_by_user_id: Optional[int] = None
+    reason: str
+    suggested_duration_minutes: int = 30
+    preferred_time_window_start: Optional[datetime] = None
+    preferred_time_window_end: Optional[datetime] = None
+    status: str = "requested"
+    notes: Optional[str] = None
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    patient_name: Optional[str] = None
+    patient_phone: Optional[str] = None
+    fulfilled_appointment_id: Optional[int] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def populate_enriched_fields(cls, data: Any) -> Any:
+        import re
+
+        if isinstance(data, dict):
+            if not data.get("fulfilled_appointment_id"):
+                notes = data.get("notes")
+                if notes and isinstance(notes, str):
+                    m = re.search(r"\[APPOINTMENT:(\d+)\]", notes)
+                    if m:
+                        data["fulfilled_appointment_id"] = int(m.group(1))
+            return data
+
+        notes = getattr(data, "notes", None)
+        if notes and isinstance(notes, str) and not getattr(data, "fulfilled_appointment_id", None):
+            m = re.search(r"\[APPOINTMENT:(\d+)\]", notes)
+            if m:
+                setattr(data, "fulfilled_appointment_id", int(m.group(1)))
+
+        patient = getattr(data, "patient", None)
+        if patient:
+            if not getattr(data, "patient_name", None):
+                setattr(data, "patient_name", getattr(patient, "name", None))
+            if not getattr(data, "patient_phone", None):
+                setattr(data, "patient_phone", getattr(patient, "phone", None))
+        return data
+
+
+class NextVisitRequestScheduleResult(BaseModel):
+    request: NextVisitRequestRead
+    appointment_id: int
+    appointment_date_time: datetime
+    status: str = "scheduled"
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class NextVisitSuggestionRead(BaseModel):
+    reason: str
+    suggested_duration_minutes: int = 30
+    care_session_id: Optional[int] = None
+    work_item_id: Optional[int] = None
+    procedure_code: Optional[str] = None
+    tooth_key: Optional[str] = None
+    next_step_title: Optional[str] = None
+    remaining_steps_count: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CareSessionFinish(BaseModel):
+    notes: Optional[str] = None
+    next_visit_request: Optional[NextVisitRequestCreate] = Field(
+        None, description="Optional chairside next-visit request to create when completing session"
+    )
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CareSessionTransition(BaseModel):
+    to_status: str = Field(..., description="Target status: paused, in_progress, completed, cancelled")
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CareSessionUpdate(BaseModel):
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# ---------------------------------------------------------------------------
+# Care Session Step Schemas (Slice S19 / G10-M04, G10-M05, G10-M15)
+# ---------------------------------------------------------------------------
+
+
+class CareSessionStepCreate(BaseModel):
+    step_code: str = Field(..., min_length=1, max_length=64, description="Step identifier code")
+    title: str = Field(..., min_length=1, max_length=255, description="Human-readable step title")
+    step_order: Optional[int] = Field(None, ge=1, description="Sequential step order (auto-assigned if omitted)")
+    work_item_id: Optional[int] = Field(None, description="Optional associated clinical work item ID")
+    status: Optional[str] = Field("pending", description="Initial status: pending, in_progress, partial, completed, skipped")
+    notes: Optional[str] = Field(None, description="Free-text clinical notes for this step")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CareSessionStepUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=255)
+    status: Optional[str] = Field(None, description="Target status: pending, in_progress, partial, completed, skipped")
+    notes: Optional[str] = Field(None, description="Updated step clinical notes")
+    step_order: Optional[int] = Field(None, ge=1)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CareSessionStepRead(BaseModel):
+    id: int
+    tenant_id: int
+    care_session_id: int
+    work_item_id: Optional[int] = None
+    step_order: int
+    step_code: str
+    title: str
+    status: str
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+    notes: Optional[str] = None
+    version_id: int = 1
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CareSessionTemplateApply(BaseModel):
+    template_code: str = Field(..., min_length=1, max_length=64, description="Workflow template code (e.g. ENDO_RCT, PROS_CROWN)")
+    work_item_id: Optional[int] = Field(None, description="Optional clinical work item ID to attach to generated steps")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+# ---------------------------------------------------------------------------
+# Care Observation Schemas (Slice S19 / G10-M07, G10-M15)
+# ---------------------------------------------------------------------------
+
+
+class CareObservationCreate(BaseModel):
+    observation_code: str = Field(..., min_length=1, max_length=64, description="Observation / measurement key")
+    step_id: Optional[int] = Field(None, description="Optional care session step ID")
+    work_item_id: Optional[int] = Field(None, description="Optional clinical work item ID")
+    tooth_key: Optional[str] = Field(None, description="Target tooth key in FDI notation (11-48, 51-85)")
+    surface_code: Optional[str] = Field(None, description="Target tooth surface (M, O, D, B, L, etc.)")
+    root_id: Optional[str] = Field(None, description="Root identifier (e.g. MB, ML, D, P)")
+    canal_id: Optional[str] = Field(None, description="Canal identifier (e.g. MB1, MB2)")
+    structured_value: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Structured measurement data")
+    notes: Optional[str] = Field(None, description="Free-text clinical notes")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CareObservationRead(BaseModel):
+    id: int
+    tenant_id: int
+    patient_id: int
+    care_session_id: int
+    step_id: Optional[int] = None
+    work_item_id: Optional[int] = None
+    observation_code: str
+    tooth_key: Optional[str] = None
+    surface_code: Optional[str] = None
+    root_id: Optional[str] = None
+    canal_id: Optional[str] = None
+    structured_value: Dict[str, Any] = Field(default_factory=dict)
+    notes: Optional[str] = None
+    recorded_at: Optional[datetime] = None
+    recorded_by_user_id: Optional[int] = None
+    created_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def extract_structured_keys(cls, data: Any) -> Any:
+        if hasattr(data, "structured_value") and isinstance(data.structured_value, dict):
+            sv = data.structured_value or {}
+            return {
+                "id": data.id,
+                "tenant_id": data.tenant_id,
+                "patient_id": data.patient_id,
+                "care_session_id": data.care_session_id,
+                "step_id": data.step_id,
+                "work_item_id": data.work_item_id,
+                "observation_code": data.observation_code,
+                "tooth_key": data.tooth_key,
+                "surface_code": sv.get("surface_code"),
+                "root_id": sv.get("root_id"),
+                "canal_id": sv.get("canal_id"),
+                "structured_value": sv,
+                "notes": data.notes,
+                "recorded_at": data.recorded_at,
+                "recorded_by_user_id": data.recorded_by_user_id,
+                "created_at": data.created_at,
+            }
+        elif isinstance(data, dict):
+            sv = data.get("structured_value") or {}
+            if "surface_code" not in data and "surface_code" in sv:
+                data["surface_code"] = sv["surface_code"]
+            if "root_id" not in data and "root_id" in sv:
+                data["root_id"] = sv["root_id"]
+            if "canal_id" not in data and "canal_id" in sv:
+                data["canal_id"] = sv["canal_id"]
+        return data
+
+
+# ---------------------------------------------------------------------------
+# Care Session Read Models
+# ---------------------------------------------------------------------------
+
+
+class CareSessionRead(BaseModel):
+    id: int
+    tenant_id: int
+    patient_id: int
+    appointment_id: Optional[int] = None
+    provider_user_id: Optional[int] = None
+    status: str
+    started_at: Optional[datetime] = None
+    finished_at: Optional[datetime] = None
+    notes: Optional[str] = None
+    version_id: int = 1
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    summary: Optional[str] = None
+    steps: List[CareSessionStepRead] = Field(default_factory=list)
+    observations: List[CareObservationRead] = Field(default_factory=list)
+    next_visit_requests: List[NextVisitRequestRead] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_unloaded_relationships(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            return data
+        try:
+            from sqlalchemy.inspection import inspect as sa_inspect
+            ins = sa_inspect(data)
+            if ins is not None:
+                unloaded = ins.unloaded
+                return {
+                    "id": getattr(data, "id", None),
+                    "tenant_id": getattr(data, "tenant_id", None),
+                    "patient_id": getattr(data, "patient_id", None),
+                    "appointment_id": getattr(data, "appointment_id", None),
+                    "provider_user_id": getattr(data, "provider_user_id", None),
+                    "status": getattr(data, "status", None),
+                    "started_at": getattr(data, "started_at", None),
+                    "finished_at": getattr(data, "finished_at", None),
+                    "notes": getattr(data, "notes", None),
+                    "version_id": getattr(data, "version_id", 1),
+                    "created_at": getattr(data, "created_at", None),
+                    "updated_at": getattr(data, "updated_at", None),
+                    "summary": getattr(data, "summary", None),
+                    "steps": [] if "steps" in unloaded else getattr(data, "steps", []),
+                    "observations": [] if "observations" in unloaded else getattr(data, "observations", []),
+                    "next_visit_requests": [] if "next_visit_requests" in unloaded else getattr(data, "next_visit_requests", []),
+                }
+        except Exception:
+            pass
+        return data
+
+
+# ---------------------------------------------------------------------------
+# Care Session Resumable Schemas (Slice S21 / G10-M12, G10-M13)
+# ---------------------------------------------------------------------------
+
+
+class ResumableWorkItemRead(BaseModel):
+    work_item_id: int
+    procedure_code: str
+    tooth_key: Optional[str] = None
+    surface_code: Optional[str] = None
+    title: str
+    status: str
+    total_steps: int = 0
+    completed_steps_count: int = 0
+    completed_steps: List[CareSessionStepRead] = Field(default_factory=list)
+    remaining_steps: List[CareSessionStepRead] = Field(default_factory=list)
+    observations: List[CareObservationRead] = Field(default_factory=list)
+    last_session_id: Optional[int] = None
+    last_session_at: Optional[datetime] = None
+    last_notes: Optional[str] = None
+    summary: Optional[str] = None
+    next_step_title: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CareSessionResumableResponse(BaseModel):
+    has_resumable: bool = False
+    active_session: Optional[CareSessionRead] = None
+    paused_session: Optional[CareSessionRead] = None
+    items: List[ResumableWorkItemRead] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+

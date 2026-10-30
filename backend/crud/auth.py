@@ -2,6 +2,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from backend import models, schemas
 from sqlalchemy.orm import selectinload
+from sqlalchemy.exc import IntegrityError
+
+
+async def _commit_user(db: AsyncSession) -> None:
+    """Keep duplicate addresses a client error, including concurrent inserts."""
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        code = getattr(exc.orig, "sqlstate", None) or getattr(exc.orig, "pgcode", None)
+        sqlite_code = getattr(exc.orig, "sqlite_errorname", None)
+        if code == "23505" or sqlite_code == "SQLITE_CONSTRAINT_UNIQUE":
+            from fastapi import HTTPException
+
+            raise HTTPException(status_code=400, detail="Username or email already registered") from None
+        raise
 
 def normalize_username(username: str) -> str:
     """Normalize username: trim, lowercase, and basic Arabic normalization."""
@@ -12,6 +28,39 @@ def normalize_username(username: str) -> str:
     u = u.replace("أ", "ا").replace("إ", "ا").replace("آ", "ا")
     u = u.replace("ة", "ه").replace("ى", "ي")
     return u
+
+
+def sql_normalize_username(column):
+    """Build a SQL expression equivalent to normalize_username(column)."""
+    whitespace = " \t\n\r\v\f\x1c\x1d\x1e\x1f\x85\xa0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000"
+    expr = func.lower(func.trim(column, whitespace))
+    for src, dst in (
+        ("أ", "ا"),
+        ("إ", "ا"),
+        ("آ", "ا"),
+        ("ة", "ه"),
+        ("ى", "ي"),
+    ):
+        expr = func.replace(expr, src, dst)
+    return expr
+
+
+def validate_and_trim_username(username: str | None) -> str:
+    """Validate and trim username without lowercasing or Arabic-normalizing the stored display value."""
+    from fastapi import HTTPException
+
+    if username is None or not username.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="اسم المستخدم لا يمكن أن يكون فارغاً",
+        )
+    trimmed = username.strip()
+    if any(ch.isspace() for ch in trimmed):
+        raise HTTPException(
+            status_code=400,
+            detail="اسم المستخدم لا يجب أن يحتوي على مسافات داخلية",
+        )
+    return trimmed
 
 
 # --- Tenant CRUD ---
@@ -40,8 +89,8 @@ async def get_user(db: AsyncSession, username: str):
     stmt = (
         select(models.User)
         .where(
-            (func.lower(models.User.email) == clean_username)
-            | (func.lower(models.User.username) == clean_username)
+            (models.User.email.is_not(None) & (sql_normalize_username(models.User.email) == clean_username))
+            | (sql_normalize_username(models.User.username) == clean_username)
         )
         .options(selectinload(models.User.tenant))
     )
@@ -49,8 +98,10 @@ async def get_user(db: AsyncSession, username: str):
     return result.scalars().first()
 
 
-async def get_user_by_email(db: AsyncSession, email: str):
-    stmt = select(models.User).where(func.lower(models.User.email) == email.lower())
+async def get_user_by_email(db: AsyncSession, email: str | None):
+    if not email or not email.strip():
+        return None
+    stmt = select(models.User).where(func.lower(func.trim(models.User.email)) == email.strip().lower())
     result = await db.execute(stmt)
     return result.scalars().first()
 
@@ -62,16 +113,19 @@ async def get_user_by_id(db: AsyncSession, user_id: int, tenant_id: int):
 
 
 async def create_user(db: AsyncSession, user: schemas.User, password_hash: str, tenant_id: int):
+    trimmed_username = validate_and_trim_username(user.username)
     db_user = models.User(
-        username=user.username,
+        username=trimmed_username,
         full_name=user.full_name,
+        email=user.email,
         hashed_password=password_hash,
         role=user.role,
         permissions=user.permissions,
+        patient_visibility_mode=user.patient_visibility_mode or "all_assigned",
         tenant_id=tenant_id,
     )
     db.add(db_user)
-    await db.commit()
+    await _commit_user(db)
     await db.refresh(db_user)
     return db_user
 
@@ -97,6 +151,8 @@ async def update_user(
     db_user = result.scalars().first()
     if db_user:
         update_data = user_update.dict(exclude_unset=True)
+        if "username" in update_data:
+            update_data["username"] = validate_and_trim_username(update_data["username"])
         # Handle password hashing if provided
         if "password" in update_data and update_data["password"]:
             from backend.auth import get_password_hash
@@ -108,7 +164,7 @@ async def update_user(
         for key, value in update_data.items():
             setattr(db_user, key, value)
 
-        await db.commit()
+        await _commit_user(db)
         await db.refresh(db_user)
     return db_user
 

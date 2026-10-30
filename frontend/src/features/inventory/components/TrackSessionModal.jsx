@@ -14,13 +14,18 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     // Fetch batches if we don't have a specific stock item but have material
-    const { data: batches = [], isLoading: isLoadingBatches } = useQuery({
+    const {
+        data: batches = [],
+        isLoading: isLoadingBatches,
+        isError: isBatchesError,
+    } = useQuery({
         queryKey: ['material-stock', material?.id],
         queryFn: async () => {
             const res = await getMaterialStock(material?.id);
             return Array.isArray(res.data) ? res.data : [];
         },
         enabled: isOpen && mode === 'OPEN' && !stockItem && !!material?.id,
+        retry: false,
     });
 
     useEffect(() => {
@@ -120,7 +125,13 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
                                 <label htmlFor="track-session-stock-item" className="mb-2 block text-sm font-bold text-text-primary">
                                     {t('inventory.track_session.select_batch_label')}
                                 </label>
-                                {isLoadingBatches ? <LoadingSpinner size="sm" /> : (
+                                {isLoadingBatches ? (
+                                    <LoadingSpinner size="sm" />
+                                ) : isBatchesError ? (
+                                    <p className="mt-1 text-sm text-red-500" data-testid="track-session-stock-error">
+                                        {t('inventory.track_session.stock_fetch_error', 'تعذر تحميل بيانات المخزون للمادة.')}
+                                    </p>
+                                ) : (
                                     <select
                                         id="track-session-stock-item"
                                         className="w-full rounded-control border border-border bg-surface px-3 py-3 text-text-primary focus-visible:ring-focus"
@@ -135,7 +146,7 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
                                         ))}
                                     </select>
                                 )}
-                                {batches.length === 0 && (
+                                {!isLoadingBatches && !isBatchesError && batches.length === 0 && (
                                     <p className="mt-1 text-sm text-red-500">{t('inventory.track_session.empty_stock')}</p>
                                 )}
                             </div>

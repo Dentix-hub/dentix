@@ -1,10 +1,12 @@
 import { memo, useId } from 'react';
+import { useTranslation } from 'react-i18next';
 import { ROOT_VIEW_BOX, getRootGeometry } from '@/features/clinical-chart/rendering/rootGeometry';
 import { getSurfaceGeometry } from '@/features/clinical-chart/rendering/surfaceGeometry';
 import {
     CrownVisualLayers,
     RootVisualLayers,
 } from '@/features/clinical-chart/rendering/ClinicalToothVisualLayers';
+import ToothProcedureMarkers from '@/features/clinical-chart/rendering/ToothProcedureMarkers';
 import {
     getBaseAnatomyOpacity,
     shouldHideNaturalRoots,
@@ -192,6 +194,7 @@ const ToothSurfaceLayer = memo(function ToothSurfaceLayer({
     toothLabel,
     clipPathId,
     selectedSurfaceCode,
+    selectedSurfaceCodes = [],
     onSurfaceClick,
     disabled,
 }) {
@@ -213,12 +216,14 @@ const ToothSurfaceLayer = memo(function ToothSurfaceLayer({
             data-surface-model={geometry.model}
         >
             {geometry.surfaces.map((surface) => {
-                const isSelected = selectedSurfaceCode === surface.surfaceCode;
+                const isSelected = (Array.isArray(selectedSurfaceCodes) && selectedSurfaceCodes.includes(surface.surfaceCode))
+                    || selectedSurfaceCode === surface.surfaceCode;
                 return (
                     <path
                         aria-label={`Tooth ${toothLabel} — ${surface.label} (${surface.surfaceCode})`}
                         aria-disabled={disabled}
                         aria-pressed={isSelected}
+                        data-selected={isSelected ? 'true' : 'false'}
                         className={disabled
                             ? 'cursor-not-allowed fill-slate-100 stroke-slate-300 outline-none'
                             : (isSelected
@@ -254,10 +259,14 @@ const SVGTooth = memo(function SVGTooth({
     arch,
     enableSurfaceSelection,
     selectedSurface,
+    selectedToothKeys = [],
+    selectedSurfacesByTooth = {},
     onSurfaceClick,
     readOnly,
     toothVisual,
     notationMode,
+    planOverlayTooth = null,
+    labStatusTooth = null,
 }) {
     const reactId = useId();
     const path = getToothPath(number, isPediatric);
@@ -270,14 +279,29 @@ const SVGTooth = memo(function SVGTooth({
         notationMode,
     });
     const toothLabel = notation.label;
+    const isSelected = Boolean(
+        status?.selection?.isSelected
+        || (Array.isArray(selectedToothKeys) && selectedToothKeys.includes(toothKey))
+        || selectedSurface?.toothKey === toothKey,
+    );
+    const surfaceTargets = Array.isArray(status?.selection?.targets)
+        ? status.selection.targets.filter((t) => t.kind === 'surface').map((t) => t.surfaceCode)
+        : [];
+    const directSurfaces = selectedSurfacesByTooth?.[toothKey] || [];
+    const legacySingle = selectedSurface?.toothKey === toothKey && selectedSurface.surfaceCode ? [selectedSurface.surfaceCode] : [];
+    const toothSelectedSurfaces = Array.from(new Set([...surfaceTargets, ...directSurfaces, ...legacySingle]));
+    const toothMarkers = status?.markers ?? toothVisual?.markers ?? [];
+    const markerOverflowCount = status?.markerOverflowCount ?? toothVisual?.markerOverflowCount ?? 0;
     const crownClipId = `dentix-crown-${reactId.replace(/:/g, '')}`;
     const crownBaseOpacity = getBaseAnatomyOpacity(toothVisual);
     const needsCrownClip = enableSurfaceSelection || (toothVisual?.instructions.length ?? 0) > 0;
     const crownSvg = (
         <svg
             aria-hidden={enableSurfaceSelection ? undefined : true}
+            aria-pressed={isSelected}
             className={`${showRoots ? `absolute ${arch === 'upper' ? 'bottom-0' : 'top-0'}` : ''} transform transition-transform duration-200 group-hover:scale-105 group-focus-visible:scale-105`}
             data-layer="crown"
+            data-selected={isSelected ? 'true' : 'false'}
             data-tooth-key={toothKey}
             height="60"
             viewBox="0 0 50 60"
@@ -322,10 +346,17 @@ const SVGTooth = memo(function SVGTooth({
                             toothLabel={toothLabel}
                             clipPathId={crownClipId}
                             selectedSurfaceCode={selectedSurface?.toothKey === toothKey ? selectedSurface.surfaceCode : null}
+                            selectedSurfaceCodes={toothSelectedSurfaces}
                             onSurfaceClick={onSurfaceClick}
                             disabled={disabled}
                         />
                     )}
+                    <ToothProcedureMarkers
+                        arch={arch}
+                        markers={toothMarkers}
+                        overflowCount={markerOverflowCount}
+                        toothKey={toothKey}
+                    />
                 </g>
             </g>
         </svg>
@@ -333,6 +364,31 @@ const SVGTooth = memo(function SVGTooth({
 
     const toothContent = (
         <>
+            {planOverlayTooth && (
+                <span
+                    data-testid={`plan-overlay-tooth-badge-${toothKey}`}
+                    title={`${planOverlayTooth.phaseName}: ${(planOverlayTooth.procedureCodes || []).join(', ')}${planOverlayTooth.status ? ` (${planOverlayTooth.status})` : ''}`}
+                    className="absolute -top-2 z-10 inline-flex items-center justify-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase text-white shadow-sm ring-1 ring-white dark:ring-slate-900"
+                    style={{ backgroundColor: planOverlayTooth.status === 'completed' ? '#059669' : planOverlayTooth.color }}
+                >
+                    <span>{planOverlayTooth.badge || `P${planOverlayTooth.phaseIndex + 1}`}</span>
+                    {planOverlayTooth.status === 'completed' && (
+                        <span data-testid={`plan-overlay-check-${toothKey}`} aria-label="Completed" className="text-[10px] leading-none">✓</span>
+                    )}
+                    {planOverlayTooth.status === 'active' && (
+                        <span data-testid={`plan-overlay-active-${toothKey}`} aria-label="Active" className="text-[8px] leading-none">●</span>
+                    )}
+                </span>
+            )}
+            {Boolean(labStatusTooth && (labStatusTooth === 'lab_ready' || labStatusTooth.isReady === true || labStatusTooth.status === 'lab_ready')) && (
+                <span
+                    data-testid={`lab-status-tooth-badge-${toothKey}`}
+                    title={labStatusTooth.title || 'Lab Ready'}
+                    className="absolute -top-2 z-10 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[9px] font-black uppercase text-white shadow-sm ring-1 ring-white dark:ring-slate-900 bg-emerald-600"
+                >
+                    {labStatusTooth.badge || 'LAB READY'}
+                </span>
+            )}
             {showRoots ? (
                 <span
                     aria-hidden={enableSurfaceSelection ? undefined : true}
@@ -355,14 +411,26 @@ const SVGTooth = memo(function SVGTooth({
         </>
     );
 
+    const overlayStyle = planOverlayTooth
+        ? {
+            outline: `2px ${planOverlayTooth.status === 'completed' ? 'dashed' : 'solid'} ${planOverlayTooth.status === 'completed' ? '#059669' : planOverlayTooth.color}`,
+            outlineOffset: '2px',
+            backgroundColor: `${planOverlayTooth.status === 'completed' ? '#059669' : planOverlayTooth.color}15`,
+        }
+        : undefined;
+
     const toothClassName = `group relative flex min-w-[50px] shrink-0 flex-col items-center gap-1 rounded-lg focus-visible:ring-focus ${showRoots ? (arch === 'upper' ? 'min-h-[112px]' : 'min-h-[98px]') : 'min-h-[76px]'}`;
 
     if (enableSurfaceSelection) {
         return (
             <div
-                className={`${toothClassName} cursor-default`}
+                className={`${toothClassName} cursor-pointer ${isSelected ? 'ring-2 ring-blue-500 rounded-lg bg-blue-50/50 dark:bg-blue-950/30' : ''}`}
+                style={overlayStyle}
                 role="group"
                 aria-disabled={disabled}
+                aria-pressed={isSelected}
+                data-selected={isSelected ? 'true' : 'false'}
+                data-tooth-key={toothKey}
                 aria-label={`Tooth ${toothLabel} surfaces`}
                 onClick={() => onClick?.(number)}
             >
@@ -376,6 +444,7 @@ const SVGTooth = memo(function SVGTooth({
             <div
                 aria-label={condition ? `Tooth ${toothLabel} — ${condition}` : `Tooth ${toothLabel}`}
                 className={`${toothClassName} cursor-default`}
+                style={overlayStyle}
             >
                 {toothContent}
             </div>
@@ -385,9 +454,13 @@ const SVGTooth = memo(function SVGTooth({
     return (
         <button
             type="button"
-            className={`${toothClassName} cursor-pointer`}
+            className={`${toothClassName} cursor-pointer ${isSelected ? 'ring-2 ring-blue-500 rounded-lg bg-blue-50/50 dark:bg-blue-950/30' : ''}`}
+            style={overlayStyle}
             disabled={disabled}
             onClick={() => onClick(number)}
+            aria-pressed={isSelected}
+            data-selected={isSelected ? 'true' : 'false'}
+            data-tooth-key={toothKey}
             aria-label={condition ? `Tooth ${toothLabel} — ${condition}` : `Tooth ${toothLabel}`}
         >
             {toothContent}
@@ -404,10 +477,15 @@ export default memo(function DentalChartSVG({
     showRoots = false,
     enableSurfaceSelection = false,
     selectedSurface = null,
+    selectedToothKeys = [],
+    selectedSurfacesByTooth = {},
     onSurfaceClick,
     readOnly = false,
     notationMode = DEFAULT_CHART_NOTATION_MODE,
+    planOverlay = null,
+    labStatusByTooth = null,
 }) {
+    const { t } = useTranslation();
     const isMixedDentition = Array.isArray(toothOrder);
     const layout = isMixedDentition
         ? createMixedLayout(toothOrder)
@@ -416,8 +494,8 @@ export default memo(function DentalChartSVG({
         ? 'min-w-[600px]'
         : (isPediatric ? 'min-w-[480px]' : 'min-w-[700px]');
     const chartTitle = isMixedDentition
-        ? 'مخطط الأسنان (مختلط)'
-        : (isPediatric ? 'مخطط الأسنان (أطفال)' : 'مخطط الأسنان (بالغين)');
+        ? t('dental_chart.mixed', 'مخطط الأسنان (مختلط)')
+        : (isPediatric ? t('dental_chart.pediatric', 'مخطط الأسنان (أطفال)') : t('dental_chart.adult', 'مخطط الأسنان (بالغين)'));
     const surfaceSelectionEnabled = enableSurfaceSelection && !readOnly;
     const notationConfig = getChartNotationConfig(notationMode);
     const renderTooth = (tooth, arch) => (
@@ -432,10 +510,14 @@ export default memo(function DentalChartSVG({
             onSurfaceClick={onSurfaceClick}
             readOnly={readOnly}
             selectedSurface={selectedSurface}
+            selectedToothKeys={selectedToothKeys}
+            selectedSurfacesByTooth={selectedSurfacesByTooth}
             showRoots={showRoots}
             status={teethStatus[tooth.toothKey]}
             toothKey={tooth.toothKey}
             toothVisual={toothVisuals[tooth.toothKey]}
+            planOverlayTooth={planOverlay?.teeth?.[tooth.toothKey] || null}
+            labStatusTooth={labStatusByTooth?.[tooth.toothKey] || null}
         />
     );
 
@@ -454,7 +536,7 @@ export default memo(function DentalChartSVG({
 
             <div
                 aria-label={chartTitle}
-                className="min-w-0 overflow-x-auto overscroll-x-contain rounded-xl outline-none touch-pan-x focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
+                className="min-w-0 overflow-x-auto overflow-y-hidden overscroll-x-contain rounded-xl outline-none touch-pan-x touch-pan-y focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:ring-offset-2"
                 data-chart-scroll-viewport
                 role="region"
                 tabIndex={0}
@@ -493,11 +575,11 @@ export default memo(function DentalChartSVG({
                     <div key={status} className="flex min-h-8 items-center gap-2">
                         <div className="h-5 w-5 shrink-0 rounded-full border shadow-sm" style={{ backgroundColor: statusStyle.fill, borderColor: statusStyle.stroke, borderWidth: 2 }} aria-hidden="true" />
                         <span className="font-medium text-slate-600">
-                            {status === 'Healthy' ? 'سليم' :
-                                status === 'Decayed' ? 'تسوس' :
-                                    status === 'Filled' ? 'حشو' :
-                                        status === 'Missing' ? 'مخلوع' :
-                                            status === 'Crown' ? 'طربوش' : 'عصب'}
+                            {status === 'Healthy' ? t('dental_chart.status_healthy', 'سليم') :
+                                status === 'Decayed' ? t('dental_chart.status_decayed', 'تسوس') :
+                                    status === 'Filled' ? t('dental_chart.status_filled', 'حشو') :
+                                        status === 'Missing' ? t('dental_chart.status_missing', 'مخلوع') :
+                                            status === 'Crown' ? t('dental_chart.status_crown', 'طربوش') : t('dental_chart.status_endo', 'عصب')}
                         </span>
                     </div>
                 ))}

@@ -4,9 +4,13 @@ import {
     createAppointment,
     updateAppointmentStatus,
     updateAppointment,
-    deleteAppointment
+    deleteAppointment,
+    getReceptionNextVisitRequests,
+    scheduleNextVisitRequest,
+    cancelNextVisitRequest
 } from '@/api';
 import { queryKeys } from '@/lib/queryClient';
+import { useTenantFeatures } from '@/hooks/usePatientDetails';
 
 /**
  * Hook for fetching appointments with caching
@@ -115,4 +119,53 @@ export function usePrefetchAppointments() {
             staleTime: 30 * 1000,
         });
     };
+}
+
+/**
+ * Hook for fetching next-visit requests queue (G11-M04)
+ */
+export function useNextVisitRequests(filters = {}, options = {}) {
+    const { data: tenantFeatures = [] } = useTenantFeatures();
+    const isNativeWritesEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_vnext_native_writes');
+
+    return useQuery({
+        queryKey: queryKeys.nextVisitRequests(filters),
+        queryFn: async () => {
+            const res = await getReceptionNextVisitRequests(filters);
+            return res.data;
+        },
+        enabled: isNativeWritesEnabled && (options.enabled !== false),
+        staleTime: 15 * 1000,
+        ...options
+    });
+}
+
+/**
+ * Hook for converting next-visit request to appointment (G11-M05)
+ */
+export function useScheduleNextVisitRequest() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ requestId, data }) => scheduleNextVisitRequest(requestId, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.appointments });
+            queryClient.invalidateQueries({ queryKey: ['next-visit-requests'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+        },
+    });
+}
+
+/**
+ * Hook for cancelling a next-visit request
+ */
+export function useCancelNextVisitRequest() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ requestId, data }) => cancelNextVisitRequest(requestId, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['next-visit-requests'] });
+        },
+    });
 }

@@ -48,46 +48,229 @@ def get_token_from_header_or_cookie(
     return access_token
 
 
-import string
-import zxcvbn
+PASSWORD_MIN_LENGTH = 8
+PASSWORD_MAX_LENGTH = 72
 
-def validate_password(password: str) -> None:
-    """
-    Validate password strength using complex rules and zxcvbn scoring.
-    Raises HTTPException if validation fails.
-    """
-    if len(password) < 8:
-        raise HTTPException(status_code=400, detail="كلمة المرور يجب أن تتكون من 8 أحرف على الأقل")
-    if len(password) > 72:
-        raise HTTPException(status_code=400, detail="كلمة المرور يجب أن لا تزيد عن 72 حرفاً")
+COMMON_WEAK_PASSWORDS: frozenset[str] = frozenset({
+    # Numeric / sequential + letter patterns
+    "12345678",
+    "123456789",
+    "1234567890",
+    "1234567a",
+    "12345678a",
+    "123456789a",
+    "a1234567",
+    "a12345678",
+    "a123456789",
+    "12341234a",
+    "11223344a",
+    "123123123a",
+    "87654321a",
+    "0987654321a",
+    # Repeated character + digit / letter patterns (11111111a1-style)
+    "1111111a",
+    "11111111",
+    "11111111a",
+    "11111111a1",
+    "0000000a",
+    "00000000",
+    "00000000a",
+    "00000000a0",
+    "22222222a",
+    "33333333a",
+    "44444444a",
+    "55555555a",
+    "66666666a",
+    "77777777a",
+    "88888888a",
+    "99999999a",
+    "aaaaaaa1",
+    "aaaaaaaa1",
+    "aaaaaaaa1a",
+    "bbbbbbb1",
+    "zzzzzzz1",
+    # Common password / keyboard walks
+    "password",
+    "password1",
+    "password2",
+    "password3",
+    "password12",
+    "password123",
+    "password1234",
+    "password12345",
+    "password1!",
+    "password123!",
+    "passw0rd",
+    "passw0rd1",
+    "p@ssw0rd",
+    "p@ssword1",
+    "p4ssw0rd",
+    "pass1234",
+    "pass12345",
+    "qwerty12",
+    "qwerty123",
+    "qwerty1234",
+    "qwerty12345",
+    "qwertyui1",
+    "q1w2e3r4",
+    "q1w2e3r4t5",
+    "1q2w3e4r",
+    "1q2w3e4r5t",
+    "1qaz2wsx",
+    "zaq12wsx",
+    "asdf1234",
+    "asdfgh12",
+    "asdfghj1",
+    "asdfghjk1",
+    "zxcv1234",
+    "zxcvbn12",
+    "zxcvbnm1",
+    "abcd1234",
+    "abc123456",
+    "abcdefg1",
+    "abcdefgh1",
+    # Admin / role / product / clinic weak defaults
+    "admin123",
+    "admin1234",
+    "admin12345",
+    "admin111",
+    "admin1111",
+    "admin0000",
+    "admin2023",
+    "admin2024",
+    "admin2025",
+    "admin2026",
+    "administrator1",
+    "root1234",
+    "root12345",
+    "user1234",
+    "user12345",
+    "test1234",
+    "test12345",
+    "testing1",
+    "testing123",
+    "guest123",
+    "guest1234",
+    "default1",
+    "changeme1",
+    "changeme123",
+    "dentix12",
+    "dentix123",
+    "dentix1234",
+    "dentix2024",
+    "dentix2025",
+    "dentix2026",
+    "dental12",
+    "dental123",
+    "dental1234",
+    "dentist1",
+    "dentist123",
+    "clinic12",
+    "clinic123",
+    "clinic1234",
+    "doctor12",
+    "doctor123",
+    "doctor1234",
+    "smartclinic1",
+    "smart123",
+    "smart1234",
+    # Common English dictionary + digits
+    "welcome1",
+    "welcome12",
+    "welcome123",
+    "letmein1",
+    "letmein12",
+    "letmein123",
+    "iloveyou1",
+    "iloveyou2",
+    "iloveyou123",
+    "sunshine1",
+    "princess1",
+    "football1",
+    "baseball1",
+    "monkey12",
+    "monkey123",
+    "dragon12",
+    "dragon123",
+    "master12",
+    "master123",
+    "shadow12",
+    "shadow123",
+    "superman1",
+    "batman12",
+    "batman123",
+    "trustno1",
+    "whatever1",
+    "freedom1",
+    "starwars1",
+    "mustang1",
+    "michael1",
+    "charlie1",
+    "jessica1",
+    # Common regional / transliterated weak passwords
+    "egypt123",
+    "egypt1234",
+    "cairo123",
+    "cairo1234",
+    "allah123",
+    "bismillah1",
+    "mohamed1",
+    "mohamed12",
+    "mohamed123",
+    "mahmoud1",
+    "mahmoud123",
+    "mostafa1",
+    "mostafa123",
+    "ibrahim1",
+    "ibrahim123",
+})
 
-    import re
+
+def validate_password(password: str, username: str | None = None) -> None:
+    """
+    Validate password strength using the relaxed policy:
+    - Minimum length PASSWORD_MIN_LENGTH (8), maximum PASSWORD_MAX_LENGTH (72).
+    - At least one letter (Arabic or Latin: str.isalpha()) and at least one digit.
+    - Not equal to the username (case-insensitive / normalized).
+    - Not in the common weak password blocklist (COMMON_WEAK_PASSWORDS).
+    Raises HTTPException(400) if validation fails.
+    """
+    if len(password) < PASSWORD_MIN_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"كلمة المرور يجب أن تتكون من {PASSWORD_MIN_LENGTH} أحرف على الأقل",
+        )
+    if len(password) > PASSWORD_MAX_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail="كلمة المرور يجب أن لا تزيد عن 72 حرفاً",
+        )
 
     has_letter = any(c.isalpha() for c in password)
     has_digit = any(c.isdigit() for c in password)
-    has_special = any(not c.isalnum() and not c.isspace() for c in password)
 
-    if not (has_letter and has_digit and has_special):
+    if not (has_letter and has_digit):
         raise HTTPException(
             status_code=400,
-            detail="كلمة المرور يجب أن تحتوي على حروف، أرقام، ورمز خاص واحد على الأقل"
+            detail="كلمة المرور يجب أن تحتوي على حروف وأرقام على الأقل",
         )
 
-    has_en_upper = any('A' <= c <= 'Z' for c in password)
-    has_en_lower = any('a' <= c <= 'z' for c in password)
-    has_en_letters = any(('A' <= c <= 'Z') or ('a' <= c <= 'z') for c in password)
+    if username and username.strip():
+        clean_user = crud.normalize_username(username)
+        clean_pass = crud.normalize_username(password)
+        if (
+            password.strip().lower() == username.strip().lower()
+            or (clean_user and clean_pass == clean_user)
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail="كلمة المرور ضعيفة: لا يمكن أن تكون مطابقة لاسم المستخدم",
+            )
 
-    if has_en_letters and not (has_en_upper and has_en_lower):
-        pass
-
-    result = zxcvbn.zxcvbn(password)
-    score = result.get('score', 0)
-    if score < 3:
-        feedback = result.get('feedback', {}).get('warning', "")
-        details = f"كلمة المرور ضعيفة: {feedback}" if feedback else "كلمة المرور ضعيفة جداً ويمكن تخمينها بسهولة"
+    if password.lower() in COMMON_WEAK_PASSWORDS:
         raise HTTPException(
             status_code=400,
-            detail=details
+            detail="كلمة المرور ضعيفة جداً وشائعة الاستخدام، يرجى اختيار كلمة مرور أخرى",
         )
 
 
@@ -109,7 +292,7 @@ async def get_current_user(
         payload = auth.jwt.decode(token, auth.SECRET_KEY, algorithms=[auth.ALGORITHM])
         username: str = payload.get("sub")
         tenant_id: int = payload.get("tenant_id")
-        if username is None:
+        if username is None or payload.get("scope") == "2fa_pending":
             raise credentials_exception
         _enforce_impersonation_scope(payload, request.method)
         token_data = schemas.TokenData(username=username, tenant_id=tenant_id)

@@ -71,7 +71,7 @@ async def test_raw_sql_upload_and_restore_returns_410_gone(async_db_session: Asy
 
 
 @pytest.mark.asyncio
-async def test_tenant_scoped_json_export_and_restore_retained(async_db_session: AsyncSession):
+async def test_tenant_json_export_retained_and_direct_restore_requires_preview(async_db_session: AsyncSession):
     tenant = Tenant(name="Safe Export Clinic", is_active=True, subscription_status="active")
     async_db_session.add(tenant)
     await async_db_session.commit()
@@ -103,7 +103,7 @@ async def test_tenant_scoped_json_export_and_restore_retained(async_db_session: 
         assert "data" in data
         assert "patients" in data["data"]
 
-        # 2. Uploading a valid JSON backup payload works
+        # 2. Old one-step clients are directed to preview and confirmation
         json_backup_bytes = json.dumps({
             "version": "1.0",
             "tenant_id": tenant.id,
@@ -114,5 +114,5 @@ async def test_tenant_scoped_json_export_and_restore_retained(async_db_session: 
         }).encode("utf-8")
         files = {"file": ("clinic_backup.json", json_backup_bytes, "application/json")}
         resp_upload = await ac.post("/api/v1/settings/backup/upload", files=files, headers=headers)
-        assert resp_upload.status_code == 200
-        assert resp_upload.json()["success"] is True
+        assert resp_upload.status_code == 409
+        assert "معاينة" in resp_upload.json()["detail"]

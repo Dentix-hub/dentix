@@ -102,6 +102,11 @@ async def create_expense(
     current_user: schemas.User = Depends(require_permission(Permission.EXPENSE_MANAGE)),
 ):
     tenant_id = require_tenant_id(current_user)
+    if expense.category and expense.category.strip().lower() == "laboratory":
+        raise HTTPException(
+            status_code=422,
+            detail="مدفوعات المعامل تتسجل من صفحة المعامل، مش من المصروفات",
+        )
     service = ExpenseService(db, tenant_id)
     try:
         result = await service.create_expense(expense, commit=False)

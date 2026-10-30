@@ -11,6 +11,7 @@ Activate this skill **only** for:
 - **HIGH_RISK changes**: Material modifications to authentication, RBAC, tenant isolation, RLS, finance/ledger/payments, database schemas, Alembic migrations, irreversible data, clinical semantics, medical records, or major shared contracts.
 - **Explicit review requests**: When the user or orchestrator specifically requests a code review.
 - **Exceptional release-sensitive review**: Pre-release or pre-deployment review when warranted.
+- **Final plan review**: the mandatory pre-promotion review of the whole plan (main...staging), and any PR Eslam escalates.
 
 NORMAL changes (routine UI, standard service logic, documentation, tests) do **not** invoke this skill automatically.
 

@@ -91,7 +91,10 @@ async def get_clinical_work_items_for_patient(
     _validate_tenant(tenant_id)
     result = await db.execute(
         select(models.ClinicalWorkItem)
-        .options(selectinload(models.ClinicalWorkItem.targets))
+        .options(
+            selectinload(models.ClinicalWorkItem.targets),
+            selectinload(models.ClinicalWorkItem.lab_orders),
+        )
         .where(
             models.ClinicalWorkItem.tenant_id == tenant_id,
             models.ClinicalWorkItem.patient_id == patient_id,

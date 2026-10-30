@@ -106,6 +106,38 @@ CANONICAL_TREATMENT_LIFECYCLE_CODES: tuple[str, ...] = tuple(c.value for c in Tr
 
 
 # ---------------------------------------------------------------------------
+# G7-M08: Work-Item Correction Statuses (Slice S06)
+# Terminal statuses set exclusively via work-item correction endpoint
+# ---------------------------------------------------------------------------
+
+CORRECTION_STATUS_ENTERED_IN_ERROR: str = "entered_in_error"
+CORRECTION_STATUS_SUPERSEDED: str = "superseded"
+CANONICAL_CORRECTION_STATUSES: tuple[str, ...] = (
+    CORRECTION_STATUS_ENTERED_IN_ERROR,
+    CORRECTION_STATUS_SUPERSEDED,
+)
+
+
+# ---------------------------------------------------------------------------
+# G15-M06: Attachment Context Purpose Codes (Decision PD05, Slice S23)
+# ---------------------------------------------------------------------------
+
+class AttachmentPurposeCode(StrEnum):
+    PRE_OP_XRAY = "PRE_OP_XRAY"
+    POST_OP_XRAY = "POST_OP_XRAY"
+    WORKING_LENGTH_XRAY = "WORKING_LENGTH_XRAY"
+    INTRAORAL_PHOTO = "INTRAORAL_PHOTO"
+    EXTRAORAL_PHOTO = "EXTRAORAL_PHOTO"
+    LAB_SCAN = "LAB_SCAN"
+    CONSENT_DOC = "CONSENT_DOC"
+    OTHER = "OTHER"
+
+
+CANONICAL_ATTACHMENT_PURPOSE_CODES: tuple[str, ...] = tuple(c.value for c in AttachmentPurposeCode)
+
+
+
+# ---------------------------------------------------------------------------
 # Target Kinds (Exact parity with PROJECTION_TARGET_KINDS)
 # Exactly: tooth, surface, root, canal
 # ---------------------------------------------------------------------------
@@ -247,6 +279,7 @@ class ProcedureDefinition:
     allowed_target_kinds: tuple[str, ...]
     allow_multiple_targets: bool = False
     renderer_supported: bool = True
+    requires_lab: bool = False
     description: str = ""
 
     def __post_init__(self) -> None:
@@ -296,6 +329,7 @@ _PROCEDURE_DEFINITIONS: dict[str, ProcedureDefinition] = {
         allowed_target_kinds=(TargetKind.TOOTH.value,),
         allow_multiple_targets=False,
         renderer_supported=True,
+        requires_lab=True,
         description="Fixed single extra-coronal crown restoration targeting an individual tooth.",
     ),
     ProcedureCode.PROS_BRIDGE.value: ProcedureDefinition(
@@ -306,6 +340,7 @@ _PROCEDURE_DEFINITIONS: dict[str, ProcedureDefinition] = {
         allowed_target_kinds=(TargetKind.TOOTH.value,),
         allow_multiple_targets=True,
         renderer_supported=True,
+        requires_lab=True,
         description="Fixed multi-unit partial denture (bridge) spanning multiple tooth targets.",
     ),
     ProcedureCode.IMPLANT_FIXTURE.value: ProcedureDefinition(
@@ -326,6 +361,7 @@ _PROCEDURE_DEFINITIONS: dict[str, ProcedureDefinition] = {
         allowed_target_kinds=(TargetKind.TOOTH.value,),
         allow_multiple_targets=False,
         renderer_supported=True,
+        requires_lab=True,
         description="Implant-supported prosthetic crown restoration targeting tooth position.",
     ),
     ProcedureCode.SURG_EXTRACTION.value: ProcedureDefinition(
@@ -346,11 +382,50 @@ _PROCEDURE_DEFINITIONS: dict[str, ProcedureDefinition] = {
         allowed_target_kinds=(TargetKind.TOOTH.value,),
         allow_multiple_targets=True,
         renderer_supported=False,
+        requires_lab=True,
         description="Removable partial or complete denture spanning multiple teeth (backend catalog-only; non-renderer).",
     ),
 }
 
+# Canonical procedure definitions
 PROCEDURE_DEFINITIONS: MappingProxyType[str, ProcedureDefinition] = MappingProxyType(_PROCEDURE_DEFINITIONS)
+
+# ---------------------------------------------------------------------------
+# G12-M04: Lab Required Procedure Codes
+# Prosthodontic and implant prosthetic procedures that require dental laboratory work
+# ---------------------------------------------------------------------------
+
+LAB_REQUIRED_PROCEDURE_CODES: tuple[str, ...] = (
+    ProcedureCode.PROS_CROWN.value,
+    ProcedureCode.PROS_BRIDGE.value,
+    ProcedureCode.IMPLANT_CROWN.value,
+    ProcedureCode.PROS_DENTURE.value,
+)
+
+
+def is_lab_required_procedure(procedure_code: str) -> bool:
+    """Return True if the procedure requires or supports dental laboratory fabrication (G12-M04)."""
+    proc = _PROCEDURE_DEFINITIONS.get(procedure_code)
+    return bool(proc and proc.requires_lab)
+
+
+# ---------------------------------------------------------------------------
+# G12-M10: Lab Status Mapping (Decision D4)
+# ---------------------------------------------------------------------------
+
+def map_lab_order_status(status: str | None) -> str:
+    """
+    Standardize raw LabOrder.status into work item lab status per Decision D4.
+    - 'completed' -> 'lab_ready'
+    - all other strings or None -> 'unmapped' (shown neutral in UI)
+    """
+    if not status:
+        return "unmapped"
+    clean = str(status).strip().lower()
+    if clean == "completed":
+        return "lab_ready"
+    return "unmapped"
+
 
 
 # ---------------------------------------------------------------------------

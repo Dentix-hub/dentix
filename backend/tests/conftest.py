@@ -18,6 +18,10 @@ from unittest.mock import MagicMock
 import sys
 import os
 
+# Preserve incoming PostgreSQL URL for live Postgres contract tests
+if (url := os.environ.get("DATABASE_URL", "")).startswith(("postgresql://", "postgres://")):
+    os.environ.setdefault("TEST_DATABASE_URL", url)
+
 # Force SQLite and Test Mode for all backend imports
 os.environ["DATABASE_URL"] = "sqlite:///file:testdb?mode=memory&cache=shared&uri=true"
 os.environ["ENVIRONMENT"] = "testing"
@@ -39,6 +43,16 @@ from backend import models
 from backend.auth import create_access_token
 
 
+@pytest.fixture(autouse=True)
+def _noop_dashboard_precompute(monkeypatch, request):
+    """Prevent background dashboard cache tasks from uncoordinated database access in unit tests."""
+    if "test_dashboard_cache_task" in request.node.nodeid:
+        return
+    from backend.crud import billing, appointment
+    monkeypatch.setattr(billing, "schedule_dashboard_precompute", lambda tenant_id: None)
+    monkeypatch.setattr(appointment, "schedule_dashboard_precompute", lambda tenant_id: None)
+
+
 # ============================================
 # DATABASE FIXTURES
 # ============================================
@@ -57,7 +71,7 @@ def engine():
 
 
 @pytest.fixture(scope="session")
-def async_engine_fixture():
+async def async_engine_fixture():
     """Create a persistent async SQLite engine for the session."""
     from sqlalchemy.ext.asyncio import create_async_engine
     engine = create_async_engine(
@@ -66,6 +80,7 @@ def async_engine_fixture():
         poolclass=StaticPool,
     )
     yield engine
+    await engine.dispose()
 
 
 @pytest.fixture(scope="function")
@@ -240,6 +255,8 @@ def test_patient(db_session, test_tenant, test_user):
         phone="01234567890",
         email="patient@test.com",
         age=30,
+        medical_history="",
+        notes="",
         tenant_id=test_tenant.id,
         assigned_doctor_id=test_user.id,
     )

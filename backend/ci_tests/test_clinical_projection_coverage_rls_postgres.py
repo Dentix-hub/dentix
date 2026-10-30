@@ -18,49 +18,60 @@ COVERAGE_B = 995822
 async def _seed() -> None:
     async with AsyncSessionLocal(context=RlsContext(tenant_id=None)) as session:
         async with session.bypass_rls() as db:
-            if await db.get(models.Tenant, TENANT_A) is not None:
-                return
-            tenant_a = models.Tenant(id=TENANT_A, name="Coverage RLS A")
-            tenant_b = models.Tenant(id=TENANT_B, name="Coverage RLS B")
-            db.add_all([tenant_a, tenant_b])
-            await db.flush()
+            if await db.get(models.Tenant, TENANT_A) is None:
+                tenant_a = models.Tenant(id=TENANT_A, name="Coverage RLS A")
+                tenant_b = models.Tenant(id=TENANT_B, name="Coverage RLS B")
+                db.add_all([tenant_a, tenant_b])
+                await db.flush()
 
-            patient_a = models.Patient(
-                id=PATIENT_A,
-                tenant_id=TENANT_A,
-                name="Patient Cov A",
-                age=30,
-                phone="01099581001",
-                medical_history="",
-                notes="",
-            )
-            patient_b = models.Patient(
-                id=PATIENT_B,
-                tenant_id=TENANT_B,
-                name="Patient Cov B",
-                age=32,
-                phone="01099582001",
-                medical_history="",
-                notes="",
-            )
-            db.add_all([patient_a, patient_b])
-            await db.flush()
+            if await db.get(models.Patient, PATIENT_A) is None:
+                patient_a = models.Patient(
+                    id=PATIENT_A,
+                    tenant_id=TENANT_A,
+                    name="Patient Cov A",
+                    age=30,
+                    phone="01099581001",
+                    medical_history="",
+                    notes="",
+                )
+                patient_b = models.Patient(
+                    id=PATIENT_B,
+                    tenant_id=TENANT_B,
+                    name="Patient Cov B",
+                    age=32,
+                    phone="01099582001",
+                    medical_history="",
+                    notes="",
+                )
+                db.add_all([patient_a, patient_b])
+                await db.flush()
 
-            cov_a = models.ClinicalProjectionCoverage(
-                id=COVERAGE_A,
-                tenant_id=TENANT_A,
-                patient_id=PATIENT_A,
-                domain="treatments",
-                status="COMPLETE",
-            )
-            cov_b = models.ClinicalProjectionCoverage(
-                id=COVERAGE_B,
-                tenant_id=TENANT_B,
-                patient_id=PATIENT_B,
-                domain="treatments",
-                status="COMPLETE",
-            )
-            db.add_all([cov_a, cov_b])
+            cov_a = await db.get(models.ClinicalProjectionCoverage, COVERAGE_A)
+            if cov_a is None:
+                cov_a = models.ClinicalProjectionCoverage(
+                    id=COVERAGE_A,
+                    tenant_id=TENANT_A,
+                    patient_id=PATIENT_A,
+                    domain="treatments",
+                    status="COMPLETE",
+                )
+                db.add(cov_a)
+            else:
+                cov_a.status = "COMPLETE"
+
+            cov_b = await db.get(models.ClinicalProjectionCoverage, COVERAGE_B)
+            if cov_b is None:
+                cov_b = models.ClinicalProjectionCoverage(
+                    id=COVERAGE_B,
+                    tenant_id=TENANT_B,
+                    patient_id=PATIENT_B,
+                    domain="treatments",
+                    status="COMPLETE",
+                )
+                db.add(cov_b)
+            else:
+                cov_b.status = "COMPLETE"
+
             await db.commit()
 
 

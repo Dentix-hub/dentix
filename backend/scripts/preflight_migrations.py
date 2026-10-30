@@ -92,6 +92,7 @@ RLS_TABLES = (
     "laboratories",
     "lab_orders",
     "procedures",
+    "procedure_chart_styles",
     "payments",
     "expenses",
     "salary_payments",
@@ -121,6 +122,10 @@ RLS_TABLES = (
     "push_subscriptions",
     *CLINICAL_G1_TABLES,
     "clinical_projection_coverages",
+    "clinical_charges",
+    "user_onboarding_state",
+    "tenant_data_operations",
+    "google_oauth_attempts",
 )
 
 CHILD_TENANT_RELATIONSHIPS = (
@@ -165,6 +170,29 @@ CHILD_TENANT_RELATIONSHIPS = (
     ("clinical_attachment_links", "clinical_event_id", "clinical_events", True),
     # Clinical Projection Coverage
     ("clinical_projection_coverages", "patient_id", "patients", False),
+    # Phase G13 / S26: Inventory Usage Care Session & Work Item Links
+    ("treatment_material_usages", "care_session_id", "care_sessions", True),
+    ("treatment_material_usages", "work_item_id", "clinical_work_items", True),
+    # Phase G12 / S27: Lab Order Work Item Link
+    ("lab_orders", "work_item_id", "clinical_work_items", True),
+    ("lab_orders", "treatment_id", "treatments", True),
+    # Lab Debt vs Paid: Lab Payment Order Link (Slice L1)
+    ("lab_payments", "lab_order_id", "lab_orders", True),
+    # Phase G14 / S32: Clinical Charges
+    ("clinical_charges", "patient_id", "patients", False),
+    ("clinical_charges", "work_item_id", "clinical_work_items", False),
+    ("clinical_charges", "care_session_id", "care_sessions", True),
+    ("clinical_charges", "doctor_id", "users", True),
+    ("clinical_charges", "legacy_treatment_id", "treatments", True),
+    # Onboarding Checklist State User Link
+    ("user_onboarding_state", "user_id", "users", False),
+)
+
+# Phase G14 / S32: direct parent-patient checks for clinical_charges (kept separate from
+# the G1 tuple, which is locked in parity with migration f4a5b6c7d8e9).
+CLINICAL_CHARGES_DIRECT_PARENT_PATIENT_RELATIONSHIPS = (
+    ("clinical_charges", "work_item_id", "clinical_work_items", False),
+    ("clinical_charges", "care_session_id", "care_sessions", True),
 )
 
 CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS = (
@@ -201,11 +229,26 @@ def _get_all_g1_patient_triggers() -> set[str]:
     return names
 
 
-def _database_url() -> str | None:
-    db_url = os.getenv("DATABASE_URL")
+def _get_clinical_charges_patient_triggers() -> set[str]:
+    return {
+        _child_patient_trigger_name(table, child_key)
+        for table, child_key, _, _ in CLINICAL_CHARGES_DIRECT_PARENT_PATIENT_RELATIONSHIPS
+    }
+
+
+_OWNERSHIP_PROBE_TABLES: tuple[str, ...] = (
+    "treatment_material_usages",
+    "lab_orders",
+    "tenants",
+)
+
+
+def _normalize_db_url(raw_url: str | None) -> str | None:
+    if not raw_url:
+        return None
+    db_url = raw_url.strip().strip("'").strip('"')
     if not db_url:
         return None
-    db_url = db_url.strip().strip("'").strip('"')
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     # Preflight is synchronous. Normalize an async SQLAlchemy URL if an
@@ -215,7 +258,168 @@ def _database_url() -> str | None:
     return db_url
 
 
-def _alembic_config():
+def _same_database_target(url_a: str | None, url_b: str | None) -> bool:
+    if not url_a or not url_b:
+        return False
+    try:
+        from sqlalchemy.engine.url import make_url
+
+        parsed_a = make_url(url_a)
+        parsed_b = make_url(url_b)
+        return (
+            parsed_a.get_backend_name() == "postgresql"
+            and parsed_b.get_backend_name() == "postgresql"
+            and (parsed_a.host or "").lower() == (parsed_b.host or "").lower()
+            and (parsed_a.database or "") == (parsed_b.database or "")
+            and bool(parsed_a.database)
+        )
+    except Exception:
+        return False
+
+
+def _probe_postgresql_candidate(db_url: str) -> dict | None:
+    """Inspect current_user and table ownership for a PostgreSQL candidate URL."""
+    if not db_url.startswith("postgresql://"):
+        return None
+    probe_engine = None
+    try:
+        probe_engine = create_engine(
+            db_url,
+            connect_args={"connect_timeout": 5},
+        )
+        with probe_engine.connect() as conn:
+            user_row = conn.execute(
+                text("SELECT current_user, session_user")
+            ).first()
+            current_user = str(user_row[0]) if user_row else ""
+            session_user = str(user_row[1]) if user_row else ""
+            rows = conn.execute(
+                text(
+                    """
+                    SELECT tablename,
+                           tableowner,
+                           pg_has_role(current_user, tableowner, 'USAGE') AS has_usage,
+                           pg_has_role(current_user, tableowner, 'MEMBER') AS is_member
+                      FROM pg_tables
+                     WHERE schemaname = current_schema()
+                       AND tablename = ANY(:tables)
+                    """
+                ),
+                {"tables": list(_OWNERSHIP_PROBE_TABLES)},
+            ).fetchall()
+            tables_info: dict[str, dict[str, object]] = {}
+            usage_count = 0
+            member_count = 0
+            set_role_target: str | None = None
+            for tablename, tableowner, has_usage, is_member in rows:
+                t_name = str(tablename)
+                t_owner = str(tableowner)
+                u_ok = bool(has_usage)
+                m_ok = bool(is_member)
+                tables_info[t_name] = {
+                    "owner": t_owner,
+                    "has_usage": u_ok,
+                    "is_member": m_ok,
+                }
+                if u_ok:
+                    usage_count += 1
+                if m_ok:
+                    member_count += 1
+                if m_ok and not u_ok and not set_role_target:
+                    set_role_target = t_owner
+            return {
+                "current_user": current_user,
+                "session_user": session_user,
+                "tables": tables_info,
+                "usage_count": usage_count,
+                "member_count": member_count,
+                "total_probed": len(tables_info),
+                "set_role_target": set_role_target,
+            }
+    except Exception as exc:
+        logger.debug("[PREFLIGHT] Candidate probe failed: %s", exc)
+        return None
+    finally:
+        if probe_engine is not None:
+            probe_engine.dispose()
+
+
+def _database_url() -> str | None:
+    explicit_url = _normalize_db_url(
+        os.getenv("MIGRATION_DATABASE_URL") or os.getenv("OWNER_DATABASE_URL")
+    )
+    if explicit_url:
+        return explicit_url
+
+    app_url = _normalize_db_url(os.getenv("DATABASE_URL"))
+    if not app_url:
+        return None
+
+    if not app_url.startswith("postgresql://"):
+        return app_url
+
+    alt_candidates: list[tuple[str, str]] = []
+    for env_name in ("SYSTEM_DATABASE_URL", "BACKUP_SOURCE_DATABASE_URL"):
+        alt_url = _normalize_db_url(os.getenv(env_name))
+        if alt_url and alt_url != app_url and _same_database_target(app_url, alt_url):
+            alt_candidates.append((env_name, alt_url))
+
+    if not alt_candidates:
+        return app_url
+
+    app_probe = _probe_postgresql_candidate(app_url)
+    if not app_probe:
+        return app_url
+
+    total_probed = int(app_probe.get("total_probed", 0))
+    app_usage = int(app_probe.get("usage_count", 0))
+    if total_probed > 0 and app_usage == total_probed:
+        return app_url
+
+    best_source = "DATABASE_URL"
+    best_url = app_url
+    best_probe = app_probe
+    best_score = (app_usage, int(app_probe.get("member_count", 0)))
+
+    for env_name, alt_url in alt_candidates:
+        alt_probe = _probe_postgresql_candidate(alt_url)
+        if not alt_probe:
+            continue
+        alt_score = (
+            int(alt_probe.get("usage_count", 0)),
+            int(alt_probe.get("member_count", 0)),
+        )
+        logger.info(
+            "[PREFLIGHT] PostgreSQL ownership probe: %s user=%r tables=%s (score=%s vs DATABASE_URL user=%r score=%s)",
+            env_name,
+            alt_probe.get("current_user"),
+            alt_probe.get("tables"),
+            alt_score,
+            app_probe.get("current_user"),
+            best_score,
+        )
+        if alt_score > best_score:
+            best_source = env_name
+            best_url = alt_url
+            best_probe = alt_probe
+            best_score = alt_score
+
+    if best_source != "DATABASE_URL":
+        logger.info(
+            "[PREFLIGHT] Selecting %s (user=%r) for schema migrations because DATABASE_URL (user=%r) does not own existing schema tables.",
+            best_source,
+            best_probe.get("current_user"),
+            app_probe.get("current_user"),
+        )
+
+    set_role_target = best_probe.get("set_role_target")
+    if isinstance(set_role_target, str) and set_role_target:
+        os.environ["DENTIX_MIGRATION_SET_ROLE"] = set_role_target
+
+    return best_url
+
+
+def _alembic_config(db_url: str | None = None):
     from alembic.config import Config
 
     ini_candidates = [
@@ -229,9 +433,9 @@ def _alembic_config():
 
     logger.info("[PREFLIGHT] Using alembic.ini: %s", ini_path)
     cfg = Config(ini_path)
-    db_url = _database_url()
-    if db_url:
-        cfg.set_main_option("sqlalchemy.url", db_url.replace("%", "%%"))
+    resolved_url = db_url or _database_url()
+    if resolved_url:
+        cfg.set_main_option("sqlalchemy.url", resolved_url.replace("%", "%%"))
     return cfg
 
 
@@ -242,6 +446,10 @@ def _table_names(engine) -> set[str]:
 def _user_tables(engine) -> set[str]:
     """Return application tables, excluding migration/bootstrap bookkeeping."""
     return _table_names(engine) - {"alembic_version", BOOTSTRAP_MARKER}
+
+
+def _quote_ident(ident: str) -> str:
+    return '"' + ident.replace('"', '""') + '"'
 
 
 def _ensure_bootstrap_marker(engine) -> None:
@@ -426,7 +634,10 @@ def _install_postgresql_rls(connection) -> None:
             """
         )
     )
-    for table, child_key, parent, allow_null in CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS:
+    for table, child_key, parent, allow_null in (
+        CLINICAL_G1_DIRECT_PARENT_PATIENT_RELATIONSHIPS
+        + CLINICAL_CHARGES_DIRECT_PARENT_PATIENT_RELATIONSHIPS
+    ):
         trigger = _child_patient_trigger_name(table, child_key)
         connection.execute(text(f'DROP TRIGGER IF EXISTS "{trigger}" ON "{table}"'))
         connection.execute(
@@ -570,6 +781,103 @@ def _install_postgresql_rls(connection) -> None:
     )
 
 
+RESTORE_GATE_NAMESPACE = 1146377304
+RESTORE_WRITE_GATE_TABLES = (
+    "users", "appointments", "attachments", "batches", "care_observations",
+    "care_session_steps", "care_sessions", "clinical_attachment_links",
+    "clinical_charges", "clinical_event_targets", "clinical_events",
+    "clinical_projection_coverages", "clinical_treatment_plan_items",
+    "clinical_treatment_plan_phases", "clinical_treatment_plans",
+    "clinical_work_item_targets", "clinical_work_items", "expenses",
+    "insurance_providers", "lab_orders", "lab_payments", "laboratories",
+    "material_learning_logs", "material_sessions", "materials", "next_visit_requests",
+    "patients", "payments", "prescriptions", "price_lists", "procedure_chart_styles",
+    "procedure_material_weights", "procedures", "salary_payments", "saved_medications",
+    "stock_items", "stock_movements", "tooth_status", "treatment_material_usages",
+    "treatment_sessions", "treatments", "warehouses", "workflow_templates",
+)
+
+
+def _install_postgresql_restore_write_gates(connection) -> None:
+    """Install per-tenant advisory lock triggers to coordinate exclusive restore transactions."""
+    if connection.dialect.name != "postgresql":
+        return
+
+    set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+    if set_role:
+        connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+
+    connection.execute(
+        text(
+            f"""
+            CREATE OR REPLACE FUNCTION dentix_clinic_write_gate() RETURNS trigger LANGUAGE plpgsql AS $$
+            DECLARE old_tenant integer; new_tenant integer;
+            BEGIN
+                IF TG_OP <> 'INSERT' THEN old_tenant := OLD.tenant_id; END IF;
+                IF TG_OP <> 'DELETE' THEN new_tenant := NEW.tenant_id; END IF;
+                IF old_tenant IS NOT NULL AND new_tenant IS NOT NULL AND old_tenant <> new_tenant THEN
+                    PERFORM pg_advisory_xact_lock_shared({RESTORE_GATE_NAMESPACE}, LEAST(old_tenant, new_tenant));
+                    PERFORM pg_advisory_xact_lock_shared({RESTORE_GATE_NAMESPACE}, GREATEST(old_tenant, new_tenant));
+                ELSIF COALESCE(old_tenant, new_tenant) IS NOT NULL THEN
+                    PERFORM pg_advisory_xact_lock_shared({RESTORE_GATE_NAMESPACE}, COALESCE(old_tenant, new_tenant));
+                END IF;
+                IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+            END $$
+            """
+        )
+    )
+
+    existing_tables = set(
+        connection.execute(
+            text(
+                """
+                SELECT tablename FROM pg_tables
+                WHERE schemaname = current_schema()
+                """
+            )
+        ).scalars()
+    )
+
+    for table in RESTORE_WRITE_GATE_TABLES:
+        if table in existing_tables:
+            connection.execute(text(f'DROP TRIGGER IF EXISTS clinic_write_gate ON "{table}"'))
+            connection.execute(
+                text(
+                    f'CREATE TRIGGER clinic_write_gate BEFORE INSERT OR UPDATE OR DELETE ON "{table}" '
+                    f'FOR EACH ROW EXECUTE FUNCTION dentix_clinic_write_gate()'
+                )
+            )
+
+    connection.execute(
+        text(
+            f"""
+            CREATE OR REPLACE FUNCTION dentix_price_item_write_gate() RETURNS trigger LANGUAGE plpgsql AS $$
+            DECLARE old_tenant integer; new_tenant integer;
+            BEGIN
+                IF TG_OP <> 'INSERT' THEN SELECT tenant_id INTO old_tenant FROM price_lists WHERE id = OLD.price_list_id; END IF;
+                IF TG_OP <> 'DELETE' THEN SELECT tenant_id INTO new_tenant FROM price_lists WHERE id = NEW.price_list_id; END IF;
+                IF old_tenant IS NOT NULL AND new_tenant IS NOT NULL AND old_tenant <> new_tenant THEN
+                    PERFORM pg_advisory_xact_lock_shared({RESTORE_GATE_NAMESPACE}, LEAST(old_tenant, new_tenant));
+                    PERFORM pg_advisory_xact_lock_shared({RESTORE_GATE_NAMESPACE}, GREATEST(old_tenant, new_tenant));
+                ELSIF COALESCE(old_tenant, new_tenant) IS NOT NULL THEN
+                    PERFORM pg_advisory_xact_lock_shared({RESTORE_GATE_NAMESPACE}, COALESCE(old_tenant, new_tenant));
+                END IF;
+                IF TG_OP = 'DELETE' THEN RETURN OLD; ELSE RETURN NEW; END IF;
+            END $$
+            """
+        )
+    )
+
+    if "price_list_items" in existing_tables:
+        connection.execute(text('DROP TRIGGER IF EXISTS clinic_write_gate ON "price_list_items"'))
+        connection.execute(
+            text(
+                'CREATE TRIGGER clinic_write_gate BEFORE INSERT OR UPDATE OR DELETE ON "price_list_items" '
+                'FOR EACH ROW EXECUTE FUNCTION dentix_price_item_write_gate()'
+            )
+        )
+
+
 def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
     """Create/resume the current canonical schema for a brand-new database."""
     from alembic import command
@@ -586,10 +894,10 @@ def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
     # verification/replacement phase. create_all itself is idempotent.
     models.Base.metadata.create_all(bind=engine)
 
-    # Use a completely fresh transaction for explicit RLS installation. This
-    # phase is also idempotent because policies are dropped/recreated safely.
+    # Use a completely fresh transaction for explicit RLS and restore-gate trigger installation.
     with engine.begin() as connection:
         _install_postgresql_rls(connection)
+        _install_postgresql_restore_write_gates(connection)
 
     # The model baseline is current by definition. Historical revisions are
     # legacy deltas for pre-existing schemas and cannot safely be replayed from
@@ -602,12 +910,259 @@ def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
     logger.info("[PREFLIGHT] Fresh database baseline created and stamped at head.")
 
 
+def _is_alembic_at_head(engine, alembic_cfg) -> bool:
+    from alembic.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+
+    expected = set(ScriptDirectory.from_config(alembic_cfg).get_heads())
+    with engine.begin() as connection:
+        set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+        if set_role and connection.dialect.name == "postgresql":
+            try:
+                connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+            except Exception:
+                pass
+        current = set(MigrationContext.configure(connection).get_current_heads())
+    return bool(expected) and current == expected
+
+
+def _same_db_candidate_urls(reference_url: str) -> list[tuple[str, str]]:
+    candidates: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for env_name in (
+        "MIGRATION_DATABASE_URL",
+        "OWNER_DATABASE_URL",
+        "BACKUP_SOURCE_DATABASE_URL",
+        "SYSTEM_DATABASE_URL",
+        "DATABASE_URL",
+    ):
+        raw = _normalize_db_url(os.getenv(env_name))
+        if not raw or raw in seen:
+            continue
+        if raw == reference_url or _same_database_target(reference_url, raw):
+            seen.add(raw)
+            candidates.append((env_name, raw))
+    return candidates
+
+
+def _prepare_postgresql_migration_privileges(engine, migration_url: str) -> None:
+    """Ensure the migration role has cross-role privileges and table ownership before DDL."""
+    if engine.name != "postgresql":
+        return
+
+    try:
+        with engine.connect() as conn:
+            migration_user = str(conn.execute(text("SELECT current_user")).scalar() or "")
+            owner_rows = conn.execute(
+                text(
+                    """
+                    SELECT tablename,
+                           tableowner,
+                           pg_has_role(current_user, tableowner, 'USAGE') AS has_usage,
+                           pg_has_role(current_user, tableowner, 'MEMBER') AS is_member
+                      FROM pg_tables
+                     WHERE schemaname = current_schema()
+                    """
+                )
+            ).fetchall()
+    except Exception as exc:
+        logger.warning("[PREFLIGHT] Could not inspect PostgreSQL table owners: %s", exc)
+        return
+
+    owner_summary: dict[str, int] = {}
+    key_owners: dict[str, str] = {}
+    missing_owner_roles: list[str] = []
+    for tablename, tableowner, has_usage, is_member in owner_rows:
+        t_name = str(tablename)
+        t_owner = str(tableowner)
+        owner_summary[t_owner] = owner_summary.get(t_owner, 0) + 1
+        if t_name in {
+            "alembic_version",
+            "treatment_material_usages",
+            "lab_orders",
+            "care_sessions",
+            "clinical_work_items",
+            "tenants",
+        }:
+            key_owners[t_name] = f"{t_owner}(usage={bool(has_usage)},member={bool(is_member)})"
+            if not bool(has_usage) and t_owner not in missing_owner_roles:
+                missing_owner_roles.append(t_owner)
+        elif bool(is_member) and not bool(has_usage) and t_owner not in missing_owner_roles:
+            missing_owner_roles.append(t_owner)
+
+    logger.info(
+        "[PREFLIGHT] PostgreSQL pre-upgrade diagnostics: migration_user=%r owner_counts=%s key_tables=%s",
+        migration_user,
+        owner_summary,
+        key_owners,
+    )
+
+    target_role = os.getenv("DENTIX_MIGRATION_SET_ROLE") or migration_user
+    for env_name, candidate_url in _same_db_candidate_urls(migration_url):
+        cand_engine = None
+        try:
+            cand_engine = create_engine(
+                candidate_url,
+                connect_args={"connect_timeout": 5},
+            )
+            with cand_engine.begin() as conn:
+                actor_user = str(conn.execute(text("SELECT current_user")).scalar() or "")
+                logger.info(
+                    "[PREFLIGHT] Synchronizing privileges from %s (user=%r) -> target_role=%r",
+                    env_name,
+                    actor_user,
+                    target_role,
+                )
+                for role_to_grant in {migration_user, target_role}:
+                    if not role_to_grant:
+                        continue
+                    q_role = _quote_ident(role_to_grant)
+                    for stmt in (
+                        f"GRANT USAGE, CREATE ON SCHEMA public TO {q_role}",
+                        f"GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO {q_role}",
+                        f"GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO {q_role}",
+                    ):
+                        try:
+                            with conn.begin_nested():
+                                conn.execute(text(stmt))
+                        except Exception:
+                            pass
+
+                    if actor_user and actor_user != role_to_grant:
+                        try:
+                            with conn.begin_nested():
+                                conn.execute(
+                                    text(f"GRANT {_quote_ident(actor_user)} TO {q_role}")
+                                )
+                        except Exception:
+                            pass
+
+                        owned_tables = list(
+                            conn.execute(
+                                text(
+                                    """
+                                    SELECT tablename
+                                      FROM pg_tables
+                                     WHERE schemaname = current_schema()
+                                       AND tableowner = :actor
+                                    """
+                                ),
+                                {"actor": actor_user},
+                            ).scalars()
+                        )
+                        for tbl in owned_tables:
+                            try:
+                                with conn.begin_nested():
+                                    conn.execute(
+                                        text(
+                                            f"ALTER TABLE public.{_quote_ident(str(tbl))} OWNER TO {q_role}"
+                                        )
+                                    )
+                            except Exception:
+                                pass
+
+                        owned_funcs = list(
+                            conn.execute(
+                                text(
+                                    """
+                                    SELECT p.oid::regprocedure::text
+                                      FROM pg_proc p
+                                      JOIN pg_namespace n ON n.oid = p.pronamespace
+                                     WHERE n.nspname = current_schema()
+                                       AND p.proname LIKE 'dentix_%'
+                                       AND pg_get_userbyid(p.proowner) = :actor
+                                    """
+                                ),
+                                {"actor": actor_user},
+                            ).scalars()
+                        )
+                        for fn_sig in owned_funcs:
+                            try:
+                                with conn.begin_nested():
+                                    conn.execute(
+                                        text(f"ALTER FUNCTION {fn_sig} OWNER TO {q_role}")
+                                    )
+                            except Exception:
+                                pass
+        except Exception as exc:
+            logger.debug("[PREFLIGHT] Pre-migration sync for %s skipped: %s", env_name, exc)
+        finally:
+            if cand_engine is not None:
+                cand_engine.dispose()
+
+    if not os.getenv("DENTIX_MIGRATION_SET_ROLE") and missing_owner_roles:
+        try:
+            with engine.begin() as conn:
+                for owner_role in missing_owner_roles:
+                    try:
+                        with conn.begin_nested():
+                            conn.execute(text(f"SET LOCAL ROLE {_quote_ident(owner_role)}"))
+                            os.environ["DENTIX_MIGRATION_SET_ROLE"] = owner_role
+                            logger.info(
+                                "[PREFLIGHT] Enabled DENTIX_MIGRATION_SET_ROLE=%r for Alembic DDL.",
+                                owner_role,
+                            )
+                            break
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+
+def _sync_postgresql_runtime_privileges(engine, migration_url: str) -> None:
+    """Ensure runtime roles retain table and sequence DML privileges after migration."""
+    if engine.name != "postgresql":
+        return
+
+    runtime_roles: set[str] = set()
+    for env_name in ("DATABASE_URL", "SYSTEM_DATABASE_URL"):
+        raw_url = _normalize_db_url(os.getenv(env_name))
+        if not raw_url or not _same_database_target(migration_url, raw_url):
+            continue
+        probe = _probe_postgresql_candidate(raw_url)
+        if probe and probe.get("current_user"):
+            runtime_roles.add(str(probe["current_user"]))
+
+    if not runtime_roles:
+        return
+
+    try:
+        with engine.begin() as conn:
+            set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+            if set_role:
+                try:
+                    with conn.begin_nested():
+                        conn.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+                except Exception:
+                    pass
+            for role_name in sorted(runtime_roles):
+                q_role = _quote_ident(role_name)
+                for stmt in (
+                    f"GRANT USAGE ON SCHEMA public TO {q_role}",
+                    f"GRANT SELECT, INSERT, UPDATE, DELETE, TRIGGER, REFERENCES ON ALL TABLES IN SCHEMA public TO {q_role}",
+                    f"GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO {q_role}",
+                ):
+                    try:
+                        with conn.begin_nested():
+                            conn.execute(text(stmt))
+                    except Exception:
+                        pass
+    except Exception as exc:
+        logger.debug("[PREFLIGHT] Post-migration privilege sync skipped: %s", exc)
+
+
 def _verify_alembic_heads(engine, alembic_cfg) -> bool:
     from alembic.migration import MigrationContext
     from alembic.script import ScriptDirectory
 
     expected = set(ScriptDirectory.from_config(alembic_cfg).get_heads())
-    with engine.connect() as connection:
+    with engine.begin() as connection:
+        set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+        if set_role and connection.dialect.name == "postgresql":
+            try:
+                connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+            except Exception:
+                pass
         current = set(MigrationContext.configure(connection).get_current_heads())
     if current != expected:
         logger.error(
@@ -624,13 +1179,14 @@ def run_alembic_upgrade():
     """Bootstrap an empty DB or upgrade an existing versioned DB to head."""
     from alembic import command
 
+    os.environ.pop("DENTIX_MIGRATION_SET_ROLE", None)
     db_url = _database_url()
     if not db_url:
         logger.error("[PREFLIGHT] DATABASE_URL is not set.")
         return False
 
     try:
-        alembic_cfg = _alembic_config()
+        alembic_cfg = _alembic_config(db_url)
         engine = create_engine(db_url)
     except Exception as exc:
         logger.error("[PREFLIGHT] Failed to initialize migration engine: %s", exc)
@@ -646,8 +1202,10 @@ def run_alembic_upgrade():
                 "[PREFLIGHT] Incomplete fresh bootstrap marker found; resuming safely."
             )
             _bootstrap_fresh_database(engine, alembic_cfg)
+            _sync_postgresql_runtime_privileges(engine, db_url)
         elif not tables:
             _bootstrap_fresh_database(engine, alembic_cfg)
+            _sync_postgresql_runtime_privileges(engine, db_url)
         else:
             # Never disguise a partial/corrupt or unknown unversioned database
             # as a fresh one. Existing Dentix schemas must have both the core
@@ -668,8 +1226,40 @@ def run_alembic_upgrade():
                 return False
 
             logger.info("[PREFLIGHT] Existing versioned schema detected; running alembic upgrade head ...")
-            command.upgrade(alembic_cfg, "head")
+            if engine.name == "postgresql":
+                _prepare_postgresql_migration_privileges(engine, db_url)
+
+            if not _is_alembic_at_head(engine, alembic_cfg):
+                command.upgrade(alembic_cfg, "head")
+                _sync_postgresql_runtime_privileges(engine, db_url)
+            else:
+                command.upgrade(alembic_cfg, "head")
+                if engine.name == "postgresql":
+                    _sync_postgresql_runtime_privileges(engine, db_url)
             logger.info("[PREFLIGHT] Alembic upgrade completed successfully.")
+
+        if engine.name == "postgresql":
+            missing_gates = _verify_postgresql_restore_write_gates(engine)
+            if missing_gates:
+                logger.warning(
+                    "[PREFLIGHT] Missing restore write gates detected (%s); applying additive installation.",
+                    len(missing_gates),
+                )
+                _prepare_postgresql_migration_privileges(engine, db_url)
+                with engine.begin() as connection:
+                    set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+                    if set_role:
+                        connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+                    _install_postgresql_restore_write_gates(connection)
+                _sync_postgresql_runtime_privileges(engine, db_url)
+                remaining_missing = _verify_postgresql_restore_write_gates(engine)
+                if remaining_missing:
+                    logger.error(
+                        "[PREFLIGHT] Restore write gates repair failed; %s gates still missing: %s",
+                        len(remaining_missing),
+                        remaining_missing,
+                    )
+                    return False
 
         return _verify_alembic_heads(engine, alembic_cfg)
     except BaseException as exc:
@@ -750,7 +1340,7 @@ def _verify_postgresql_child_tenant_triggers(engine) -> list[str]:
 def _verify_postgresql_child_patient_triggers(engine) -> list[str]:
     if engine.name != "postgresql":
         return []
-    expected = _get_all_g1_patient_triggers()
+    expected = _get_all_g1_patient_triggers() | _get_clinical_charges_patient_triggers()
     with engine.connect() as connection:
         present = set(
             connection.execute(
@@ -762,6 +1352,65 @@ def _verify_postgresql_child_patient_triggers(engine) -> list[str]:
             ).scalars()
         )
     return sorted(expected - present)
+
+
+def _verify_postgresql_restore_write_gates(engine) -> list[str]:
+    """Return missing restore write-gate functions or triggers in PostgreSQL."""
+    if engine.name != "postgresql":
+        return []
+
+    failures: list[str] = []
+    with engine.connect() as connection:
+        procs = set(
+            connection.execute(
+                text(
+                    """
+                    SELECT proname FROM pg_proc p
+                    JOIN pg_namespace n ON n.oid = p.pronamespace
+                    WHERE n.nspname = current_schema()
+                      AND proname IN ('dentix_clinic_write_gate', 'dentix_price_item_write_gate')
+                    """
+                )
+            ).scalars()
+        )
+        if "dentix_clinic_write_gate" not in procs:
+            failures.append("function:dentix_clinic_write_gate:missing")
+        if "dentix_price_item_write_gate" not in procs:
+            failures.append("function:dentix_price_item_write_gate:missing")
+
+        existing_tables = set(
+            connection.execute(
+                text(
+                    """
+                    SELECT tablename FROM pg_tables
+                    WHERE schemaname = current_schema()
+                    """
+                )
+            ).scalars()
+        )
+        expected_tables = [t for t in RESTORE_WRITE_GATE_TABLES if t in existing_tables]
+        if "price_list_items" in existing_tables:
+            expected_tables.append("price_list_items")
+
+        triggers = set(
+            connection.execute(
+                text(
+                    """
+                    SELECT c.relname FROM pg_trigger t
+                    JOIN pg_class c ON c.oid = t.tgrelid
+                    JOIN pg_namespace n ON n.oid = c.relnamespace
+                    WHERE n.nspname = current_schema()
+                      AND NOT t.tgisinternal
+                      AND t.tgname = 'clinic_write_gate'
+                    """
+                )
+            ).scalars()
+        )
+        for tbl in expected_tables:
+            if tbl not in triggers:
+                failures.append(f"trigger:{tbl}:clinic_write_gate:missing")
+
+    return failures
 
 
 def run_migration_health_check():
@@ -861,6 +1510,14 @@ def run_migration_health_check():
             logger.error(
                 "[PREFLIGHT] CRITICAL: G1 child patient triggers missing: %s",
                 patient_trigger_failures,
+            )
+            return False
+
+        gate_failures = _verify_postgresql_restore_write_gates(engine)
+        if gate_failures:
+            logger.error(
+                "[PREFLIGHT] CRITICAL: restore write gates missing: %s",
+                gate_failures,
             )
             return False
 

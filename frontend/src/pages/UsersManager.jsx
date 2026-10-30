@@ -1,3 +1,4 @@
+import { passwordPolicyError, PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH } from '@/auth/passwordPolicy';
 import { useState, useEffect } from 'react';
 import logger from '@/utils/logger';
 import { getUsers, registerUser, updateUser, deleteUser } from '../api';
@@ -71,6 +72,10 @@ export default function UsersManager() {
         if (!newUser.username) return alert(t('common.messages.fill_all'));
         // Password required only for new users
         if (!newUser.id && !newUser.password) return alert(t('common.messages.fill_all'));
+        if (newUser.password) {
+            const policyError = passwordPolicyError(newUser.password, newUser.username);
+            if (policyError) return alert(t(`auth.register.errors.${policyError}`));
+        }
         try {
             const dataToSend = {
                 ...newUser,
@@ -172,10 +177,13 @@ export default function UsersManager() {
                                 <label className="block text-sm font-bold text-slate-700 mb-1">{t('users.form.password')}</label>
                                 <input
                                     type="password"
+                                    minLength={PASSWORD_MIN_LENGTH}
+                                    maxLength={PASSWORD_MAX_LENGTH * 2}
                                     value={newUser.password}
                                     onChange={e => setNewUser({ ...newUser, password: e.target.value })}
                                     className="w-full p-3 bg-slate-50 rounded-xl border border-slate-200 outline-none focus:border-primary transition-colors"
                                 />
+                                <p className="text-xs text-slate-500 mt-1">{t('users.form.password_rule_hint')}</p>
                             </div>
                             <div>
                                 <label className="block text-sm font-bold text-slate-700 mb-1">{t('users.form.role')}</label>

@@ -170,6 +170,34 @@ class AccountingService:
         res = await self.db.execute(stmt)
         return float(res.scalar() or 0.0)
 
+    async def get_total_lab_payments(
+        self, start: datetime, end: datetime, patient_id: Optional[int] = None
+    ) -> float:
+        """Calculate total lab payments in date range."""
+        if patient_id:
+            stmt = (
+                select(func.sum(models.LabPayment.amount))
+                .join(models.LabOrder, models.LabPayment.lab_order_id == models.LabOrder.id)
+                .where(
+                    models.LabPayment.tenant_id == self.tenant_id,
+                    models.LabOrder.tenant_id == self.tenant_id,
+                    models.LabOrder.patient_id == patient_id,
+                    models.LabPayment.date >= start,
+                    models.LabPayment.date <= end,
+                )
+            )
+        else:
+            stmt = (
+                select(func.sum(models.LabPayment.amount))
+                .where(
+                    models.LabPayment.tenant_id == self.tenant_id,
+                    models.LabPayment.date >= start,
+                    models.LabPayment.date <= end,
+                )
+            )
+        res = await self.db.execute(stmt)
+        return float(res.scalar() or 0.0)
+
     async def calculate_doctor_dues(
         self, start: datetime, end: datetime, patient_id: Optional[int] = None
     ) -> tuple[List[Dict[str, Any]], float]:
@@ -1303,53 +1331,62 @@ class AccountingService:
                     "user_id": None,
                 })
 
-        # 3. Lab Orders (Outflow)
+        # 3. Lab Payments (Outflow)
         if "lab" in types_set:
             l_stmt = (
-                select(models.LabOrder, models.Patient)
+                select(models.LabPayment, models.Laboratory, models.LabOrder, models.Patient)
+                .outerjoin(models.Laboratory, models.LabPayment.laboratory_id == models.Laboratory.id)
+                .outerjoin(models.LabOrder, models.LabPayment.lab_order_id == models.LabOrder.id)
                 .outerjoin(models.Patient, models.LabOrder.patient_id == models.Patient.id)
                 .where(
-                    models.LabOrder.tenant_id == self.tenant_id,
-                    models.LabOrder.cost > 0
+                    models.LabPayment.tenant_id == self.tenant_id,
                 )
             )
             if start_dt and end_dt:
                 l_stmt = l_stmt.where(
-                    models.LabOrder.order_date >= start_dt,
-                    models.LabOrder.order_date <= end_dt
+                    models.LabPayment.date >= start_dt,
+                    models.LabPayment.date <= end_dt
                 )
             if search and search.strip():
                 s = f"%{search.strip()}%"
                 l_stmt = l_stmt.where(
                     or_(
+                        models.Laboratory.name.ilike(s),
                         models.LabOrder.work_type.ilike(s),
                         models.Patient.name.ilike(s),
-                        models.LabOrder.notes.ilike(s)
+                        models.LabPayment.notes.ilike(s),
                     )
                 )
-            source_count, source_amount = await get_source_totals(l_stmt, models.LabOrder.cost)
+            source_count, source_amount = await get_source_totals(l_stmt, models.LabPayment.amount)
             total_count += source_count
             total_outflow += source_amount
             l_stmt = l_stmt.order_by(
-                models.LabOrder.order_date.desc(), models.LabOrder.id.desc()
+                models.LabPayment.date.desc(), models.LabPayment.id.desc()
             ).limit(fetch_limit)
             l_res = (await self.db.execute(l_stmt)).all()
-            for lab_order, patient in l_res:
-                patient_name = patient.name if patient else "مريض"
-                ts = lab_order.order_date.isoformat() if lab_order.order_date else ""
+            for pay, lab, order, patient in l_res:
+                lab_name = lab.name if lab and lab.name else ""
+                title = f"دفعة معمل: {lab_name}" if lab_name else "دفعة معمل"
+                if order:
+                    work_type = order.work_type or "تركيبة"
+                    patient_name = patient.name if patient and patient.name else "مريض"
+                    subtitle = f"{work_type} — لحالة: {patient_name}"
+                else:
+                    subtitle = pay.notes or "دفعة على الحساب"
+                ts = pay.date.isoformat() if pay.date and hasattr(pay.date, "isoformat") else str(pay.date or "")
                 normalized_events.append({
-                    "id": f"lab-{lab_order.id}",
+                    "id": f"labpay-{pay.id}",
                     "source_type": "lab",
-                    "source_id": lab_order.id,
+                    "source_id": pay.id,
                     "timestamp": ts,
                     "direction": "outflow",
-                    "amount": float(lab_order.cost or 0.0),
+                    "amount": float(pay.amount or 0.0),
                     "currency": "EGP",
-                    "title": f"معمل: {lab_order.work_type or 'تركيبة'}",
-                    "subtitle": f"لحالة: {patient_name}",
+                    "title": title,
+                    "subtitle": subtitle,
                     "badge_text": "معمل أسنان",
                     "nav_url": "/labs",
-                    "patient_id": lab_order.patient_id,
+                    "patient_id": order.patient_id if order else None,
                     "user_id": None,
                 })
 

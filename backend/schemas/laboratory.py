@@ -45,6 +45,8 @@ class Laboratory(LaboratoryBase):
 class LabOrderBase(BaseModel):
     patient_id: Optional[int] = None
     laboratory_id: Optional[int] = None
+    work_item_id: Optional[int] = None
+    treatment_id: Optional[int] = None
     work_type: str
     tooth_number: Optional[str] = None
     shade: Optional[str] = None
@@ -57,11 +59,27 @@ class LabOrderBase(BaseModel):
 
 
 class LabOrderCreate(LabOrderBase):
-    pass
+    paid_now: NonNegativeMoney = Decimal("0.00")
+
+
+class LabHandoffCreate(BaseModel):
+    """Payload for 1-tap chairside lab handoff linked directly to a clinical work item (G12-M06)."""
+    laboratory_id: int
+    work_type: Optional[str] = None
+    tooth_number: Optional[str] = None
+    shade: Optional[str] = None
+    material: Optional[str] = None
+    cost: NonNegativeMoney = Decimal("0.00")
+    price_to_patient: NonNegativeMoney = Decimal("0.00")
+    delivery_date: Optional[datetime] = None
+    notes: Optional[str] = None
+    idempotency_key: Optional[str] = None
 
 
 class LabOrderUpdate(BaseModel):
     laboratory_id: Optional[int] = None
+    work_item_id: Optional[int] = None
+    treatment_id: Optional[int] = None
     work_type: Optional[str] = None
     tooth_number: Optional[str] = None
     shade: Optional[str] = None
@@ -80,12 +98,17 @@ class LabOrder(LabOrderBase):
     received_date: Optional[datetime] = None
     patient_name: Optional[str] = None
     laboratory_name: Optional[str] = None
+    is_existing: Optional[bool] = None
+    paid_amount: NonNegativeMoney = Decimal("0.00")
+    remaining_amount: NonNegativeMoney = Decimal("0.00")
+    payment_status: str = "unpaid"
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class LabPaymentBase(BaseModel):
     laboratory_id: Optional[int] = None
+    lab_order_id: Optional[int] = None
     amount: PositiveMoney
     date: datetime = Field(default_factory=utc_now_naive)
     notes: Optional[str] = None
@@ -94,6 +117,10 @@ class LabPaymentBase(BaseModel):
 
 class LabPaymentCreate(LabPaymentBase):
     pass
+
+
+class LabPaymentAllocate(BaseModel):
+    lab_order_id: int
 
 
 class LabPayment(LabPaymentBase):

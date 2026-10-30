@@ -104,30 +104,17 @@ test.describe('Patient Details - Clinical Workspace Chart', () => {
     expect(tooth16.findings).toBeDefined();
     expect(tooth16.findings.some((f: { code: string }) => f.code === 'CARIES')).toBe(true);
 
-    // 6. Assert live production chart UI and metadata elements
-    const workspaceStatus = page.getByTestId('clinical-workspace-status');
-    await expect(workspaceStatus).toBeVisible({ timeout: 15000 });
-
-    // Read mode badge agrees with server snapshot read_mode
+    // 6. Assert live production chart UI aligns with role boundaries (PR #296)
+    // Internal migration diagnostics (read mode badge, coverage chips, fallback notice)
+    // are restricted to role super_admin and hidden from clinic users (admin/manager/doctor).
     const readModeBadge = page.getByTestId('clinical-workspace-read-mode');
-    await expect(readModeBadge).toBeVisible();
-    await expect(readModeBadge).toContainText(snapshot.read_mode);
+    await expect(readModeBadge).toBeHidden();
 
-    // Coverage container contains each domain and the exact status from the real response
     const coverageContainer = page.getByTestId('clinical-workspace-coverage');
-    await expect(coverageContainer).toBeVisible();
-    for (const [domain, status] of Object.entries(snapshot.coverage)) {
-      await expect(coverageContainer).toContainText(domain);
-      await expect(coverageContainer).toContainText(status as string);
-    }
+    await expect(coverageContainer).toBeHidden();
 
-    // If fallback notice active, assert banner visibility
-    const hasFallbackWarning = (snapshot.warnings || []).some(
-      (w: { code: string }) => w.code === 'FALLBACK_DATA_ACTIVE',
-    );
-    if (hasFallbackWarning) {
-      await expect(page.getByTestId('clinical-workspace-fallback-banner')).toBeVisible();
-    }
+    const fallbackBanner = page.getByTestId('clinical-workspace-fallback-banner');
+    await expect(fallbackBanner).toBeHidden();
 
     // Chart odontogram SVG elements rendered
     const crownLayers = page.locator('[data-layer="crown"]');

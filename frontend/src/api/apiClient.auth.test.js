@@ -39,7 +39,9 @@ describe('API client authentication recovery', () => {
         await import('./apiClient');
     });
 
-    it('clears stale client auth when token refresh fails', async () => {
+    it('clears stale client auth and redirects to login when token refresh fails', async () => {
+        const replace = vi.fn();
+        vi.stubGlobal('location', { replace, href: '' });
         authStore.getState().setUser({ id: 2, role: 'admin', tenant_id: 7 });
         const refreshError = {
             response: { status: 401, data: { detail: 'Could not validate credentials' } },
@@ -53,6 +55,8 @@ describe('API client authentication recovery', () => {
 
         expect(authStore.getState().user).toBeNull();
         expect(authStore.getState().isAuthenticated).toBe(false);
+        expect(replace).toHaveBeenCalledWith('/login?reason=session_expired');
+        vi.unstubAllGlobals();
     });
 
     it('refreshes an expired access cookie during silent startup auth', async () => {

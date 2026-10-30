@@ -25,4 +25,6 @@ export * from './settings';
 export * from './pricing';
 export * from './ocr';
 export * from './ai';
+export * from './onboarding';
+
 

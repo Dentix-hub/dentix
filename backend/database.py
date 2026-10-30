@@ -41,6 +41,14 @@ def _get_int_setting(name: str, default: int, minimum: int = 0) -> int:
     return value
 
 
+def _get_bool_setting(name: str, default: bool) -> bool:
+    """Read a boolean setting without making startup fragile."""
+    raw_value = os.getenv(name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in ("true", "1", "yes", "on")
+
+
 def _get_float_setting(name: str, default: float, minimum: float = 0.0) -> float:
     """Read a bounded float setting without making startup fragile."""
     raw_value = os.getenv(name)
@@ -185,25 +193,33 @@ if "sqlite" not in SQLALCHEMY_DATABASE_URL:
     if is_supabase_pooler:
         # PgBouncer manages its own pool — use minimal SQLAlchemy pool
         # Large pool_size + PgBouncer = connection exhaustion / circuit breaker
-        sync_pool_args = {
-            "pool_size": _get_int_setting("DB_POOL_SIZE", 3, minimum=1),
-            "max_overflow": _get_int_setting("DB_POOL_MAX_OVERFLOW", 2),
-            "pool_recycle": _get_int_setting("DB_POOL_RECYCLE", 300, minimum=1),
-            "pool_timeout": _get_float_setting("DB_POOL_TIMEOUT", 15.0, minimum=0.1),
-        }
+        default_pool_size = 3
+        default_max_overflow = 2
+        default_recycle = 300
+        default_timeout = 15.0
     else:
         # Direct PostgreSQL connection — can use larger pool
-        sync_pool_args = {
-            "pool_size": _get_int_setting("DB_POOL_SIZE", 10, minimum=1),
-            "max_overflow": _get_int_setting("DB_POOL_MAX_OVERFLOW", 5),
-            "pool_recycle": _get_int_setting("DB_POOL_RECYCLE", 1800, minimum=1),
-            "pool_timeout": _get_float_setting("DB_POOL_TIMEOUT", 20.0, minimum=0.1),
-        }
+        default_pool_size = 10
+        default_max_overflow = 5
+        default_recycle = 1800
+        default_timeout = 20.0
+
+    sync_pool_args = {
+        "pool_size": _get_int_setting("DB_POOL_SIZE", default_pool_size, minimum=1),
+        "max_overflow": _get_int_setting(
+            "DB_POOL_MAX_OVERFLOW",
+            _get_int_setting("DB_MAX_OVERFLOW", default_max_overflow, minimum=0),
+            minimum=0,
+        ),
+        "pool_recycle": _get_int_setting("DB_POOL_RECYCLE", default_recycle, minimum=1),
+        "pool_timeout": _get_float_setting("DB_POOL_TIMEOUT", default_timeout, minimum=0.1),
+    }
     async_pool_args = sync_pool_args.copy()
 
-# PgBouncer (Supabase pooler) should NOT use pool_pre_ping —
+# PgBouncer (Supabase pooler) should NOT use pool_pre_ping by default —
 # it causes spurious reconnects that trip the circuit breaker.
-_pre_ping = not is_supabase_pooler
+# DB_POOL_PRE_PING env may override explicitly, but defaults to (not is_supabase_pooler).
+_pre_ping = _get_bool_setting("DB_POOL_PRE_PING", not is_supabase_pooler)
 
 from pydantic import BaseModel
 from rls.register_rls import register_rls
@@ -254,9 +270,11 @@ if SYSTEM_ASYNC_DATABASE_URL:
             "pool_recycle": _get_int_setting("DB_POOL_RECYCLE", 1800, minimum=1),
             "pool_timeout": _get_float_setting("DB_POOL_TIMEOUT", 20.0, minimum=0.1),
         }
+    is_system_supabase_pooler = ":6543" in SYSTEM_ASYNC_DATABASE_URL
+    _system_pre_ping = _get_bool_setting("DB_POOL_PRE_PING", not is_system_supabase_pooler)
     system_async_engine = create_async_engine(
         SYSTEM_ASYNC_DATABASE_URL,
-        pool_pre_ping=":6543" not in SYSTEM_ASYNC_DATABASE_URL,
+        pool_pre_ping=_system_pre_ping,
         echo=False,
         connect_args=system_connect_args_async,
         **system_pool_args,

@@ -112,6 +112,7 @@ class SalaryPayment(Base):
 class LabPayment(Base):
     __tablename__ = "lab_payments"
     __table_args__ = (
+        Index("ix_lab_payments_tenant_order", "tenant_id", "lab_order_id"),
         CheckConstraint("amount > 0", name="ck_lab_payments_amount_positive"),
     )
 
@@ -125,6 +126,16 @@ class LabPayment(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     laboratory_id = Column(Integer, ForeignKey("laboratories.id"), index=True)
+    lab_order_id = Column(
+        Integer,
+        ForeignKey(
+            "lab_orders.id",
+            ondelete="SET NULL",
+            name="fk_lab_payments_lab_order_id",
+        ),
+        nullable=True,
+        index=True,
+    )
     amount = Column(Numeric(14, 2))
     date = Column(
         DateTime,
@@ -136,3 +147,4 @@ class LabPayment(Base):
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
     laboratory = relationship("Laboratory", back_populates="payments")
+    lab_order = relationship("LabOrder", back_populates="payments")

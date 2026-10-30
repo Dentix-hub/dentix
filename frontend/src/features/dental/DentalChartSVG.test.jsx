@@ -660,5 +660,40 @@ describe('DentalChartSVG whole-crown visual layer coordinate normalization', () 
         expect(disabledPath).toBeInTheDocument();
         expect(disabledPath).not.toHaveAttribute('transform');
     });
+
+    it('renders completion checkmark and active marker for plan overlay teeth', () => {
+        const mockOverlay = {
+            planId: 1,
+            phaseId: 2,
+            teeth: {
+                '11': {
+                    status: 'completed',
+                    phaseName: 'Phase 1',
+                    procedureCodes: ['REST_COMP'],
+                    color: '#059669',
+                    badge: 'P1',
+                },
+                '12': {
+                    status: 'active',
+                    phaseName: 'Phase 1',
+                    procedureCodes: ['ENDO_RCT'],
+                    color: '#2563eb',
+                    badge: 'P1',
+                },
+            },
+        };
+
+        render(
+            <DentalChartSVG
+                teethStatus={{}}
+                onToothClick={vi.fn()}
+                isPediatric={false}
+                planOverlay={mockOverlay}
+            />,
+        );
+
+        expect(screen.getByTestId('plan-overlay-check-11')).toBeInTheDocument();
+        expect(screen.getByTestId('plan-overlay-active-12')).toBeInTheDocument();
+    });
 });
 

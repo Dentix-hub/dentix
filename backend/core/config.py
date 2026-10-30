@@ -142,3 +142,10 @@ def is_ai_read_only() -> bool:
 def is_ai_disabled() -> bool:
     """Kill Switch: Globally disable AI features."""
     return os.getenv("AI_GLOBAL_DISABLE", "false").lower() == "true"
+
+
+def is_clinical_treatment_plans_enabled() -> bool:
+    """Control clinical treatment plans feature globally via env var. Default False."""
+    val = os.getenv("CLINICAL_TREATMENT_PLANS_ENABLED", "false").lower().strip()
+    return val in {"true", "1", "yes"}
+

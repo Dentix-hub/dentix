@@ -1,15 +1,21 @@
-import { lazy, memo, Suspense, useCallback, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import DentalChartSVG from '@/features/dental/DentalChartSVG';
+import { useAuth } from '@/auth/useAuth';
+import { useAuthStore } from '@/store/auth.store';
 import ClinicalChartRenderer from '@/features/clinical-chart/components/ClinicalChartRenderer';
+import ChartStickyToolBanner from '@/features/clinical-chart/components/ChartStickyToolBanner';
+import ChartQuickActionLauncher from '@/features/clinical-chart/components/ChartQuickActionLauncher';
+import QuickTreatmentSheet from '@/features/clinical-chart/components/QuickTreatmentSheet';
 import { adaptWorkspaceSnapshotToRenderer } from '@/features/clinical-chart/adapters/workspaceSnapshotAdapter';
 import PatientInfoCard from '@/features/patients/PatientInfoCard';
 import { useProcedures } from '@/shared/context/ProceduresContext';
-import TreatmentModal from '@/shared/ui/modals/TreatmentModal';
 import PrescriptionModal from '@/shared/ui/modals/PrescriptionModal';
 import PaymentModal from '@/shared/ui/modals/PaymentModal';
 import EditPatientModal from '@/features/patients/modals/EditPatientModal.jsx';
-import { Breadcrumb, Modal, SkeletonBox, TabGroup, toast } from '@/shared/ui';
+import { recordOnboardingEvent } from '@/api/onboarding';
+import OnboardingTooltip from '@/features/onboarding/components/OnboardingTooltip';
+import { Breadcrumb, Modal, TabGroup, toast } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 import { useHotkeys } from 'react-hotkeys-hook';
 import {
@@ -18,20 +24,50 @@ import {
     usePatientClinicalWorkspace,
     usePatientTreatments,
     usePatientPayments,
+    usePatientLabOrders,
     usePatientAttachments,
     useCreatePayment,
-    useDeletePayment
+    useDeletePayment,
+    useTenantFeatures,
+    usePatientClinicalPlans,
+    useActiveCareSession,
+    useResumableCareSession,
+    useStartCareSession,
+    useFinishCareSession,
+    useTransitionCareSession,
+    useUpdateCareSessionStep,
+    useApplyCareSessionTemplate,
+    useRecordCareObservation,
 } from '@/hooks/usePatientDetails';
-import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
-import { Baby } from 'lucide-react';
-import { toothToNumber, fdiToPalmer, getTodayStr, universalToPalmer } from '../utils/toothUtils';
+import TreatmentPlansCard from '@/features/clinical-plans/TreatmentPlansCard';
 import {
-    updatePatient,
-    deleteTreatment,
-    uploadAttachment,
-    deleteAttachment,
-    createPrescription
+    CareSessionActiveBanner,
+    ContinueTreatmentCard,
+    RctStructuredCard,
+    FinishCareSessionSheet,
+} from '@/features/care-sessions';
+import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
+import { Baby, Sparkles } from 'lucide-react';
+
+import { getTodayStr } from '../utils/toothUtils';
+import {
+    createPatientClinicalFinding,
+    createPatientClinicalFindingsBulk,
+    createPatientClinicalProcedure,
+    createPatientClinicalProceduresBulk,
+    updateToothStatus,
 } from '../api';
+
+import { TabSkeleton, PatientInfoSkeleton } from '@/features/patients/components/PatientDetailsSkeletons';
+import { usePatientTouchScrollGuard } from '@/features/patients/hooks/usePatientTouchScrollGuard';
+import { usePatientChartSelection } from '@/features/patients/hooks/usePatientChartSelection';
+import { usePatientPlanOverlay } from '@/features/patients/hooks/usePatientPlanOverlay';
+import { usePatientRecordActions } from '@/features/patients/hooks/usePatientRecordActions';
+import { invalidatePatientClinicalQueries } from '@/features/patients/utils/invalidatePatientClinicalQueries';
+import { buildTreatmentPrefill } from '@/features/patients/utils/buildTreatmentPrefill';
+import ClinicalWorkspaceStatusBanner from '@/features/patients/components/ClinicalWorkspaceStatusBanner';
+import PlanOverlayActiveBanner from '@/features/patients/components/PlanOverlayActiveBanner';
+import ChairsideSelectionBar from '@/features/patients/components/ChairsideSelectionBar';
 
 const TreatmentHistory = lazy(() => import('@/features/patients/PatientTabs/TreatmentHistory'));
 const PatientFiles = lazy(() => import('@/features/patients/PatientTabs/PatientFiles'));
@@ -39,136 +75,60 @@ const PatientBilling = lazy(() => import('@/features/patients/PatientTabs/Patien
 const LabOrdersTab = lazy(() => import('@/features/lab/LabOrdersTab'));
 const PatientTimeline = lazy(() => import('@/features/patients/PatientTabs/PatientTimeline'));
 
-const TabSkeleton = memo(() => (
-    <div className="space-y-3 p-2 sm:space-y-4 sm:p-4">
-        <SkeletonBox height="4rem" className="rounded-xl" />
-        <SkeletonBox height="4rem" className="rounded-xl" />
-        <SkeletonBox height="4rem" className="rounded-xl" />
-    </div>
-));
-TabSkeleton.displayName = 'TabSkeleton';
-
-const PatientInfoSkeleton = memo(() => (
-    <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-border bg-surface p-3 animate-pulse sm:gap-4 sm:rounded-3xl sm:p-6">
-        <div className="h-12 w-12 shrink-0 rounded-xl bg-slate-200 dark:bg-slate-700 sm:h-16 sm:w-16 sm:rounded-2xl" />
-        <div className="min-w-0 flex-1 space-y-2">
-            <div className="h-6 w-2/3 max-w-48 rounded bg-slate-200 dark:bg-slate-700" />
-            <div className="h-4 w-1/2 max-w-32 rounded bg-slate-200 dark:bg-slate-700" />
-        </div>
-    </div>
-));
-PatientInfoSkeleton.displayName = 'PatientInfoSkeleton';
+const isNativeWritesDisabledError = (err) => {
+    if (err?.response?.status !== 404) return false;
+    const detail = err?.response?.data?.detail;
+    if (typeof detail === 'string') {
+        return detail.includes('Clinical native writes are disabled');
+    }
+    if (detail && typeof detail === 'object') {
+        return (
+            (typeof detail.message === 'string' && detail.message.includes('Clinical native writes are disabled')) ||
+            (typeof detail.detail === 'string' && detail.detail.includes('Clinical native writes are disabled'))
+        );
+    }
+    return false;
+};
 
 export default function PatientDetails() {
-    const { t } = useTranslation();
+    let authUser = null;
+    try {
+        const auth = useAuth();
+        authUser = auth?.user;
+    } catch {
+        authUser = useAuthStore.getState?.()?.user || null;
+    }
+    const isSuperAdmin = authUser?.role === 'super_admin';
+
+    const queryClient = useQueryClient();
+    const { t, i18n } = useTranslation();
     const navigate = useNavigate();
     const { id } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
     const initialTab = searchParams.get('tab') || 'chart';
     const [activeTab, setActiveTab] = useState(initialTab);
 
+    useEffect(() => {
+        if (id) {
+            recordOnboardingEvent('patient_file_opened').catch(() => {});
+        }
+    }, [id]);
+
     const handleTabChange = (tabId) => {
         setActiveTab(tabId);
         setSearchParams({ tab: tabId }, { replace: true });
     };
 
-    const { procedures } = useProcedures();
+    const { procedures, loading: proceduresLoading } = useProcedures();
     const [isPediatric, setIsPediatric] = useState(false);
-
-    const {
-        data: patient,
-        isLoading: patientLoading,
-        isError: patientIsError,
-        error: patientError,
-        refetch: refetchPatient
-    } = usePatient(id);
-    const { data: teethStatus = {}, refetch: refetchTeeth } = usePatientTeeth(id, activeTab !== 'chart');
-    const {
-        data: workspaceSnapshot,
-        isLoading: workspaceLoading,
-        isError: workspaceIsError,
-        error: workspaceError,
-        refetch: refetchWorkspace,
-    } = usePatientClinicalWorkspace(id, { enabled: activeTab === 'chart' });
-
-    const effectiveTeethStatusRef = useRef({});
-
-    const handleToothClick = useCallback((number, notation = 'universal') => {
-        const isFdiKey = notation === 'fdi';
-        const fdi = isFdiKey ? Number.parseInt(number, 10) : toothToNumber(number);
-        const current = effectiveTeethStatusRef.current[fdi]?.condition || 'Healthy';
-        setSelectedToothCondition(current);
-        const palmerPrefix = isFdiKey
-            ? fdiToPalmer(fdi)
-            : universalToPalmer(number, isPediatric);
-        setNewTreatment({
-            ...getInitialTreatment(),
-            tooth_number: palmerPrefix,
-            surface: '',
-            surfaces: [],
-            target_kind: 'tooth',
-            default_price_list_id: patient?.default_price_list_id
-        });
-        setIsTreatmentModalOpen(true);
-    }, [isPediatric, patient]);
-
-    const handleSurfaceClick = useCallback((target) => {
-        if (!target) return;
-        const toothKey = String(target.toothKey || target.tooth_key || '');
-        const surfaceCode = target.surfaceCode || target.surface_code || '';
-        const fdi = Number.parseInt(toothKey, 10);
-        const current = effectiveTeethStatusRef.current[fdi]?.condition || 'Healthy';
-        setSelectedToothCondition(current);
-        const palmerPrefix = fdiToPalmer(fdi);
-        const surfaceUpper = surfaceCode ? String(surfaceCode).toUpperCase() : '';
-        setNewTreatment({
-            ...getInitialTreatment(),
-            tooth_number: palmerPrefix,
-            surface: surfaceUpper,
-            surfaces: surfaceUpper ? [surfaceUpper] : [],
-            target_kind: 'surface',
-            default_price_list_id: patient?.default_price_list_id,
-        });
-        setIsTreatmentModalOpen(true);
-    }, [patient]);
-
-    const adaptedChart = useMemo(() => {
-        return adaptWorkspaceSnapshotToRenderer(workspaceSnapshot, {
-            chartId: `patient-chart-${id}`,
-            isPediatric,
-            showRoots: true,
-            showSurfaces: true,
-            enableSurfaceSelection: true,
-            onToothClick: handleToothClick,
-            onSurfaceClick: handleSurfaceClick,
-        });
-    }, [workspaceSnapshot, id, isPediatric, handleToothClick, handleSurfaceClick]);
-
-    const [localTeethStatus] = useState(null);
-    const effectiveTeethStatus = localTeethStatus ?? (workspaceSnapshot ? adaptedChart.teethStatus : teethStatus);
-    effectiveTeethStatusRef.current = effectiveTeethStatus;
-
-    const { data: history = [], refetch: refetchHistory } = usePatientTreatments(
-        id,
-        activeTab === 'history' || activeTab === 'billing' || activeTab === 'timeline'
-    );
-    const { data: payments = [] } = usePatientPayments(
-        id,
-        activeTab === 'billing' || activeTab === 'timeline'
-    );
-    const {
-        data: attachments = [],
-        isLoading: attachmentsLoading,
-        refetch: refetchAttachments
-    } = usePatientAttachments(id, activeTab === 'files');
+    const [isToothSelectModalOpen, setIsToothSelectModalOpen] = useState(false);
 
     const [isEditPatientOpen, setIsEditPatientOpen] = useState(false);
     const [isRxModalOpen, setIsRxModalOpen] = useState(false);
-    const [isTreatmentModalOpen, setIsTreatmentModalOpen] = useState(false);
+    const [isTreatmentSheetOpen, setIsTreatmentSheetOpen] = useState(false);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-    const [isToothSelectModalOpen, setIsToothSelectModalOpen] = useState(false);
 
-    const getInitialTreatment = () => ({
+    const getInitialTreatment = useCallback(() => ({
         date: getTodayStr(),
         diagnosis: '',
         procedure: '',
@@ -182,12 +142,298 @@ export default function PatientDetails() {
         canals: [{ name: '', length: '' }],
         sessions: '',
         complications: '',
-        notes: ''
-    });
+        notes: '',
+    }), []);
 
-    const [newTreatment, setNewTreatment] = useState(getInitialTreatment());
+    const [newTreatment, setNewTreatment] = useState(getInitialTreatment);
     const [editingTreatmentId, setEditingTreatmentId] = useState(null);
     const [selectedToothCondition, setSelectedToothCondition] = useState('Healthy');
+
+    const {
+        data: patient,
+        isLoading: patientLoading,
+        isError: patientIsError,
+        error: patientError,
+        refetch: refetchPatient,
+    } = usePatient(id);
+    const { data: teethStatus = {}, refetch: refetchTeeth } = usePatientTeeth(id, activeTab !== 'chart');
+    const {
+        data: workspaceSnapshot,
+        isLoading: workspaceLoading,
+        isError: workspaceIsError,
+        error: workspaceError,
+        refetch: refetchWorkspace,
+    } = usePatientClinicalWorkspace(id, { enabled: activeTab === 'chart' || isToothSelectModalOpen });
+
+    const { data: tenantFeatures = [] } = useTenantFeatures();
+    const isTreatmentPlansEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_treatment_plans');
+    const isNativeWritesEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_vnext_native_writes');
+
+    const effectiveTeethStatusRef = useRef({});
+    const executeClinicalActionRef = useRef(null);
+
+    const { isTouchScrollingRef, handleTouchStart, handleTouchMove, handleTouchEnd } = usePatientTouchScrollGuard();
+
+    const {
+        selectedTeeth,
+        setSelectedTeeth,
+        selectedSurfacesByTooth,
+        isMultiSelectMode,
+        setIsMultiSelectMode,
+        setActiveToothKey,
+        activeStickyTool,
+        setActiveStickyTool,
+        stickyAppliedCount,
+        setStickyAppliedCount,
+        isQuickLauncherOpen,
+        setIsQuickLauncherOpen,
+        activeOverlayPlanId,
+        activeOverlayPhaseId,
+        resolvedActiveTooth,
+        activeSurfaces,
+        handleModalToothSelect,
+        handleToothClick,
+        handleSurfaceClick,
+        handleToggleSurface,
+        handleRecordTreatmentFromSelection,
+        handleClearSelection,
+        handleRemoveToothFromSelection,
+        handleTogglePlanOverlay,
+    } = usePatientChartSelection({
+        isPediatric,
+        patient,
+        effectiveTeethStatusRef,
+        isTouchScrollingRef,
+        executeClinicalActionRef,
+        setNewTreatment,
+        setIsTreatmentSheetOpen,
+        setSelectedToothCondition,
+        getInitialTreatment,
+    });
+
+    const effectiveSnapshot = useMemo(() => {
+        if (workspaceSnapshot) return workspaceSnapshot;
+        if (!teethStatus || Object.keys(teethStatus).length === 0) return null;
+        const teeth = {};
+        Object.entries(teethStatus).forEach(([num, item]) => {
+            teeth[String(num)] = {
+                condition: item?.condition,
+                notes: item?.notes,
+            };
+        });
+        return { teeth };
+    }, [workspaceSnapshot, teethStatus]);
+
+    const { data: treatmentPlans = [] } = usePatientClinicalPlans(id, {
+        enabled: isTreatmentPlansEnabled && !!id,
+    });
+
+    const planOverlay = usePatientPlanOverlay({
+        activeOverlayPlanId,
+        activeOverlayPhaseId,
+        treatmentPlans,
+    });
+
+    const { data: labOrders = [] } = usePatientLabOrders(
+        id,
+        activeTab === 'chart' || activeTab === 'labs'
+    );
+
+    const { data: activeCareSession, refetch: refetchActiveSession } = useActiveCareSession(id, {
+        enabled: !!id && activeTab === 'chart' && isNativeWritesEnabled,
+    });
+    const { data: resumableCareSession, refetch: refetchResumableSession } = useResumableCareSession(id, {
+        enabled: !!id && activeTab === 'chart' && isNativeWritesEnabled,
+    });
+    const startCareSessionMutation = useStartCareSession();
+    const finishCareSessionMutation = useFinishCareSession();
+    const transitionCareSessionMutation = useTransitionCareSession();
+    const updateCareSessionStepMutation = useUpdateCareSessionStep();
+    const applyCareSessionTemplateMutation = useApplyCareSessionTemplate();
+    const recordCareObservationMutation = useRecordCareObservation();
+
+    const [isRctWorkflowOpen, setIsRctWorkflowOpen] = useState(false);
+    const [isFinishSheetOpen, setIsFinishSheetOpen] = useState(false);
+    const [careSessionDisabledNotice, setCareSessionDisabledNotice] = useState(null);
+
+    const handleStartRctSession = useCallback(async (targetToothKey) => {
+        try {
+            const tooth = targetToothKey || resolvedActiveTooth || '46';
+            const sessionRes = await startCareSessionMutation.mutateAsync({
+                patientId: id,
+                data: { notes: `Started RCT workflow on tooth ${tooth}` },
+            });
+            const createdSession = sessionRes.data;
+            if (createdSession?.id) {
+                await applyCareSessionTemplateMutation.mutateAsync({
+                    patientId: id,
+                    sessionId: createdSession.id,
+                    data: { template_code: 'ENDO_RCT' },
+                });
+                await refetchActiveSession();
+                await refetchResumableSession();
+                setIsRctWorkflowOpen(true);
+                toast.success(t('care_session.rct_started', 'RCT care session started successfully'));
+            }
+        } catch (err) {
+            if (isNativeWritesDisabledError(err)) {
+                const disabledMsg = t('care_session.disabled_message', 'ميزة الجلسات الجديدة غير مفعّلة لهذه العيادة');
+                toast.error(disabledMsg);
+                setCareSessionDisabledNotice(disabledMsg);
+                return;
+            }
+            toast.error(err?.response?.data?.detail?.message || err?.response?.data?.detail || t('care_session.start_error', 'Failed to start care session'));
+        }
+    }, [id, resolvedActiveTooth, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
+
+    const handleResumeTreatment = useCallback(async ({ workItemId, sessionId, isPaused, toothKey }) => {
+        try {
+            if (isPaused && sessionId) {
+                await transitionCareSessionMutation.mutateAsync({
+                    patientId: id,
+                    sessionId,
+                    data: { to_status: 'in_progress' },
+                });
+            } else {
+                const sessionRes = await startCareSessionMutation.mutateAsync({
+                    patientId: id,
+                    data: {
+                        resume_work_item_id: workItemId || undefined,
+                        resume_from_session_id: sessionId || undefined,
+                        notes: toothKey ? `Resumed treatment on tooth ${toothKey}` : undefined,
+                    },
+                });
+                const createdSession = sessionRes.data;
+                if (createdSession?.id && (!createdSession.steps || createdSession.steps.length === 0)) {
+                    await applyCareSessionTemplateMutation.mutateAsync({
+                        patientId: id,
+                        sessionId: createdSession.id,
+                        data: { template_code: 'ENDO_RCT', work_item_id: workItemId || undefined },
+                    });
+                }
+            }
+            await refetchActiveSession();
+            await refetchResumableSession();
+            setIsRctWorkflowOpen(true);
+            toast.success(t('care_session.resumed_success', 'Treatment resumed successfully'));
+        } catch (err) {
+            if (isNativeWritesDisabledError(err)) {
+                const disabledMsg = t('care_session.disabled_message', 'ميزة الجلسات الجديدة غير مفعّلة لهذه العيادة');
+                toast.error(disabledMsg);
+                setCareSessionDisabledNotice(disabledMsg);
+                return;
+            }
+            toast.error(err?.response?.data?.detail?.message || err?.response?.data?.detail || t('care_session.resume_error', 'Failed to resume treatment'));
+        }
+    }, [id, transitionCareSessionMutation, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
+
+    const handleUpdateStepStatus = useCallback(async (stepId, updateData) => {
+        if (!activeCareSession?.id) return;
+        try {
+            await updateCareSessionStepMutation.mutateAsync({
+                patientId: id,
+                sessionId: activeCareSession.id,
+                stepId,
+                data: updateData,
+            });
+            await refetchActiveSession();
+        } catch (err) {
+            toast.error(err?.response?.data?.detail || 'Failed to update step');
+        }
+    }, [id, activeCareSession?.id, updateCareSessionStepMutation, refetchActiveSession]);
+
+    const handleSaveObservation = useCallback(async (obsData) => {
+        if (!activeCareSession?.id) return;
+        try {
+            await recordCareObservationMutation.mutateAsync({
+                patientId: id,
+                sessionId: activeCareSession.id,
+                data: {
+                    observation_code: 'working_length',
+                    tooth_key: String(obsData.tooth_key),
+                    root_id: obsData.root_id,
+                    canal_id: obsData.canal_id,
+                    structured_value: {
+                        length_mm: obsData.length_mm,
+                        reference_point: obsData.reference_point,
+                        maf: obsData.maf,
+                    },
+                    notes: obsData.notes,
+                },
+            });
+            await refetchActiveSession();
+            toast.success(t('care_session.length_saved', `Saved ${obsData.canal_id} length: ${obsData.length_mm} mm`));
+        } catch (err) {
+            toast.error(err?.response?.data?.detail || 'Failed to record measurement');
+        }
+    }, [id, activeCareSession?.id, recordCareObservationMutation, refetchActiveSession, t]);
+
+    const handleFinishSession = useCallback(async ({ notes, next_visit_request } = {}) => {
+        if (!activeCareSession?.id) return;
+        try {
+            await finishCareSessionMutation.mutateAsync({
+                patientId: id,
+                sessionId: activeCareSession.id,
+                data: { notes, next_visit_request },
+            });
+            await refetchActiveSession();
+            await refetchResumableSession();
+            refetchWorkspace();
+            setIsRctWorkflowOpen(false);
+            setIsFinishSheetOpen(false);
+            toast.success(t('care_session.finished_success', 'Care session completed successfully'));
+        } catch (err) {
+            toast.error(err?.response?.data?.detail || 'Failed to finish care session');
+        }
+    }, [id, activeCareSession?.id, finishCareSessionMutation, refetchActiveSession, refetchResumableSession, refetchWorkspace, t]);
+
+    const adaptedChart = useMemo(() => {
+        return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {
+            chartId: `patient-chart-${id}`,
+            isPediatric,
+            showRoots: true,
+            showSurfaces: true,
+            enableSurfaceSelection: true,
+            selectedToothKeys: selectedTeeth,
+            selectedSurfacesByTooth,
+            planOverlay,
+            labOrders,
+            onToothClick: handleToothClick,
+            onSurfaceClick: handleSurfaceClick,
+        });
+    }, [effectiveSnapshot, id, isPediatric, selectedTeeth, selectedSurfacesByTooth, planOverlay, labOrders, handleToothClick, handleSurfaceClick]);
+
+    const adaptedModalChart = useMemo(() => {
+        return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {
+            chartId: `patient-modal-chart-${id}`,
+            isPediatric,
+            showRoots: false,
+            showSurfaces: false,
+            onToothClick: (toothKey, notation) => {
+                handleModalToothSelect(toothKey, notation);
+                setIsToothSelectModalOpen(false);
+            },
+        });
+    }, [effectiveSnapshot, id, isPediatric, handleModalToothSelect]);
+
+    const [localTeethStatus] = useState(null);
+    const effectiveTeethStatus = localTeethStatus ?? (workspaceSnapshot ? adaptedChart.teethStatus : teethStatus);
+    effectiveTeethStatusRef.current = effectiveTeethStatus;
+
+    const { data: history = [], refetch: refetchHistory } = usePatientTreatments(
+        id,
+        activeTab === 'chart' || activeTab === 'history' || activeTab === 'billing' || activeTab === 'timeline' || activeTab === 'labs'
+    );
+    const { data: payments = [] } = usePatientPayments(
+        id,
+        activeTab === 'chart' || activeTab === 'billing' || activeTab === 'timeline'
+    );
+    const {
+        data: attachments = [],
+        isLoading: attachmentsLoading,
+        refetch: refetchAttachments,
+        isPollingStalled: isAttachmentsPollingStalled,
+    } = usePatientAttachments(id, activeTab === 'files');
 
     const { mutateAsync: createPaymentMutate } = useCreatePayment();
     const { mutateAsync: deletePaymentMutate } = useDeletePayment();
@@ -197,161 +443,177 @@ export default function PatientDetails() {
         refetchWorkspace?.();
     }, [refetchTeeth, refetchWorkspace]);
 
-    const { handleSaveTreatment } = useTreatmentOperations({
+    const { handleSaveTreatment, refetchClinicalData } = useTreatmentOperations({
         patientId: id,
         refetchHistory,
         refetchTeeth: refetchAllTeeth,
         refetchWorkspace,
-        setIsTreatmentModalOpen,
+        setIsTreatmentSheetOpen,
         setEditingTreatmentId,
         editingTreatmentId,
-        selectedToothCondition
+        selectedToothCondition,
     });
 
-    const handleFileUpload = useCallback(async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-        try {
-            await uploadAttachment(id, file);
-            refetchAttachments();
-        } catch {
-            toast.error(t('patient_details.alerts.upload_fail'));
+    const {
+        handleFileUpload,
+        handleDeleteAttachment,
+        handleSavePatient,
+        handleNewAppointment,
+        handleSavePayment,
+        openManualTreatment,
+        handleEditTreatment,
+        handleDeleteTreatment,
+        handleRemoveWorkItemOrTreatment,
+        handleDeletePayment,
+        handlePrintInvoice,
+        handlePrintRx,
+    } = usePatientRecordActions({
+        id,
+        patient,
+        navigate,
+        t,
+        refetchPatient,
+        refetchAttachments,
+        refetchHistory,
+        refetchWorkspace,
+        createPaymentMutate,
+        deletePaymentMutate,
+        setIsEditPatientOpen,
+        setIsPaymentModalOpen,
+        setIsTreatmentSheetOpen,
+        setIsRxModalOpen,
+        setEditingTreatmentId,
+        setNewTreatment,
+        getInitialTreatment,
+    });
+
+    const executeClinicalAction = useCallback(async (actionData) => {
+        const { item, toothKeys, targetKind, surfaces } = actionData;
+        const primaryTooth = toothKeys?.[0] || resolvedActiveTooth;
+        if (!primaryTooth) return false;
+
+        // Flow A: When clinical_vnext_native_writes is enabled, dispatch to G7 endpoints.
+        // R01/PD02: Native writes require a canonical code. If item.code is null (custom clinic procedure),
+        // fall back to Flow B (legacy modal) because native writes without a legacy Treatment are invisible to billing.
+        if (isNativeWritesEnabled && (item.kind === 'finding' || Boolean(item.code))) {
+            try {
+                const isFinding = item.kind === 'finding';
+                if (isFinding) {
+                    if (toothKeys && toothKeys.length > 1) {
+                        const items = toothKeys.map((tk) => ({
+                            code: item.code,
+                            targets: targetKind === 'surface' && surfaces && surfaces.length > 0
+                                ? surfaces.map((s) => ({ tooth_key: tk, target_kind: 'surface', surface_code: s }))
+                                : [{ tooth_key: tk, target_kind: 'tooth' }],
+                        }));
+                        await createPatientClinicalFindingsBulk(id, { items });
+                    } else {
+                        const targets = targetKind === 'surface' && surfaces && surfaces.length > 0
+                            ? surfaces.map((s) => ({ tooth_key: primaryTooth, target_kind: 'surface', surface_code: s }))
+                            : [{ tooth_key: primaryTooth, target_kind: 'tooth' }];
+                        await createPatientClinicalFinding(id, { code: item.code, targets });
+                    }
+                } else {
+                    // Procedure
+                    if (toothKeys && toothKeys.length > 1) {
+                        const items = toothKeys.map((tk) => ({
+                            code: item.code,
+                            targets: targetKind === 'surface' && surfaces && surfaces.length > 0
+                                ? surfaces.map((s) => ({ tooth_key: tk, target_kind: 'surface', surface_code: s }))
+                                : [{ tooth_key: tk, target_kind: 'tooth' }],
+                        }));
+                        await createPatientClinicalProceduresBulk(id, { items });
+                    } else {
+                        const targets = targetKind === 'surface' && surfaces && surfaces.length > 0
+                            ? surfaces.map((s) => ({ tooth_key: primaryTooth, target_kind: 'surface', surface_code: s }))
+                            : [{ tooth_key: primaryTooth, target_kind: 'tooth' }];
+                        await createPatientClinicalProcedure(id, { code: item.code, targets });
+                    }
+                }
+                await Promise.all([refetchWorkspace?.(), refetchTeeth?.(), refetchHistory?.()]);
+                invalidatePatientClinicalQueries(queryClient, id);
+                toast.success(t('patient_details.alerts.treatment_save_success', 'Action recorded successfully'));
+                return true;
+            } catch (err) {
+                toast.error(err.response?.data?.detail || t('patient_details.alerts.treatment_save_fail'));
+                return false;
+            }
         }
-    }, [id, refetchAttachments, t]);
 
-    const handleDeleteAttachment = useCallback(async (attachmentId) => {
-        if (!window.confirm('Delete this file?')) return;
-        try {
-            await deleteAttachment(attachmentId);
-            refetchAttachments();
-        } catch {
-            // Preserve existing silent attachment-delete failure behavior.
+        // Flow B: Safe legacy path when native writes are OFF (preserves 100% billing and inventory)
+        if (item.kind === 'finding') {
+            try {
+                const fdiNum = Number.parseInt(primaryTooth, 10);
+                const conditionMap = {
+                    CARIES: 'Decayed',
+                    PAIN: 'Decayed',
+                    FRACTURE: 'Fractured',
+                };
+                const condition = conditionMap[item.code] || 'Decayed';
+                await updateToothStatus({
+                    patient_id: parseInt(id, 10),
+                    tooth_number: fdiNum,
+                    condition,
+                });
+                await Promise.all([refetchTeeth?.(), refetchWorkspace?.()]);
+                invalidatePatientClinicalQueries(queryClient, id);
+                toast.success(t('patient_details.alerts.treatment_save_success', 'Finding recorded successfully'));
+                return true;
+            } catch (err) {
+                toast.error(t('patient_details.alerts.tooth_update_fail'));
+                return false;
+            }
         }
-    }, [refetchAttachments]);
 
-    const handleSavePatient = useCallback(async (updatedData) => {
-        try {
-            await updatePatient(id, updatedData);
-            setIsEditPatientOpen(false);
-            refetchPatient();
-            toast.success(t('patients.update_success'));
-        } catch (error) {
-            const detail = error.response?.data?.detail;
-            const message = typeof detail === 'string'
-                ? detail
-                : (Array.isArray(detail)
-                    ? detail.map((item) => item.msg || item).join(', ')
-                    : (error.message || t('common.error')));
-            toast.error(`${t('common.error')}: ${message}`);
-        }
-    }, [id, refetchPatient, t]);
-
-    const handleNewAppointment = useCallback(() => {
-        navigate(`/appointments?patient_id=${id}`);
-    }, [navigate, id]);
-
-    const handleSavePayment = useCallback(async (data) => {
-        try {
-            await createPaymentMutate({ ...data, patient_id: parseInt(id, 10) });
-            setIsPaymentModalOpen(false);
-            toast.success(t('finance.pay_success', 'تم الدفع بنجاح'));
-        } catch (error) {
-            toast.error(error.response?.data?.detail || t('patient_details.alerts.payment_save_fail'));
-        }
-    }, [id, createPaymentMutate, t]);
-
-    const openManualTreatment = useCallback(() => {
-        setEditingTreatmentId(null);
-        setNewTreatment({
-            ...getInitialTreatment(),
-            tooth_number: '',
-            surface: '',
-            surfaces: [],
-            target_kind: 'tooth',
-            default_price_list_id: patient?.default_price_list_id
+        // For procedures: open compact QuickTreatmentSheet pre-populated (U4D / D1)
+        const prefill = buildTreatmentPrefill({
+            baseTreatment: getInitialTreatment(),
+            source: 'quick_launcher',
+            toothKey: primaryTooth,
+            selectedTeeth: toothKeys && toothKeys.length > 0 ? toothKeys : (primaryTooth ? [primaryTooth] : []),
+            selectedSurfacesByTooth: actionData.selectedSurfacesByTooth || selectedSurfacesByTooth || {},
+            surfaces,
+            targetKind,
+            procedureName: item.name,
+            defaultPriceListId: patient?.default_price_list_id,
         });
-        setIsTreatmentModalOpen(true);
-    }, [patient]);
+        setNewTreatment(prefill);
+        setIsTreatmentSheetOpen(true);
+        return true;
+    }, [id, resolvedActiveTooth, isNativeWritesEnabled, patient, getInitialTreatment, refetchWorkspace, refetchTeeth, refetchHistory, queryClient, t, selectedSurfacesByTooth]);
 
-    const handleEditTreatment = useCallback((item) => {
-        setEditingTreatmentId(item.id);
-        let canals = [{ name: '', length: '' }];
-        try {
-            const parsed = item.canal_lengths ? JSON.parse(item.canal_lengths) : null;
-            if (Array.isArray(parsed) && parsed.length) canals = parsed;
-        } catch {
-            // Preserve empty-canal fallback for malformed historical data.
+    const handlePerformPlanItem = useCallback(({ item, plan, toothKey, surfaces }) => {
+        const workItemId = item.work_item?.id || item.work_item_id;
+        const code = item.work_item?.code || item.work_item?.procedure_code;
+
+        let matchedProcedureName = item.work_item?.display_name || '';
+        if (procedures && procedures.length > 0) {
+            const match = procedures.find(
+                (p) => (code && p.canonical_code === code) || p.name === matchedProcedureName
+            );
+            if (match) {
+                matchedProcedureName = match.name;
+            }
         }
 
-        const initialSurfaces = Array.isArray(item.surfaces)
-            ? item.surfaces
-            : (item.surface ? item.surface.split('').filter(Boolean) : []);
-
-        setNewTreatment({
-            id: item.id,
-            patient_id: item.patient_id,
-            doctor_id: item.doctor_id,
-            date: item.date ? new Date(item.date).toLocaleDateString('en-CA') : getTodayStr(),
-            diagnosis: item.diagnosis || '',
-            procedure: item.procedure || '',
-            cost: item.cost ?? '',
-            discount: item.discount ?? '',
-            tooth_number: item.tooth_number ? fdiToPalmer(item.tooth_number) : '',
-            surface: item.surface || initialSurfaces.join(''),
-            surfaces: initialSurfaces,
-            target_kind: item.target_kind || (initialSurfaces.length ? 'surface' : 'tooth'),
-            canal_count: item.canal_count ?? '',
-            canals,
-            sessions: item.sessions || '',
-            complications: item.complications || '',
-            notes: item.notes || '',
-            status: item.status || 'Done',
-            consumedMaterials: item.consumedMaterials || [],
-            default_price_list_id: patient?.default_price_list_id
+        const prefill = buildTreatmentPrefill({
+            baseTreatment: getInitialTreatment(),
+            source: 'plan_item',
+            toothKey,
+            surfaces,
+            procedureName: matchedProcedureName,
+            clinicalWorkItemId: workItemId,
+            planTitle: plan?.title,
+            planId: plan?.id,
+            workItemCode: code,
+            defaultPriceListId: patient?.default_price_list_id,
         });
-        setIsTreatmentModalOpen(true);
-    }, [patient]);
+        setNewTreatment(prefill);
+        setIsTreatmentSheetOpen(true);
+    }, [procedures, patient, getInitialTreatment]);
 
-    const handleDeleteTreatment = useCallback(async (treatmentId) => {
-        if (!window.confirm(t('patient_details.alerts.delete_treatment_confirm'))) return;
-        try {
-            await deleteTreatment(treatmentId);
-            await Promise.all([refetchHistory(), refetchWorkspace()]);
-            toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
-        } catch (error) {
-            toast.error(error.response?.data?.detail || t('patient_details.alerts.delete_treatment_fail'));
-        }
-    }, [refetchHistory, refetchWorkspace, t]);
-
-    const handleDeletePayment = useCallback(async (paymentId) => {
-        if (!window.confirm(t('patient_details.alerts.delete_payment_confirm'))) return;
-        try {
-            await deletePaymentMutate({ paymentId, patientId: parseInt(id, 10) });
-            toast.success(t('common.delete_success', 'تم الحذف بنجاح'));
-        } catch (error) {
-            toast.error(error.response?.data?.detail || t('patient_details.alerts.delete_payment_fail'));
-        }
-    }, [id, deletePaymentMutate, t]);
-
-    const handlePrintInvoice = useCallback(() => {
-        navigate(`/print/invoice/${id}`);
-    }, [navigate, id]);
-
-    const handlePrintRx = useCallback(async ({ drugs, notes }) => {
-        try {
-            const payload = {
-                patient_id: parseInt(id, 10),
-                medications: JSON.stringify(drugs || []),
-                notes: notes || ''
-            };
-            const res = await createPrescription(payload);
-            // Print route carries the real prescription id; no PHI in sessionStorage.
-            setIsRxModalOpen(false);
-            window.open(`/print/rx/${res.data?.id}`, '_blank');
-        } catch (error) {
-            toast.error(error.response?.data?.detail || t('patient_details.alerts.rx_fail'));
-        }
-    }, [id, t]);
+    executeClinicalActionRef.current = executeClinicalAction;
+    const handleQuickLauncherAction = executeClinicalAction;
 
     useHotkeys('n', (event) => {
         event.preventDefault();
@@ -368,13 +630,45 @@ export default function PatientDetails() {
         setIsEditPatientOpen(true);
     });
 
+    useHotkeys('/', (event) => {
+        if (activeTab === 'chart') {
+            const target = event.target;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+                return;
+            }
+            event.preventDefault();
+            if (selectedTeeth.length === 0) {
+                setSelectedTeeth(['16']);
+                setActiveToothKey('16');
+            }
+            setTimeout(() => {
+                const searchInput = document.querySelector('[data-testid="chart-quick-action-search"]');
+                searchInput?.focus();
+            }, 50);
+        }
+    }, [activeTab, selectedTeeth, setSelectedTeeth, setActiveToothKey]);
+
+    useHotkeys('alt+k', (event) => {
+        if (activeTab === 'chart') {
+            event.preventDefault();
+            if (selectedTeeth.length === 0) {
+                setSelectedTeeth(['16']);
+                setActiveToothKey('16');
+            }
+            setTimeout(() => {
+                const searchInput = document.querySelector('[data-testid="chart-quick-action-search"]');
+                searchInput?.focus();
+            }, 50);
+        }
+    }, [activeTab, selectedTeeth, setSelectedTeeth, setActiveToothKey]);
+
     return (
         <div className="min-w-0 space-y-4 pb-8 sm:space-y-6 sm:pb-10">
             {!patientIsError && !patientLoading && patient && (
                 <div className="min-w-0 overflow-hidden">
                     <Breadcrumb items={[
                         { label: t('sidebar.patients'), to: '/patients' },
-                        { label: patient.name }
+                        { label: patient.name },
                     ]} />
                 </div>
             )}
@@ -439,9 +733,10 @@ export default function PatientDetails() {
                                     <div className="min-w-0">
                                         <div className="flex flex-wrap items-center gap-2">
                                             <h3 className="break-words font-bold text-slate-800 dark:text-white">{t('patient_details.chart.title')}</h3>
-                                            {!workspaceLoading && !workspaceIsError && (
+                                            {!workspaceLoading && !workspaceIsError && isSuperAdmin && (
                                                 <span
                                                     data-testid="clinical-workspace-read-mode"
+                                                    data-read-mode={adaptedChart.readMode}
                                                     className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                                                         adaptedChart.readMode === 'VNEXT_PRIMARY'
                                                             ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
@@ -450,13 +745,13 @@ export default function PatientDetails() {
                                                             : 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300'
                                                     }`}
                                                 >
-                                                    {adaptedChart.readMode}
+                                                    {t(`clinical.read_mode.${adaptedChart.readMode?.toLowerCase()}`, adaptedChart.readMode)}
                                                 </span>
                                             )}
                                         </div>
                                         <p className="mt-1 break-words text-xs text-slate-500 dark:text-slate-400">{t('patient_details.chart.subtitle')}</p>
                                     </div>
-                                    <div className="grid w-full grid-cols-1 gap-2 min-[400px]:grid-cols-2 md:w-auto">
+                                    <div className="flex flex-wrap items-center gap-2 md:w-auto">
                                         <button
                                             type="button"
                                             onClick={() => setIsPediatric(value => !value)}
@@ -468,73 +763,39 @@ export default function PatientDetails() {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setIsToothSelectModalOpen(true)}
-                                            className="min-h-11 rounded-xl bg-emerald-500 px-3 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-600"
+                                            onClick={() => setIsMultiSelectMode(value => !value)}
+                                            aria-pressed={isMultiSelectMode}
+                                            data-testid="chart-multi-select-toggle"
+                                            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition-colors ${isMultiSelectMode ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300 ring-2 ring-blue-500' : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}
                                         >
-                                            {t('patient_details.chart.new_treatment')}
+                                            <span>{t('patient_details.chart.multi_select', 'Multi-Select')}</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsQuickLauncherOpen(value => !value)}
+                                            aria-pressed={isQuickLauncherOpen || !!activeStickyTool}
+                                            data-testid="chart-quick-tool-toggle"
+                                            className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-2 text-sm font-bold transition-colors ${isQuickLauncherOpen || activeStickyTool ? 'border-blue-500 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-300 ring-2 ring-blue-500' : 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300'}`}
+                                            title={t('patient_details.chart.quick_tools', 'Quick Tools')}
+                                        >
+                                            <Sparkles size={16} className="shrink-0 text-amber-500" aria-hidden="true" />
+                                            <span>{t('patient_details.chart.quick_tools', 'Quick Tools')}</span>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsToothSelectModalOpen(true)}
+                                            data-testid="header-advanced-entry-button"
+                                            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold text-slate-600 transition-colors hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                                            title={t('patient_details.chart.advanced_entry_tooltip', 'Open classic treatment entry modal')}
+                                        >
+                                            <span>{t('patient_details.chart.advanced_entry', 'Advanced Entry')}</span>
+                                            <span className="sr-only">{t('patient_details.chart.new_treatment')}</span>
                                         </button>
                                     </div>
                                 </div>
 
                                 {!workspaceLoading && !workspaceIsError && (
-                                    <div className="space-y-2" data-testid="clinical-workspace-status">
-                                        <div
-                                            data-testid="clinical-workspace-coverage"
-                                            className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-400"
-                                        >
-                                            <span className="font-semibold">{t('clinical.coverage', 'Coverage')}:</span>
-                                            {Object.entries(adaptedChart.coverage).map(([domain, status]) => (
-                                                <span
-                                                    key={domain}
-                                                    className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
-                                                        status === 'COMPLETE'
-                                                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
-                                                            : status === 'PARTIAL'
-                                                            ? 'bg-amber-50 text-amber-700 border border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
-                                                            : 'bg-slate-100 text-slate-600 border border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700'
-                                                    }`}
-                                                >
-                                                    <span>{domain}:</span>
-                                                    <span className="font-bold">{status}</span>
-                                                </span>
-                                            ))}
-                                        </div>
-
-                                        {adaptedChart.isFallback && (
-                                            <div
-                                                data-testid="clinical-workspace-fallback-banner"
-                                                className="rounded-lg border border-blue-200 bg-blue-50/70 p-2.5 text-xs text-blue-800 dark:border-blue-900 dark:bg-blue-950/30 dark:text-blue-300"
-                                            >
-                                                <span className="font-semibold">{t('clinical.fallback_notice', 'Notice')}: </span>
-                                                {t('clinical.fallback_desc', 'Displaying clinical records with legacy fallback contribution.')}
-                                            </div>
-                                        )}
-
-                                        {adaptedChart.warnings && adaptedChart.warnings.length > 0 && (
-                                            <div
-                                                data-testid="clinical-workspace-warnings"
-                                                className="rounded-lg border border-amber-200 bg-amber-50/70 p-2.5 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300"
-                                            >
-                                                <span className="font-semibold">{t('clinical.warnings', 'Warnings')}: </span>
-                                                <ul className="mt-1 list-inside list-disc space-y-0.5">
-                                                    {adaptedChart.warnings.map((w, idx) => (
-                                                        <li key={idx}>
-                                                            <span className="font-medium">[{w.code}]</span> {w.message}
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-
-                                        {adaptedChart.isEmpty && (
-                                            <div
-                                                data-testid="clinical-workspace-empty"
-                                                className="rounded-lg border border-slate-200 bg-slate-50/50 p-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-400"
-                                            >
-                                                {t('clinical.empty_workspace', 'No clinical events or work items recorded for this patient yet.')}
-                                            </div>
-                                        )}
-                                    </div>
+                                    <ClinicalWorkspaceStatusBanner adaptedChart={adaptedChart} t={t} />
                                 )}
 
                                 {workspaceLoading ? (
@@ -555,7 +816,141 @@ export default function PatientDetails() {
                                         </button>
                                     </section>
                                 ) : (
-                                    <ClinicalChartRenderer input={adaptedChart.rendererInput} />
+                                    <>
+                                        {careSessionDisabledNotice && (
+                                            <div
+                                                data-testid="care-session-disabled-notice"
+                                                className="mb-3 p-3.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 flex items-center justify-between text-sm shadow-sm"
+                                                role="alert"
+                                            >
+                                                <span className="font-medium">{careSessionDisabledNotice}</span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCareSessionDisabledNotice(null)}
+                                                    className="text-amber-700 hover:text-amber-900 text-sm font-bold px-2 py-0.5 rounded"
+                                                    aria-label="Close"
+                                                >
+                                                    ✕
+                                                </button>
+                                            </div>
+                                        )}
+                                        {activeCareSession ? (
+                                            <div className="mb-3">
+                                                <CareSessionActiveBanner
+                                                    session={activeCareSession}
+                                                    onOpenWorkflow={() => setIsRctWorkflowOpen(true)}
+                                                    onOpenFinishSheet={() => setIsFinishSheetOpen(true)}
+                                                    patientId={id}
+                                                    t={t}
+                                                />
+                                            </div>
+                                        ) : resumableCareSession?.has_resumable ? (
+                                            <div className="mb-3">
+                                                <ContinueTreatmentCard
+                                                    resumableContext={resumableCareSession}
+                                                    onResumeTreatment={handleResumeTreatment}
+                                                    isResuming={startCareSessionMutation.isPending || transitionCareSessionMutation.isPending}
+                                                    t={t}
+                                                />
+                                            </div>
+                                        ) : null}
+                                        <div
+                                            onTouchStart={handleTouchStart}
+                                            onTouchMove={handleTouchMove}
+                                            onTouchEnd={handleTouchEnd}
+                                            onTouchCancel={handleTouchEnd}
+                                            className="space-y-3"
+                                        >
+                                            {activeStickyTool && (
+                                                <ChartStickyToolBanner
+                                                    activeTool={activeStickyTool}
+                                                    appliedCount={stickyAppliedCount}
+                                                    onExit={() => {
+                                                        setActiveStickyTool(null);
+                                                        setStickyAppliedCount(0);
+                                                    }}
+                                                    onSurfaceToggle={(surf) => {
+                                                        setActiveStickyTool((prev) => {
+                                                            if (!prev) return null;
+                                                            const exists = prev.surfaces?.includes(surf);
+                                                            const nextSurfaces = exists
+                                                                ? prev.surfaces.filter((s) => s !== surf)
+                                                                : [...(prev.surfaces || []), surf];
+                                                            return { ...prev, surfaces: nextSurfaces };
+                                                        });
+                                                    }}
+                                                />
+                                            )}
+                                            <PlanOverlayActiveBanner
+                                                planOverlay={planOverlay}
+                                                onToggleOverlay={handleTogglePlanOverlay}
+                                                t={t}
+                                            />
+                                            <OnboardingTooltip tipKey="chart_click_tip" content={t('onboarding.chart_click_tip')} side="top">
+                                                <ClinicalChartRenderer input={adaptedChart.rendererInput} />
+                                            </OnboardingTooltip>
+                                        </div>
+
+                                        {isQuickLauncherOpen && selectedTeeth.length === 0 && (
+                                            <div className="mt-3">
+                                                <ChartQuickActionLauncher
+                                                    selectedTeeth={[]}
+                                                    selectedSurfacesByTooth={{}}
+                                                    onAction={handleQuickLauncherAction}
+                                                    onActivateStickyTool={(tool) => {
+                                                        setActiveStickyTool(tool);
+                                                        setStickyAppliedCount(0);
+                                                    }}
+                                                    clinicProcedures={procedures}
+                                                    isLoading={proceduresLoading}
+                                                    onClose={() => setIsQuickLauncherOpen(false)}
+                                                />
+                                            </div>
+                                        )}
+
+                                        <ChairsideSelectionBar
+                                            selectedTeeth={selectedTeeth}
+                                            resolvedActiveTooth={resolvedActiveTooth}
+                                            setActiveToothKey={setActiveToothKey}
+                                            handleRemoveToothFromSelection={handleRemoveToothFromSelection}
+                                            isMultiSelectMode={isMultiSelectMode}
+                                            handleClearSelection={handleClearSelection}
+                                            handleRecordTreatmentFromSelection={handleRecordTreatmentFromSelection}
+                                            activeSurfaces={activeSurfaces}
+                                            handleToggleSurface={handleToggleSurface}
+                                            selectedSurfacesByTooth={selectedSurfacesByTooth}
+                                            handleQuickLauncherAction={handleQuickLauncherAction}
+                                            setActiveStickyTool={setActiveStickyTool}
+                                            setStickyAppliedCount={setStickyAppliedCount}
+                                            procedures={procedures}
+                                            proceduresLoading={proceduresLoading}
+                                            i18n={i18n}
+                                            t={t}
+                                            adaptedChart={adaptedChart}
+                                            workspaceSnapshot={workspaceSnapshot}
+                                            history={history}
+                                            treatmentPlans={treatmentPlans}
+                                            payments={payments}
+                                            labOrders={labOrders}
+                                            handleRemoveWorkItemOrTreatment={handleRemoveWorkItemOrTreatment}
+                                            activeCareSession={activeCareSession}
+                                            onStartRctSession={handleStartRctSession}
+                                            onOpenRctWorkflow={() => setIsRctWorkflowOpen(true)}
+                                            patientId={id}
+                                            attachments={attachments}
+                                        />
+                                    </>
+                                )}
+
+                                {isTreatmentPlansEnabled && (
+                                    <TreatmentPlansCard
+                                        patientId={id}
+                                        activeOverlayPlanId={activeOverlayPlanId}
+                                        activeOverlayPhaseId={activeOverlayPhaseId}
+                                        onToggleOverlay={handleTogglePlanOverlay}
+                                        onPerformItem={handlePerformPlanItem}
+                                        isNativeWritesEnabled={isNativeWritesEnabled}
+                                    />
                                 )}
                             </div>
                         )}
@@ -578,6 +973,10 @@ export default function PatientDetails() {
                                 handleDeleteAttachment={handleDeleteAttachment}
                                 loading={attachmentsLoading}
                                 reloadAttachments={refetchAttachments}
+                                isPollingStalled={isAttachmentsPollingStalled}
+                                patientId={id}
+                                activeCareSession={activeCareSession}
+                                workItems={workspaceSnapshot?.work_items || []}
                             />
                         )}
 
@@ -589,10 +988,11 @@ export default function PatientDetails() {
                                 onAddPayment={() => setIsPaymentModalOpen(true)}
                                 onDeletePayment={handleDeletePayment}
                                 onPrintInvoice={handlePrintInvoice}
+                                tenantFeatures={tenantFeatures}
                             />
                         )}
 
-                        {activeTab === 'labs' && <LabOrdersTab patientId={id} />}
+                        {activeTab === 'labs' && <LabOrdersTab patientId={id} treatments={history} />}
                     </Suspense>
                 </div>
             </section>
@@ -604,15 +1004,24 @@ export default function PatientDetails() {
                 initialData={patient}
             />
 
-            <TreatmentModal
-                isOpen={isTreatmentModalOpen}
-                onClose={() => setIsTreatmentModalOpen(false)}
+            <QuickTreatmentSheet
+                isOpen={isTreatmentSheetOpen}
+                onClose={() => {
+                    setIsTreatmentSheetOpen(false);
+                    setEditingTreatmentId(null);
+                }}
                 onSave={handleSaveTreatment}
+                onRefetch={refetchClinicalData}
                 initialData={newTreatment}
-                isEditing={!!editingTreatmentId}
+                isEditing={Boolean(editingTreatmentId)}
+                isNativeWritesEnabled={isNativeWritesEnabled}
                 procedures={procedures}
+                patient={patient}
                 selectedToothCondition={selectedToothCondition}
                 setSelectedToothCondition={setSelectedToothCondition}
+                selectedTeeth={selectedTeeth}
+                selectedSurfacesByTooth={selectedSurfacesByTooth}
+                onSelectionChange={setSelectedTeeth}
             />
 
             <PrescriptionModal
@@ -634,14 +1043,7 @@ export default function PatientDetails() {
                 size="lg"
             >
                 <div className="min-w-0 space-y-4">
-                    <DentalChartSVG
-                        teethStatus={effectiveTeethStatus}
-                        onToothClick={(number) => {
-                            handleToothClick(number);
-                            setIsToothSelectModalOpen(false);
-                        }}
-                        isPediatric={isPediatric}
-                    />
+                    <ClinicalChartRenderer input={adaptedModalChart.rendererInput} />
                     <div className="sticky bottom-0 z-10 -mx-3 border-t border-border bg-surface-elevated px-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-4 sm:px-4">
                         <button
                             type="button"
@@ -649,9 +1051,9 @@ export default function PatientDetails() {
                                 setNewTreatment({
                                     ...getInitialTreatment(),
                                     tooth_number: '',
-                                    default_price_list_id: patient?.default_price_list_id
+                                    default_price_list_id: patient?.default_price_list_id,
                                 });
-                                setIsTreatmentModalOpen(true);
+                                setIsTreatmentSheetOpen(true);
                                 setIsToothSelectModalOpen(false);
                             }}
                             className="min-h-11 w-full rounded-xl bg-slate-100 px-4 py-2.5 font-bold text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -661,6 +1063,40 @@ export default function PatientDetails() {
                     </div>
                 </div>
             </Modal>
+
+            {isRctWorkflowOpen && activeCareSession && (
+                <Modal
+                    isOpen={isRctWorkflowOpen}
+                    onClose={() => setIsRctWorkflowOpen(false)}
+                    title={t('care_session.rct_modal_title', 'Root Canal Treatment (RCT) Workflow')}
+                    size="xl"
+                >
+                    <RctStructuredCard
+                        session={activeCareSession}
+                        toothKey={resolvedActiveTooth || '46'}
+                        onUpdateStepStatus={handleUpdateStepStatus}
+                        onSaveObservation={handleSaveObservation}
+                        onFinishSession={handleFinishSession}
+                        isUpdatingStep={updateCareSessionStepMutation.isPending}
+                        isSavingObservation={recordCareObservationMutation.isPending}
+                        isFinishingSession={finishCareSessionMutation.isPending}
+                        patientId={id}
+                        attachments={attachments}
+                        t={t}
+                    />
+                </Modal>
+            )}
+
+            {isFinishSheetOpen && activeCareSession && (
+                <FinishCareSessionSheet
+                    isOpen={isFinishSheetOpen}
+                    onClose={() => setIsFinishSheetOpen(false)}
+                    session={activeCareSession}
+                    onFinishSession={handleFinishSession}
+                    isFinishing={finishCareSessionMutation.isPending}
+                    t={t}
+                />
+            )}
         </div>
     );
 }

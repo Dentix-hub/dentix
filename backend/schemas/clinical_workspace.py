@@ -41,6 +41,18 @@ class WorkspaceVisualEntry(BaseModel):
     recorded_at: Optional[datetime] = None
     provenance: str = "native"  # 'native' | 'legacy_fallback'
     temporal_certainty: str = "EXACT"  # 'EXACT' | 'ESTIMATED' | 'UNKNOWN'
+    style_color_key: Optional[str] = None
+
+
+class WorkspaceProcedureMarker(BaseModel):
+    """Small marker for custom procedures on a tooth (D3)."""
+    marker_id: str
+    procedure_name: str
+    color_key: Optional[str] = None
+    tooth_key: str
+    surface_codes: List[str] = Field(default_factory=list)
+    phase: str  # 'planned' | 'completed'
+    source_id: Optional[Union[int, str]] = None
 
 
 class WorkspaceToothSummary(BaseModel):
@@ -50,6 +62,7 @@ class WorkspaceToothSummary(BaseModel):
     condition: Optional[str] = None  # Neutral when no clinical evidence recorded
     findings: List[WorkspaceVisualEntry] = Field(default_factory=list)
     procedures: List[WorkspaceVisualEntry] = Field(default_factory=list)
+    markers: List[WorkspaceProcedureMarker] = Field(default_factory=list)
     provenance: str = "native"  # 'native' | 'legacy_fallback'
     temporal_certainty: str = "EXACT"  # 'EXACT' | 'UNKNOWN'
     notes: Optional[str] = None
@@ -68,6 +81,13 @@ class WorkspaceWorkItemSummary(BaseModel):
     recorded_at: Optional[datetime] = None
     temporal_certainty: str = "EXACT"  # 'EXACT' | 'UNKNOWN'
     is_renderer_supported: bool = True
+    style_color_key: Optional[str] = None
+    # G12-M11: Read-only lab order indicator & sync metadata
+    lab_order_id: Optional[int] = None
+    lab_status: Optional[str] = None
+    lab_ready: bool = False
+    shade: Optional[str] = None
+    material: Optional[str] = None
 
 
 class ClinicalWorkspaceSnapshot(BaseModel):
@@ -85,3 +105,27 @@ class ClinicalWorkspaceSnapshot(BaseModel):
     warnings: List[ClinicalWorkspaceWarning] = Field(default_factory=list)
     teeth: Dict[str, WorkspaceToothSummary] = Field(default_factory=dict)
     work_items: List[WorkspaceWorkItemSummary] = Field(default_factory=list)
+
+
+class PatientClinicalDriftItem(BaseModel):
+    """Drift and mapping error diagnostic for an individual patient."""
+    patient_id: int
+    legacy_procedure_count: int = 0
+    native_procedure_count: int = 0
+    missing_treatment_ids: List[int] = Field(default_factory=list)
+    unmapped_issue_count: int = 0
+    tooth_status_unbackfilled_count: int = 0
+    has_drift: bool = False
+
+
+class TenantClinicalDriftReport(BaseModel):
+    """Tenant-scoped clinical drift and error observer report (G16-M04, G16-M05)."""
+    tenant_id: int
+    patients_scanned: int = 0
+    patients_with_drift: int = 0
+    legacy_procedure_count: int = 0
+    native_procedure_count: int = 0
+    missing_in_native_treatment_ids: List[int] = Field(default_factory=list)
+    unmapped_issue_count: int = 0
+    tooth_status_unbackfilled_count: int = 0
+    patient_drifts: List[PatientClinicalDriftItem] = Field(default_factory=list)

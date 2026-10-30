@@ -133,6 +133,45 @@ class AccountingService(PreviousAccountingService):
             stmt = stmt.where(models.LabOrder.patient_id == patient_id)
         return float((await self.db.execute(stmt)).scalar() or 0.0)
 
+    async def get_total_lab_payments(
+        self,
+        start: datetime,
+        end: datetime,
+        patient_id: Optional[int] = None,
+    ) -> float:
+        """Calculate total lab payments in date range (cash-basis expenses).
+
+        With patient_id: sum only payments linked to an order belonging to that patient.
+        Unlinked payments are excluded when filtering by patient.
+        Without patient_id: sum all lab payments in tenant for the period.
+        """
+        start, end = await self._normalize_utc_range(start, end)
+        if patient_id:
+            stmt = (
+                select(func.sum(models.LabPayment.amount))
+                .join(models.LabOrder, models.LabPayment.lab_order_id == models.LabOrder.id)
+                .join(models.Patient, models.LabOrder.patient_id == models.Patient.id)
+                .where(
+                    models.LabPayment.tenant_id == self.tenant_id,
+                    models.LabOrder.tenant_id == self.tenant_id,
+                    models.Patient.tenant_id == self.tenant_id,
+                    models.Patient.is_deleted == False,  # noqa: E712
+                    models.LabOrder.patient_id == patient_id,
+                    models.LabPayment.date >= start,
+                    models.LabPayment.date <= end,
+                )
+            )
+        else:
+            stmt = (
+                select(func.sum(models.LabPayment.amount))
+                .where(
+                    models.LabPayment.tenant_id == self.tenant_id,
+                    models.LabPayment.date >= start,
+                    models.LabPayment.date <= end,
+                )
+            )
+        return float((await self.db.execute(stmt)).scalar() or 0.0)
+
     async def get_doctor_revenue_analytics(
         self,
         start: datetime,

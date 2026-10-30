@@ -45,6 +45,7 @@ async function renderApplication() {
   await deleteLegacyImageCache();
 
   const container = document.getElementById('root');
+  if (!container) return;
   const root = createRoot(container);
 
   root.render(

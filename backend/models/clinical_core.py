@@ -16,10 +16,13 @@ Normalized additive clinical tables:
 - next_visit_requests
 - clinical_attachment_links
 
+Phase G14 / S32 adds the additive `clinical_charges` ledger table (billing policy D1).
+
 All tables enforce tenant ownership, RLS policies, explicit integer PK/FKs,
 deterministic constraint naming, and portable FDI/shape validation.
 """
 
+from typing import Optional
 from rls.schemas import Command, ConditionArg, Permissive
 from sqlalchemy import (
     Boolean,
@@ -30,14 +33,16 @@ from sqlalchemy import (
     Index,
     Integer,
     JSON,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
     column,
     func,
+    text,
     true,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from .base import Base
 
@@ -109,6 +114,7 @@ class ClinicalWorkItem(Base):
     patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
     kind = Column(String(32), nullable=False)
     code = Column(String(64), nullable=False)
+    lab_choice = Column(String(24), nullable=True)
     status = Column(String(32), nullable=False, default="proposed", server_default="proposed")
     notes = Column(Text, nullable=True)
     created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
@@ -142,6 +148,59 @@ class ClinicalWorkItem(Base):
     observations = relationship("CareObservation", back_populates="work_item")
     next_visit_requests = relationship("NextVisitRequest", back_populates="work_item")
     attachment_links = relationship("ClinicalAttachmentLink", back_populates="work_item")
+    lab_orders = relationship("LabOrder", back_populates="work_item", lazy="selectin")
+
+    @validates("code")
+    def validate_code(self, key, value):
+        if value is None or not str(value).strip():
+            raise ValueError("ClinicalWorkItem.code cannot be empty or whitespace")
+        return value
+
+    @property
+    def latest_active_lab_order(self):
+        """Return latest active linked lab order (G12-M11)."""
+        from sqlalchemy import inspect
+        from sqlalchemy.orm.base import NO_VALUE
+        try:
+            state = inspect(self)
+            if state is None or "lab_orders" not in state.dict:
+                return None
+            orders = state.dict["lab_orders"]
+            if orders is NO_VALUE or not orders:
+                return None
+            active = [lo for lo in orders if (getattr(lo, "status", None) or "").lower() != "cancelled"]
+            if active:
+                return max(active, key=lambda lo: lo.id if lo.id is not None else 0)
+            return max(orders, key=lambda lo: lo.id if lo.id is not None else 0)
+        except Exception:
+            return None
+
+    @property
+    def lab_order_id(self) -> Optional[int]:
+        lo = self.latest_active_lab_order
+        return lo.id if lo else None
+
+    @property
+    def lab_status(self) -> Optional[str]:
+        lo = self.latest_active_lab_order
+        if not lo:
+            return None
+        from backend.clinical.catalog import map_lab_order_status
+        return map_lab_order_status(lo.status)
+
+    @property
+    def lab_ready(self) -> bool:
+        return self.lab_status == "lab_ready"
+
+    @property
+    def shade(self) -> Optional[str]:
+        lo = self.latest_active_lab_order
+        return lo.shade if lo else None
+
+    @property
+    def material(self) -> Optional[str]:
+        lo = self.latest_active_lab_order
+        return lo.material if lo else None
 
 
 class ClinicalWorkItemTarget(Base):
@@ -429,6 +488,7 @@ class CareSession(Base):
     events = relationship("ClinicalEvent", back_populates="care_session")
     next_visit_requests = relationship("NextVisitRequest", back_populates="care_session")
     attachment_links = relationship("ClinicalAttachmentLink", back_populates="care_session")
+    material_usages = relationship("TreatmentMaterialUsage", back_populates="care_session")
 
 
 class CareSessionStep(Base):
@@ -509,6 +569,18 @@ class CareObservation(Base):
     step = relationship("CareSessionStep", back_populates="observations")
     work_item = relationship("ClinicalWorkItem", back_populates="observations")
     recorded_by = relationship("User", foreign_keys=[recorded_by_user_id])
+
+    @property
+    def canal_id(self) -> Optional[str]:
+        if isinstance(self.structured_value, dict):
+            return self.structured_value.get("canal_id")
+        return None
+
+    @property
+    def root_id(self) -> Optional[str]:
+        if isinstance(self.structured_value, dict):
+            return self.structured_value.get("root_id")
+        return None
 
 
 class WorkflowTemplate(Base):
@@ -649,9 +721,9 @@ class ClinicalProjectionCoverage(Base):
 
     __rls_policies__ = _tenant_rls_policy()
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
-    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False)
     domain = Column(String(32), nullable=False)
     status = Column(String(32), nullable=False, default=DEFAULT_COVERAGE_STATE, server_default=DEFAULT_COVERAGE_STATE)
     notes = Column(Text, nullable=True)
@@ -680,6 +752,83 @@ class ClinicalProjectionCoverage(Base):
     patient = relationship("Patient")
 
 
+# Billing policy (D1): completing native clinical work creates a PENDING charge;
+# reception reviews it and creates the invoice. Legacy `Treatment` / `Payment`
+# remain the authoritative finance source until finance parity is proven.
+CLINICAL_CHARGE_STATUS_PENDING = "pending"
+CLINICAL_CHARGE_STATUS_INVOICED = "invoiced"
+CLINICAL_CHARGE_STATUS_VOIDED = "voided"
+CLINICAL_CHARGE_STATUSES = (
+    CLINICAL_CHARGE_STATUS_PENDING,
+    CLINICAL_CHARGE_STATUS_INVOICED,
+    CLINICAL_CHARGE_STATUS_VOIDED,
+)
+
+
+class ClinicalCharge(Base):
+    """
+    Pending clinical charge ledger row derived from a native clinical work item.
+
+    Policy D1: work completion creates a `pending` charge; reception reviews it and
+    marks it `invoiced` (or `voided`). At most one non-voided charge may exist per
+    (tenant, work item). Does not replace `Treatment` or `Payment`.
+    """
+    __tablename__ = "clinical_charges"
+
+    __rls_policies__ = _tenant_rls_policy()
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id"), nullable=False, index=True)
+    work_item_id = Column(Integer, ForeignKey("clinical_work_items.id"), nullable=False, index=True)
+    care_session_id = Column(Integer, ForeignKey("care_sessions.id", ondelete="SET NULL"), nullable=True, index=True)
+    doctor_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    legacy_treatment_id = Column(Integer, ForeignKey("treatments.id", ondelete="SET NULL"), nullable=True, index=True)
+    amount = Column(Numeric(14, 2), nullable=False)
+    discount = Column(Numeric(14, 2), nullable=False, default=0, server_default="0.00")
+    status = Column(
+        String(32),
+        nullable=False,
+        default=CLINICAL_CHARGE_STATUS_PENDING,
+        server_default=CLINICAL_CHARGE_STATUS_PENDING,
+    )
+    notes = Column(Text, nullable=True)
+    version_id = Column(Integer, nullable=False, default=1, server_default="1")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        CheckConstraint("amount >= 0", name="ck_cc_amount_non_negative"),
+        CheckConstraint("discount >= 0", name="ck_cc_discount_non_negative"),
+        CheckConstraint("discount <= amount", name="ck_cc_discount_lte_amount"),
+        CheckConstraint(
+            "status IN ('pending', 'invoiced', 'voided')",
+            name="ck_cc_status",
+        ),
+        Index("ix_cc_tenant_patient", "tenant_id", "patient_id"),
+        Index("ix_cc_tenant_status", "tenant_id", "status"),
+        Index("ix_cc_tenant_work_item", "tenant_id", "work_item_id"),
+        Index(
+            "uq_cc_active_work_item",
+            "tenant_id",
+            "work_item_id",
+            unique=True,
+            postgresql_where=text("status != 'voided'"),
+            sqlite_where=text("status != 'voided'"),
+        ),
+    )
+
+    __mapper_args__ = {
+        "version_id_col": version_id,
+    }
+
+    patient = relationship("Patient")
+    work_item = relationship("ClinicalWorkItem")
+    care_session = relationship("CareSession")
+    doctor = relationship("User", foreign_keys=[doctor_id])
+    legacy_treatment = relationship("Treatment", foreign_keys=[legacy_treatment_id])
+
+
 __all__ = [
     "ClinicalWorkItem",
     "ClinicalWorkItemTarget",
@@ -695,6 +844,8 @@ __all__ = [
     "NextVisitRequest",
     "ClinicalAttachmentLink",
     "ClinicalProjectionCoverage",
+    "ClinicalCharge",
+    "CLINICAL_CHARGE_STATUSES",
     "COVERAGE_DOMAINS",
     "COVERAGE_STATES",
     "DEFAULT_COVERAGE_STATE",

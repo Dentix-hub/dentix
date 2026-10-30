@@ -6,10 +6,13 @@ This performs a FULL REPLACEMENT: deletes all existing tenant data, then imports
 """
 
 import json
+import logging
 from datetime import datetime
 from typing import Dict
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, delete
+from sqlalchemy import select, delete, or_
+
+logger = logging.getLogger(__name__)
 
 from .. import models
 from ..models.price_list import InsuranceProvider, PriceList, PriceListItem
@@ -88,11 +91,38 @@ async def delete_tenant_data(db: AsyncSession, tenant_id: int) -> Dict[str, int]
     res_wt = await db.execute(stmt_wt)
     deleted_counts["workflow_templates"] = res_wt.rowcount
 
-    # 1. MaterialSessions (via StockItem)
+    # 0. MaterialLearningLogs (child of MaterialSession and Material)
+    # Must be deleted before MaterialSession to respect foreign key constraints
     stmt_stock_items = select(models.StockItem.id).where(models.StockItem.tenant_id == tenant_id)
     res_stock_items = await db.execute(stmt_stock_items)
     stock_item_ids = list(res_stock_items.scalars().all())
 
+    if stock_item_ids:
+        stmt_sessions = select(models.MaterialSession.id).where(
+            models.MaterialSession.stock_item_id.in_(stock_item_ids)
+        )
+        res_sessions = await db.execute(stmt_sessions)
+        session_ids = list(res_sessions.scalars().all())
+        if session_ids:
+            stmt_mll = delete(models.MaterialLearningLog).where(
+                or_(
+                    models.MaterialLearningLog.tenant_id == tenant_id,
+                    models.MaterialLearningLog.session_id.in_(session_ids),
+                )
+            )
+        else:
+            stmt_mll = delete(models.MaterialLearningLog).where(
+                models.MaterialLearningLog.tenant_id == tenant_id
+            )
+    else:
+        stmt_mll = delete(models.MaterialLearningLog).where(
+            models.MaterialLearningLog.tenant_id == tenant_id
+        )
+
+    res_mll = await db.execute(stmt_mll)
+    deleted_counts["material_learning_logs"] = res_mll.rowcount
+
+    # 1. MaterialSessions (via StockItem)
     if stock_item_ids:
         stmt = delete(models.MaterialSession).where(models.MaterialSession.stock_item_id.in_(stock_item_ids))
         res = await db.execute(stmt)
@@ -270,12 +300,28 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
         "care_sessions": {},
         "care_session_steps": {},
         "clinical_events": {},
+        "treatments": {},
+        "lab_orders": {},
     }
 
     # 1. Import Users
     for user_data in data.get("users", []):
+        user_data = dict(user_data)
         old_id = user_data.pop("id", None)
         user_data["tenant_id"] = tenant_id
+        for sensitive in (
+            "hashed_password",
+            "otp_secret",
+            "is_2fa_enabled",
+            "active_session_id",
+            "role",
+            "permissions",
+            "failed_login_attempts",
+            "last_failed_login",
+            "account_locked_until",
+        ):
+            user_data.pop(sensitive, None)
+        user_data["hashed_password"] = "!unusable-restored-staff-placeholder"
         # Parse datetime fields
         for dt_field in ["last_failed_login", "account_locked_until", "deleted_at"]:
             if dt_field in user_data:
@@ -465,7 +511,7 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
 
     # 13. Import Treatments
     for treat_data in data.get("treatments", []):
-        treat_data.pop("id", None)
+        old_id = treat_data.pop("id", None)
         treat_data["tenant_id"] = tenant_id
         treat_data["patient_id"] = id_maps["patients"].get(treat_data.get("patient_id"))
         treat_data["doctor_id"] = id_maps["users"].get(treat_data.get("doctor_id"))
@@ -477,6 +523,9 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
         if treat_data["patient_id"]:
             treat = models.Treatment(**treat_data)
             db.add(treat)
+            await db.flush()
+            if old_id:
+                id_maps["treatments"][old_id] = treat.id
     imported_counts["treatments"] = len(data.get("treatments", []))
 
     # 14. Import Payments
@@ -533,26 +582,32 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
     imported_counts["attachments"] = len(data.get("attachments", []))
 
     for lo_data in data.get("lab_orders", []):
-        lo_data.pop("id", None)
+        old_id = lo_data.pop("id", None)
         lo_data["tenant_id"] = tenant_id
         lo_data["patient_id"] = id_maps["patients"].get(lo_data.get("patient_id"))
         lo_data["laboratory_id"] = id_maps["laboratories"].get(
             lo_data.get("laboratory_id")
         )
         lo_data["doctor_id"] = id_maps["users"].get(lo_data.get("doctor_id"))
+        lo_data["treatment_id"] = id_maps["treatments"].get(lo_data.get("treatment_id"))
         lo_data["order_date"] = parse_datetime(lo_data.get("order_date"))
         lo_data["delivery_date"] = parse_datetime(lo_data.get("delivery_date"))
         lo_data["received_date"] = parse_datetime(lo_data.get("received_date"))
         if lo_data["patient_id"]:
-            db.add(models.LabOrder(**lo_data))
+            lo = models.LabOrder(**lo_data)
+            db.add(lo)
+            await db.flush()
+            if old_id:
+                id_maps["lab_orders"][old_id] = lo.id
     imported_counts["lab_orders"] = len(data.get("lab_orders", []))
 
     for lp_data in data.get("lab_payments", []):
-        lp_data.pop("id", None)
+        old_id = lp_data.pop("id", None)
         lp_data["tenant_id"] = tenant_id
         lp_data["laboratory_id"] = id_maps["laboratories"].get(
             lp_data.get("laboratory_id")
         )
+        lp_data["lab_order_id"] = id_maps["lab_orders"].get(lp_data.get("lab_order_id"))
         lp_data["date"] = parse_datetime(lp_data.get("date"))
         if lp_data["laboratory_id"]:
             db.add(LabPayment(**lp_data))
@@ -801,6 +856,26 @@ async def import_tenant_data(db: AsyncSession, tenant_id: int, backup_data: Dict
             db.add(cpc)
     imported_counts["clinical_projection_coverages"] = len(data.get("clinical_projection_coverages", []))
 
+    # 40. Import ClinicalCharges
+    for cc_data in data.get("clinical_charges", []):
+        cc_data.pop("id", None)
+        cc_data["tenant_id"] = tenant_id
+        cc_data["patient_id"] = id_maps["patients"].get(cc_data.get("patient_id"))
+        cc_data["work_item_id"] = id_maps["clinical_work_items"].get(cc_data.get("work_item_id"))
+        if cc_data.get("care_session_id"):
+            cc_data["care_session_id"] = id_maps["care_sessions"].get(cc_data.get("care_session_id"))
+        if cc_data.get("doctor_id"):
+            cc_data["doctor_id"] = id_maps["users"].get(cc_data.get("doctor_id"))
+        if cc_data.get("legacy_treatment_id"):
+            cc_data["legacy_treatment_id"] = id_maps["treatments"].get(cc_data.get("legacy_treatment_id"))
+        cc_data["created_at"] = parse_datetime(cc_data.get("created_at"))
+        cc_data["updated_at"] = parse_datetime(cc_data.get("updated_at"))
+        if cc_data["patient_id"] and cc_data["work_item_id"]:
+            cc = models.ClinicalCharge(**cc_data)
+            db.add(cc)
+    imported_counts["clinical_charges"] = len(data.get("clinical_charges", []))
+    await db.flush()
+
     return imported_counts
 
 
@@ -825,7 +900,8 @@ async def restore_tenant_from_json(db: AsyncSession, tenant_id: int, json_conten
     try:
         backup_data = json.loads(json_content)
     except json.JSONDecodeError as e:
-        return {"success": False, "error": f"Invalid JSON: {str(e)}"}
+        logger.exception("Failed to parse JSON backup for tenant %s: %s", tenant_id, e)
+        return {"success": False, "error": "ملف النسخة الاحتياطية غير صالح (JSON غير صحيح)."}
 
     # 2. Validate
     validation = validate_backup_file(backup_data, tenant_id)
@@ -837,7 +913,8 @@ async def restore_tenant_from_json(db: AsyncSession, tenant_id: int, json_conten
         deleted_counts = await delete_tenant_data(db, tenant_id)
     except Exception as e:
         await db.rollback()
-        return {"success": False, "error": f"Failed to delete existing data: {str(e)}"}
+        logger.exception("Failed to delete existing data during restore for tenant %s: %s", tenant_id, e)
+        return {"success": False, "error": "تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك."}
 
     # 4. Import new data
     try:
@@ -845,7 +922,8 @@ async def restore_tenant_from_json(db: AsyncSession, tenant_id: int, json_conten
         await db.commit()
     except Exception as e:
         await db.rollback()
-        return {"success": False, "error": f"Failed to import data: {str(e)}"}
+        logger.exception("Failed to import data during restore for tenant %s: %s", tenant_id, e)
+        return {"success": False, "error": "تعذرت استعادة النسخة الاحتياطية. لم يتم تغيير بياناتك."}
 
     return {
         "success": True,
