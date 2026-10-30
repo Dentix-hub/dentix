@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Image backup blocker diagnostics: clinic-admin/SYSTEM_CONFIG-only GET /settings/backup/image-operations reports bounded active job/outbox metadata and incomplete attachment counts, scoped to the authenticated tenant; private/no-store, no patient fields, remote IDs, payloads, raw errors or tokens.
+- Verification: 30 targeted diagnostics/archive/readiness/RBAC tests PASS; tenant contamination, role enforcement, read-only behavior, redaction and result bounds covered; Ruff/diff PASS. No queue edits, gate bypass, schema/config changes or deployment.
+- Status: PARTIAL; image 404 alone does not identify the backup-blocking job. Staging diagnostic response is required before selecting a recovery action.
+
 - Production archive history fix: exported copies explicitly disclose unresolved legacy treatment provenance only for completed, same-patient/tenant, matching-code procedures; restore reserves absent historical IDs without creating treatments or binding another clinic. Database events remain unchanged.
 - Validation: production-snapshot replay now passes all archive compatibility stages for the affected clinic; unrelated attachment issues remain rejected. 84 archive regressions + 13 restricted-role PostgreSQL backup/restore checks PASS; Ruff/diff PASS.
 - Drive status now distinguishes structured archive-data failures and reports configuration guidance safely. No migration, encryption-key change, production data repair or deployment. Status: DONE locally; staging and live provider acceptance pending.
