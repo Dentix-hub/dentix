@@ -74,6 +74,35 @@ class EventService:
         """
         now = datetime.now(timezone.utc)
 
+        # Reset links expire after 15 minutes. Scrub encrypted material from
+        # queued/failed events even if the worker was stopped past expiry.
+        await db.execute(
+            DomainEvent.__table__.update().where(
+                DomainEvent.event_type == "auth.password_reset.requested",
+                DomainEvent.created_at < now - timedelta(minutes=15),
+                DomainEvent.status != "processing",
+            ).values(payload={})
+        )
+        await db.commit()
+
+        # Purge expired encrypted restore inputs even after a worker restart.
+        from backend.models.tenant_data_operation import TenantDataOperation
+        await db.execute(TenantDataOperation.__table__.update().where(
+            TenantDataOperation.kind.in_(['restore', 'drive_backup']),
+            TenantDataOperation.status.in_(['previewed', 'confirmed', 'queued', 'running']),
+            TenantDataOperation.expires_at <= now,
+        ).values(status='expired', encrypted_payload=None, completed_at=now))
+        await db.commit()
+
+        # Discard expired unclaimed PKCE material; consumed reservations hold
+        # only folder metadata and support an interrupted provisioning retry.
+        from backend.models.google_oauth_attempt import GoogleOAuthAttempt
+        await db.execute(GoogleOAuthAttempt.__table__.delete().where(
+            GoogleOAuthAttempt.consumed_at.is_(None),
+            GoogleOAuthAttempt.expires_at <= now,
+        ))
+        await db.commit()
+
         # Reclaim events abandoned by crashed workers before claiming new ones.
         await EventService.recover_stale_processing(db)
 
@@ -122,6 +151,8 @@ class EventService:
 
             if event.attempts >= event.max_attempts:
                 event.status = "failed"
+                if event.event_type == "auth.password_reset.requested":
+                    event.payload = {}
             else:
                 event.status = "pending"
                 # Simple exponential backoff for next attempt

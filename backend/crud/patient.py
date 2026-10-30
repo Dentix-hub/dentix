@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 # remain restrictive. Delete dependent aggregates in leaf-to-root order before
 # removing the patient; every statement is tenant scoped as a second guard.
 PATIENT_CLINICAL_DELETE_ORDER = (
+    models.ClinicalCharge,
     models.ClinicalAttachmentLink,
     models.NextVisitRequest,
     models.CareObservation,
@@ -23,6 +24,7 @@ PATIENT_CLINICAL_DELETE_ORDER = (
 )
 
 TENANT_CLINICAL_DELETE_ORDER = (
+    models.ClinicalCharge,
     models.ClinicalAttachmentLink,
     models.NextVisitRequest,
     models.CareObservation,
@@ -43,6 +45,17 @@ async def delete_tenant_clinical_rows(db: AsyncSession, tenant_id: int) -> dict[
     """Delete every Clinical VNext aggregate for one tenant in leaf-to-root order."""
     _validate_tenant(tenant_id)
     deleted_counts: dict[str, int] = {}
+    usage_res = await db.execute(
+        delete(models.TreatmentMaterialUsage).where(
+            models.TreatmentMaterialUsage.tenant_id == tenant_id,
+            models.TreatmentMaterialUsage.treatment_id.is_(None),
+            (
+                models.TreatmentMaterialUsage.care_session_id.is_not(None)
+                | models.TreatmentMaterialUsage.work_item_id.is_not(None)
+            ),
+        )
+    )
+    deleted_counts[models.TreatmentMaterialUsage.__tablename__] = usage_res.rowcount
     for clinical_model in TENANT_CLINICAL_DELETE_ORDER:
         result = await db.execute(
             delete(clinical_model).where(clinical_model.tenant_id == tenant_id)
@@ -145,6 +158,28 @@ async def delete_patient_permanently(db: AsyncSession, patient_id: int, tenant_i
         )
         db_patient = result.scalars().first()
     if db_patient:
+        patient_session_ids = (
+            select(models.CareSession.id).where(
+                models.CareSession.patient_id == patient_id,
+                models.CareSession.tenant_id == tenant_id,
+            )
+        )
+        patient_work_item_ids = (
+            select(models.ClinicalWorkItem.id).where(
+                models.ClinicalWorkItem.patient_id == patient_id,
+                models.ClinicalWorkItem.tenant_id == tenant_id,
+            )
+        )
+        await db.execute(
+            delete(models.TreatmentMaterialUsage).where(
+                models.TreatmentMaterialUsage.tenant_id == tenant_id,
+                models.TreatmentMaterialUsage.treatment_id.is_(None),
+                (
+                    models.TreatmentMaterialUsage.care_session_id.in_(patient_session_ids)
+                    | models.TreatmentMaterialUsage.work_item_id.in_(patient_work_item_ids)
+                ),
+            )
+        )
         for clinical_model in PATIENT_CLINICAL_DELETE_ORDER:
             await db.execute(
                 delete(clinical_model).where(

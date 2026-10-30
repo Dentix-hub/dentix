@@ -47,11 +47,21 @@ def _add_tenant_filter(execute_state):
             cls = mapper.class_
             # Safely check if the mapped class actually has a 'tenant_id' column
             if "tenant_id" in mapper.columns:
-                execute_state.statement = execute_state.statement.options(
-                    with_loader_criteria(
-                        cls,
-                        lambda c: c.tenant_id == tenant_id,
-                        include_aliases=True
+                if cls.__name__ == "Procedure":
+                    # Global procedure templates have tenant_id IS NULL and are readable by all tenants
+                    execute_state.statement = execute_state.statement.options(
+                        with_loader_criteria(
+                            cls,
+                            lambda c: (c.tenant_id == tenant_id) | c.tenant_id.is_(None),
+                            include_aliases=True,
+                        )
                     )
-                )
+                else:
+                    execute_state.statement = execute_state.statement.options(
+                        with_loader_criteria(
+                            cls,
+                            lambda c: c.tenant_id == tenant_id,
+                            include_aliases=True,
+                        )
+                    )
 

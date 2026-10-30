@@ -9,11 +9,15 @@ import Login from '@/pages/Login';
 
 const loginMock = vi.fn();
 const verify2FAMock = vi.fn();
+let currentLanguage = 'ar';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
         t: (key) => key,
-        i18n: { language: 'ar', changeLanguage: vi.fn() },
+        i18n: {
+            get language() { return currentLanguage; },
+            changeLanguage: vi.fn((lang) => { currentLanguage = lang; }),
+        },
     }),
 }));
 
@@ -39,6 +43,7 @@ const renderLoginAt = (path) => render(
 describe('Login Component', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        currentLanguage = 'ar';
         loginMock.mockResolvedValue({ role: 'admin' });
     });
 
@@ -75,7 +80,22 @@ describe('Login Component', () => {
         fireEvent.change(screen.getByPlaceholderText('auth.login.username'), { target: { value: ' admin ' } });
         fireEvent.change(screen.getByPlaceholderText('auth.login.password'), { target: { value: 'pass123' } });
         fireEvent.click(screen.getByText('auth.login.submit'));
-        await waitFor(() => expect(loginMock).toHaveBeenCalledWith('admin', 'pass123'));
+        await waitFor(() => expect(loginMock).toHaveBeenCalledWith('admin', 'pass123', false));
+    });
+
+    it('toggles password visibility without submitting and sends remember-me', async () => {
+        renderLogin();
+        const password = screen.getByPlaceholderText('auth.login.password');
+        const checkbox = screen.getByRole('checkbox', { name: 'auth.login.remember_me' });
+        expect(checkbox).not.toBeChecked();
+        fireEvent.click(screen.getByRole('button', { name: 'auth.show_password' }));
+        expect(password).toHaveAttribute('type', 'text');
+        expect(loginMock).not.toHaveBeenCalled();
+        fireEvent.click(checkbox);
+        fireEvent.change(screen.getByPlaceholderText('auth.login.username'), { target: { value: 'admin' } });
+        fireEvent.change(password, { target: { value: 'pass123' } });
+        fireEvent.click(screen.getByText('auth.login.submit'));
+        await waitFor(() => expect(loginMock).toHaveBeenCalledWith('admin', 'pass123', true));
     });
 
     it('shows error message when login fails', async () => {
@@ -93,9 +113,31 @@ describe('Login Component', () => {
         expect(screen.getByText('auth.login.errors.session_mismatch')).toBeInTheDocument();
     });
 
+    it('shows a localized explanation after a session expired redirect', () => {
+        renderLoginAt('/login?reason=session_expired');
+
+        expect(screen.getByText('auth.login.errors.session_expired')).toBeInTheDocument();
+    });
+
     it('renders footer terms and privacy links', () => {
         renderLogin();
         expect(screen.getByText('auth.login.terms')).toBeInTheDocument();
         expect(screen.getByText('auth.login.privacy')).toBeInTheDocument();
+    });
+
+    it('renders native discovery link to Arabic marketing page when language is ar', () => {
+        currentLanguage = 'ar';
+        renderLogin();
+        const aboutLink = screen.getByText('auth.login.about');
+        expect(aboutLink).toBeInTheDocument();
+        expect(aboutLink.closest('a')).toHaveAttribute('href', '/ar');
+    });
+
+    it('renders native discovery link to English marketing page when language is en', () => {
+        currentLanguage = 'en';
+        renderLogin();
+        const aboutLink = screen.getByText('auth.login.about');
+        expect(aboutLink).toBeInTheDocument();
+        expect(aboutLink.closest('a')).toHaveAttribute('href', '/en');
     });
 });

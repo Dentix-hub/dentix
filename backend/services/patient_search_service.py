@@ -134,6 +134,7 @@ class PatientSearchService:
             "date_of_birth_precision": patient.date_of_birth_precision,
             "age_recorded_at": patient.age_recorded_at,
             "created_at": patient.created_at,
+            "medical_alert": patient.medical_alert,
         }
 
     async def get_directory(

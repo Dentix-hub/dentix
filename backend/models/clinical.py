@@ -14,7 +14,7 @@ from .base import (
     Index,
     datetime,
 )
-from sqlalchemy import Boolean, CheckConstraint, column, text
+from sqlalchemy import Boolean, CheckConstraint, UniqueConstraint, column, func, text
 from rls.schemas import Permissive, ConditionArg, Command
 
 
@@ -148,6 +148,7 @@ class Treatment(Base):
     __table_args__ = (
         Index("idx_treatment_doctor_date", "doctor_id", "date"),
         Index("idx_treatment_patient_date", "patient_id", "date"),
+        Index("uq_treatment_tenant_request_key", "tenant_id", "request_key", unique=True),
         CheckConstraint("cost >= 0", name="ck_treatments_cost_nonnegative"),
         CheckConstraint("discount >= 0", name="ck_treatments_discount_nonnegative"),
         CheckConstraint("discount <= cost", name="ck_treatments_discount_not_above_cost"),
@@ -166,6 +167,9 @@ class Treatment(Base):
     tooth_number = Column(Integer, nullable=True)
     diagnosis = Column(String)
     procedure = Column(String)
+    lab_choice = Column(String(24), nullable=True)
+    request_key = Column(String(128), nullable=True)
+    request_fingerprint = Column(String(64), nullable=True)
     doctor_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
     cost = Column(Numeric(14, 2), default=0.0)  # Total before discount
     discount = Column(Numeric(14, 2), default=0.0)
@@ -195,6 +199,7 @@ class Treatment(Base):
 
     patient = relationship("Patient", back_populates="treatments")
     treatment_sessions = relationship("TreatmentSession", back_populates="treatment", cascade="all, delete-orphan")
+    lab_orders = relationship("LabOrder", back_populates="treatment", foreign_keys="[LabOrder.treatment_id]")
 
     @property
     def surfaces(self) -> list[str]:
@@ -328,6 +333,8 @@ class LabOrder(Base):
     __table_args__ = (
         Index("idx_laborder_doctor_date", "doctor_id", "order_date"),
         Index("idx_laborder_tenant_date", "tenant_id", "order_date"),
+        Index("ix_lab_orders_tenant_work_item", "tenant_id", "work_item_id"),
+        Index("ix_lab_orders_tenant_treatment", "tenant_id", "treatment_id"),
         CheckConstraint("cost >= 0", name="ck_lab_orders_cost_nonnegative"),
         CheckConstraint(
             "price_to_patient >= 0", name="ck_lab_orders_patient_price_nonnegative"
@@ -345,6 +352,26 @@ class LabOrder(Base):
     id = Column(Integer, primary_key=True, index=True)
     patient_id = Column(Integer, ForeignKey("patients.id"), index=True)
     laboratory_id = Column(Integer, ForeignKey("laboratories.id"), index=True)
+    work_item_id = Column(
+        Integer,
+        ForeignKey(
+            "clinical_work_items.id",
+            ondelete="SET NULL",
+            name="fk_lab_orders_work_item_id",
+        ),
+        nullable=True,
+        index=True,
+    )
+    treatment_id = Column(
+        Integer,
+        ForeignKey(
+            "treatments.id",
+            ondelete="SET NULL",
+            name="fk_lab_orders_treatment_id",
+        ),
+        nullable=True,
+        index=True,
+    )
     work_type = Column(String)
     tooth_number = Column(String, nullable=True)
     shade = Column(String, nullable=True)
@@ -367,6 +394,9 @@ class LabOrder(Base):
     patient = relationship("Patient", back_populates="lab_orders")
     laboratory = relationship("Laboratory", back_populates="lab_orders")
     doctor = relationship("User", back_populates="lab_orders")
+    work_item = relationship("ClinicalWorkItem", back_populates="lab_orders")
+    treatment = relationship("Treatment", back_populates="lab_orders", foreign_keys=[treatment_id])
+    payments = relationship("LabPayment", back_populates="lab_order")
 
 
 class Procedure(Base):
@@ -388,12 +418,21 @@ class Procedure(Base):
             "tenant_id", "name",
             unique=True,
             postgresql_where=text("tenant_id IS NOT NULL"),
+            sqlite_where=text("tenant_id IS NOT NULL"),
         ),
         Index(
             "uq_procedures_global_name",
             "name",
             unique=True,
             postgresql_where=text("tenant_id IS NULL"),
+            sqlite_where=text("tenant_id IS NULL"),
+        ),
+        Index(
+            "uq_procedures_tenant_code",
+            "tenant_id", "code",
+            unique=True,
+            postgresql_where=text("code IS NOT NULL"),
+            sqlite_where=text("code IS NOT NULL"),
         ),
         CheckConstraint("price >= 0", name="ck_procedures_price_nonnegative"),
     )
@@ -408,5 +447,57 @@ class Procedure(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
+    code = Column(String(64), nullable=True)
+    category = Column(String(64), nullable=True)
     price = Column(Numeric(14, 2))
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
+
+
+class ProcedureChartStyle(Base):
+    __tablename__ = "procedure_chart_styles"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id", "procedure_name", name="uq_procedure_chart_styles_tenant_procedure"
+        ),
+        CheckConstraint(
+            "template IN ('REST_COMPOSITE', 'ENDO_RCT', 'PROS_CROWN', 'PROS_BRIDGE', 'IMPLANT_FIXTURE', 'IMPLANT_CROWN', 'SURG_EXTRACTION', 'MARKER', 'NONE')",
+            name="ck_procedure_chart_styles_template",
+        ),
+        CheckConstraint(
+            "color_key IS NULL OR color_key IN ('blue', 'teal', 'green', 'lime', 'amber', 'orange', 'purple', 'indigo', 'pink', 'cyan', 'slate', 'brown')",
+            name="ck_procedure_chart_styles_color_key",
+        ),
+        CheckConstraint(
+            "template != 'NONE' OR color_key IS NULL",
+            name="ck_procedure_chart_styles_none_no_color",
+        ),
+    )
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    procedure_name = Column(String(255), nullable=False)
+    template = Column(String(32), nullable=False)
+    color_key = Column(String(16), nullable=True)
+    created_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        server_default=func.now(),
+        nullable=False,
+    )
+

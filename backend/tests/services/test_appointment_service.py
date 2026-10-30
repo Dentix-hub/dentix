@@ -330,10 +330,15 @@ class TestAppointmentTenantIsolation:
 
         await update_appointment_status(mock_db, 1, "Completed", tenant_id=5)
 
-        mock_db.execute.assert_called_once()
-        stmt = mock_db.execute.call_args[0][0]
-        sql_str = str(stmt).lower()
-        assert "patient" in sql_str
+        # Appointment query joins Patient table for tenant check
+        appt_stmt = mock_db.execute.call_args_list[0][0][0]
+        appt_sql = str(appt_stmt).lower()
+        assert "patient" in appt_sql
+
+        # Next-visit request sync query scopes by tenant_id
+        nvr_stmt = mock_db.execute.call_args_list[1][0][0]
+        nvr_sql = str(nvr_stmt).lower()
+        assert "tenant_id" in nvr_sql
 
     async def test_delete_respects_tenant_boundary(self, mock_db):
         """Delete must join Patient table for tenant check."""
@@ -348,7 +353,12 @@ class TestAppointmentTenantIsolation:
 
         await delete_appointment(mock_db, 1, tenant_id=5)
 
-        mock_db.execute.assert_called_once()
-        stmt = mock_db.execute.call_args[0][0]
-        sql_str = str(stmt).lower()
-        assert "patient" in sql_str
+        # Appointment query joins Patient table for tenant check
+        appt_stmt = mock_db.execute.call_args_list[0][0][0]
+        appt_sql = str(appt_stmt).lower()
+        assert "patient" in appt_sql
+
+        # Next-visit request sync query scopes by tenant_id
+        nvr_stmt = mock_db.execute.call_args_list[1][0][0]
+        nvr_sql = str(nvr_stmt).lower()
+        assert "tenant_id" in nvr_sql

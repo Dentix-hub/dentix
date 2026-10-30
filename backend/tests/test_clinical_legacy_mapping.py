@@ -938,3 +938,58 @@ def test_g3_m11_event_fingerprint_with_nested_frozen_and_types():
         source_id=103,
     )
     assert compute_event_canonical_fingerprint(ev1) != compute_event_canonical_fingerprint(ev3)
+
+
+def test_a2_legacy_aliases_endo_and_fractured_on_tooth_11():
+    """Verify legacy aliases 'endo' (procedure) and 'Fractured' (condition) map cleanly without warnings."""
+    context = VerifiedPatientContext(patient_id=42, tenant_id=1)
+
+    # Treatment with procedure 'endo' on tooth 11
+    t = Treatment(
+        id=701, patient_id=42, tenant_id=1, tooth_number=11,
+        procedure="endo", status="Done", cost=Decimal("500.00"),
+    )
+    # ToothStatus with condition 'Fractured' on tooth 11
+    ts = ToothStatus(
+        id=702, patient_id=42, tenant_id=1, tooth_number=11,
+        condition="Fractured",
+    )
+
+    batch_result = map_legacy_clinical_batch(
+        verified_patient=context,
+        treatments=[t],
+        tooth_statuses=[ts],
+    )
+
+    # No UNKNOWN_* warnings produced
+    all_issues = batch_result.issues + batch_result.ambiguities
+    unknown_issues = [iss for iss in all_issues if iss.code.startswith("UNKNOWN_")]
+    assert len(unknown_issues) == 0
+
+    # Maps to expected canonical values
+    assert len(batch_result.work_items) == 1
+    assert batch_result.work_items[0].code == ProcedureCode.ENDO_RCT.value
+
+    # Finding event recorded with canonical fracture finding
+    fracture_events = [ev for ev in batch_result.events if ev.event_type == "finding_recorded"]
+    assert len(fracture_events) == 1
+    assert fracture_events[0].payload["canonical_code"] == FindingCode.FRACTURE.value
+
+    # Arbitrary unknown values still warn
+    t_bad = Treatment(
+        id=703, patient_id=42, tenant_id=1, tooth_number=11,
+        procedure="zzz", status="Done", cost=Decimal("10.00"),
+    )
+    ts_bad = ToothStatus(
+        id=704, patient_id=42, tenant_id=1, tooth_number=11,
+        condition="zzz",
+    )
+    bad_batch = map_legacy_clinical_batch(
+        verified_patient=context,
+        treatments=[t_bad],
+        tooth_statuses=[ts_bad],
+    )
+    bad_issues = bad_batch.issues + bad_batch.ambiguities
+    assert any(iss.code == "UNKNOWN_PROCEDURE_CODE" for iss in bad_issues)
+    assert any(iss.code == "UNKNOWN_TOOTH_STATUS_CONDITION" for iss in bad_issues)
+

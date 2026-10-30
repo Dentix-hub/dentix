@@ -1,8 +1,8 @@
 import logging
 from typing import Dict, Any, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from backend import models, schemas, crud
 
 logger = logging.getLogger(__name__)
@@ -139,8 +139,15 @@ class ClinicalService:
         surfaces: Optional[List[str]] = None,
         notes: Optional[str] = None,
         payload_extra: Optional[Dict[str, Any]] = None,
-    ) -> models.ClinicalWorkItem:
+    ) -> Optional[models.ClinicalWorkItem]:
         """Helper to create ClinicalWorkItem and ClinicalEvent with proper targets."""
+        if not code or not str(code).strip():
+            logger.warning(
+                "Skipping ClinicalWorkItem creation for patient %s: empty code provided (kind=%s)",
+                patient_id, kind
+            )
+            return None
+
         work_item = models.ClinicalWorkItem(
             tenant_id=self.tenant_id,
             patient_id=patient_id,
@@ -190,7 +197,7 @@ class ClinicalService:
             patient_id=patient_id,
             work_item_id=work_item.id,
             event_type=event_type,
-            occurred_at=datetime.utcnow(),
+            occurred_at=datetime.now(timezone.utc),
             actor_user_id=self.user_id,
             payload=event_payload,
             notes=notes,
@@ -231,8 +238,30 @@ class ClinicalService:
         notes: str = None,
         surface: Optional[str] = None,
         surfaces: Optional[List[str]] = None,
+        lab_choice: Optional[str] = None,
+        lab_order: Optional[schemas.LabOrderCreate] = None,
+        *, commit: bool = True,
     ) -> models.Treatment:
         """Create treatment and optionally update tooth/financials with surface support."""
+        from fastapi import HTTPException
+        from backend.clinical.lab_choice import validate_lab_choice
+        from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES
+        from backend.services.feature_service import FeatureFlagService
+
+        if patient.tenant_id != self.tenant_id:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        enabled = await FeatureFlagService.is_feature_enabled(self.db, "clinical_vnext_native_writes", self.tenant_id)
+        if not enabled and (lab_choice is not None or lab_order is not None):
+            raise HTTPException(status_code=404, detail="ميزة اختيار المعمل غير مفعلة")
+        if enabled:
+            proc = (await self.db.execute(select(models.Procedure).where(
+                models.Procedure.name == procedure,
+                or_(models.Procedure.tenant_id == self.tenant_id, models.Procedure.tenant_id.is_(None)),
+            ).order_by(models.Procedure.tenant_id.desc().nullslast()))).scalars().first()
+            code = proc.code if proc and proc.code in CANONICAL_PROCEDURE_CODES else procedure
+            validate_lab_choice(procedure=code, choice=lab_choice,
+                                lab_order=lab_order.model_dump(exclude_unset=True) if lab_order else None,
+                                custom_category=proc.category if proc else None)
 
         # Treatment Notes
         treatment_notes = ""
@@ -262,6 +291,7 @@ class ClinicalService:
             patient_id=patient.id,
             tooth_number=fdi_number,
             procedure=procedure,
+            lab_choice=lab_choice,
             cost=cost,
             notes=treatment_notes.strip(),
             date=datetime.now(),
@@ -275,6 +305,21 @@ class ClinicalService:
 
         self.db.add(treatment)
         await self.db.flush()
+        if lab_order is not None:
+            from backend.core.permissions import Permission, has_permission
+            from backend.services.lab_service import LabService
+            actor = (await self.db.execute(select(models.User).where(
+                models.User.id == self.user_id, models.User.tenant_id == self.tenant_id,
+            ))).scalars().first()
+            if not actor or not has_permission(actor.role, Permission.CLINICAL_WRITE):
+                raise HTTPException(status_code=403, detail="لا تملك صلاحية إنشاء طلب معمل")
+            if lab_order.patient_id not in (None, patient.id) or lab_order.treatment_id is not None or lab_order.work_item_id is not None or lab_order.work_type != procedure or (lab_order.tooth_number and lab_order.tooth_number != str(fdi_number)):
+                raise HTTPException(status_code=422, detail="بيانات طلب المعمل لا تطابق العلاج")
+            order = lab_order.model_copy(update={"patient_id": patient.id, "treatment_id": treatment.id})
+            try:
+                await LabService(self.db, self.tenant_id).create_lab_order(order, doctor_id=self.user_id, commit=False)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail="تعذر حفظ طلب المعمل، تحقق من بيانات المعمل والدفعة") from exc
 
         # Sync ClinicalWorkItem and ClinicalEvent if tooth number is present
         if fdi_number:
@@ -283,26 +328,37 @@ class ClinicalService:
             if tooth_key in FDI_TOOTH_KEYS:
                 from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES
                 from backend.clinical.legacy_mapping import LEGACY_PROCEDURE_ALLOWLIST
-                canonical_code = procedure
-                if canonical_code not in CANONICAL_PROCEDURE_CODES:
-                    canonical_code = LEGACY_PROCEDURE_ALLOWLIST.get(procedure, procedure)
+                canonical_code = None
+                raw_proc = str(procedure or "").strip()
+                if raw_proc in CANONICAL_PROCEDURE_CODES:
+                    canonical_code = raw_proc
+                elif raw_proc in LEGACY_PROCEDURE_ALLOWLIST:
+                    canonical_code = LEGACY_PROCEDURE_ALLOWLIST[raw_proc]
+                elif procedure in LEGACY_PROCEDURE_ALLOWLIST:
+                    canonical_code = LEGACY_PROCEDURE_ALLOWLIST[procedure]
 
-                await self._sync_work_item(
-                    patient_id=patient.id,
-                    kind="procedure",
-                    code=canonical_code,
-                    status="completed",
-                    tooth_key=tooth_key,
-                    surfaces=valid_surfs,
-                    notes=treatment.notes,
-                    payload_extra={"treatment_id": treatment.id},
-                )
+                if canonical_code:
+                    work_item = await self._sync_work_item(
+                        patient_id=patient.id,
+                        kind="procedure",
+                        code=canonical_code,
+                        status="completed",
+                        tooth_key=tooth_key,
+                        surfaces=valid_surfs,
+                        notes=treatment.notes,
+                        payload_extra={"treatment_id": treatment.id},
+                    )
+                    if work_item is not None:
+                        work_item.lab_choice = lab_choice
 
-        await self.db.commit()
-        await self.db.refresh(treatment)
+        if commit:
+            await self.db.commit()
+            await self.db.refresh(treatment)
+        else:
+            await self.db.flush()
 
-        # Auto-update tooth
-        if tooth_str and diagnosis:
+        # Auto-update tooth after the treatment transaction commits.
+        if commit and tooth_str and diagnosis:
             try:
                 condition = self._map_procedure_to_condition(
                     procedure + " " + diagnosis
@@ -336,8 +392,22 @@ class ClinicalService:
                 notes=proc.get("notes", notes),
                 surface=proc.get("surface"),
                 surfaces=proc.get("surfaces"),
+                lab_choice=proc.get("lab_choice"),
+                lab_order=schemas.LabOrderCreate(**proc["lab_order"]) if proc.get("lab_order") is not None else None,
+                commit=False,
             )
             created_treatments.append(treatment)
+        await self.db.commit()
+        for proc, treatment in zip(procedures, created_treatments):
+            await self.db.refresh(treatment)
+            diagnosis_value = proc.get("diagnosis", diagnosis)
+            if tooth_str and diagnosis_value:
+                try:
+                    condition = self._map_procedure_to_condition(treatment.procedure + " " + diagnosis_value)
+                    if condition != "Healthy":
+                        await self.update_tooth_status(patient, tooth_str, condition, f"Auto: {treatment.procedure}")
+                except Exception as exc:
+                    logger.warning("Auto-tooth update failed: %s", exc)
         return created_treatments
 
     async def record_tooth_finding(

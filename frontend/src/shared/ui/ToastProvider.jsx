@@ -1,5 +1,19 @@
 import { Toaster, toast } from 'react-hot-toast';
-import { X, Check } from 'lucide-react';
+import { X, Check, Info } from 'lucide-react';
+
+try {
+    if (typeof toast !== 'undefined' && toast && !toast.info) {
+        toast.info = (message, options) =>
+            toast(message, {
+                icon: <div className="p-1 bg-blue-500/10 rounded-full"><Info size={18} className="text-blue-500" /></div>,
+                className: '!border-blue-500/20',
+                ...options,
+            });
+    }
+} catch {
+    // In test environments where react-hot-toast is mocked without named toast export
+}
+
 const ToastProvider = () => {
     return (
         <Toaster

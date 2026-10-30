@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { Share, PlusSquare } from 'lucide-react';
+import { Share, PlusSquare, MoreVertical, ExternalLink } from 'lucide-react';
 import { usePwaInstall } from './usePwaInstall';
 import { usePwaUpdateChecks } from './usePwaUpdateChecks';
 
@@ -24,7 +24,9 @@ export function PwaInstallManager() {
   const {
     platform,
     canPrompt,
+    inAppNoticeRelevant,
     androidPromptReady,
+    androidManualRelevant,
     iosInstructionsRelevant,
     promptInstall,
     dismiss,
@@ -66,6 +68,33 @@ export function PwaInstallManager() {
   }
 
   if (!canPrompt) return null;
+
+  if (inAppNoticeRelevant) {
+    return (
+      <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] start-4 end-4 md:start-auto md:end-4 md:w-80
+                      bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 z-50
+                      border border-gray-200 dark:border-gray-700"
+           role="dialog"
+           aria-label={t('pwa.in_app.title')}>
+        <p className="text-sm font-medium text-gray-900 dark:text-white mb-1 flex items-center gap-1.5">
+          <ExternalLink size={16} className="inline flex-shrink-0 text-blue-600 dark:text-blue-400" aria-hidden="true" />
+          {t('pwa.in_app.title')}
+        </p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          {t('pwa.in_app.description')}
+        </p>
+        <button
+          type="button"
+          onClick={dismiss}
+          className="w-full bg-gray-100 dark:bg-gray-700 text-gray-700
+                     dark:text-gray-300 text-sm rounded-lg py-2
+                     hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+        >
+          {t('pwa.in_app.action')}
+        </button>
+      </div>
+    );
+  }
 
   if (platform === 'ios' && iosInstructionsRelevant) {
     return (
@@ -132,6 +161,36 @@ export function PwaInstallManager() {
             {t('pwa.install.later')}
           </button>
         </div>
+      </div>
+    );
+  }
+
+  if (androidManualRelevant) {
+    return (
+      <div className="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] start-4 end-4 md:hidden
+                      bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4 z-50
+                      border border-gray-200 dark:border-gray-700"
+           role="dialog"
+           aria-label={t('pwa.install.android_manual.title')}>
+        <p className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+          {t('pwa.install.android_manual.title')}
+        </p>
+        <ol className="text-xs text-gray-500 dark:text-gray-400 space-y-2 mb-3 list-decimal ps-4">
+          <li className="flex items-center gap-1">
+            <MoreVertical size={12} className="inline flex-shrink-0" aria-hidden="true" />
+            {t('pwa.install.android_manual.step1')}
+          </li>
+          <li>{t('pwa.install.android_manual.step2')}</li>
+        </ol>
+        <button
+          type="button"
+          onClick={dismiss}
+          className="w-full bg-gray-100 dark:bg-gray-700 text-gray-700
+                     dark:text-gray-300 text-sm rounded-lg py-2
+                     hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+        >
+          {t('pwa.install.android_manual.action')}
+        </button>
       </div>
     );
   }

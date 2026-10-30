@@ -10,12 +10,11 @@ from pydantic import BaseModel, EmailStr, Field
 
 from .. import models, database
 from ..email_service import send_password_reset_email
-from ..core.firebase_client import firebase_client
 from ..auth import get_password_hash
 from .auth.dependencies import validate_password
 from ..services.auth_service import AuthService
+from ..services.auth_bootstrap import resolve_password_reset_identity, password_reset_identity_scope
 from backend.core.response import success_response, error_response
-import os
 
 logger = logging.getLogger(__name__)
 
@@ -45,63 +44,47 @@ async def forgot_password(
     """
     Request password reset. Sends email with reset link.
     """
-    email = payload.email
-    # Find user by email
-    result = await db.execute(select(models.User).filter(models.User.email == email))
-    user = result.scalars().first()
+    message = "إذا كان البريد الإلكتروني موجوداً لدى النظام، ستصل رسالة لإعادة تعيين كلمة المرور"
+    try:
+        identity = await resolve_password_reset_identity(email=payload.email)
+        if identity is None:
+            return success_response(message=message)
+        async with password_reset_identity_scope(db, identity, for_update=True) as (scoped_db, user):
+            if user is None or not user.email or user.email.lower() != payload.email.strip().lower():
+                return success_response(message=message)
+            # User lock serializes issuance with other issuances and token use.
+            await scoped_db.execute(
+                update(models.PasswordResetToken)
+                .where(models.PasswordResetToken.user_id == user.id, models.PasswordResetToken.used.is_(False))
+                .values(used=True)
+            )
+            # Superseded delivery material must not remain in the outbox.
+            await scoped_db.execute(
+                update(models.DomainEvent)
+                .where(models.DomainEvent.event_type == "auth.password_reset.requested",
+                       models.DomainEvent.aggregate_id == str(user.id),
+                       models.DomainEvent.tenant_id.is_(None) if user.tenant_id is None else models.DomainEvent.tenant_id == user.tenant_id)
+                .values(payload={})
+            )
+            token = secrets.token_urlsafe(32)
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
+            expires_at = (datetime.now(timezone.utc) + timedelta(minutes=15)).replace(tzinfo=None)
+            scoped_db.add(models.PasswordResetToken(token=token_hash, user_id=user.id, expires_at=expires_at))
+            from backend.core.security import get_encryption_manager
+            from backend.services.event_service import event_service
 
-    if not user:
-        # Don't reveal if email exists or not (security)
-        return success_response(
-            message="إذا كان البريد الإلكتروني موجوداً لدى النظام، ستصل رسالة لإعادة تعيين كلمة المرور"
-        )
-
-    # Invalidate previous tokens and persist that revocation before issuing a
-    # new reset path. This must also hold when Firebase email delivery succeeds
-    # and the legacy fallback branch is never entered.
-    await db.execute(
-        update(models.PasswordResetToken)
-        .where(
-            models.PasswordResetToken.user_id == user.id,
-            models.PasswordResetToken.used == False,  # noqa: E712
-        )
-        .values(used=True)
-    )
-    await db.commit()
-
-    # 1. Generate Firebase Reset Link
-    firebase_link = firebase_client.generate_password_reset_link(email)
-    email_sent = False
-
-    if firebase_link:
-        # Send via our email service with the Firebase link
-        email_sent = send_password_reset_email(email, firebase_link, user.username, is_firebase_link=True)
-
-    # Fallback to legacy system if Firebase is not ready or fails
-    if not email_sent:
-        logger.warning(f"Firebase link generation failed for {email}, falling back to legacy SMTP")
-
-        # Legacy logic: save hashed token to DB and send raw token via SMTP
-        token = secrets.token_urlsafe(32)
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
-        expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
-
-        reset_token = models.PasswordResetToken(
-            token=token_hash,
-            user_id=user.id,
-            expires_at=expires_at
-        )
-        db.add(reset_token)
-        await db.commit()
-
-        email_sent = send_password_reset_email(email, token, user.username)
-
-    if email_sent:
-        return success_response(
-            message="إذا كان البريد الإلكتروني موجوداً لدى النظام، ستصل رسالة لإعادة تعيين كلمة المرور"
-        )
-
-    raise HTTPException(status_code=500, detail="فشل إرسال البريد الإلكتروني")
+            event = event_service.emit_event(
+                scoped_db, event_type="auth.password_reset.requested", aggregate_type="password_reset",
+                aggregate_id=str(user.id), tenant_id=user.tenant_id,
+                payload={"encrypted_token": get_encryption_manager().encrypt(token)},
+            )
+            event.max_attempts = 4
+            await scoped_db.commit()
+    except Exception:
+        await db.rollback()
+        # No token, recipient, provider exception, or SMTP status is logged.
+        logger.error("Password reset request could not be queued")
+    return success_response(message=message)
 
 
 @router.post(
@@ -118,62 +101,39 @@ async def reset_password(
     """
     Reset password using token from email.
     """
-    token = payload.token
-    new_password = payload.new_password
-
-    # Find and validate token (using SHA-256 hash)
-    token_hash = hashlib.sha256(token.encode()).hexdigest()
-    result = await db.execute(
-        select(models.PasswordResetToken)
-        .filter(
-            models.PasswordResetToken.token == token_hash,
-            models.PasswordResetToken.used == False,  # noqa: E712
-        )
-    )
-    reset_token = result.scalars().first()
-
-    if not reset_token:
+    token_hash = hashlib.sha256(payload.token.encode()).hexdigest()
+    identity = await resolve_password_reset_identity(token_hash=token_hash)
+    if identity is None:
         raise HTTPException(status_code=400, detail="رابط غير صحيح أو منتهي الصلاحية")
 
-    # Check expiration
-    now = datetime.now(timezone.utc)
-    expires = reset_token.expires_at
-    if expires and expires.tzinfo is None:
-        expires = expires.replace(tzinfo=timezone.utc)
-    if now > expires:
-        reset_token.used = True
-        await db.commit()
-        raise HTTPException(
-            status_code=400, detail="انتهت صلاحية الرابط. يرجى طلب رابط جديد"
+    # Lock the identity first, then the token. Issuance follows the same order,
+    # so concurrent use cannot consume a token twice or race a new request.
+    async with password_reset_identity_scope(db, identity, for_update=True) as (scoped_db, user):
+        if user is None:
+            raise HTTPException(status_code=400, detail="رابط غير صحيح أو منتهي الصلاحية")
+        result = await scoped_db.execute(
+            select(models.PasswordResetToken).where(
+                models.PasswordResetToken.user_id == user.id,
+                models.PasswordResetToken.token == token_hash,
+            ).with_for_update()
         )
+        reset_token = result.scalars().first()
+        if reset_token is None or reset_token.used:
+            raise HTTPException(status_code=400, detail="رابط غير صحيح أو منتهي الصلاحية")
+        expires = reset_token.expires_at
+        if expires and expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if not expires or datetime.now(timezone.utc) > expires:
+            reset_token.used = True
+            await scoped_db.commit()
+            raise HTTPException(status_code=400, detail="انتهت صلاحية الرابط. يرجى طلب رابط جديد")
+        validate_password(payload.new_password, username=user.username)
+        user.hashed_password = get_password_hash(payload.new_password)
+        await AuthService.revoke_all_user_sessions(scoped_db, user.id, commit=False)
+        reset_token.used = True
+        await scoped_db.commit()
 
-    # Get user and update password
-    user_result = await db.execute(select(models.User).filter(models.User.id == reset_token.user_id))
-    user = user_result.scalars().first()
-    if not user:
-        raise HTTPException(status_code=400, detail="المستخدم غير موجود")
-
-    # Validate new password strength using central logic
-    validate_password(new_password)
-
-    # Update password
-    user.hashed_password = get_password_hash(new_password)
-
-    # REVOKE ALL SESSIONS: Force logout on all devices after password reset
-    revoked_count = await AuthService.revoke_all_user_sessions(
-        db, user.id, commit=False
-    )
-    if revoked_count > 0:
-        logger.info(f"Revoked {revoked_count} sessions for user {user.username} after password reset")
-
-    # Mark token as used
-    reset_token.used = True
-
-    await db.commit()
-
-    return success_response(
-        message="تم تغيير كلمة المرور بنجاح. يرجى تسجيل الدخول من جديد"
-    )
+    return success_response(message="تم تغيير كلمة المرور بنجاح. يرجى تسجيل الدخول من جديد")
 
 
 @router.get("/verify-reset-token")
@@ -187,31 +147,26 @@ async def verify_reset_token(
     Verify if a reset token is valid (for frontend validation before showing form).
     """
     token_hash = hashlib.sha256(token.encode()).hexdigest()
-    result = await db.execute(
-        select(models.PasswordResetToken)
-        .filter(
-            models.PasswordResetToken.token == token_hash,
-            models.PasswordResetToken.used == False,  # noqa: E712
-        )
-    )
-    reset_token = result.scalars().first()
+    identity = await resolve_password_reset_identity(token_hash=token_hash)
+    if identity is None:
+        return error_response(message="رابط غير صحيح", status_code=400, details={"valid": False})
 
-    if not reset_token:
-        return error_response(
-            message="رابط غير صحيح",
-            status_code=400,
-            details={"valid": False}
+    async with password_reset_identity_scope(db, identity) as (scoped_db, user):
+        if user is None:
+            return error_response(message="رابط غير صحيح", status_code=400, details={"valid": False})
+        result = await scoped_db.execute(
+            select(models.PasswordResetToken).where(
+                models.PasswordResetToken.user_id == user.id,
+                models.PasswordResetToken.token == token_hash,
+                models.PasswordResetToken.used.is_(False),
+            )
         )
-
-    now = datetime.now(timezone.utc)
-    expires = reset_token.expires_at
-    if expires and expires.tzinfo is None:
-        expires = expires.replace(tzinfo=timezone.utc)
-    if now > expires:
-        return error_response(
-            message="انتهت صلاحية الرابط",
-            status_code=400,
-            details={"valid": False}
-        )
-
-    return success_response(data={"valid": True}, message="الرابط صحيح")
+        reset_token = result.scalars().first()
+        if reset_token is None:
+            return error_response(message="رابط غير صحيح", status_code=400, details={"valid": False})
+        expires = reset_token.expires_at
+        if expires and expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        if not expires or datetime.now(timezone.utc) > expires:
+            return error_response(message="انتهت صلاحية الرابط", status_code=400, details={"valid": False})
+        return success_response(data={"valid": True}, message="الرابط صحيح")

@@ -256,9 +256,25 @@ jobs:
           pytest backend/ci_tests/test_auth_bootstrap_rls_probe.py \
             backend/ci_tests/test_auth_cookie_flow_http.py \
             backend/ci_tests/test_child_tenant_rls_postgres.py \
+            backend/ci_tests/test_clinical_commands_concurrency_postgres.py \
             backend/ci_tests/test_clinical_projection_coverage_rls_postgres.py \
+            backend/ci_tests/test_clinic_google_callback_pg.py \
             backend/ci_tests/test_cross_tenant_http_postgres.py \
+            backend/ci_tests/test_drive_backup_operations_pg.py \
+            backend/ci_tests/test_drive_images_pg.py \
+            backend/ci_tests/test_google_oauth_attempt_rls.py \
             backend/ci_tests/test_upload_postgres_smoke.py \
+            backend/ci_tests/test_u2_concurrency_postgres.py \
+            backend/ci_tests/test_procedure_chart_styles_rls_postgres.py \
+            backend/ci_tests/test_lab_shade_material_postgres.py \
+            backend/ci_tests/test_password_reset_identity_rls.py \
+            backend/ci_tests/test_patient_delete_postgres.py \
+            backend/ci_tests/test_appointment_concurrency_postgres.py \
+            backend/ci_tests/test_lab_payment_concurrency_postgres.py \
+            backend/ci_tests/test_restore_transaction_gate_pg.py \
+            backend/ci_tests/test_tenant_archive_restore_pg.py \
+            backend/ci_tests/test_tenant_data_operations_rls.py \
+            backend/ci_tests/test_treatment_lab_atomic_pg.py \
             -v \
             --tb=short \
             --confcutdir=backend/ci_tests
@@ -922,6 +938,23 @@ jobs:
           test "$(docker image inspect --format '{{.Config.User}}' "$IMAGE")" = "dentix"
 
           docker run --rm \
+            --entrypoint python \
+            -e DATABASE_URL="$DATABASE_URL" \
+            -e SYSTEM_DATABASE_URL="$SYSTEM_DATABASE_URL" \
+            -e DB_SSL_MODE=disable \
+            -e SECRET_KEY="$SECRET_KEY" \
+            -e ENVIRONMENT=production \
+            "$IMAGE" \
+            -c "
+          from backend.services.backup_scheduler_service import schedule_due_backup, execute_backup_event
+          import backend.workers.event_processor
+          import backend.workers.handlers
+          from scripts.ops.guarded_backup import create_backup
+          from scripts.ops.guarded_restore import verify_and_restore
+          print('Production container import graph verified successfully.')
+          "
+
+          docker run --rm \
             --network host \
             --entrypoint python \
             -e DATABASE_URL="$OWNER_DATABASE_URL" \
@@ -931,7 +964,7 @@ jobs:
             "$IMAGE" \
             -m backend.scripts.preflight_migrations
 
-          PGPASSWORD=container_pass psql --host=127.0.0.1 --username=container_user --dbname=dentix_container <<'SQL'
+          PGPASSWORD=container_pass psql -v ON_ERROR_STOP=1 --host=127.0.0.1 --username=container_user --dbname=dentix_container <<'SQL'
           CREATE ROLE dentix_container_app LOGIN PASSWORD 'dentix_container_app_pass' NOBYPASSRLS;
           CREATE ROLE dentix_container_system LOGIN PASSWORD 'dentix_container_system_pass' BYPASSRLS;
           GRANT CONNECT ON DATABASE dentix_container TO dentix_container_app, dentix_container_system;
@@ -939,6 +972,41 @@ jobs:
           GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO dentix_container_app, dentix_container_system;
           GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public TO dentix_container_app, dentix_container_system;
           SQL
+
+          docker run --rm \
+            --network host \
+            --entrypoint python \
+            -e DATABASE_URL="$OWNER_DATABASE_URL" \
+            -e SYSTEM_DATABASE_URL="$OWNER_DATABASE_URL" \
+            -e DB_SSL_MODE=disable \
+            -e SECRET_KEY="$SECRET_KEY" \
+            -e ENVIRONMENT=production \
+            "$IMAGE" \
+            -c "
+          import asyncio
+          from backend.database import system_session_scope
+          from backend import models
+          from backend.services.event_service import event_service
+
+          async def seed():
+              async with system_session_scope() as session:
+                  existing = await session.get(models.Tenant, 9999)
+                  if not existing:
+                      tenant = models.Tenant(id=9999, name='Container Smoke Tenant', is_active=True, subscription_status='active')
+                      session.add(tenant)
+                      await session.commit()
+                  event_service.emit_event(
+                      db=session,
+                      event_type='appointment.created',
+                      aggregate_type='Appointment',
+                      aggregate_id='999901',
+                      payload={'patient_id': 1, 'time': '2026-10-28T12:00:00Z'},
+                      tenant_id=9999,
+                  )
+                  await session.commit()
+
+          asyncio.run(seed())
+          "
 
           docker run --detach \
             --name dentix-runtime-smoke \
@@ -948,7 +1016,7 @@ jobs:
             -e DB_SSL_MODE=disable \
             -e SECRET_KEY="$SECRET_KEY" \
             -e ENVIRONMENT=production \
-            -e ENABLE_IN_PROCESS_WORKERS=false \
+            -e ENABLE_IN_PROCESS_WORKERS=true \
             "$IMAGE"
 
           cleanup() {
@@ -974,6 +1042,22 @@ jobs:
 
           test "$ready" = "true"
           cat /tmp/dentix-container-health.json
+
+          worker_completed=false
+          for attempt in {1..30}; do
+            status="$(PGPASSWORD=container_pass psql -v ON_ERROR_STOP=1 --host=127.0.0.1 --username=container_user --dbname=dentix_container --tuples-only --no-align -c "SELECT status FROM domain_events WHERE aggregate_id = '999901'" | tr -d '[:space:]')"
+            if [ "$status" = "completed" ]; then
+              worker_completed=true
+              break
+            fi
+            sleep 1
+          done
+          test "$worker_completed" = "true"
+
+          if docker logs dentix-runtime-smoke 2>&1 | grep -E "ModuleNotFoundError|No module named 'scripts'|Outbox polling flow failed"; then
+            echo "Outbox worker logged unexpected failure."
+            exit 1
+          fi
 
           test "$(docker exec dentix-runtime-smoke id -u)" = "1000"
           test "$(docker exec dentix-runtime-smoke id -un)" = "dentix"

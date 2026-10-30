@@ -42,12 +42,12 @@ dependencies = [
   "pyotp>=2.9.0",
   "qrcode[pil]>=7.4.2",
   "psutil>=5.9.0",
-  "zxcvbn-python>=4.4.24",
   "firebase-admin>=6.5.0",
   "ddtrace>=2.0.0",
   "pgvector>=0.2.0",
   "rls>=0.3.0",
   "pywebpush>=2.4.0",
+  "openpyxl>=3.1.5",
 ]
 
 [dependency-groups]

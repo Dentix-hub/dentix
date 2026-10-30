@@ -560,6 +560,12 @@ async def get_material_stock(
 
     stmt = (
         select(inv_models.StockItem)
+        .options(
+            joinedload(inv_models.StockItem.batch)
+            .joinedload(inv_models.Batch.material)
+            .joinedload(inv_models.Material.category),
+            joinedload(inv_models.StockItem.warehouse),
+        )
         .join(inv_models.Batch)
         .where(
             inv_models.Batch.material_id == material_id,

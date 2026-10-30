@@ -381,7 +381,7 @@ def test_unknown_path_fail_safe():
 # ── GitHub templates are docs ──
 
 def test_issue_template_is_docs():
-    res = classify_files([".github/ISSUE_TEMPLATE/dentix-agent-task.yml"])
+    res = classify_files([".github/ISSUE_TEMPLATE/config.yml"])
     assert res["force_full"] is False
     assert res["docs_only"] is True
 

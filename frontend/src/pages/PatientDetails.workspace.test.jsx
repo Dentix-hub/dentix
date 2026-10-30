@@ -4,9 +4,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import PatientDetails from './PatientDetails';
 
-const { mockDeleteTreatment, mockUsePatientTreatments } = vi.hoisted(() => ({
+const { mockDeleteTreatment, mockUsePatientTreatments, mockAuthState } = vi.hoisted(() => ({
     mockDeleteTreatment: vi.fn(),
     mockUsePatientTreatments: vi.fn(),
+    mockAuthState: { user: { role: 'super_admin' } },
 }));
 
 vi.mock('../api', async (importOriginal) => ({
@@ -16,10 +17,28 @@ vi.mock('../api', async (importOriginal) => ({
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
-        t: (key, fallback) => (typeof fallback === 'string' ? fallback : key),
+        t: (key, fallback, options) => {
+            let res = typeof fallback === 'string' ? fallback : key;
+            if (options && typeof options === 'object') {
+                Object.entries(options).forEach(([k, v]) => {
+                    res = res.replace(new RegExp(`{{${k}}}`, 'g'), v);
+                });
+            }
+            return res;
+        },
         i18n: { language: 'en' },
     }),
 }));
+
+vi.mock('@/auth/useAuth', () => ({
+    useAuth: () => ({ user: mockAuthState.user }),
+}));
+
+vi.mock('@/store/auth.store', () => {
+    const fn = (selector) => (selector ? selector({ user: mockAuthState.user }) : { user: mockAuthState.user });
+    fn.getState = () => ({ user: mockAuthState.user });
+    return { useAuthStore: fn };
+});
 
 vi.mock('react-router-dom', async (importOriginal) => {
     const actual = await importOriginal();
@@ -39,7 +58,7 @@ vi.mock('@/features/patients/modals/EditPatientModal.jsx', () => ({
     default: () => null,
 }));
 
-vi.mock('@/shared/ui/modals/TreatmentModal', () => ({
+vi.mock('@/features/clinical-chart/components/QuickTreatmentSheet', () => ({
     default: ({ isOpen, initialData }) => (
         isOpen ? <div data-testid="treatment-modal-tooth">{initialData?.tooth_number}</div> : null
     ),
@@ -84,9 +103,25 @@ vi.mock('@/hooks/usePatientDetails', () => ({
         isLoading: false,
         refetch: vi.fn(),
     }),
+    usePatientLabOrders: () => ({
+        data: [],
+        isLoading: false,
+        refetch: vi.fn(),
+    }),
     useCreatePayment: () => ({ mutate: vi.fn() }),
     useDeletePayment: () => ({ mutate: vi.fn() }),
+    useTenantFeatures: () => ({ data: [], isLoading: false }),
+    usePatientClinicalPlans: () => ({ data: [], isLoading: false }),
+    useActiveCareSession: () => ({ data: null, isLoading: false, refetch: vi.fn() }),
+    useResumableCareSession: () => ({ data: { has_resumable: false, items: [] }, isLoading: false, refetch: vi.fn() }),
+    useStartCareSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useFinishCareSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useTransitionCareSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useUpdateCareSessionStep: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useApplyCareSessionTemplate: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useRecordCareObservation: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
+
 
 const renderPatientDetails = () => {
     const queryClient = new QueryClient({
@@ -103,6 +138,7 @@ const renderPatientDetails = () => {
 
 describe('PatientDetails Clinical Workspace Tab', () => {
     beforeEach(() => {
+        mockAuthState.user = { role: 'super_admin' };
         Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', {
             configurable: true,
             value: vi.fn(),
@@ -196,12 +232,12 @@ describe('PatientDetails Clinical Workspace Tab', () => {
         // Fallback notice banner (treatments is PARTIAL)
         const fallbackBanner = screen.getByTestId('clinical-workspace-fallback-banner');
         expect(fallbackBanner).toBeInTheDocument();
-        expect(fallbackBanner.textContent).toContain('Displaying clinical records with legacy fallback contribution.');
+        expect(fallbackBanner.textContent).toContain('عرض السجلات السريرية بمساهمة السجلات القديمة.');
 
         // Empty state banner
         const emptyBanner = screen.getByTestId('clinical-workspace-empty');
         expect(emptyBanner).toBeInTheDocument();
-        expect(emptyBanner.textContent).toContain('No clinical events or work items recorded for this patient yet.');
+        expect(emptyBanner.textContent).toContain('لم يتم تسجيل أي إجراءات أو ملاحظات سريرية لهذا المريض حتى الآن.');
     });
 
     it('renders clinical warnings panel when unclassified warnings are present', () => {
@@ -257,12 +293,56 @@ describe('PatientDetails Clinical Workspace Tab', () => {
         // Warnings panel
         const warningsPanel = screen.getByTestId('clinical-workspace-warnings');
         expect(warningsPanel).toBeInTheDocument();
-        expect(warningsPanel.textContent).toContain('[UNSUPPORTED_CLINICAL_CODE]');
-        expect(warningsPanel.textContent).toContain("Unsupported legacy procedure 'Complete Denture'");
+        expect(warningsPanel.textContent).not.toContain('[UNSUPPORTED_CLINICAL_CODE]');
+        expect(warningsPanel.textContent).not.toContain("Unsupported legacy procedure 'Complete Denture'");
+        expect(container.querySelector('[data-code="UNSUPPORTED_CLINICAL_CODE"]')).toBeInTheDocument();
 
         // Chart renderer renders the 32 teeth
         const crowns = container.querySelectorAll('svg[data-layer="crown"]');
         expect(crowns).toHaveLength(32);
+    });
+
+    it('renders simplified Arabic warning summary and hides coverage/codes for non-admin', () => {
+        mockAuthState.user = { role: 'doctor' };
+        mockUsePatientClinicalWorkspace.mockReturnValue({
+            data: {
+                schema_version: 1,
+                projection_id: 'cws-snap-123',
+                patient_id: 123,
+                tenant_id: 1,
+                read_mode: 'SHADOW',
+                coverage: {
+                    teeth: 'COMPLETE',
+                    treatments: 'COMPLETE',
+                    sessions: 'COMPLETE',
+                },
+                warnings: [
+                    {
+                        code: 'UNSUPPORTED_CLINICAL_CODE',
+                        message: "Unsupported legacy procedure 'Complete Denture' preserved as unclassified warning.",
+                        source_kind: 'treatment',
+                        source_id: 88,
+                    },
+                ],
+                teeth: {},
+                work_items: [],
+                generated_at: '2026-09-08T12:00:00Z',
+                effective_at: '2026-09-08T12:00:00Z',
+            },
+            isLoading: false,
+            isError: false,
+            error: null,
+            refetch: vi.fn(),
+        });
+
+        renderPatientDetails();
+
+        const warningsPanel = screen.getByTestId('clinical-workspace-warnings');
+        expect(warningsPanel).toBeInTheDocument();
+        expect(warningsPanel.textContent).toContain('1 سجلات قديمة تحتاج مراجعة');
+        expect(warningsPanel.textContent).not.toContain('[UNSUPPORTED_CLINICAL_CODE]');
+        expect(screen.queryByTestId('clinical-workspace-coverage')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('clinical-workspace-fallback-banner')).not.toBeInTheDocument();
     });
 
     it('renders LEGACY_ONLY read mode correctly', () => {
@@ -294,6 +374,48 @@ describe('PatientDetails Clinical Workspace Tab', () => {
         expect(readModeBadge.textContent).toBe('LEGACY_ONLY');
     });
 
+    it.each(['admin', 'doctor', null])(
+        'does not render read-mode badge or migration diagnostics for non-super_admin role: %s',
+        (role) => {
+            mockAuthState.user = role ? { role } : null;
+            mockUsePatientClinicalWorkspace.mockReturnValue({
+                data: {
+                    schema_version: 1,
+                    projection_id: 'cws-snap-123',
+                    patient_id: 123,
+                    tenant_id: 1,
+                    read_mode: 'VNEXT_PRIMARY',
+                    coverage: {
+                        teeth: 'COMPLETE',
+                        treatments: 'PARTIAL',
+                        sessions: 'UNCOVERED',
+                    },
+                    warnings: [
+                        {
+                            code: 'FALLBACK_DATA_ACTIVE',
+                            message: 'Clinical chart is displaying records using legacy fallback.',
+                        },
+                    ],
+                    teeth: {},
+                    work_items: [],
+                },
+                isLoading: false,
+                isError: false,
+                error: null,
+                refetch: vi.fn(),
+            });
+
+            renderPatientDetails();
+
+            // Read mode badge MUST NOT render for non-super_admin
+            expect(screen.queryByTestId('clinical-workspace-read-mode')).not.toBeInTheDocument();
+
+            // Coverage and fallback banner MUST NOT render for non-super_admin
+            expect(screen.queryByTestId('clinical-workspace-coverage')).not.toBeInTheDocument();
+            expect(screen.queryByTestId('clinical-workspace-fallback-banner')).not.toBeInTheDocument();
+        }
+    );
+
     it('opens treatment entry with the renderer FDI tooth unchanged', () => {
         mockUsePatientClinicalWorkspace.mockReturnValue({
             data: {
@@ -318,6 +440,7 @@ describe('PatientDetails Clinical Workspace Tab', () => {
         expect(tooth16).not.toBeNull();
 
         fireEvent.click(tooth16);
+        fireEvent.click(screen.getByTestId('record-treatment-button'));
 
         expect(screen.getByTestId('treatment-modal-tooth')).toHaveTextContent('UR6');
     });

@@ -4,6 +4,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import crud, models, schemas
 
+FORBIDDEN_EXPENSE_CATEGORY = "laboratory"
+FORBIDDEN_EXPENSE_CATEGORY_MESSAGE = "مدفوعات المعامل تتسجل من صفحة المعامل، مش من المصروفات"
+
 
 class ExpenseService:
     def __init__(self, db: AsyncSession, tenant_id: int):
@@ -15,9 +18,12 @@ class ExpenseService:
     ) -> models.Expense:
         if expense.cost <= 0:
             raise ValueError("Expense cost must be greater than zero")
+        if expense.category and expense.category.strip().lower() == FORBIDDEN_EXPENSE_CATEGORY:
+            raise ValueError(FORBIDDEN_EXPENSE_CATEGORY_MESSAGE)
         return await crud.create_expense(
             db=self.db,
             expense=expense,
             tenant_id=self.tenant_id,
             commit=commit,
         )
+

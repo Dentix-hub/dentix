@@ -105,6 +105,46 @@ class FeatureFlagService:
         return override
 
     @staticmethod
+    async def delete_tenant_override(db: AsyncSession, tenant_id: int, key: str):
+        stmt = select(models.FeatureFlag).where(models.FeatureFlag.key == key)
+        flag = (await db.execute(stmt)).scalar_one_or_none()
+        if not flag:
+            raise HTTPException(status_code=404, detail="Feature flag not found")
+
+        stmt = select(models.TenantFeature).where(
+            models.TenantFeature.tenant_id == tenant_id,
+            models.TenantFeature.feature_key == key,
+        )
+        override = (await db.execute(stmt)).scalar_one_or_none()
+        if override:
+            await db.delete(override)
+            await db.commit()
+            return True
+        return False
+
+    @staticmethod
+    async def get_tenant_feature_status(db: AsyncSession, tenant_id: int, key: str) -> dict:
+        stmt = select(models.FeatureFlag).where(models.FeatureFlag.key == key)
+        flag = (await db.execute(stmt)).scalar_one_or_none()
+        if not flag:
+            raise HTTPException(status_code=404, detail="Feature flag not found")
+
+        stmt_override = select(models.TenantFeature).where(
+            models.TenantFeature.tenant_id == tenant_id,
+            models.TenantFeature.feature_key == key,
+        )
+        override = (await db.execute(stmt_override)).scalar_one_or_none()
+        effective = await FeatureFlagService.is_feature_enabled(db, key, tenant_id)
+
+        return {
+            "key": key,
+            "tenant_id": tenant_id,
+            "override": override.is_enabled if override else None,
+            "effective": effective,
+            "is_global_enabled": flag.is_global_enabled,
+        }
+
+    @staticmethod
     async def get_all_flags(db: AsyncSession):
         stmt = select(models.FeatureFlag)
         res = await db.execute(stmt)

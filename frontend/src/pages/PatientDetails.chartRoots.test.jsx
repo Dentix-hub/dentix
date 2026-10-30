@@ -29,8 +29,10 @@ vi.mock('@/features/patients/modals/EditPatientModal.jsx', () => ({
     default: () => null,
 }));
 
-vi.mock('@/shared/ui/modals/TreatmentModal', () => ({
-    default: () => null,
+vi.mock('@/features/clinical-chart/components/QuickTreatmentSheet', () => ({
+    default: ({ isOpen, initialData }) => (
+        isOpen ? <div data-testid="treatment-modal-tooth">{initialData?.tooth_number}</div> : null
+    ),
 }));
 
 vi.mock('@/shared/ui/modals/PrescriptionModal', () => ({
@@ -71,9 +73,25 @@ vi.mock('@/hooks/usePatientDetails', () => ({
         isLoading: false,
         refetch: vi.fn(),
     }),
+    usePatientLabOrders: () => ({
+        data: [],
+        isLoading: false,
+        refetch: vi.fn(),
+    }),
     useCreatePayment: () => ({ mutate: vi.fn() }),
     useDeletePayment: () => ({ mutate: vi.fn() }),
+    useTenantFeatures: () => ({ data: [], isLoading: false }),
+    usePatientClinicalPlans: () => ({ data: [], isLoading: false }),
+    useActiveCareSession: () => ({ data: null, isLoading: false, refetch: vi.fn() }),
+    useResumableCareSession: () => ({ data: { has_resumable: false, items: [] }, isLoading: false, refetch: vi.fn() }),
+    useStartCareSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useFinishCareSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useTransitionCareSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useUpdateCareSessionStep: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useApplyCareSessionTemplate: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useRecordCareObservation: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
+
 
 vi.mock('@/features/patients/hooks/useTreatmentOperations', () => ({
     useTreatmentOperations: () => ({
@@ -138,5 +156,31 @@ describe('PatientDetails chart integration', () => {
         // The modal chart should NOT render root layers
         const modalRoots = modalContainer.querySelectorAll('.space-y-4 svg[data-layer="roots"]');
         expect(modalRoots).toHaveLength(0);
+    });
+
+    it('selects a tooth in the modal chart and opens treatment modal with the converted tooth', () => {
+        const queryClient = new QueryClient({
+            defaultOptions: { queries: { retry: false } },
+        });
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter>
+                    <PatientDetails />
+                </MemoryRouter>
+            </QueryClientProvider>,
+        );
+
+        // Open the tooth-selection modal
+        const newTreatmentButton = screen.getByText('patient_details.chart.new_treatment');
+        fireEvent.click(newTreatmentButton);
+
+        const modalContainer = document.body.querySelector('[role="dialog"]') ?? document.body;
+        const tooth16 = modalContainer.querySelector('.space-y-4 svg[data-layer="crown"][data-tooth-key="16"]');
+        expect(tooth16).not.toBeNull();
+
+        fireEvent.click(tooth16);
+
+        expect(screen.getByTestId('treatment-modal-tooth')).toHaveTextContent('UR6');
     });
 });

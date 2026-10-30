@@ -1,0 +1,21 @@
+[
+  "analytics.procedure_analysis.comparison.ai_projected",
+  "analytics.procedure_analysis.comparison.ai_samples",
+  "analytics.procedure_analysis.comparison.points",
+  "analytics.procedure_analysis.comparison.weight_score",
+  "analytics.procedure_analysis.coverage.waiting_ai",
+  "auth.login.title",
+  "billing.doctor_revenue.table.actions",
+  "inventory.material_details.started_at",
+  "labs.form.placeholders.email",
+  "labs.form.placeholders.phone",
+  "language.switch_to_en",
+  "shortcuts.close_modal",
+  "shortcuts.global",
+  "shortcuts.navigate_results",
+  "shortcuts.navigation",
+  "shortcuts.open_command_palette",
+  "shortcuts.select_item",
+  "shortcuts.show_shortcuts",
+  "shortcuts.title"
+]

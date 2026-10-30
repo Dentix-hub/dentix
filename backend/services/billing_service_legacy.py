@@ -168,20 +168,27 @@ class BillingService:
     async def _calculate_expenses(self, for_today: bool = False) -> dict:
         context = await self._get_time_context() if for_today else None
 
-        lab_stmt = (
-            select(func.sum(models.LabOrder.cost))
-            .join(models.Patient, models.LabOrder.patient_id == models.Patient.id)
-            .where(
-                models.LabOrder.tenant_id == self.tenant_id,
-                models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,  # noqa: E712
+        if self.doctor_patient_scope_id is not None:
+            lab_stmt = (
+                select(func.sum(models.LabPayment.amount))
+                .join(models.LabOrder, models.LabPayment.lab_order_id == models.LabOrder.id)
+                .join(models.Patient, models.LabOrder.patient_id == models.Patient.id)
+                .where(
+                    models.LabPayment.tenant_id == self.tenant_id,
+                    models.LabOrder.tenant_id == self.tenant_id,
+                    models.Patient.tenant_id == self.tenant_id,
+                    models.Patient.is_deleted == False,  # noqa: E712
+                    models.Patient.assigned_doctor_id == self.doctor_patient_scope_id,
+                )
             )
-        )
-        lab_stmt = self._apply_patient_scope(lab_stmt)
+        else:
+            lab_stmt = select(func.sum(models.LabPayment.amount)).where(
+                models.LabPayment.tenant_id == self.tenant_id,
+            )
         if context is not None:
             lab_stmt = lab_stmt.where(
-                models.LabOrder.order_date >= context.utc_start,
-                models.LabOrder.order_date < context.utc_end,
+                models.LabPayment.date >= context.utc_start,
+                models.LabPayment.date < context.utc_end,
             )
         lab_costs = await self._scalar(lab_stmt)
 

@@ -25,6 +25,7 @@ It does NOT create a separate testing workflow. It selects the gate.
 | During implementation | Smallest targeted test covering the changed behavior |
 | Before acceptance | One final relevant verification pass |
 | Before PR | Additional subsystem lint/build checks only when appropriate |
+| Final slice of a multi-PR plan | One full local run (see DEVELOPMENT_WORKFLOW §4) |
 | PR → CI | CI is authoritative. Stop. |
 
 ## Reporting

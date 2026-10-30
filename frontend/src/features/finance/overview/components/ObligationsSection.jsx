@@ -6,19 +6,21 @@ import {
     UserMinus,
     ArrowRight,
     AlertTriangle,
+    FlaskConical,
 } from 'lucide-react';
 import Money from '../../components/Money';
 import ScopeBadge from '../../components/ScopeBadge';
 
 /**
  * Obligations and Receivables Section for Overview V2.
- * Summarizes actionable balances: Patient Receivables (All-time), Doctor Dues, and Staff Payroll.
+ * Summarizes actionable balances: Patient Receivables (All-time), Doctor Dues, Staff Payroll, and Lab Debt.
  * Period-scoped cards inherit the page-level date range and therefore do not repeat it.
  */
 export default function ObligationsSection({
     allTimeOutstanding = 0,
     doctorDuesTotal = 0,
     staffDuesTotal = 0,
+    labDebtTotal = 0,
     isLoading = false,
     currency = 'EGP',
 }) {
@@ -57,12 +59,24 @@ export default function ObligationsSection({
             to: '/finance/team/payroll',
             actionText: t('finance.obligations.view_payroll', 'مسير الرواتب'),
         },
+        {
+            id: 'labs',
+            title: t('finance.obligations.lab_debt', 'مستحقات المعامل (مديونية)'),
+            amount: labDebtTotal,
+            scope: 'all_time',
+            scopeLabel: t('finance.scope.all_time', 'الرصيد التراكمي (الكل)'),
+            description: t('finance.obligations.lab_debt_desc', 'إجمالي مديونية المعامل غير المسددة'),
+            icon: FlaskConical,
+            iconBg: 'bg-teal-500/10 text-teal-600 dark:text-teal-400',
+            to: '/labs',
+            actionText: t('finance.obligations.view_labs', 'عرض المعامل'),
+        },
     ];
 
     if (isLoading) {
         return (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {Array.from({ length: 3 }).map((_, i) => (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="p-5 rounded-2xl border border-border bg-card shadow-sm animate-pulse space-y-3">
                         <div className="h-4 w-32 bg-muted rounded"></div>
                         <div className="h-7 w-28 bg-muted rounded"></div>
@@ -85,7 +99,7 @@ export default function ObligationsSection({
                 </span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {items.map((item) => {
                     const Icon = item.icon;
                     return (

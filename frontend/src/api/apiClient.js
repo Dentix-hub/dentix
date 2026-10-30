@@ -1,8 +1,10 @@
 import axios from 'axios';
+import { setupApiPerfInterceptor } from '../utils/perfDiagnostics';
 import { logger } from '../utils/logger';
 import { useAuthStore } from '../store/auth.store';
 import { queryClient } from '../lib/queryClient';
-import { resolveApiBaseUrl } from './apiOrigin';
+import { resolveApiBaseUrl, shouldUseSameOriginApi } from './apiOrigin';
+import { clearSessionCookieHint } from './authSession';
 import {
     CONNECTION_STATES,
     useConnectivityStore,
@@ -12,18 +14,11 @@ const getApiUrl = () => {
     const hostname = window.location.hostname;
     const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL;
 
-    if (configuredBaseUrl) {
-        return resolveApiBaseUrl(configuredBaseUrl, window.location);
-    }
-
-    if (hostname.includes('vercel.app')) {
-        if (hostname.toLowerCase().includes('staging') ||
-            hostname.toLowerCase().includes('preview') ||
-            hostname.toLowerCase().includes('-git-')) {
-            return 'https://dentix-dentix-staging.hf.space';
-        }
-        return 'https://dentix-dentix.hf.space';
-    }
+    // Vercel provides environment-specific /api rewrites. Keeping browser
+    // requests on this origin also keeps HttpOnly session cookies available
+    // to protected <img> and document requests.
+    if (shouldUseSameOriginApi(hostname)) return '';
+    if (configuredBaseUrl) return resolveApiBaseUrl(configuredBaseUrl, window.location);
 
     return resolveApiBaseUrl(undefined, window.location);
 };
@@ -40,6 +35,8 @@ export const api = axios.create({
     timeout: 30000,
     withCredentials: true,
 });
+
+setupApiPerfInterceptor(api);
 
 // CSRF Token handling - read from cookie and add to state-changing requests
 function getCsrfTokenFromCookie() {
@@ -134,6 +131,40 @@ api.interceptors.request.use(config => {
 
     return config;
 });
+
+export async function purgeSessionAndRedirect(reason = 'session_expired', { redirect = true } = {}) {
+    try {
+        await queryClient.cancelQueries();
+    } catch (queryCancellationError) {
+        logger.warn('[API] Query cancellation failed during session cleanup', queryCancellationError);
+    }
+    queryClient.clear();
+
+    try {
+        const { useTenantStore } = await import('../store/tenant.store');
+        useTenantStore.getState().clearTenant?.();
+    } catch (tenantCleanupError) {
+        logger.warn('[API] Tenant cleanup failed during session cleanup', tenantCleanupError);
+    }
+
+    try {
+        sessionStorage.removeItem('dentix_impersonation_token');
+        sessionStorage.removeItem('dentix_impersonation_tenant');
+        sessionStorage.removeItem('dentix_impersonation_user');
+        sessionStorage.removeItem('dentix_impersonation_scope');
+        sessionStorage.removeItem('admin_token');
+        sessionStorage.removeItem('print_rx_data');
+    } catch (storageError) {
+        logger.warn('[API] Session storage cleanup failed', storageError);
+    }
+
+    clearSessionCookieHint();
+    useAuthStore.getState().clearAuth();
+
+    if (redirect && typeof window !== 'undefined' && window.location) {
+        window.location.replace(`/login?reason=${encodeURIComponent(reason)}`);
+    }
+}
 
 let isRefreshing = false;
 let failedQueue = [];
@@ -243,39 +274,14 @@ api.interceptors.response.use(
                         logger.warn('[API] Best-effort logout failed after session mismatch', logoutError);
                     }
 
-                    try {
-                        await queryClient.cancelQueries();
-                    } catch (queryCancellationError) {
-                        logger.warn('[API] Query cancellation failed during session cleanup', queryCancellationError);
-                    }
-                    queryClient.clear();
-
-                    try {
-                        const { useTenantStore } = await import('../store/tenant.store');
-                        useTenantStore.getState().clearTenant();
-                    } catch (tenantCleanupError) {
-                        logger.warn('[API] Tenant cleanup failed after session mismatch', tenantCleanupError);
-                    }
-
-                    sessionStorage.removeItem('dentix_impersonation_token');
-                    sessionStorage.removeItem('dentix_impersonation_tenant');
-                    sessionStorage.removeItem('dentix_impersonation_user');
-                    sessionStorage.removeItem('dentix_impersonation_scope');
-                    sessionStorage.removeItem('admin_token');
-                    sessionStorage.removeItem('print_rx_data');
-                    useAuthStore.getState().clearAuth();
-                    window.location.replace('/login?reason=session_mismatch');
+                    await purgeSessionAndRedirect('session_mismatch');
                     return Promise.reject(err);
                 }
 
                 // The in-memory user can outlive expired/revoked httpOnly cookies.
                 // Clear it immediately so authenticated polling components unmount
                 // instead of continuing to send requests with a stale session.
-                useAuthStore.getState().clearAuth();
-                if (originalRequest._silentAuth) {
-                    return Promise.reject(err);
-                }
-                window.location.href = '/';
+                await purgeSessionAndRedirect('session_expired', { redirect: !originalRequest._silentAuth });
                 return Promise.reject(err);
             } finally {
                 isRefreshing = false;
@@ -287,10 +293,7 @@ api.interceptors.response.use(
         // Stop authenticated polling instead of retrying forever while the UI
         // still believes the user is signed in.
         if (error.response?.status === 401 && originalRequest?._retry && !isAuthRequest) {
-            useAuthStore.getState().clearAuth();
-            if (!originalRequest._silentAuth) {
-                window.location.href = '/';
-            }
+            await purgeSessionAndRedirect('session_expired', { redirect: !originalRequest._silentAuth });
         }
 
         if (error.response?.status === 500) {

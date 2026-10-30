@@ -247,6 +247,9 @@ class ProcedureWeightRead(ProcedureWeightBase):
 # --- TREATMENT MATERIAL USAGE ---
 class TreatmentMaterialUsageCreate(BaseModel):
     material_id: int
+    treatment_id: Optional[int] = None
+    care_session_id: Optional[int] = None
+    work_item_id: Optional[int] = None
     session_id: Optional[int] = None
     weight_score: float = 1.0
     quantity_used: Optional[float] = None
@@ -255,7 +258,9 @@ class TreatmentMaterialUsageCreate(BaseModel):
 
 class TreatmentMaterialUsageOut(BaseModel):
     id: int
-    treatment_id: int
+    treatment_id: Optional[int] = None
+    care_session_id: Optional[int] = None
+    work_item_id: Optional[int] = None
     material_id: int
     session_id: Optional[int] = None
     weight_score: float

@@ -635,10 +635,48 @@ def test_alembic_single_head_is_f4a5b6c7d8e9():
 
     heads = script_dir.get_heads()
     assert len(heads) == 1, f"Expected exactly 1 Alembic head revision, found {heads}"
-    assert heads[0] == "1a2b3c4d5e6f", f"Expected head revision 1a2b3c4d5e6f, got {heads[0]}"
+    assert heads[0] == "e2b3c4d5e6f7", f"Expected head revision e2b3c4d5e6f7, got {heads[0]}"
+    assert script_dir.get_revision("e2b3c4d5e6f7").down_revision == "bc78a10d932e"
+    assert script_dir.get_revision("bc78a10d932e").down_revision == "ab52d9c807a1"
+    assert script_dir.get_revision("ab52d9c807a1").down_revision == "f17a93c60e24"
+    assert script_dir.get_revision("f17a93c60e24").down_revision == "e82c19f5a406"
+    assert script_dir.get_revision("e82c19f5a406").down_revision == "d42a71e9bc83"
+    assert script_dir.get_revision("d42a71e9bc83").down_revision == "c38f91a2d47b"
+    assert script_dir.get_revision("c38f91a2d47b").down_revision == "ba7526e3a901"
+    assert script_dir.get_revision("ba7526e3a901").down_revision == "9ab047d5613e"
+    assert script_dir.get_revision("9ab047d5613e").down_revision == "ed137fa8c304"
+    assert script_dir.get_revision("ed137fa8c304").down_revision == "1e2f3a4b5c6d"
+    assert script_dir.get_revision("1e2f3a4b5c6d").down_revision == "0d1e2f3a4b5c"
 
-    head_rev = script_dir.get_revision("1a2b3c4d5e6f")
-    assert head_rev.down_revision == "f4a5b6c7d8e9", f"Expected parent revision f4a5b6c7d8e9, got {head_rev.down_revision}"
+    proc_rev = script_dir.get_revision("0d1e2f3a4b5c")
+    assert proc_rev.down_revision == "9c0d1e2f3a4b", f"Expected parent revision 9c0d1e2f3a4b, got {proc_rev.down_revision}"
+
+    lab_pay_rev = script_dir.get_revision("9c0d1e2f3a4b")
+    assert lab_pay_rev.down_revision == "8b9c0d1e2f3a", f"Expected parent revision 8b9c0d1e2f3a, got {lab_pay_rev.down_revision}"
+
+    head_rev = script_dir.get_revision("8b9c0d1e2f3a")
+    assert head_rev.down_revision == "7a8b9c0d1e2f", f"Expected parent revision 7a8b9c0d1e2f, got {head_rev.down_revision}"
+
+    state_rev = script_dir.get_revision("7a8b9c0d1e2f")
+    assert state_rev.down_revision == "6f7a8b9c0d1e", f"Expected parent revision 6f7a8b9c0d1e, got {state_rev.down_revision}"
+
+    lab_rev = script_dir.get_revision("6f7a8b9c0d1e")
+    assert lab_rev.down_revision == "5e6f7a8b9c0d", f"Expected parent revision 5e6f7a8b9c0d, got {lab_rev.down_revision}"
+
+    s32_rev = script_dir.get_revision("5e6f7a8b9c0d")
+    assert s32_rev.down_revision == "4d5e6f7a8b9c", f"Expected parent revision 4d5e6f7a8b9c, got {s32_rev.down_revision}"
+
+    head_rev = script_dir.get_revision("4d5e6f7a8b9c")
+    assert head_rev.down_revision == "3c4d5e6f7a8b", f"Expected parent revision 3c4d5e6f7a8b, got {head_rev.down_revision}"
+
+    s27_rev = script_dir.get_revision("3c4d5e6f7a8b")
+    assert s27_rev.down_revision == "2b3c4d5e6f7a", f"Expected parent revision 2b3c4d5e6f7a, got {s27_rev.down_revision}"
+
+    s26_rev = script_dir.get_revision("2b3c4d5e6f7a")
+    assert s26_rev.down_revision == "1a2b3c4d5e6f", f"Expected parent revision 1a2b3c4d5e6f, got {s26_rev.down_revision}"
+
+    prev_rev = script_dir.get_revision("1a2b3c4d5e6f")
+    assert prev_rev.down_revision == "f4a5b6c7d8e9", f"Expected parent revision f4a5b6c7d8e9, got {prev_rev.down_revision}"
 
     rev = script_dir.get_revision("f4a5b6c7d8e9")
     assert rev.down_revision == "e3a4b5c6d7e8", f"Expected parent revision e3a4b5c6d7e8, got {rev.down_revision}"
@@ -664,6 +702,14 @@ def test_alembic_migration_upgrade_and_downgrade_sqlite(monkeypatch):
 
         engine = sa.create_engine(sqlite_url)
         try:
+            # This partial clinical fixture also reaches head, which now alters users.email.
+            with engine.begin() as conn:
+                conn.execute(sa.text("CREATE TABLE tenants (id INTEGER PRIMARY KEY, google_refresh_token VARCHAR)"))
+                conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR NOT NULL)"))
+                conn.execute(sa.text("CREATE TABLE attachments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
+                conn.execute(sa.text("CREATE TABLE treatments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
+                conn.execute(sa.text("CREATE TABLE user_sessions (id INTEGER PRIMARY KEY, user_id INTEGER, token_hash VARCHAR, ip_address VARCHAR, user_agent VARCHAR, device_info VARCHAR, last_active_at DATETIME, expires_at DATETIME, is_active BOOLEAN, created_at DATETIME)"))
+                conn.execute(sa.text("CREATE UNIQUE INDEX ix_users_email ON users(email)"))
             inspector = sa.inspect(engine)
             tables = set(inspector.get_table_names())
             for t in CLINICAL_G1_TABLES:
@@ -801,7 +847,19 @@ def test_live_postgresql_if_available():
                     if not tenant_id:
                         tenant_id = conn.execute(
                             sa.text(
-                                "INSERT INTO tenants (name, domain) VALUES (:name, :domain) RETURNING id"
+                                """
+                                INSERT INTO tenants (
+                                    name, domain, subscription_status, plan, is_active,
+                                    created_at, total_revenue, backup_frequency, timezone,
+                                    payment_failed_count, is_deleted
+                                )
+                                VALUES (
+                                    :name, :domain, 'active', 'trial', TRUE,
+                                    NOW(), 0, 'off', 'Africa/Cairo',
+                                    0, FALSE
+                                )
+                                RETURNING id
+                                """
                             ),
                             {"name": f"Test Clinic {uid}", "domain": f"test-{uid}.com"},
                         ).scalar()

@@ -112,11 +112,6 @@ def send_password_reset_email(to_email: str, reset_token_or_link: str, username:
         logger.warning(f"- SMTP_USER: {'Set' if SMTP_USER else 'MISSING'}")
         logger.warning(f"- SMTP_PASSWORD: {'Set' if SMTP_PASSWORD else 'MISSING'}")
 
-        # Development fallback
-        if os.getenv("DEBUG", "").lower() == "true":
-            logger.info(
-                f"DEBUG Reset link: {APP_URL}/reset-password?token={reset_token_or_link}"
-            )
         return False
 
     if is_firebase_link:

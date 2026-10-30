@@ -24,7 +24,7 @@ export default function Settings() {
     useEffect(() => {
         // Parse URL params for status (redirected from Google)
         const query = new URLSearchParams(window.location.search);
-        const status = query.get('status');
+        const status = query.get('backup_status') || query.get('status');
         const detail = query.get('detail');
         const tabParam = query.get('tab');
         if (status === 'success') {
@@ -50,10 +50,23 @@ export default function Settings() {
             setBackupStatus({
                 connected: res.data.connected === true,
                 loading: false,
-                lastBackup: res.data.last_backup
+                lastBackup: res.data.last_backup,
+                connectionStatus: res.data.connection_status,
+                accountEmail: res.data.account_email,
+                google_configured: res.data.google_configured,
+                google_unconfigured_reason: res.data.google_unconfigured_reason,
+                archive_configured: res.data.archive_configured,
+                archive_unconfigured_reason: res.data.archive_unconfigured_reason,
             });
         } catch (err) {
-            setBackupStatus({ connected: false, loading: false });
+            setBackupStatus({
+                connected: false,
+                loading: false,
+                google_configured: false,
+                google_unconfigured_reason: null,
+                archive_configured: false,
+                archive_unconfigured_reason: null,
+            });
         }
     };
     const loadUserInfo = async () => {
@@ -150,6 +163,7 @@ export default function Settings() {
                         {activeTab === 'backup' && (
                             <BackupSettings
                                 backupStatus={backupStatus}
+                                refreshBackupStatus={checkBackupConnection}
                                 currentUser={currentUser}
                                 setMessage={setMessage}
                                 loadUserInfo={loadUserInfo}

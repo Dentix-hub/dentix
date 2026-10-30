@@ -10,6 +10,20 @@ from .patient import get_patient
 
 logger = logging.getLogger(__name__)
 
+_BACKGROUND_TASKS: set[asyncio.Task] = set()
+
+
+def schedule_dashboard_precompute(tenant_id: int) -> asyncio.Task | None:
+    """Schedule background dashboard cache precomputation with strong task reference."""
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return None
+    task = loop.create_task(precompute_dashboard_cache(tenant_id=tenant_id))
+    _BACKGROUND_TASKS.add(task)
+    task.add_done_callback(_BACKGROUND_TASKS.discard)
+    return task
+
 
 # --- Treatment CRUD ---
 async def create_treatment(
@@ -21,6 +35,7 @@ async def create_treatment(
     unit_price: float = None,
     price_snapshot: str = None,
     commit: bool = True,
+    request_fingerprint: str | None = None,
 ):
     """
     Create a treatment record.
@@ -32,6 +47,9 @@ async def create_treatment(
     treatment_dict.pop("consumedMaterials", None)
     treatment_dict.pop("skip_stock_check", None)
     treatment_dict.pop("target_kind", None)
+    treatment_dict.pop("clinical_work_item_id", None)
+    treatment_dict.pop("lab_order", None)
+    request_key = treatment_dict.pop("idempotency_key", None)
 
     # Auto-fill doctor_id if not provided
     if not treatment_dict.get("doctor_id") and doctor_id:
@@ -42,6 +60,8 @@ async def create_treatment(
         treatment_dict["tenant_id"] = tenant_id
 
     db_treatment = models.Treatment(**treatment_dict)
+    db_treatment.request_key = request_key
+    db_treatment.request_fingerprint = request_fingerprint
 
     if price_list_id:
         db_treatment.price_list_id = price_list_id
@@ -228,6 +248,10 @@ async def update_treatment(
         # Remove fields that are not part of the Treatment model
         treatment_dict.pop("consumedMaterials", None)
         treatment_dict.pop("skip_stock_check", None)
+        treatment_dict.pop("lab_order", None)
+        treatment_dict.pop("idempotency_key", None)
+        if "lab_choice" not in treatment.model_fields_set:
+            treatment_dict.pop("lab_choice", None)
         # Preserve doctor_id if not provided in update
         if not treatment_dict.get("doctor_id") and db_treatment.doctor_id:
             treatment_dict["doctor_id"] = db_treatment.doctor_id
@@ -310,9 +334,7 @@ async def create_payment(
         )
         _ = db_payment.patient.name if db_payment.patient else None
     invalidate_dashboard_cache(tenant_id)
-    asyncio.create_task(
-        precompute_dashboard_cache(tenant_id=tenant_id, db=db)
-    )
+    schedule_dashboard_precompute(tenant_id)
     return db_payment
 
 
@@ -472,18 +494,27 @@ async def delete_expense(db: AsyncSession, expense_id: int, tenant_id: int):
 
 
 # --- Statistics ---
-async def precompute_dashboard_cache(tenant_id: int, db: AsyncSession) -> None:
+async def precompute_dashboard_cache(tenant_id: int) -> None:
     """
     Silently precompute dashboard stats into cache after invalidation.
-    Called as a background task so the next real request hits the cache.
+    Opens its own isolated database session with tenant context.
     """
-    import os
-    if os.getenv("ENVIRONMENT") == "testing":
-        return
+    from backend.database import AsyncSessionLocal, RlsContext
+    from backend.core.tenancy import set_current_tenant_id, clear_tenant_context
+
+    token = set_current_tenant_id(tenant_id)
     try:
-        await get_dashboard_stats(db=db, tenant_id=tenant_id)
+        context = RlsContext(tenant_id=tenant_id)
+        async with AsyncSessionLocal(context=context) as session:
+            await get_dashboard_stats(db=session, tenant_id=tenant_id)
     except Exception:
-        pass  # silent — cache will rebuild on the next real request
+        logger.warning(
+            "Failed to precompute dashboard cache for tenant %s",
+            tenant_id,
+            exc_info=True,
+        )
+    finally:
+        clear_tenant_context(tenant_token=token)
 
 
 async def get_financial_stats(db: AsyncSession, tenant_id: int, doctor_id: int = None):
@@ -557,24 +588,36 @@ async def get_financial_stats(db: AsyncSession, tenant_id: int, doctor_id: int =
     # Query 3: Lab costs + Expenses — all-time and today
     # (Expenses are skipped when filtering by doctor_id; lab orders join Patient)
     # ------------------------------------------------------------------
-    lab_base = (
-        select(
-            func.sum(models.LabOrder.cost).label("total_lab"),
+    if doctor_id:
+        lab_base = (
+            select(
+                func.sum(models.LabOrder.cost).label("total_lab"),
+                func.sum(
+                    case(
+                        (models.LabOrder.order_date >= today_start, models.LabOrder.cost),
+                        else_=0,
+                    )
+                ).label("today_lab"),
+            )
+            .join(models.Patient)
+            .where(
+                models.LabOrder.tenant_id == tenant_id,
+                models.Patient.is_deleted == False,  # noqa: E712
+                models.LabOrder.doctor_id == doctor_id,
+            )
+        )
+    else:
+        lab_base = select(
+            func.sum(models.LabPayment.amount).label("total_lab"),
             func.sum(
                 case(
-                    (models.LabOrder.order_date >= today_start, models.LabOrder.cost),
+                    (models.LabPayment.date >= today_start, models.LabPayment.amount),
                     else_=0,
                 )
             ).label("today_lab"),
+        ).where(
+            models.LabPayment.tenant_id == tenant_id,
         )
-        .join(models.Patient)
-        .where(
-            models.LabOrder.tenant_id == tenant_id,
-            models.Patient.is_deleted == False,  # noqa: E712
-        )
-    )
-    if doctor_id:
-        lab_base = lab_base.where(models.LabOrder.doctor_id == doctor_id)
 
     l_row = (await db.execute(lab_base)).first()
     total_lab_costs = float(l_row.total_lab or 0.0)

@@ -9,6 +9,8 @@ from .auth import (
     update_user,
     get_user_by_id,
     normalize_username,
+    sql_normalize_username,
+    validate_and_trim_username,
 )
 from .patient import (
     get_patient,
@@ -57,6 +59,14 @@ from .procedure import (
     create_procedure,
     update_procedure,
     delete_procedure,
+    seed_tenant_default_procedures,
+)
+from .procedure_chart_style import (
+    get_procedure_chart_styles,
+    get_procedure_chart_style_by_id,
+    procedure_exists_for_tenant,
+    upsert_procedure_chart_style,
+    delete_procedure_chart_style,
 )
 from .clinical_workspace import (
     get_projection_coverages,

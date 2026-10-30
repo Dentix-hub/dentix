@@ -1,9 +1,18 @@
 """Billing and financial schemas."""
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from typing import Optional, List
 from datetime import datetime, date
 from backend.core.money import Money, NonNegativeMoney, PositiveMoney
+
+FORBIDDEN_EXPENSE_CATEGORY = "laboratory"
+FORBIDDEN_EXPENSE_CATEGORY_MESSAGE = "مدفوعات المعامل تتسجل من صفحة المعامل، مش من المصروفات"
+
+
+def validate_not_laboratory_category(category: Optional[str]) -> Optional[str]:
+    if category is not None and category.strip().lower() == FORBIDDEN_EXPENSE_CATEGORY:
+        raise ValueError(FORBIDDEN_EXPENSE_CATEGORY_MESSAGE)
+    return category
 
 
 class PaymentBase(BaseModel):
@@ -46,6 +55,11 @@ class ExpenseBase(BaseModel):
 
 
 class ExpenseCreate(ExpenseBase):
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, value: str) -> str:
+        return validate_not_laboratory_category(value)
+
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Edit2, FileText, Hash, Plus, User as UserIcon, Phone, MapPin } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getPriceList } from '@/api';
+import MedicalAlertBadge from './components/MedicalAlertBadge';
 
 const PriceListBadge = ({ priceListId, t }) => {
     const [name, setName] = useState(null);
@@ -66,6 +67,7 @@ const PatientInfoCard = ({ patient, onEdit, onPrescription, onNewAppointment }) 
                     <h2 className="min-w-0 break-words text-xl font-bold tracking-tight text-slate-800 dark:text-white sm:text-2xl" dir="auto">
                         {patient.name}
                     </h2>
+                    <MedicalAlertBadge alert={patient.medical_alert} />
                     <PriceListBadge priceListId={patient.default_price_list_id} t={t} />
                 </div>
 

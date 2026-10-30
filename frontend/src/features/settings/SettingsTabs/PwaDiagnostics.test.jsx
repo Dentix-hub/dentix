@@ -10,9 +10,11 @@ vi.mock('react-i18next', () => ({
 }));
 
 import PwaDiagnostics from './PwaDiagnostics';
+import { useAuthStore } from '@/store/auth.store';
 
 describe('PwaDiagnostics support surface', () => {
-    it('renders the diagnostic rows without exposing secrets or PHI', () => {
+    it('renders diagnostic rows for admin users including Service Worker and notifications', () => {
+        useAuthStore.setState({ user: { id: 1, role: 'admin' } });
         render(<PwaDiagnostics />);
 
         expect(screen.getByText('translated:settings.pwa.build')).toBeInTheDocument();
@@ -20,6 +22,20 @@ describe('PwaDiagnostics support surface', () => {
         expect(screen.getByText('translated:settings.pwa.service_worker')).toBeInTheDocument();
         expect(screen.getByText('translated:settings.pwa.connection')).toBeInTheDocument();
         expect(screen.getByText('translated:settings.pwa.notification_permission')).toBeInTheDocument();
+    });
+
+    it('renders only essential rows for non-admin users', () => {
+        useAuthStore.setState({ user: { id: 2, role: 'doctor' } });
+        render(<PwaDiagnostics />);
+
+        expect(screen.getByText('translated:settings.pwa.build')).toBeInTheDocument();
+        expect(screen.getByText('translated:settings.pwa.built_at')).toBeInTheDocument();
+        expect(screen.getByText('translated:settings.pwa.environment')).toBeInTheDocument();
+        expect(screen.getByText('translated:settings.pwa.connection')).toBeInTheDocument();
+
+        expect(screen.queryByText('translated:settings.pwa.commit_sha')).not.toBeInTheDocument();
+        expect(screen.queryByText('translated:settings.pwa.service_worker')).not.toBeInTheDocument();
+        expect(screen.queryByText('translated:settings.pwa.notification_permission')).not.toBeInTheDocument();
     });
 
     it('ships localized diagnostics copy in Arabic and English', () => {

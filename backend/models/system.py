@@ -13,6 +13,8 @@ from .base import (
     ForeignKey,
     relationship,
     datetime,
+    JSON,
+    UniqueConstraint,
 )
 from sqlalchemy import CheckConstraint, column
 import enum
@@ -251,3 +253,35 @@ class SystemError(Base):
         default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
         index=True,
     )
+
+
+class UserOnboardingState(Base):
+    __tablename__ = "user_onboarding_state"
+
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda x: column("tenant_id") == x,
+        )
+    ]
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "user_id", name="uq_user_onboarding_state_tenant_user"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id", ondelete="CASCADE"), index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    dismissed = Column(Boolean, default=False, nullable=False)
+    seen_tips = Column(JSON, default=list, nullable=False)
+    events = Column(JSON, default=dict, nullable=False)
+    updated_at = Column(
+        DateTime,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        nullable=False,
+    )
+
+    tenant = relationship("Tenant")
+    user = relationship("User")
+

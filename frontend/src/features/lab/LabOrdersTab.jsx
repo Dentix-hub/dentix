@@ -1,33 +1,36 @@
 import { useState, useEffect, useCallback } from 'react';
 import logger from '@/utils/logger';
 import { FlaskConical, CheckCircle, Clock, AlertCircle, Plus, Edit2, Trash2, X } from 'lucide-react';
-import { getPatientLabOrders, getLaboratories, createLabOrder, updateLabOrder, deleteLabOrder } from '@/api';
+import { getPatientLabOrders, getLaboratories, createLabOrder, updateLabOrder, deleteLabOrder, getPatientTreatments } from '@/api';
 import { useTranslation } from 'react-i18next';
-const LabOrdersTab = ({ patientId }) => {
+const LabOrdersTab = ({ patientId, treatments = null }) => {
     const { t } = useTranslation();
     const [labOrders, setLabOrders] = useState([]);
     const [laboratories, setLaboratories] = useState([]);
+    const [patientTreatments, setPatientTreatments] = useState(Array.isArray(treatments) ? treatments : []);
     const [loading, setLoading] = useState(false);
     // Modal State
     const [isLabOrderModalOpen, setIsLabOrderModalOpen] = useState(false);
     const [editingLabOrder, setEditingLabOrder] = useState(null);
-    const initialLabOrder = { laboratory_id: '', work_type: '', tooth_number: '', shade: '', material: '', cost: '', price_to_patient: '', notes: '' };
+    const initialLabOrder = { laboratory_id: '', treatment_id: '', work_type: '', tooth_number: '', shade: '', material: '', cost: '', paid_now: '', price_to_patient: '', notes: '' };
     const [newLabOrder, setNewLabOrder] = useState(initialLabOrder);
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
-            const [ordersRes, labsRes] = await Promise.all([
+            const [ordersRes, labsRes, treatmentsRes] = await Promise.all([
                 getPatientLabOrders(patientId),
-                getLaboratories()
+                getLaboratories(),
+                Array.isArray(treatments) ? Promise.resolve({ data: treatments }) : getPatientTreatments(patientId).catch(() => ({ data: [] }))
             ]);
-            setLabOrders(ordersRes.data);
-            setLaboratories(labsRes.data);
+            setLabOrders(ordersRes.data || []);
+            setLaboratories(labsRes.data || []);
+            setPatientTreatments(treatmentsRes.data || []);
         } catch (err) {
             logger.error("Failed to load lab data", err);
         } finally {
             setLoading(false);
         }
-    }, [patientId]);
+    }, [patientId, treatments]);
     useEffect(() => {
         if (patientId) {
             loadData();
@@ -47,6 +50,12 @@ const LabOrdersTab = ({ patientId }) => {
             alert(t('patientDetails.lab_orders.validation_error'));
             return;
         }
+        const numCost = parseFloat(newLabOrder.cost) || 0;
+        const numPaidNow = parseFloat(newLabOrder.paid_now) || 0;
+        if (!editingLabOrder && numCost > 0 && numPaidNow > numCost) {
+            alert(t('patientDetails.lab_orders.paid_now_exceeds_cost', 'المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب'));
+            return;
+        }
         try {
             const orderData = {
                 patient_id: parseInt(patientId),
@@ -55,10 +64,16 @@ const LabOrdersTab = ({ patientId }) => {
                 tooth_number: newLabOrder.tooth_number,
                 shade: newLabOrder.shade,
                 material: newLabOrder.material,
-                cost: parseFloat(newLabOrder.cost) || 0,
+                cost: numCost,
                 price_to_patient: parseFloat(newLabOrder.price_to_patient) || 0,
                 notes: newLabOrder.notes
             };
+            if (!editingLabOrder) {
+                orderData.paid_now = numPaidNow;
+            }
+            if (newLabOrder.treatment_id) {
+                orderData.treatment_id = parseInt(newLabOrder.treatment_id, 10);
+            }
             if (editingLabOrder) {
                 orderData.status = newLabOrder.status;
                 await updateLabOrder(editingLabOrder.id, orderData);
@@ -70,15 +85,32 @@ const LabOrdersTab = ({ patientId }) => {
             setEditingLabOrder(null);
             loadData();
         } catch (err) {
-            alert(t('patientDetails.lab_orders.save_error'));
+            const detail = err.response?.data?.detail;
+            alert(typeof detail === 'string' ? detail : t('patientDetails.lab_orders.save_error'));
             logger.error(err);
         }
     };
+    const renderPaymentStatusChip = (order) => {
+        if (order.status === 'cancelled') {
+            return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">{t('patientDetails.lab_orders.status_cancelled', 'ملغي')}</span>;
+        }
+        const cost = Number(order.cost || 0);
+        const paid = Number(order.paid_amount || 0);
+        const status = order.payment_status || (paid >= cost && cost > 0 ? 'paid' : paid > 0 ? 'partial' : 'unpaid');
+        if (status === 'paid') {
+            return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">{t('patientDetails.lab_orders.status_paid', 'مدفوع')}</span>;
+        }
+        if (status === 'partial') {
+            return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">{t('patientDetails.lab_orders.status_partial', 'جزئي')}</span>;
+        }
+        return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-700">{t('patientDetails.lab_orders.status_unpaid', 'غير مدفوع')}</span>;
+    };
+
     if (loading && labOrders.length === 0) return <div className="p-10 text-center">Loading...</div>;
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
             {/* Lab Stats */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
                 <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
                     <p className="text-xs text-slate-500 font-bold uppercase mb-1">{t('patientDetails.lab_orders.stats.total_orders')}</p>
                     <p className="text-2xl font-bold text-slate-800">{labOrders.length}</p>
@@ -124,6 +156,9 @@ const LabOrdersTab = ({ patientId }) => {
                                 <th className="p-4">{t('patientDetails.lab_orders.table.tooth')}</th>
                                 <th className="p-4">{t('patientDetails.lab_orders.table.shade')}</th>
                                 <th className="p-4">{t('patientDetails.lab_orders.table.status')}</th>
+                                <th className="p-4">{t('patientDetails.lab_orders.table.payment_status', 'حالة السداد')}</th>
+                                <th className="p-4">{t('patientDetails.lab_orders.table.cost', 'تكلفة المعمل')}</th>
+                                <th className="p-4">{t('patientDetails.lab_orders.table.paid', 'المدفوع')}</th>
                                 <th className="p-4">{t('patientDetails.lab_orders.table.price')}</th>
                                 <th className="p-4">{t('patientDetails.lab_orders.table.actions')}</th>
                             </tr>
@@ -153,6 +188,9 @@ const LabOrdersTab = ({ patientId }) => {
                                             {order.status === 'cancelled' && <><AlertCircle size={12} /> {t('patientDetails.lab_orders.status.cancelled')}</>}
                                         </span>
                                     </td>
+                                    <td className="p-4 whitespace-nowrap">{renderPaymentStatusChip(order)}</td>
+                                    <td className="p-4 font-bold text-slate-700 whitespace-nowrap">{order.cost ?? 0}</td>
+                                    <td className="p-4 font-bold text-teal-600 whitespace-nowrap">{order.paid_amount ?? 0}</td>
                                     <td className="p-4 font-bold text-teal-600 whitespace-nowrap">{order.price_to_patient}</td>
                                     <td className="p-4 flex gap-2 whitespace-nowrap">
                                         <button
@@ -160,6 +198,7 @@ const LabOrdersTab = ({ patientId }) => {
                                                 setEditingLabOrder(order);
                                                 setNewLabOrder({
                                                     laboratory_id: order.laboratory_id,
+                                                    treatment_id: order.treatment_id || '',
                                                     work_type: order.work_type,
                                                     tooth_number: order.tooth_number || '',
                                                     shade: order.shade || '',
@@ -218,6 +257,40 @@ const LabOrdersTab = ({ patientId }) => {
                             </button>
                         </div>
                         <div className="space-y-4">
+                            {!editingLabOrder && patientTreatments.length > 0 && (
+                                <div>
+                                    <label htmlFor="lab-order-treatment-link" className="block text-sm font-bold text-slate-600 mb-1">
+                                        {t('patientDetails.lab_orders.modal.treatment_link_label', 'ربط بإجراء علاجي من السجل (Treatment)')}
+                                    </label>
+                                    <select
+                                        id="lab-order-treatment-link"
+                                        value={newLabOrder.treatment_id || ''}
+                                        onChange={e => {
+                                            const val = e.target.value;
+                                            if (!val) {
+                                                setNewLabOrder(prev => ({ ...prev, treatment_id: '' }));
+                                            } else {
+                                                const tr = patientTreatments.find(item => String(item.id) === String(val));
+                                                setNewLabOrder(prev => ({
+                                                    ...prev,
+                                                    treatment_id: val,
+                                                    tooth_number: tr?.tooth_number ? String(tr.tooth_number) : prev.tooth_number,
+                                                    work_type: tr?.procedure || prev.work_type,
+                                                    price_to_patient: 0
+                                                }));
+                                            }
+                                        }}
+                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500 font-medium"
+                                    >
+                                        <option value="">{t('patientDetails.lab_orders.modal.unlinked_option', 'طلب بدون ربط (طلب حر - Free text)')}</option>
+                                        {patientTreatments.map(tr => (
+                                            <option key={tr.id} value={tr.id}>
+                                                #{tr.id} — {tr.procedure || 'Treatment'} {tr.tooth_number ? `(السن ${tr.tooth_number})` : ''}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
                             <div>
                                 <label className="block text-sm font-bold text-slate-600 mb-1">
                                     {t('patientDetails.lab_orders.modal.lab_label')} <span className="text-red-500">*</span>
@@ -317,6 +390,32 @@ const LabOrdersTab = ({ patientId }) => {
                                     />
                                 </div>
                             </div>
+                            {!editingLabOrder && parseFloat(newLabOrder.cost) > 0 && (
+                                <div>
+                                    <label htmlFor="lab-order-paid-now" className="block text-sm font-bold text-slate-600 mb-1">
+                                        {t('patientDetails.lab_orders.modal.paid_now_label', 'دفعت الآن للمعمل')}
+                                    </label>
+                                    <input
+                                        id="lab-order-paid-now"
+                                        type="number"
+                                        min="0"
+                                        max={newLabOrder.cost}
+                                        step="any"
+                                        value={newLabOrder.paid_now}
+                                        onChange={e => setNewLabOrder({ ...newLabOrder, paid_now: e.target.value })}
+                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
+                                        placeholder="0"
+                                    />
+                                    {parseFloat(newLabOrder.paid_now) > parseFloat(newLabOrder.cost) && (
+                                        <p className="text-xs text-rose-600 font-medium mt-1">
+                                            {t('patientDetails.lab_orders.paid_now_exceeds_cost', 'المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب')}
+                                        </p>
+                                    )}
+                                    <p className="text-xs text-slate-500 mt-1">
+                                        {t('patientDetails.lab_orders.modal.accounting_hint', 'التكلفة بتتسجل مديونية على المعمل، والمبلغ المدفوع بيتسجل كمصروف')}
+                                    </p>
+                                </div>
+                            )}
                             {editingLabOrder && (
                                 <div>
                                     <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.status_label')}</label>

@@ -25,7 +25,7 @@ from backend.utils.audit_logger import log_admin_action
 from backend.utils.tenant_time import tenant_day_utc_bounds_naive, tenant_local_date
 
 
-FINANCE_DEFINITION_VERSION = "finance-summary-v1"
+FINANCE_DEFINITION_VERSION = "finance-summary-v2"
 FINANCE_CURRENCY = "EGP"
 
 
@@ -77,8 +77,13 @@ METRIC_DEFINITIONS: Dict[str, Dict[str, str]] = {
     },
     "lab_costs": {
         "scope": "period",
-        "formula": "SUM(lab_order.cost)",
-        "description": "Laboratory order costs recorded in the selected period.",
+        "formula": "SUM(lab_payment.amount)",
+        "description": "Payments made to labs in the period (cash basis).",
+    },
+    "lab_debt": {
+        "scope": "all_time",
+        "formula": "SUM(non_cancelled_lab_order.cost) - SUM(lab_payment.amount)",
+        "description": "Total outstanding debt owed to laboratories across all non-cancelled orders less all payments.",
     },
     "total_deductions": {
         "scope": "period",
@@ -250,6 +255,36 @@ class FinanceSummaryService:
 
         return quantize_money(as_decimal((await self.db.execute(stmt)).scalar()))
 
+    async def get_all_time_lab_debt(self, *, patient_id: Optional[int] = None) -> Decimal:
+        """Calculate total outstanding debt owed to laboratories across all non-cancelled orders less all payments."""
+        if patient_id is not None:
+            stmt_orders = select(func.coalesce(func.sum(models.LabOrder.cost), 0)).where(
+                models.LabOrder.tenant_id == self.tenant_id,
+                models.LabOrder.patient_id == patient_id,
+                models.LabOrder.status != "cancelled",
+            )
+            stmt_payments = (
+                select(func.coalesce(func.sum(models.LabPayment.amount), 0))
+                .join(models.LabOrder, models.LabPayment.lab_order_id == models.LabOrder.id)
+                .where(
+                    models.LabPayment.tenant_id == self.tenant_id,
+                    models.LabOrder.tenant_id == self.tenant_id,
+                    models.LabOrder.patient_id == patient_id,
+                )
+            )
+        else:
+            stmt_orders = select(func.coalesce(func.sum(models.LabOrder.cost), 0)).where(
+                models.LabOrder.tenant_id == self.tenant_id,
+                models.LabOrder.status != "cancelled",
+            )
+            stmt_payments = select(func.coalesce(func.sum(models.LabPayment.amount), 0)).where(
+                models.LabPayment.tenant_id == self.tenant_id,
+            )
+
+        total_orders_cost = as_decimal((await self.db.execute(stmt_orders)).scalar() or 0)
+        total_payments = as_decimal((await self.db.execute(stmt_payments)).scalar() or 0)
+        return quantize_money(total_orders_cost - total_payments)
+
     async def _production_totals(
         self,
         period: ResolvedFinancePeriod,
@@ -374,7 +409,7 @@ class FinanceSummaryService:
 
         lab_costs = quantize_money(
             as_decimal(
-                await self.accounting.get_total_lab_costs(
+                await self.accounting.get_total_lab_payments(
                     start_marker,
                     end_marker,
                     patient_id=patient_id,
@@ -382,6 +417,7 @@ class FinanceSummaryService:
             )
         )
         current_debt = await self.get_current_patient_debt(patient_id=patient_id)
+        lab_debt = await self.get_all_time_lab_debt(patient_id=patient_id)
         period_balance = quantize_money(net_invoiced - collected)
         total_deductions = quantize_money(
             doctor_due + staff_due + expenses + lab_costs
@@ -427,6 +463,9 @@ class FinanceSummaryService:
                 "lab_costs": money(lab_costs),
                 "expenses": money(expenses),
                 "total_deductions": money(total_deductions),
+            },
+            "obligations": {
+                "lab_debt": money(lab_debt),
             },
             "net_operational_result": money(net_operational_result),
             # Compatibility alias retained while older Finance consumers migrate.

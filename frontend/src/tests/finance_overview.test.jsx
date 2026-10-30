@@ -67,13 +67,14 @@ describe('Finance Overview V2 Components', () => {
     });
 
     describe('<ObligationsSection />', () => {
-        it('renders patient debt, doctor dues, and staff payroll with canonical destination links', () => {
+        it('renders patient debt, doctor dues, staff payroll, and lab debt with canonical destination links', () => {
             render(
                 <MemoryRouter>
                     <ObligationsSection
                         allTimeOutstanding={65000}
                         doctorDuesTotal={18000}
                         staffDuesTotal={12000}
+                        labDebtTotal={5500}
                         dateLabel="أغسطس 2026"
                     />
                 </MemoryRouter>
@@ -82,14 +83,17 @@ describe('Finance Overview V2 Components', () => {
             expect(screen.getByText('مستحقات المرضى (الديون التراكمية)')).toBeDefined();
             expect(screen.getByText('مستحقات الأطباء غير المسددة')).toBeDefined();
             expect(screen.getByText('التزامات رواتب الموظفين')).toBeDefined();
+            expect(screen.getByText('مستحقات المعامل (مديونية)')).toBeDefined();
             expect(screen.getByLabelText('65000 EGP')).toBeDefined();
             expect(screen.getByLabelText('18000 EGP')).toBeDefined();
             expect(screen.getByLabelText('12000 EGP')).toBeDefined();
+            expect(screen.getByLabelText('5500 EGP')).toBeDefined();
 
             const links = screen.getAllByRole('link');
             expect(links.some((l) => l.getAttribute('href') === '/finance/patient-accounts')).toBe(true);
             expect(links.some((l) => l.getAttribute('href') === '/finance/team/doctors')).toBe(true);
             expect(links.some((l) => l.getAttribute('href') === '/finance/team/payroll')).toBe(true);
+            expect(links.some((l) => l.getAttribute('href') === '/labs')).toBe(true);
         });
 
         it('shows prorated obligation totals as whole EGP in the overview', () => {

@@ -21,4 +21,8 @@ async def delete_attachment(
     visibility = get_visibility_service(db, current_user, current_user.tenant_id)
     if not await visibility.can_view_patient(attachment.patient_id):
         raise HTTPException(status_code=404, detail="Attachment not found")
+    if attachment.storage_provider == "google_drive":
+        from backend.services.drive_image_operations import queue_image_delete
+        await queue_image_delete(db, attachment=attachment, user=current_user)
+        return attachment
     return await crud.delete_attachment(db, attachment_id, current_user.tenant_id)

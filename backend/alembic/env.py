@@ -36,15 +36,32 @@ if config.config_file_name is not None:
     # after a fresh baseline is stamped, making CI failures non-diagnostic.
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
-# Set database URL from environment variable
-db_url = os.getenv("DATABASE_URL")
-if db_url:
-    # Handle postgres:// vs postgresql://
-    if db_url.startswith("postgres://"):
-        db_url = db_url.replace("postgres://", "postgresql://", 1)
-    # Escape percent signs for ConfigParser interpolation
-    db_url = db_url.replace("%", "%%")
-    config.set_main_option("sqlalchemy.url", db_url)
+# Set database URL:
+# 1. Preserve the database URL if already configured on the Alembic Config object
+#    (e.g., set by preflight_migrations using MIGRATION_DATABASE_URL / OWNER_DATABASE_URL
+#    or PostgreSQL ownership probing across SYSTEM_DATABASE_URL / DATABASE_URL).
+# 2. Otherwise delegate to preflight_migrations._database_url() (with fallback to
+#    MIGRATION_DATABASE_URL -> OWNER_DATABASE_URL -> DATABASE_URL).
+configured_url = config.get_main_option("sqlalchemy.url")
+placeholder_urls = {"", "driver://user:pass@localhost/dbname"}
+if not configured_url or configured_url in placeholder_urls:
+    try:
+        from backend.scripts.preflight_migrations import _database_url as _resolve_migration_url
+
+        raw_url = _resolve_migration_url()
+    except Exception:
+        raw_url = (
+            os.getenv("MIGRATION_DATABASE_URL")
+            or os.getenv("OWNER_DATABASE_URL")
+            or os.getenv("DATABASE_URL")
+        )
+    if raw_url:
+        raw_url = raw_url.strip().strip("'").strip('"')
+        if raw_url.startswith("postgres://"):
+            raw_url = raw_url.replace("postgres://", "postgresql://", 1)
+        if raw_url.startswith("postgresql+asyncpg://"):
+            raw_url = raw_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+        config.set_main_option("sqlalchemy.url", raw_url.replace("%", "%%"))
 
 # add your model's MetaData object here
 # for 'autogenerate' support
@@ -92,6 +109,10 @@ def run_migrations_online() -> None:
         context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
+            migration_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+            if migration_role and connection.dialect.name == "postgresql":
+                escaped_role = migration_role.replace('"', '""')
+                context.execute(f'SET LOCAL ROLE "{escaped_role}"')
             context.run_migrations()
 
 

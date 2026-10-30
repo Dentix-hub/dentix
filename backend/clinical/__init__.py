@@ -9,6 +9,9 @@ from backend.clinical.catalog import (
     CANONICAL_PROCEDURE_CODES,
     CANONICAL_TOOTH_LIFECYCLE_CODES,
     CANONICAL_TREATMENT_LIFECYCLE_CODES,
+    CANONICAL_CORRECTION_STATUSES,
+    CORRECTION_STATUS_ENTERED_IN_ERROR,
+    CORRECTION_STATUS_SUPERSEDED,
     FINDING_DEFINITIONS,
     FROZEN_RENDERER_PROCEDURE_CODES,
     PROCEDURE_CATEGORIES,
@@ -37,6 +40,9 @@ from backend.clinical.catalog import (
     validate_target_kind,
     validate_tooth_lifecycle,
     validate_treatment_status,
+    LAB_REQUIRED_PROCEDURE_CODES,
+    is_lab_required_procedure,
+    map_lab_order_status,
 )
 from backend.clinical.legacy_mapping import (
     LEGACY_PROCEDURE_ALLOWLIST,
@@ -102,6 +108,9 @@ __all__ = [
     "FROZEN_RENDERER_PROCEDURE_CODES",
     "TreatmentLifecycleCode",
     "CANONICAL_TREATMENT_LIFECYCLE_CODES",
+    "CORRECTION_STATUS_ENTERED_IN_ERROR",
+    "CORRECTION_STATUS_SUPERSEDED",
+    "CANONICAL_CORRECTION_STATUSES",
     "TargetKind",
     "ALLOWED_TARGET_KINDS",
     # Taxonomy models & collections
@@ -128,6 +137,9 @@ __all__ = [
     "validate_procedure_targets",
     "validate_treatment_status",
     "validate_tooth_lifecycle",
+    "LAB_REQUIRED_PROCEDURE_CODES",
+    "is_lab_required_procedure",
+    "map_lab_order_status",
     # Workflow templates
     "WorkflowStepDefinition",
     "WorkflowTemplateDefinition",

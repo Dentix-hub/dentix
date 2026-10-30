@@ -4,3 +4,8 @@ export const getProcedures = () => api.get('/api/v1/procedures');
 export const createProcedure = (data) => api.post('/api/v1/procedures', data);
 export const updateProcedure = (id, data) => api.put(`/api/v1/procedures/${id}`, data);
 export const deleteProcedure = (id) => api.delete(`/api/v1/procedures/${id}`);
+
+export const getProcedureChartStyles = () => api.get('/api/v1/procedure-chart-styles');
+export const upsertProcedureChartStyle = (data) => api.put('/api/v1/procedure-chart-styles', data);
+export const deleteProcedureChartStyle = (id) => api.delete(`/api/v1/procedure-chart-styles/${id}`);
+

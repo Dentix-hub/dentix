@@ -1,3 +1,8 @@
+export function shouldUseSameOriginApi(hostname) {
+    const host = hostname.toLowerCase();
+    return host.endsWith('.vercel.app') || host === 'dentixs.app' || host.endsWith('.dentixs.app');
+}
+
 function stripLeadingWww(hostname) {
     return hostname.toLowerCase().replace(/^www\./, '');
 }

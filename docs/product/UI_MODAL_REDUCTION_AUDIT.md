@@ -34,7 +34,7 @@ This audit classifies current modal-like workflows by task complexity. It does n
 | `features/inventory/components/WarehouseDetailsModal.jsx` | contextual details | `DentixDrawer` | Preserve stock/detail behavior. |
 | `features/inventory/components/MaterialDetailsModal.jsx` | contextual details | `DentixDrawer` | Preserve inventory state/actions. |
 | `shared/ui/modals/PrescriptionModal.jsx` | medium/complex form | drawer/fullscreen-mobile; dedicated-page candidate only with separate approval | Preserve saved-medication lookup and print payload. |
-| `shared/ui/modals/TreatmentModal.jsx` | complex + nested workflow | dedicated/fullscreen workspace is the design target; compatibility overlay initially | **No route/business change in Plan 02.** Preserve treatment payload, inventory consumption, session behavior and nested TrackSession workflow. |
+| `shared/ui/modals/QuickTreatmentSheet.jsx` | complex + nested workflow | dedicated/fullscreen workspace is the design target; compatibility overlay initially | **No route/business change in Plan 02.** Preserve treatment payload, inventory consumption, session behavior and nested TrackSession workflow. |
 | `GlobalLabOrdersModal.jsx` | data workspace in modal | drawer or dedicated-page candidate | No route change without explicit approval. |
 | `CommandPalette.jsx` / SuperAdmin command palette | global command overlay | canonical dialog/command surface | Preserve keyboard navigation and routing commands. |
 | `GlobalSearch.jsx` results | anchored search results | `DentixPopover`/combobox pattern | Preserve server-backed search/navigation. |

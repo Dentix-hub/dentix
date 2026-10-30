@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { detectPlatform, isStandalone } from './platform';
+import { detectPlatform, isInAppBrowser, isStandalone } from './platform';
 import {
     INSTALL_ENGAGEMENT_DELAY_MS,
     useInstallStore,
@@ -9,13 +9,16 @@ import {
  * Platform-aware install orchestration (plan §9.1–§9.3).
  *
  * - Android/Chromium: captures `beforeinstallprompt` and defers the native
- *   prompt to an explicit user action.
- * - iOS/iPadOS: exposes `showIosInstructions` for the Add to Home Screen sheet.
- * - Both: honor the dismissal cooldown, `appinstalled` receipt, and the
+ *   prompt to an explicit user action; falls back to manual instructions
+ *   if no prompt arrives.
+ * - iOS/iPadOS: exposes `iosInstructionsRelevant` for the Add to Home Screen sheet.
+ * - In-app browsers: shows open-in-browser advice card.
+ * - All: honor the dismissal cooldown, `appinstalled` receipt, and the
  *   engagement delay so the UI never nags at first paint.
  */
 export function usePwaInstall() {
     const platform = detectPlatform();
+    const inApp = isInAppBrowser();
     const standalone = isStandalone();
     const {
         promptAvailable,
@@ -24,14 +27,16 @@ export function usePwaInstall() {
         markInstalled,
         dismiss,
         isDismissalCooldownActive,
+        syncInstalledState,
     } = useInstallStore();
     const [deferredPrompt, setDeferredPrompt] = useState(null);
     const [engaged, setEngaged] = useState(false);
 
     useEffect(() => {
+        syncInstalledState?.();
         const timer = window.setTimeout(() => setEngaged(true), INSTALL_ENGAGEMENT_DELAY_MS);
         return () => window.clearTimeout(timer);
-    }, []);
+    }, [syncInstalledState]);
 
     useEffect(() => {
         const onPrompt = (event) => {
@@ -51,17 +56,19 @@ export function usePwaInstall() {
         };
     }, [markPromptAvailable, markInstalled]);
 
-    const surface = platform === 'ios' ? 'ios' : 'android';
+    const surface = inApp ? 'inapp' : (platform === 'ios' ? 'ios' : 'android');
     const cooldownActive = isDismissalCooldownActive(surface);
 
-    const androidPromptReady = Boolean(deferredPrompt) && !standalone && !installed;
-    const iosInstructionsRelevant = platform === 'ios' && !standalone && !installed;
+    const inAppNoticeRelevant = inApp && !standalone && !installed;
+    const androidPromptReady = !inApp && Boolean(deferredPrompt) && !standalone && !installed;
+    const androidManualRelevant = !inApp && platform === 'android' && !deferredPrompt && !standalone && !installed;
+    const iosInstructionsRelevant = !inApp && platform === 'ios' && !standalone && !installed;
 
     const canPrompt = !standalone
         && !installed
         && engaged
         && !cooldownActive
-        && (androidPromptReady || iosInstructionsRelevant);
+        && (inAppNoticeRelevant || androidPromptReady || androidManualRelevant || iosInstructionsRelevant);
 
     const promptInstall = async () => {
         if (!deferredPrompt) return 'unavailable';
@@ -82,10 +89,13 @@ export function usePwaInstall() {
 
     return {
         platform,
+        inApp,
         standalone,
         installed,
         promptAvailable,
+        inAppNoticeRelevant,
         androidPromptReady,
+        androidManualRelevant,
         iosInstructionsRelevant,
         canPrompt,
         promptInstall,

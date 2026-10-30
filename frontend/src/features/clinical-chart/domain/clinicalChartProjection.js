@@ -9,8 +9,10 @@ import {
     PROCEDURE_CODES,
     TOOTH_LIFECYCLE_CODES,
 } from './clinicalVisualCodes';
+import { resolvePaletteColor } from './procedureChartPalette';
 
 export const CLINICAL_CHART_PROJECTION_VERSION = 1;
+export const MAX_VISIBLE_PROCEDURE_MARKERS = 3;
 
 export const PROJECTION_DENTITIONS = Object.freeze({
     ...DENTITIONS,
@@ -185,12 +187,71 @@ const createVisualEntry = ({
         : Object.values(PROCEDURE_CODES);
     assertEnumValue(`${entryType}.code`, code, allowedCodes);
 
+    const rawStyleColorKey = entryType === 'procedure'
+        ? (entry.styleColorKey ?? entry.style_color_key ?? null)
+        : null;
+    const resolvedPalette = resolvePaletteColor(rawStyleColorKey);
+
     return Object.freeze({
         visualId: requireString(`${entryType}.visualId`, entry.visualId ?? fallbackId),
         code,
         phase,
         targets: Object.freeze(targets),
         annotations: Object.freeze(annotations),
+        ...(resolvedPalette ? { styleColorKey: resolvedPalette.key } : {}),
+    });
+};
+
+/**
+ * Normalizes a non-canonical tooth procedure marker (template `MARKER`, Decision D3).
+ * Unknown color keys are ignored (normalized to `null`) so rendering falls back to
+ * the default marker swatch without throwing.
+ */
+export const createProcedureMarker = (
+    marker,
+    fallbackId,
+    toothKey,
+    anatomyDefinition = DENTAL_ANATOMY_REGISTRY,
+) => {
+    assertRecord('marker', marker);
+    const normalizedToothKey = normalizeToothKey(toothKey, anatomyDefinition);
+    const rawMarkerToothKey = marker.toothKey ?? marker.tooth_key ?? normalizedToothKey;
+    const markerToothKey = normalizeToothKey(rawMarkerToothKey, anatomyDefinition);
+    if (markerToothKey !== normalizedToothKey) {
+        throw new RangeError(`marker toothKey must belong to tooth ${normalizedToothKey}`);
+    }
+
+    const procedureName = requireString(
+        'marker.procedureName',
+        marker.procedureName ?? marker.procedure_name,
+    );
+    const phase = marker.phase ?? PROJECTION_VISUAL_PHASES.COMPLETED;
+    assertEnumValue('marker.phase', phase, Object.values(PROJECTION_VISUAL_PHASES));
+
+    const rawColorKey = marker.colorKey ?? marker.color_key ?? null;
+    const resolvedColor = resolvePaletteColor(rawColorKey);
+
+    const allowedSurfaces = anatomyDefinition[normalizedToothKey].surfaceMap.surfaceCodes;
+    const rawSurfaceCodes = requireArray(
+        'marker.surfaceCodes',
+        marker.surfaceCodes ?? marker.surface_codes ?? [],
+    );
+    const surfaceCodes = [];
+    rawSurfaceCodes.forEach((rawCode) => {
+        const cleanCode = String(rawCode || '').trim().toUpperCase();
+        if (cleanCode && allowedSurfaces.includes(cleanCode) && !surfaceCodes.includes(cleanCode)) {
+            surfaceCodes.push(cleanCode);
+        }
+    });
+
+    return Object.freeze({
+        markerId: requireString('marker.markerId', marker.markerId ?? marker.marker_id ?? fallbackId),
+        procedureName,
+        colorKey: resolvedColor ? resolvedColor.key : null,
+        toothKey: normalizedToothKey,
+        surfaceCodes: Object.freeze(surfaceCodes),
+        phase,
+        sourceId: marker.sourceId ?? marker.source_id ?? null,
     });
 };
 
@@ -255,6 +316,18 @@ export const createToothVisualState = (
         .toUpperCase();
     assertEnumValue('lifecycle', lifecycle, Object.values(TOOTH_LIFECYCLE_CODES));
 
+    const hasExplicitMarkers = state.markers !== undefined;
+    const allMarkers = requireArray('markers', state.markers ?? []).map((marker, index) => (
+        createProcedureMarker(
+            marker,
+            `marker:${toothKey}:${index + 1}`,
+            toothKey,
+            anatomyDefinition,
+        )
+    ));
+    const visibleMarkers = allMarkers.slice(0, MAX_VISIBLE_PROCEDURE_MARKERS);
+    const markerOverflowCount = Math.max(0, allMarkers.length - visibleMarkers.length);
+
     return Object.freeze({
         toothKey,
         lifecycle,
@@ -266,6 +339,10 @@ export const createToothVisualState = (
         }),
         disabled: optionalBoolean('disabled', state.disabled),
         annotations: Object.freeze(annotations),
+        ...(hasExplicitMarkers ? {
+            markers: Object.freeze(visibleMarkers),
+            markerOverflowCount,
+        } : {}),
     });
 };
 

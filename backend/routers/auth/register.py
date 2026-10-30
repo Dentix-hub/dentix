@@ -42,7 +42,7 @@ async def register_clinic(
     contact_phone = contact_phone.strip()
 
     try:
-        validate_password(admin_password)
+        validate_password(admin_password, username=admin_username)
     except HTTPException as e:
         logger.warning(f"Registration failed: Password strength fail for user {admin_username}: {e.detail}")
         raise e
@@ -95,6 +95,9 @@ async def register_clinic(
             )
             registration_db.add(new_tenant)
             await registration_db.flush()  # Get ID
+
+            # Copy-on-registration: new clinic gets its own procedure catalog & chart styles
+            await crud.seed_tenant_default_procedures(registration_db, new_tenant.id)
 
             # Create the clinic's first admin user in the same transaction.
             hashed_password = auth_utils.get_password_hash(admin_password)

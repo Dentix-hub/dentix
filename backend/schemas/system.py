@@ -109,6 +109,11 @@ class TenantFeatureOverride(BaseModel):
     is_enabled: bool
 
 
+class TenantFeatureOverrideDelete(BaseModel):
+    tenant_id: int
+    feature_key: str
+
+
 class ActivityFeedItem(BaseModel):
     id: int
     type: str  # tenant, payment, error, audit

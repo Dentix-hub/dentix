@@ -79,6 +79,11 @@ EXPECTED_TENANT_MODELS = {
     "SubscriptionPayment",
     "SubscriptionCheckout",
     "SubscriptionRenewalRequest",
+    "ProcedureChartStyle",
+    "ClinicalCharge",
+    "UserOnboardingState",
+    "TenantDataOperation",
+    "GoogleOAuthAttempt",
 }
 
 # Models filtered via parent FK join (no own tenant_id column needed)

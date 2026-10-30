@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from .. import schemas, crud
 from ..cache import cache_response, invalidate_cache
+from backend.clinical.legacy_mapping import map_legacy_procedure
+from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES
+from backend.clinical.lab_choice import requires_laboratory
 from backend.database import get_async_db
 from backend.core.permissions import Permission, require_permission
 from backend.core.tenant_context import require_tenant_id
@@ -18,10 +21,21 @@ router = APIRouter(prefix="/procedures", tags=["Procedures"])
 
 @cache_response(ttl_seconds=300)
 async def _get_cached_procedures(db: AsyncSession, tenant_id: int, skip: int, limit: int):
-    return await crud.get_procedures(db, tenant_id, skip=skip, limit=limit)
+    procs = await crud.get_procedures(db, tenant_id, skip=skip, limit=limit)
+    return [
+        {
+            "id": p.id,
+            "name": p.name,
+            "code": p.code,
+            "category": p.category,
+            "price": float(p.price) if p.price is not None else 0.0,
+            "tenant_id": p.tenant_id,
+        }
+        for p in procs
+    ]
 
 
-@router.get("")
+@router.get("", response_model=list[schemas.Procedure])
 async def get_procedures(
     skip: int = 0,
     limit: int = 100,
@@ -30,7 +44,31 @@ async def get_procedures(
 ):
     """Get tenant procedures plus read-only global templates."""
     tenant_id = require_tenant_id(current_user)
-    return await _get_cached_procedures(db, tenant_id, skip, limit)
+    raw_procedures = await _get_cached_procedures(db, tenant_id, skip, limit)
+    styles = await crud.get_procedure_chart_styles(db, tenant_id)
+    styles_by_name = {
+        s.procedure_name: schemas.ProcedureChartStyleEmbedded(
+            template=s.template, color_key=s.color_key
+        )
+        for s in styles
+    }
+    return [
+        schemas.Procedure(
+            id=p["id"],
+            name=p["name"],
+            code=p.get("code"),
+            category=p.get("category"),
+            price=p["price"],
+            tenant_id=p["tenant_id"],
+            canonical_code=map_legacy_procedure(p["name"])[0],
+            requires_lab=requires_laboratory(
+                p.get("code") if p.get("code") in CANONICAL_PROCEDURE_CODES else p["name"],
+                custom_category=p.get("category"),
+            ),
+            chart_style=styles_by_name.get(p["name"]),
+        )
+        for p in raw_procedures
+    ]
 
 
 @router.post("")

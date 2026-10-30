@@ -22,6 +22,8 @@ from backend.services.secret_service import (
     SENSITIVE_SYSTEM_SETTING_KEYS,
     decrypt_secret,
 )
+from backend.routers.admin_features import get_super_admin
+from backend.services.clinical_drift_observer_service import ClinicalDriftObserverService
 
 router = APIRouter(
     prefix="/admin",
@@ -360,3 +362,28 @@ async def unblock_ip(
     from backend.services.security_service import SecurityService
     await SecurityService.unblock_ip(db, ip_address)
     return success_response({"message": f"IP {ip_address} unblocked successfully"})
+
+
+@router.get(
+    "/clinical-drift/{tenant_id}",
+    response_model=schemas.TenantClinicalDriftReport,
+    summary="Clinical Drift and Mapping Error Observer",
+)
+async def get_clinical_drift(
+    tenant_id: int,
+    limit_patients: int = 500,
+    after_patient_id: int = 0,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(get_super_admin),
+):
+    """
+    Read-only clinical drift and mapping error observer endpoint (G16-M04, G16-M05).
+    Super-admin only. Zero database writes.
+    """
+    service = ClinicalDriftObserverService(db)
+    return await service.compute_tenant_drift(
+        tenant_id=tenant_id,
+        limit_patients=limit_patients,
+        after_patient_id=after_patient_id,
+    )
+

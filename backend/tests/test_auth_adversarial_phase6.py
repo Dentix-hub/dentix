@@ -259,6 +259,7 @@ def test_password_reset_token_is_single_use_and_revokes_existing_session(
     assert persisted.used is True
 
 
+
 def test_expired_password_reset_token_is_rejected_and_consumed(
     client, db_session, test_tenant
 ):
@@ -298,19 +299,6 @@ def test_forgot_password_response_does_not_enumerate_accounts(
 ):
     user, _ = _create_user(db_session, test_tenant, prefix="reset_enum")
 
-    import backend.routers.password_reset as password_reset_router
-
-    monkeypatch.setattr(
-        password_reset_router.firebase_client,
-        "generate_password_reset_link",
-        lambda _email: "https://example.invalid/reset",
-    )
-    monkeypatch.setattr(
-        password_reset_router,
-        "send_password_reset_email",
-        lambda *_args, **_kwargs: True,
-    )
-
     known = client.post(
         "/api/v1/auth/forgot-password",
         json={"email": user.email},
@@ -325,7 +313,7 @@ def test_forgot_password_response_does_not_enumerate_accounts(
     assert known.json().get("message") == unknown.json().get("message")
 
 
-def test_forgot_password_commits_old_token_invalidation_on_firebase_success(
+def test_forgot_password_commits_old_token_invalidation_when_queued(
     client, db_session, test_tenant, monkeypatch
 ):
     user, _ = _create_user(db_session, test_tenant, prefix="reset_invalidate")
@@ -342,19 +330,6 @@ def test_forgot_password_commits_old_token_invalidation_on_firebase_success(
     db_session.commit()
     db_session.refresh(old_token)
 
-    import backend.routers.password_reset as password_reset_router
-
-    monkeypatch.setattr(
-        password_reset_router.firebase_client,
-        "generate_password_reset_link",
-        lambda _email: "https://example.invalid/reset",
-    )
-    monkeypatch.setattr(
-        password_reset_router,
-        "send_password_reset_email",
-        lambda *_args, **_kwargs: True,
-    )
-
     response = client.post(
         "/api/v1/auth/forgot-password",
         json={"email": user.email},
@@ -368,3 +343,14 @@ def test_forgot_password_commits_old_token_invalidation_on_firebase_success(
         .one()
     )
     assert persisted.used is True
+    fresh = db_session.query(models.PasswordResetToken).filter(
+        models.PasswordResetToken.user_id == user.id,
+        models.PasswordResetToken.used.is_(False),
+    ).all()
+    assert len(fresh) == 1
+    queued = db_session.query(models.DomainEvent).filter(
+        models.DomainEvent.event_type == "auth.password_reset.requested",
+        models.DomainEvent.aggregate_id == str(user.id),
+    ).one()
+    assert queued.payload.get("encrypted_token")
+    assert raw_token not in str(queued.payload)

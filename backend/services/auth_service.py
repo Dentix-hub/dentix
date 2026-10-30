@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload
 from sqlalchemy import select
 from fastapi import HTTPException
-from backend import models
+from backend import models, auth
 
 # For 2FA (Conceptual - requires pyotp for real or simple random for now)
 import random
@@ -28,6 +28,8 @@ class AuthService:
         device_info: str = None,
         *,
         commit: bool = True,
+        remember_me: bool = True,
+        expires_at: datetime | None = None,
     ):
         """Create a new active device session, storing only the refresh-token hash."""
         token_hash = AuthService.generate_token_hash(refresh_token)
@@ -38,7 +40,8 @@ class AuthService:
             ip_address=ip_address,
             user_agent=user_agent,
             device_info=device_info,
-            expires_at=(datetime.now(timezone.utc) + timedelta(days=7)).replace(tzinfo=None),
+            expires_at=expires_at or (datetime.now(timezone.utc) + timedelta(days=auth.REFRESH_TOKEN_EXPIRE_DAYS)).replace(tzinfo=None),
+            remember_me=remember_me,
         )
         db.add(session)
         if commit:

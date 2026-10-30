@@ -65,6 +65,16 @@ async def lifespan(app: FastAPI):
     # connection may carry BYPASSRLS.
     await database.verify_system_database_role()
 
+    # Performance Diagnostics (PR4) - safe startup pool settings log & event setup
+    from backend.core.perf_diagnostics import (
+        is_perf_enabled,
+        log_effective_pool_settings,
+        setup_sqlalchemy_perf_events,
+    )
+    log_effective_pool_settings()
+    if is_perf_enabled():
+        setup_sqlalchemy_perf_events(database.async_engine, database.system_async_engine)
+
     # ================================================================
     # PRODUCTION SAFETY: Schema mutation and seeding are BLOCKED
     # in production. Use Alembic via the deployment entrypoint script.
@@ -212,6 +222,7 @@ app.add_middleware(GZipMiddleware, minimum_size=500)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+import traceback
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from backend.core.logging_sanitizer import sanitize_text, sanitize_dict
@@ -220,6 +231,10 @@ from backend.core.logging import get_trace_id
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     detail = exc.detail
+    request.state.error_detail = detail
+    request.state.error_code = getattr(exc, "error_code", None)
+    if exc.status_code >= 500:
+        request.state.stack_trace = traceback.format_exc()
     return JSONResponse(
         status_code=exc.status_code,
         content={
@@ -234,6 +249,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     sanitized_errors = [sanitize_dict(err) if isinstance(err, dict) else sanitize_text(str(err)) for err in exc.errors()]
+    request.state.error_detail = "validation_error"
     return JSONResponse(
         status_code=422,
         content={
@@ -246,7 +262,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
+    formatted_trace = traceback.format_exc()
     logger.error("Unhandled server exception: %s", sanitize_text(str(exc)), exc_info=True)
+    request.state.error_detail = str(exc)
+    request.state.stack_trace = formatted_trace
     return JSONResponse(
         status_code=500,
         content={
@@ -268,6 +287,8 @@ app.add_middleware(TenantMiddleware)
 origins = get_cors_origins()
 logger.debug("[CONFIG] Loaded CORS Origins: %s", origins)
 # Add Middleware (Order matters: ErrorLogging should be high up to catch everything)
+from backend.core.perf_diagnostics import PerfDiagnosticsMiddleware
+app.add_middleware(PerfDiagnosticsMiddleware)
 app.add_middleware(ErrorLoggingMiddleware)
 app.add_middleware(
     CORSMiddleware,
@@ -276,6 +297,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Trace-ID", "Accept", "Idempotency-Key", "X-CSRF-Token"],
+    expose_headers=["Server-Timing", "X-Trace-ID"],
 )
 
 # 6. CSRF Protection Middleware (for httpOnly cookie-based auth)
@@ -417,6 +439,7 @@ from backend.routers import (
     laboratories,
     settings,
     procedures,
+    procedure_chart_styles,
     dashboard,
     notifications,
     ai,
@@ -444,10 +467,19 @@ from backend.routers import (
     attachments,
     system_logs,  # Price Lists, Insurance, Attachments, System Logs
     inventory,  # Inventory System
+    onboarding,
     inventory_smart,  # Smart Inventory Suggestions
     financials,  # Smart Costing & Financials
     metrics,  # Metrics & Profitability
     push,  # PWA Web Push subscriptions (plan §12)
+    treatment_plans,  # Clinical Treatment Plans (Slice G9a)
+    clinical_commands,  # Clinical Commands (Slice S04)
+    care_sessions,  # Care Sessions (Slice S18)
+    clinical_attachment_links,  # Clinical Attachment Links (Slice S23)
+    next_visit_requests,  # Next-Visit Requests Queue & Booking (Slice S25)
+    clinical_charges,  # Clinical Charges (Slice S33)
+    admin_finance_parity,  # Admin Finance Parity (Slice S34)
+    admin_clinical_rollout,  # Admin Clinical Rollout (Slice S36)
 )
 
 # --- Register Exception Handlers ---
@@ -472,7 +504,20 @@ async def get_session_direct_root(
 app.include_router(treatments.router, prefix=API_V1_STR)
 
 app.include_router(patients.router, prefix=API_V1_STR)
+app.include_router(treatment_plans.router, prefix=API_V1_STR)
+app.include_router(treatment_plans.router)
+app.include_router(clinical_commands.router, prefix=API_V1_STR)
+app.include_router(clinical_commands.router)
+app.include_router(care_sessions.router, prefix=API_V1_STR)
+app.include_router(care_sessions.router)
+app.include_router(clinical_attachment_links.router, prefix=API_V1_STR)
+app.include_router(clinical_attachment_links.router)
+app.include_router(next_visit_requests.router, prefix=API_V1_STR)
+app.include_router(next_visit_requests.router)
+app.include_router(clinical_charges.router, prefix=API_V1_STR)
+app.include_router(clinical_charges.router)
 app.include_router(auth.router, prefix=f"{API_V1_STR}/auth")
+
 app.include_router(password_reset.router, prefix=f"{API_V1_STR}/auth")
 app.include_router(appointments.router, prefix=API_V1_STR)
 app.include_router(users.router, prefix=API_V1_STR)
@@ -480,7 +525,12 @@ app.include_router(payments.router, prefix=API_V1_STR)
 app.include_router(expenses.router, prefix=API_V1_STR)
 app.include_router(laboratories.router, prefix=API_V1_STR)
 app.include_router(settings.router, prefix=API_V1_STR)
+from backend.routers import tenant_backups
+app.include_router(tenant_backups.router, prefix=API_V1_STR)
+from backend.routers import clinic_google
+app.include_router(clinic_google.router, prefix=API_V1_STR)
 app.include_router(procedures.router, prefix=API_V1_STR)
+app.include_router(procedure_chart_styles.router, prefix=API_V1_STR)
 app.include_router(dashboard.router, prefix=API_V1_STR)
 app.include_router(notifications.router, prefix=API_V1_STR)
 app.include_router(push.router, prefix=API_V1_STR)
@@ -492,6 +542,8 @@ app.include_router(admin_audit.router, prefix=API_V1_STR)   # B3.1: Audit & syst
 app.include_router(admin_stats.router, prefix=API_V1_STR)   # B3.1: Dashboard stats
 app.include_router(admin_security.router, prefix=API_V1_STR)
 app.include_router(admin_features.router, prefix=API_V1_STR)
+app.include_router(admin_finance_parity.router, prefix=API_V1_STR)
+app.include_router(admin_clinical_rollout.router, prefix=API_V1_STR)
 # app.include_router(admin_subscriptions.router, prefix=API_V1_STR) # Already included above
 # app.include_router(admin.router, prefix=f"{API_V1_STR}/admin", tags=["admin"]) # Deprecated
 app.include_router(
@@ -518,6 +570,8 @@ from backend.routers import upload
 
 app.include_router(upload.router, prefix=API_V1_STR)
 app.include_router(inventory.router, prefix=API_V1_STR)
+app.include_router(onboarding.router, prefix=API_V1_STR)
+app.include_router(onboarding.router)
 app.include_router(inventory_smart.router, prefix=API_V1_STR)
 app.include_router(financials.router, prefix=API_V1_STR)
 app.include_router(metrics.router, prefix=API_V1_STR)
@@ -613,7 +667,7 @@ def get_safe_static_path(base_directory: pathlib.Path, requested_path_str: str) 
 # Note: /health is now handled by health.router with more comprehensive checks
 
 
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 
 # ...
 
@@ -640,7 +694,7 @@ async def read_root():
 
 # SPA Catch-all route (must be last)
 @app.get("/{full_path:path}")
-async def catch_all(full_path: str):
+async def catch_all(full_path: str, request: Request):
     """Serve React App for any unknown path (SPA support)."""
     # Exclude API/Static paths and auth endpoints
     if (
@@ -651,10 +705,25 @@ async def catch_all(full_path: str):
         or full_path.startswith("auth")
     ):
         if full_path.endswith("/"):
-            from fastapi.responses import RedirectResponse
             return RedirectResponse(url=f"/{full_path.rstrip('/')}", status_code=307)
 
-        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    # HF serves the built frontend directly; Vercel rewrites do not run here.
+    # Keep public marketing documents separate from the application SPA fallback.
+    language = full_path.split("/", 1)[0]
+    if language in {"ar", "en"}:
+        if full_path in {f"{language}/", f"{language}/index.html"}:
+            destination = f"/{language}"
+            if request.url.query:
+                destination += f"?{request.url.query}"
+            return RedirectResponse(url=destination, status_code=308)
+
+        if full_path == language:
+            page_path = get_safe_static_path(static_dir, f"{language}/index.html")
+            if page_path and page_path.is_file():
+                return FileResponse(str(page_path))
+
         raise HTTPException(status_code=404, detail="Not Found")
 
     # Check if the file exists in the static directory (e.g. /logo.png)
@@ -663,6 +732,11 @@ async def catch_all(full_path: str):
 
     if safe_file_path and safe_file_path.is_file():
         return FileResponse(str(safe_file_path))
+
+    if full_path == "marketing" or full_path.startswith("marketing/") or full_path in {
+        "robots.txt", "sitemap.xml"
+    }:
+        raise HTTPException(status_code=404, detail="Not Found")
 
     # Serve index.html for SPA routing
     index_path = os.path.join(static_dir, "index.html")

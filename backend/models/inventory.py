@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, CheckConstraint, Column, Integer, String, ForeignKey, Date, Float, Numeric, DateTime, Text, column, text
+from sqlalchemy import Boolean, CheckConstraint, Column, Integer, String, ForeignKey, Date, Float, Numeric, DateTime, Text, Index, column, text
 from sqlalchemy.orm import relationship
 from datetime import datetime, timezone
 from .base import Base
@@ -287,7 +287,7 @@ class MaterialLearningLog(Base):
 
 
 class TreatmentMaterialUsage(Base):
-    """Links each treatment to the materials used."""
+    """Links each treatment or care session to the materials used."""
 
     __tablename__ = "treatment_material_usages"
     __table_args__ = (
@@ -295,6 +295,12 @@ class TreatmentMaterialUsage(Base):
             "cost_calculated IS NULL OR cost_calculated >= 0",
             name="ck_treatment_material_usage_cost_nonnegative",
         ),
+        CheckConstraint(
+            "treatment_id IS NOT NULL OR care_session_id IS NOT NULL",
+            name="ck_tmu_treatment_or_care_session_required",
+        ),
+        Index("ix_tmu_tenant_care_session", "tenant_id", "care_session_id"),
+        Index("ix_tmu_tenant_work_item", "tenant_id", "work_item_id"),
     )
 
     __rls_policies__ = [
@@ -306,7 +312,27 @@ class TreatmentMaterialUsage(Base):
     ]
 
     id = Column(Integer, primary_key=True, index=True)
-    treatment_id = Column(Integer, ForeignKey("treatments.id"), nullable=False, index=True)
+    treatment_id = Column(Integer, ForeignKey("treatments.id"), nullable=True, index=True)
+    care_session_id = Column(
+        Integer,
+        ForeignKey(
+            "care_sessions.id",
+            ondelete="SET NULL",
+            name="fk_treatment_material_usages_care_session_id",
+        ),
+        nullable=True,
+        index=True,
+    )
+    work_item_id = Column(
+        Integer,
+        ForeignKey(
+            "clinical_work_items.id",
+            ondelete="SET NULL",
+            name="fk_treatment_material_usages_work_item_id",
+        ),
+        nullable=True,
+        index=True,
+    )
     material_id = Column(Integer, ForeignKey("materials.id"), nullable=False, index=True)
     session_id = Column(Integer, ForeignKey("material_sessions.id"), nullable=True)
 
@@ -324,3 +350,5 @@ class TreatmentMaterialUsage(Base):
     treatment = relationship("Treatment")
     material = relationship("Material")
     session = relationship("MaterialSession")
+    care_session = relationship("CareSession", back_populates="material_usages")
+    work_item = relationship("ClinicalWorkItem")

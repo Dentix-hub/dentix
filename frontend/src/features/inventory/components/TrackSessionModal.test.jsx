@@ -65,4 +65,13 @@ describe('TrackSessionModal', () => {
         fireEvent.click(screen.getByRole('button', { name: /Close|إغلاق/i }));
         expect(onClose).toHaveBeenCalledTimes(1);
     });
+
+    it('displays Arabic error message when stock items fail to load', async () => {
+        getMaterialStock.mockRejectedValue(new Error('Network error 500'));
+        renderDialog({ stockItem: null });
+
+        const errorMsg = await screen.findByTestId('track-session-stock-error');
+        expect(errorMsg).toBeInTheDocument();
+        expect(/[\u0600-\u06FF]/.test(errorMsg.textContent)).toBe(true);
+    });
 });

@@ -34,6 +34,8 @@ from backend.clinical.catalog import (
 from backend.clinical.legacy_mapping import (
     VerifiedPatientContext,
     map_legacy_clinical_batch,
+    map_legacy_status,
+    map_legacy_tooth_notation,
 )
 from backend.models.clinical_core import FDI_TOOTH_KEYS
 
@@ -559,6 +561,11 @@ class ClinicalWorkspaceService:
                     recorded_at=wi.created_at,
                     temporal_certainty="EXACT",
                     is_renderer_supported=is_supported,
+                    lab_order_id=wi.lab_order_id,
+                    lab_status=wi.lab_status,
+                    lab_ready=wi.lab_ready,
+                    shade=wi.shade,
+                    material=wi.material,
                 )
                 work_item_summaries.append(summary)
 
@@ -719,6 +726,10 @@ class ClinicalWorkspaceService:
         )
 
         if legacy_needed:
+            tenant_styles = await crud.get_procedure_chart_styles(self.db, self.tenant_id)
+            styles_by_name = {s.procedure_name: s for s in tenant_styles}
+            procedure_template_overrides = {s.procedure_name: s.template for s in tenant_styles}
+
             legacy_data = await crud.get_legacy_clinical_records_for_patient(
                 self.db, patient_id, self.tenant_id
             )
@@ -731,7 +742,53 @@ class ClinicalWorkspaceService:
                 tooth_statuses=legacy_data.tooth_statuses,
                 treatment_sessions=legacy_data.treatment_sessions,
                 lab_orders=legacy_data.lab_orders,
+                procedure_template_overrides=procedure_template_overrides,
             )
+            legacy_treatments_by_id = {getattr(t, "id", None): t for t in legacy_data.treatments}
+            lab_link_by_treatment_id = {ll.treatment_id: ll.lab_order_id for ll in batch.lab_links}
+            legacy_lab_orders_by_id = {getattr(lo, "id", None): lo for lo in legacy_data.lab_orders}
+
+            # Build markers from treatments whose procedure has template MARKER (D3 / A4)
+            for t in legacy_data.treatments:
+                proc_name = getattr(t, "procedure", None)
+                if not proc_name or proc_name not in styles_by_name:
+                    continue
+                style = styles_by_name[proc_name]
+                if style.template != "MARKER":
+                    continue
+
+                raw_tooth = getattr(t, "tooth_number", None)
+                t_key, tooth_err = map_legacy_tooth_notation(raw_tooth)
+                if not t_key or tooth_err or t_key not in teeth_map:
+                    continue
+
+                raw_surfs = getattr(t, "surfaces", None) or []
+                valid_surfs = [
+                    s.strip().upper()
+                    for s in raw_surfs
+                    if isinstance(s, str) and s.strip().upper() in {"M", "D", "O", "I", "B", "L", "P"}
+                ]
+
+                t_status = getattr(t, "status", None)
+                c_status, _ = map_legacy_status(t_status)
+                phase = "completed" if c_status == "completed" else "planned"
+
+                marker_id = (
+                    f"marker-legacy-{t.id}"
+                    if getattr(t, "id", None)
+                    else f"marker-legacy-tooth-{t_key}"
+                )
+                marker = schemas.WorkspaceProcedureMarker(
+                    marker_id=marker_id,
+                    procedure_name=proc_name,
+                    color_key=style.color_key,
+                    tooth_key=t_key,
+                    surface_codes=valid_surfs,
+                    phase=phase,
+                    source_id=getattr(t, "id", None),
+                )
+                teeth_map[t_key].markers.append(marker)
+                has_fallback_truth = True
 
             for amb in list(batch.ambiguities) + list(batch.issues):
                 warnings.append(
@@ -851,10 +908,8 @@ class ClinicalWorkspaceService:
 
                     has_fallback_truth = True
                     raw_proc = wi_draft.raw_procedure or wi_draft.code
-                    is_supported = (
-                        wi_draft.code in SUPPORTED_PROCEDURE_CODES
-                        or wi_draft.code in SUPPORTED_FINDING_CODES
-                    )
+                    style_row = styles_by_name.get(raw_proc) if raw_proc else None
+                    style_color_key = style_row.color_key if style_row else None
 
                     fallback_targets = [
                         schemas.WorkspaceTarget(
@@ -866,6 +921,37 @@ class ClinicalWorkspaceService:
                         )
                         for t in wi_draft.targets
                     ]
+
+                    # Surface expansion (D4, projection layer only)
+                    source_treatment = legacy_treatments_by_id.get(wi_draft.source_id)
+                    if source_treatment is not None and wi_draft.code in CANONICAL_PROCEDURE_CODES:
+                        proc_def = get_procedure(wi_draft.code)
+                        if "surface" in proc_def.allowed_target_kinds and "tooth" not in proc_def.allowed_target_kinds:
+                            raw_surfs = getattr(source_treatment, "surfaces", None)
+                            if raw_surfs:
+                                valid_letters = ("M", "D", "O", "I", "B", "L", "P")
+                                seen_surfs = set()
+                                ordered_valid_surfs = []
+                                for s in raw_surfs:
+                                    su = s.strip().upper() if isinstance(s, str) else ""
+                                    if su in valid_letters and su not in seen_surfs:
+                                        seen_surfs.add(su)
+                                        ordered_valid_surfs.append(su)
+                                if ordered_valid_surfs and fallback_targets:
+                                    base_tooth_key = fallback_targets[0].tooth_key
+                                    fallback_targets = [
+                                        schemas.WorkspaceTarget(
+                                            kind="surface",
+                                            tooth_key=base_tooth_key,
+                                            surface_code=s_code,
+                                        )
+                                        for s_code in ordered_valid_surfs
+                                    ]
+
+                    is_supported = (
+                        wi_draft.code in SUPPORTED_PROCEDURE_CODES
+                        or wi_draft.code in SUPPORTED_FINDING_CODES
+                    )
                     has_supported_target = _has_renderer_supported_target(
                         wi_draft.code,
                         fallback_targets,
@@ -906,6 +992,11 @@ class ClinicalWorkspaceService:
                             )
                         )
 
+                    linked_lab_id = lab_link_by_treatment_id.get(wi_draft.source_id)
+                    linked_lab = legacy_lab_orders_by_id.get(linked_lab_id) if linked_lab_id else None
+                    from backend.clinical.catalog import map_lab_order_status
+                    fallback_lab_status = map_lab_order_status(linked_lab.status) if linked_lab else None
+
                     work_item_summaries.append(
                         schemas.WorkspaceWorkItemSummary(
                             id=f"legacy-{wi_draft.source_id}",
@@ -917,6 +1008,12 @@ class ClinicalWorkspaceService:
                             provenance="legacy_fallback",
                             temporal_certainty="EXACT" if wi_draft.diagnosis else "UNKNOWN",
                             is_renderer_supported=is_supported,
+                            style_color_key=style_color_key,
+                            lab_order_id=linked_lab.id if linked_lab else None,
+                            lab_status=fallback_lab_status,
+                            lab_ready=(fallback_lab_status == "lab_ready"),
+                            shade=linked_lab.shade if linked_lab else None,
+                            material=linked_lab.material if linked_lab else None,
                         )
                     )
 
@@ -930,7 +1027,9 @@ class ClinicalWorkspaceService:
                             targets=fallback_targets,
                             provenance="legacy_fallback",
                             temporal_certainty="UNKNOWN",
+                            style_color_key=style_color_key,
                         )
+                        appended_legacy_tooth_keys: set[str] = set()
                         for t in fallback_targets:
                             if t.tooth_key in teeth_map and (
                                 effective_treatments_cov == "UNCOVERED"
@@ -939,25 +1038,27 @@ class ClinicalWorkspaceService:
                                     and (not t.surface_code or (t.tooth_key, t.surface_code, wi_draft.code) not in native_covered_surfaces)
                                 )
                             ):
-                                t_summary = teeth_map[t.tooth_key]
-                                if t.tooth_key not in native_teeth_with_truth:
-                                    t_summary.provenance = "legacy_fallback"
-                                    t_summary.temporal_certainty = "UNKNOWN"
-                                if wi_draft.kind == "finding":
-                                    t_summary.findings.append(ve)
-                                else:
-                                    t_summary.procedures.append(ve)
-                                    if (
-                                        wi_draft.status == "completed"
-                                        and wi_draft.code
-                                        == ProcedureCode.SURG_EXTRACTION.value
-                                        and t.tooth_key
-                                        not in native_teeth_status_with_truth
-                                    ):
-                                        t_summary.lifecycle = (
-                                            ToothLifecycleCode.EXTRACTED.value
-                                        )
-                                        t_summary.condition = "Extracted"
+                                if t.tooth_key not in appended_legacy_tooth_keys:
+                                    appended_legacy_tooth_keys.add(t.tooth_key)
+                                    t_summary = teeth_map[t.tooth_key]
+                                    if t.tooth_key not in native_teeth_with_truth:
+                                        t_summary.provenance = "legacy_fallback"
+                                        t_summary.temporal_certainty = "UNKNOWN"
+                                    if wi_draft.kind == "finding":
+                                        t_summary.findings.append(ve)
+                                    else:
+                                        t_summary.procedures.append(ve)
+                                        if (
+                                            wi_draft.status == "completed"
+                                            and wi_draft.code
+                                            == ProcedureCode.SURG_EXTRACTION.value
+                                            and t.tooth_key
+                                            not in native_teeth_status_with_truth
+                                        ):
+                                            t_summary.lifecycle = (
+                                                ToothLifecycleCode.EXTRACTED.value
+                                            )
+                                            t_summary.condition = "Extracted"
 
         if has_fallback_truth:
             if rollout_mode == "VNEXT_PRIMARY":

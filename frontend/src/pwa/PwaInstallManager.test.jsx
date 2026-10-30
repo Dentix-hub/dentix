@@ -182,4 +182,49 @@ describe('PwaInstallManager platform-aware install UX', () => {
         });
         expect(registration.update).toHaveBeenCalledTimes(2);
     });
+
+    it('shows Android manual instructions when no beforeinstallprompt event arrives and honors dismissal', () => {
+        setUserAgent('Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36');
+        render(<PwaInstallManager />);
+
+        act(() => {
+            vi.advanceTimersByTime(ENGAGEMENT_MS);
+        });
+        expect(screen.getByText('translated:pwa.install.android_manual.title')).toBeInTheDocument();
+        expect(screen.getByText('translated:pwa.install.android_manual.step1')).toBeInTheDocument();
+        expect(screen.getByText('translated:pwa.install.android_manual.step2')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'translated:pwa.install.android_manual.action' }));
+        expect(screen.queryByText('translated:pwa.install.android_manual.title')).not.toBeInTheDocument();
+    });
+
+    it('shows in-app browser notice card on in-app user agents instead of install steps', () => {
+        setUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Instagram 312.0.0');
+        render(<PwaInstallManager />);
+
+        act(() => {
+            vi.advanceTimersByTime(ENGAGEMENT_MS);
+        });
+        expect(screen.getByText('translated:pwa.in_app.title')).toBeInTheDocument();
+        expect(screen.getByText('translated:pwa.in_app.description')).toBeInTheDocument();
+        expect(screen.queryByText('translated:pwa.install.ios.title')).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'translated:pwa.in_app.action' }));
+        expect(screen.queryByText('translated:pwa.in_app.title')).not.toBeInTheDocument();
+    });
+
+    it('clears stale app-installed localStorage flag on startup when running in a non-standalone browser tab', () => {
+        window.localStorage.setItem('dentix:pwa:app-installed', String(Date.now() - 1000));
+        setUserAgent('Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36');
+
+        render(<PwaInstallManager />);
+        expect(window.localStorage.getItem('dentix:pwa:app-installed')).toBeNull();
+        expect(useInstallStore.getState().installed).toBe(false);
+
+        fireBeforeInstallPrompt();
+        act(() => {
+            vi.advanceTimersByTime(ENGAGEMENT_MS);
+        });
+        expect(screen.getByText('translated:pwa.install.title')).toBeInTheDocument();
+    });
 });

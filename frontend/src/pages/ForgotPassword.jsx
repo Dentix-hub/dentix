@@ -56,7 +56,9 @@ export default function ForgotPassword() {
                                         placeholder="example@email.com"
                                         className="w-full p-4 bg-slate-50 dark:bg-slate-700 rounded-xl border border-slate-200 dark:border-slate-600 outline-none focus:border-sky-500 transition-colors text-left"
                                         dir="ltr"
+                                        aria-describedby="no-email-help"
                                     />
+                                    <p id="no-email-help" className="mt-2 text-sm text-slate-500">{t('auth.forgot_password.no_email_help')}</p>
                                 </div>
                                 {error && (
                                     <div className="flex items-center gap-2 text-red-500 bg-red-50 dark:bg-red-500/10 p-3 rounded-xl">
