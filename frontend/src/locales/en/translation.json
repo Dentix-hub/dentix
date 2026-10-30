@@ -3552,6 +3552,8 @@
     "working_length_title": "Working Length & Apex Measurements"
   },
   "dental_chart": {
+    "primary_teeth": "Primary teeth",
+    "permanent_teeth": "Permanent teeth",
     "mixed": "Dental Chart (Mixed)",
     "pediatric": "Dental Chart (Pediatric)",
     "adult": "Dental Chart (Adult)",
