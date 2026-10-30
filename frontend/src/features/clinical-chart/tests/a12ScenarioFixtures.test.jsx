@@ -73,7 +73,13 @@ describe('A12 odontogram scenario fixture matrix', () => {
         expect(container.firstChild).toHaveAttribute('data-dentition', dentition);
         expect(crownKeys).toHaveLength(count);
         if (dentition === 'mixed') {
-            expect(crownKeys).toEqual(MIXED_DENTITION_TOOTH_ORDER);
+            // Permanent upper, primary upper, primary lower, permanent lower.
+            expect(crownKeys).toEqual([
+                '26', '22', '21', '11', '12', '16',
+                '65', '64', '63', '53', '54', '55',
+                '75', '74', '73', '83', '84', '85',
+                '36', '32', '31', '41', '42', '46',
+            ]);
             expect(toothRoots(container, '26')
                 .querySelectorAll('[data-layer-role="base-anatomy"] > path')).toHaveLength(3);
             expect(toothRoots(container, '63')

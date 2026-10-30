@@ -3532,6 +3532,8 @@
     "working_length_title": "طول العمل وقياسات القمة"
   },
   "dental_chart": {
+    "primary_teeth": "الأسنان اللبنية",
+    "permanent_teeth": "الأسنان الدائمة",
     "mixed": "مخطط الأسنان (مختلط)",
     "pediatric": "مخطط الأسنان (أطفال)",
     "adult": "مخطط الأسنان (بالغين)",

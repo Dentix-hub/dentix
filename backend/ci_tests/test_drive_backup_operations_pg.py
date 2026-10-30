@@ -10,6 +10,7 @@ from backend.core.tenancy import clear_tenant_context, set_current_tenant_id
 from backend.database import AsyncSessionLocal, RlsContext
 from backend.services.clinic_drive_backup import queue_drive_backup, run_drive_backup
 from backend.services.clinic_drive_provider import DriveFailure
+from backend.services.tenant_archive import decode_archive
 
 
 @pytest.mark.asyncio
@@ -25,7 +26,7 @@ async def test_backup_retry_reuses_file_and_ciphertext(monkeypatch):
             db.add(tenant)
             await db.flush()
             actor = models.User(tenant_id=tenant.id, username='backup_' + suffix, email=suffix + '@example.com', hashed_password='synthetic', role='admin', is_active=True)
-            db.add(actor)
+            db.add_all([actor, models.Patient(tenant_id=tenant.id, name='Synthetic unknown demographics', age=None, phone=None)])
             await db.commit()
             tenant_id, actor_id = tenant.id, actor.id
     class FakeProvider:
@@ -37,6 +38,11 @@ async def test_backup_retry_reuses_file_and_ciphertext(monkeypatch):
             assert count == 1
             return ['file-' + suffix]
         def upload_backup(self, **kwargs):
+            _, payload = decode_archive(kwargs['archive'], tenant_id=tenant_id,
+                installation_id='synthetic-installation', keys={'synthetic': b'a' * 32})
+            assert len(payload['data']['patients']) == 1
+            assert payload['data']['patients'][0]['age'] is None
+            assert payload['data']['patients'][0]['phone'] is None
             self.__class__.calls += 1
             previous = self.files.setdefault(kwargs['file_id'], kwargs['digest'])
             assert previous == kwargs['digest']
