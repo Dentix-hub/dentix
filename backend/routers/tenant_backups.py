@@ -53,6 +53,15 @@ class ConfirmRestore(BaseModel):
     otp_code: str | None = Field(default=None, max_length=16, deprecated=True)  # Accepted for older clients; restore uses password confirmation.
 
 
+@router.get('/image-operations')
+async def image_operation_diagnostics(db: AsyncSession = Depends(get_async_db), user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
+    from backend.services.image_backup_diagnostics import image_backup_diagnostics
+    tenant_id = _clinic_admin(user)
+    result = await image_backup_diagnostics(db, tenant_id)
+    return Response(content=json.dumps(success_response(data=result)), media_type='application/json',
+                    headers={'Cache-Control': 'private, no-store'})
+
+
 @router.get('/archive')
 async def download_clinic_archive(db: AsyncSession = Depends(get_async_db), user: models.User = Depends(require_permission(Permission.SYSTEM_CONFIG))):
     tenant_id = _clinic_admin(user)
@@ -164,7 +173,9 @@ async def clinic_restore_status(operation_id: str, db: AsyncSession = Depends(ge
     ))).scalar_one_or_none()
     if operation is None:
         raise HTTPException(status_code=404, detail='عملية الاستعادة غير موجودة')
-    errors = {'quota': 'مساحة Google Drive غير كافية', 'reconnect': 'يرجى إعادة ربط Google Drive',
+    errors = {'archive_data': 'تعذر تجهيز النسخة بسبب مرجع أو قيمة غير صالحة في بيانات العيادة؛ راجع تفاصيل تحميل النسخة المشفرة',
+              'configuration': 'تعذر تجهيز النسخة؛ تحقق من إعدادات النسخ أو تفاصيل تحميل النسخة المشفرة',
+              'quota': 'مساحة Google Drive غير كافية', 'reconnect': 'يرجى إعادة ربط Google Drive',
               'rate_limit': 'طلبات Google Drive كثيرة، يرجى المحاولة لاحقًا',
               'transient': 'Google Drive غير متاح مؤقتًا', 'permission': 'تعذر الوصول إلى Google Drive',
               'connection_changed': 'تغير اتصال Google أثناء العملية'}

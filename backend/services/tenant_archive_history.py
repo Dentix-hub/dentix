@@ -6,6 +6,42 @@ import json
 import math
 import re
 
+UNRESOLVED_HISTORY = 'unresolved_legacy_treatment'
+
+
+def _is_completed_history(event, item, payload):
+    return (
+        event.get('event_type') in {'procedure_recorded', 'procedure_updated'}
+        and item.get('status') == 'completed'
+        and payload.get('kind') == 'procedure'
+        and bool(item.get('code')) and payload.get('canonical_code') == item['code']
+    )
+
+
+def disclose_unresolved_treatment_history(data):
+    """Annotate exported copies, never database rows or fabricated treatments.
+
+    A completed same-patient procedure retains its legacy provenance even
+    without a deletion witness. The marker explicitly discloses that the
+    treatment cannot be resolved; it does not assert a legitimate deletion.
+    """
+    live = {row['id'] for row in data.get('treatments', [])}
+    items = {row['id']: row for row in data.get('clinical_work_items', [])}
+    patients = {row['id']: row for row in data.get('patients', [])}
+    for event in data.get('clinical_events', []):
+        item = items.get(event.get('work_item_id'))
+        patient = patients.get(event.get('patient_id'))
+        payload = event.get('payload')
+        if not item or not patient or not isinstance(payload, dict):
+            continue
+        if not (event.get('tenant_id') == item.get('tenant_id') == patient.get('tenant_id')
+                and item.get('patient_id') == patient['id'] and item.get('kind') == 'procedure'
+                and _is_completed_history(event, item, payload)):
+            continue
+        refs = [payload[k] for k in ('treatment_id', 'legacy_treatment_id') if payload.get(k) is not None]
+        if refs and all(isinstance(v, int) and not isinstance(v, bool) and 0 < v <= 2147483647 and v not in live for v in refs):
+            event['payload'] = {**payload, 'archive_reference_state': UNRESOLVED_HISTORY}
+
 
 def deleted_treatment_contexts(data: dict) -> dict[tuple[int, int], set[int]]:
     """Return absent treatment IDs witnessed by a same-patient/work-item delete."""
@@ -41,7 +77,15 @@ def deleted_treatment_contexts(data: dict) -> dict[tuple[int, int], set[int]]:
             and re.fullmatch(r'Link:LabOrder:[1-9][0-9]*', item['notes']) is not None
             and event.get('notes') == item['notes']
         )
-        if not (explicit_deletion or lab_provenance):
+        disclosed_history = (
+            payload.get('archive_reference_state') == UNRESOLVED_HISTORY
+            and _is_completed_history(event, item, payload)
+            and all(isinstance(value, int) and not isinstance(value, bool)
+                    and 0 < value <= 2147483647 and value not in live
+                    for value in (payload.get('treatment_id'), payload.get('legacy_treatment_id'))
+                    if value is not None)
+        )
+        if not (explicit_deletion or lab_provenance or disclosed_history):
             continue
         for field in ('treatment_id', 'legacy_treatment_id'):
             value = payload.get(field)
