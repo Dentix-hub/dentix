@@ -387,6 +387,30 @@ describe('DentalChartSVG live anatomical crown and root integration', () => {
         expect(pediatricChart.querySelectorAll('[data-layer="notation-label"]')).toHaveLength(20);
     });
 
+    it('orders all 52 mixed teeth in separate anatomical rows regardless of input order', () => {
+        const toothOrder = [
+            ...Array.from({ length: 4 }, (_, q) => Array.from({ length: 8 }, (_, i) => `${q + 1}${i + 1}`)).flat(),
+            ...Array.from({ length: 4 }, (_, q) => Array.from({ length: 5 }, (_, i) => `${q + 5}${i + 1}`)).flat(),
+        ];
+        const onToothClick = vi.fn();
+        const { container } = render(
+            <DentalChartSVG teethStatus={{ '65': { condition: 'Filled' } }} onToothClick={onToothClick} toothOrder={toothOrder} showRoots />,
+        );
+        const rowKeys = (row) => Array.from(container.querySelectorAll(
+            `[data-dentition-row="${row}"] button[data-tooth-key]`,
+        )).map((node) => node.dataset.toothKey);
+        expect(rowKeys('permanent-upper')).toEqual(['28', '27', '26', '25', '24', '23', '22', '21', '11', '12', '13', '14', '15', '16', '17', '18']);
+        expect(rowKeys('primary-upper')).toEqual(['65', '64', '63', '62', '61', '51', '52', '53', '54', '55']);
+        expect(rowKeys('primary-lower')).toEqual(['75', '74', '73', '72', '71', '81', '82', '83', '84', '85']);
+        expect(rowKeys('permanent-lower')).toEqual(['38', '37', '36', '35', '34', '33', '32', '31', '41', '42', '43', '44', '45', '46', '47', '48']);
+        expect(container.querySelectorAll('button[data-tooth-key]')).toHaveLength(52);
+        fireEvent.click(container.querySelector('button[data-tooth-key="65"]'));
+        fireEvent.click(container.querySelector('button[data-tooth-key="21"]'));
+        expect(onToothClick).toHaveBeenNthCalledWith(1, 'J');
+        expect(onToothClick).toHaveBeenNthCalledWith(2, 9);
+        expect(container.querySelector('button[data-tooth-key="65"]')).toHaveAccessibleName('Tooth UL E — Filled');
+    });
+
     it('supports mixed dentition with anatomical permanent crowns and primary crowns coexisting', () => {
         const mixedToothOrder = [
             '16', '55', '54', '53', '12', '11',

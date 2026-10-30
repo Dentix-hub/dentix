@@ -2,6 +2,11 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Production backup/chart regressions (2026-10-30): Optional patient age/phone now preserve NULL through export/preview/restore; guarded migration f3c4d5e6a7b8 relaxes only those constraints without rewriting records. Required-field validation remains strict.
+- Mixed odontogram: Anatomical permanent-upper / primary-upper / primary-lower / permanent-lower rows retain all supplied teeth, original FDI identities, callbacks and existing single-dentition orientation; primary positions align with permanent successors.
+- Verification: 150 backend PASS + 1 existing PostgreSQL-only trigger skip; 13 restricted-role PostgreSQL backup/restore PASS; 360 frontend PASS; 10 synthetic browser checks PASS (ar/en, 320–1440px, aligned/unclipped labels); lint/build/Ruff/guardrails PASS.
+- Status: DONE locally; staging acceptance and live Google backup remain pending. No production database/configuration changes or deployment performed.
+
 - Final cumulative production review (2026-10-30): technical PASS for main 1b7c1bd -> staging ebb98e4; acceptance recorded by protected review/merge of this review-record PR. Evidence and limits: docs/reports/production-release-review-2026-10-30.md.
 - Gates: all final PR #329 CI jobs + exact staging smoke PASS; encrypted DB snapshot, 86-table application restoration and unchanged migration rehearsal PASS. Owner confirmed the one pre-existing local attachment is not required; its DB record is retained.
 - Promotion preserves clinical flags and persistent keys; live SMTP/Google provider acceptance remains NOT VERIFIED. Refresh recovery snapshot near cutover; production has not been deployed.

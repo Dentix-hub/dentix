@@ -148,7 +148,9 @@ describe('ClinicalChartRendererAdapter contract', () => {
         });
         expect(container.firstChild).toHaveAttribute('data-dentition', 'mixed');
         expect(renderedKeys).toHaveLength(4);
-        expect(renderedKeys).toEqual(toothOrder);
+        // Each generation now has its own anatomical row; input identity and
+        // callback targets remain unchanged even when input order interleaves it.
+        expect(renderedKeys).toEqual(['21', '11', '61', '51']);
         expect(onToothSelected).toHaveBeenNthCalledWith(1, {
             type: CHART_INTENT_TYPES.TOOTH_SELECTED,
             chartId: 'adapter-test',

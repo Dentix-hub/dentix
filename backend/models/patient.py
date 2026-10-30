@@ -36,8 +36,8 @@ class Patient(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, index=True)
-    age: Mapped[int] = mapped_column(Integer)
-    phone: Mapped[str] = mapped_column(EncryptedString, index=True)
+    age: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    phone: Mapped[str | None] = mapped_column(EncryptedString, nullable=True, index=True)
     email: Mapped[str | None] = mapped_column(EncryptedString, nullable=True, index=True)
     address: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
     medical_history: Mapped[str | None] = mapped_column(EncryptedString, nullable=True, default=None)
