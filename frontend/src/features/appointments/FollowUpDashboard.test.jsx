@@ -148,8 +148,8 @@ describe('FollowUpDashboard', () => {
             expect(appointmentsApi.getFollowUpDashboard).toHaveBeenCalledWith(
                 expect.objectContaining({
                     procedure_code: 'ENDO_RCT',
-                    date_from: expect.stringContaining('2026-11-01'),
-                    date_to: expect.stringContaining('2026-11-30'),
+                    calendar_date_from: '2026-11-01',
+                    calendar_date_to: '2026-11-30',
                 })
             );
         });
@@ -181,16 +181,15 @@ describe('FollowUpDashboard', () => {
         });
     });
 
-    it('keeps a daytime appointment on the selected final day inside the requested range', async () => {
+    it('sends the selected final calendar day without inventing a UTC end boundary', async () => {
         renderComponent();
         await waitFor(() => {
             expect(appointmentsApi.getFollowUpDashboard).toHaveBeenCalled();
         });
         fireEvent.change(screen.getByTestId('input-filter-date-to'), { target: { value: '2026-11-30' } });
         await waitFor(() => {
-            expect(appointmentsApi.getFollowUpDashboard.mock.lastCall[0].date_to).toBeTruthy();
+            expect(appointmentsApi.getFollowUpDashboard.mock.lastCall[0].calendar_date_to).toBe('2026-11-30');
         });
-        const endBoundary = Date.parse(appointmentsApi.getFollowUpDashboard.mock.lastCall[0].date_to);
-        expect(Date.parse('2026-11-30T12:00:00Z')).toBeLessThanOrEqual(endBoundary);
+        expect(appointmentsApi.getFollowUpDashboard.mock.lastCall[0]).not.toHaveProperty('date_to');
     });
 });

@@ -60,15 +60,9 @@ export default function FollowUpDashboard({ onSchedule }) {
         if (status && status !== 'all') p.status = status;
         if (doctorId) p.doctor_id = Number(doctorId);
         if (procedureCode && procedureCode !== 'all') p.procedure_code = procedureCode;
-        if (dateFrom) {
-            const dFrom = new Date(dateFrom.includes('T') ? dateFrom : `${dateFrom}T00:00:00.000Z`);
-            p.date_from = dFrom.toISOString();
-        }
-        if (dateTo) {
-            // R3-03: Include entire day up to 23:59:59.999Z for inclusive calendar boundary
-            const dTo = new Date(dateTo.includes('T') ? dateTo : `${dateTo}T23:59:59.999Z`);
-            p.date_to = dTo.toISOString();
-        }
+        // Calendar dates belong to the clinic timezone, resolved by the server.
+        if (dateFrom) p.calendar_date_from = dateFrom;
+        if (dateTo) p.calendar_date_to = dateTo;
         return p;
     }, [search, dueCategory, status, doctorId, procedureCode, dateFrom, dateTo, page, pageSize]);
 

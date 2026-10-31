@@ -5,7 +5,7 @@ Defines request/response models for chairside CareSession lifecycle, steps, and 
 
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class HistoricalStepCreate(BaseModel):
@@ -19,6 +19,22 @@ class HistoricalStepCreate(BaseModel):
     work_item_id: Optional[int] = Field(None, description="Associated work item ID")
 
     model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="before")
+    @classmethod
+    def retain_legacy_code_label(cls, value: Any) -> Any:
+        # Older historical callers used an explicit step code as the label.
+        if isinstance(value, dict) and value.get("title") is None and isinstance(value.get("step_code"), str):
+            return {**value, "title": value["step_code"]}
+        return value
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Historical step title cannot be blank")
+        return value
 
 
 class HistoricalObservationCreate(BaseModel):
@@ -43,7 +59,7 @@ class CareSessionCreate(BaseModel):
     resume_from_session_id: Optional[int] = Field(None, description="Optional previous care session ID to carry forward steps and observations from")
     actual_visit_date: Optional[datetime] = Field(None, description="Actual visit date/time if distinct from recording time")
     is_historical: bool = Field(False, description="Flag indicating if this is documenting a past historical visit")
-    historical_steps: Optional[List[Union[HistoricalStepCreate, Dict[str, Any]]]] = Field(
+    historical_steps: Optional[List[HistoricalStepCreate]] = Field(
         default_factory=list, description="Optional steps performed during historical visit"
     )
     historical_observations: Optional[List[Union[HistoricalObservationCreate, Dict[str, Any]]]] = Field(

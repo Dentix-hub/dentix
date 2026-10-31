@@ -4,7 +4,7 @@ Provides reception triage queue and conversion of chairside follow-up requests i
 Enforces G11-M08: NEVER auto-books an appointment without explicit front-desk confirmation.
 """
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -65,6 +65,8 @@ async def get_follow_up_dashboard(
     due_category: Optional[str] = Query(None, description="Filter by due classification: overdue, upcoming, unscheduled, all"),
     date_from: Optional[datetime] = Query(None, description="Filter by target date from"),
     date_to: Optional[datetime] = Query(None, description="Filter by target date to"),
+    calendar_date_from: Optional[date] = Query(None, description="First clinic-local calendar date, inclusive"),
+    calendar_date_to: Optional[date] = Query(None, description="Last clinic-local calendar date, inclusive"),
     procedure_code: Optional[str] = Query(None, description="Filter by procedure code"),
     search: Optional[str] = Query(None, description="Search by patient name, phone, or request notes"),
     skip: int = Query(0, ge=0),
@@ -79,6 +81,8 @@ async def get_follow_up_dashboard(
         due_category=due_category,
         date_from=date_from,
         date_to=date_to,
+        calendar_date_from=calendar_date_from,
+        calendar_date_to=calendar_date_to,
         procedure_code=procedure_code,
         search=search,
         skip=skip,

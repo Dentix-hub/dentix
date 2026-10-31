@@ -17,7 +17,7 @@ Enforces:
 """
 
 from copy import deepcopy
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, timezone
 import re
 from typing import Any, List, Optional, Tuple
 from fastapi import HTTPException
@@ -29,13 +29,14 @@ from sqlalchemy.orm.exc import StaleDataError
 
 from backend import models, schemas
 from backend.clinical.workflow_templates import get_latest_template
+from backend.clinical.step_identity import historical_step_identity
 from backend.models.clinical_core import FDI_TOOTH_KEYS
 from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
 from backend.services.feature_service import FeatureFlagService
 from backend.services.patient_access_service import ensure_patient_visible
 from backend.services.tenant_time_service import get_tenant_timezone
 from backend.utils.audit_logger import log_admin_action
-from backend.utils.tenant_time import resolve_timezone
+from backend.utils.tenant_time import tenant_day_utc_bounds_naive
 
 ALLOWED_SESSION_TRANSITIONS = {
     "in_progress": {"paused", "completed", "cancelled"},
@@ -443,13 +444,13 @@ class CareSessionService:
 
                 # R3-02: Derive stable semantic identifiers rather than collapsing distinct activities by positional indices
                 is_positional = bool(re.match(r"^step_\d+$", raw_code, re.IGNORECASE))
-                if s.get("logical_step_code"):
-                    logical_code = str(s.get("logical_step_code")).strip()
+                logical_hint = (s.get("logical_step_code") or "").strip()
+                if logical_hint:
+                    logical_code = logical_hint
                 elif raw_code and not is_positional:
                     logical_code = raw_code
                 else:
-                    semantic_slug = re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_")
-                    logical_code = semantic_slug if semantic_slug else f"step_{step_order}"
+                    logical_code = historical_step_identity(title)
 
                 step_code = raw_code if raw_code and not is_positional else logical_code
 
@@ -2426,6 +2427,8 @@ class CareSessionService:
         search: Optional[str] = None,
         skip: int = 0,
         limit: int = 50,
+        calendar_date_from: Optional[date] = None,
+        calendar_date_to: Optional[date] = None,
     ) -> schemas.FollowUpDashboardResponse:
         """
         Dashboard query engine for clinic-wide follow-ups and next-visit requests.
@@ -2448,21 +2451,24 @@ class CareSessionService:
                 return dt.replace(tzinfo=timezone.utc)
             return dt.astimezone(timezone.utc)
 
-        # Resolve clinic timezone for calendar range bounds (R3-03)
-        tz_name = await get_tenant_timezone(self.db, self.tenant_id)
-        tz = resolve_timezone(tz_name)
-
         now = datetime.now(timezone.utc)
         norm_now = _normalize_dt(now)
         norm_date_from = _normalize_dt(date_from)
         norm_date_to = _normalize_dt(date_to)
 
-        # R3-03: If date_to is a calendar date boundary with zero time component,
-        # expand it to include the entire clinic-local day (up to the next local midnight)
-        if norm_date_to and norm_date_to.hour == 0 and norm_date_to.minute == 0 and norm_date_to.second == 0 and norm_date_to.microsecond == 0:
-            local_date = norm_date_to.astimezone(tz).date() if norm_date_to.tzinfo else norm_date_to.date()
-            next_midnight = datetime.combine(local_date + timedelta(days=1), time(0, 0, 0), tzinfo=tz)
-            norm_date_to = next_midnight.astimezone(timezone.utc) - timedelta(microseconds=1)
+        calendar_range = calendar_date_from is not None or calendar_date_to is not None
+        if calendar_range:
+            if date_from is not None or date_to is not None:
+                raise HTTPException(status_code=422, detail="Use calendar dates or exact datetime filters, not both")
+            if calendar_date_from and calendar_date_to and calendar_date_from > calendar_date_to:
+                raise HTTPException(status_code=422, detail="Calendar start date must not follow the end date")
+            tz_name = await get_tenant_timezone(self.db, self.tenant_id)
+            if calendar_date_from:
+                start, _ = tenant_day_utc_bounds_naive(tz_name, local_date=calendar_date_from)
+                norm_date_from = start.replace(tzinfo=timezone.utc)
+            if calendar_date_to:
+                _, end = tenant_day_utc_bounds_naive(tz_name, local_date=calendar_date_to)
+                norm_date_to = end.replace(tzinfo=timezone.utc)
 
         base_stmt = (
             select(models.NextVisitRequest)
@@ -2536,8 +2542,12 @@ class CareSessionService:
                 continue
             if norm_date_from and norm_target_date and norm_target_date < norm_date_from:
                 continue
-            if norm_date_to and norm_target_date and norm_target_date > norm_date_to:
-                continue
+            if norm_date_to and norm_target_date:
+                # Calendar end is next local midnight (exclusive). Legacy
+                # datetime filters remain exact, inclusive instant bounds.
+                after_end = norm_target_date >= norm_date_to if calendar_range else norm_target_date > norm_date_to
+                if after_end:
+                    continue
             if procedure_code and procedure_code.lower() != "all":
                 proc_name = getattr(req, "procedure_name", None) or (req.work_item.code if req.work_item else None)
                 if not proc_name or proc_name.strip().upper() != procedure_code.strip().upper():

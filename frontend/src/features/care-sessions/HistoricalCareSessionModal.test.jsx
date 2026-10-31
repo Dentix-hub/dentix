@@ -126,7 +126,6 @@ describe('HistoricalCareSessionModal', () => {
                         expect.objectContaining({
                             title: 'Excavation of deep caries',
                             status: 'completed',
-                            logical_step_code: 'excavation_of_deep_caries',
                         }),
                     ]),
                     historical_observations: expect.arrayContaining([
@@ -140,5 +139,22 @@ describe('HistoricalCareSessionModal', () => {
                 })
             );
         });
+    });
+
+    it.each([
+        'Detailed clinical assessment including restorative preparation and final occlusal adjustment',
+        'تقييم الحالة وتجهيز السن للحشو',
+    ])('preserves the full title and delegates identity assignment to the server: %s', async (title) => {
+        patientsApi.startCareSession.mockResolvedValueOnce({ data: { id: 79 } });
+        render(<HistoricalCareSessionModal isOpen onClose={vi.fn()} patientId={5}
+            patientWorkItems={mockWorkItems} doctors={mockDoctors} currentUserId={1} />);
+        fireEvent.change(screen.getByTestId('input-historical-step-title'), { target: { value: title } });
+        fireEvent.click(screen.getByTestId('btn-add-historical-step'));
+        fireEvent.click(screen.getByTestId('btn-submit-historical-session'));
+        await waitFor(() => expect(patientsApi.startCareSession).toHaveBeenCalledTimes(1));
+        const step = patientsApi.startCareSession.mock.lastCall[1].historical_steps[0];
+        expect(step).toMatchObject({ title, work_item_id: 101, status: 'completed' });
+        expect(step).not.toHaveProperty('step_code');
+        expect(step).not.toHaveProperty('logical_step_code');
     });
 });

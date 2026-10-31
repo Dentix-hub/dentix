@@ -78,7 +78,6 @@ export default function HistoricalCareSessionModal({
         e?.preventDefault();
         if (!newStepTitle.trim()) return;
         const title = newStepTitle.trim();
-        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `step_${steps.length + 1}`;
         setSteps((prev) => [
             ...prev,
             {
@@ -86,8 +85,6 @@ export default function HistoricalCareSessionModal({
                 notes: newStepNotes.trim() || null,
                 status: 'completed',
                 work_item_id: selectedWorkItemIds[0] || null,
-                step_code: slug,
-                logical_step_code: slug,
             },
         ]);
         setNewStepTitle('');
@@ -166,11 +163,8 @@ export default function HistoricalCareSessionModal({
             notes: notes.trim() || null,
             historical_steps: steps.map((s, idx) => {
                 const title = s.title.trim();
-                const slug = s.logical_step_code || s.step_code || title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `step_${idx + 1}`;
                 return {
                     step_order: idx + 1,
-                    step_code: slug,
-                    logical_step_code: slug,
                     title,
                     status: s.status || 'completed',
                     notes: s.notes || null,
