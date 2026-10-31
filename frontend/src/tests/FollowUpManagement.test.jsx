@@ -157,4 +157,33 @@ describe('Slice S25 / G11-M10..M13: FollowUpManagementModal', () => {
             expect(closeSpy).toHaveBeenCalled();
         });
     });
+
+    it('renders real doctors API contract with full_name without blank titles (Review 3 Issue 4)', async () => {
+        const realApiDoctors = [
+            { id: 10, full_name: 'Dr. Sarah Jenkins' },
+            { id: 11, full_name: 'Mohamed Tarek' },
+        ];
+
+        renderWithClient(
+            <FollowUpManagementModal
+                isOpen={true}
+                onClose={vi.fn()}
+                request={mockRequest}
+                doctors={realApiDoctors}
+                onSuccess={vi.fn()}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('tab-handoff'));
+
+        const selectDoc = screen.getByTestId('handoff-doctor-select');
+        const options = Array.from(selectDoc.querySelectorAll('option')).map((o) => o.textContent);
+
+        expect(options).toContain('Dr. Sarah Jenkins');
+        expect(options).toContain('Dr. Mohamed Tarek');
+        // Ensure none of the options are rendered as "Dr. " with blank name
+        options.forEach((opt) => {
+            expect(opt.trim()).not.toBe('Dr.');
+        });
+    });
 });

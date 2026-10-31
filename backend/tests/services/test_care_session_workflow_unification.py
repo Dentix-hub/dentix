@@ -1573,4 +1573,145 @@ async def test_round2_issue5_skipped_steps_not_carried_over(async_db_session, se
     assert s2_steps[0].title == "Step 3 Pending"
 
 
+async def test_round3_issue2_completed_occurrence_does_not_hide_unfinished_repetition(async_db_session, setup_test_env):
+    """
+    Review 3 Issue 2: Distinct task/occurrence identities are persisted, and an unfinished
+    repetition is not masked as satisfied by an earlier completed occurrence.
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    tenant = env["tenant"]
+    doctor = env["doctor"]
+
+    care_service = CareSessionService(async_db_session, tenant.id, doctor)
+    cmd_service = ClinicalCommandService(async_db_session, tenant.id, doctor)
+
+    proc = models.ClinicalWorkItem(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        created_by_user_id=doctor.id,
+    )
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    s1 = await care_service.start_session(patient.id, schemas.CareSessionCreate(notes="V1"))
+
+    # Initial occurrence of irrigation
+    st1 = await care_service.add_step(patient.id, s1.id, schemas.CareSessionStepCreate(
+        step_code="irrigation", title="Initial NaOCl Rinse", work_item_id=proc.id
+    ))
+    assert st1.occurrence_number == 1
+    assert st1.is_repeat is False
+
+    # Mark initial irrigation as completed
+    await care_service.update_step(patient.id, s1.id, st1.id, schemas.CareSessionStepUpdate(status="completed"))
+
+    # Add a repeated irrigation step
+    st2 = await care_service.add_step(patient.id, s1.id, schemas.CareSessionStepCreate(
+        step_code="irrigation", title="Final Ultrasonic Activation", work_item_id=proc.id
+    ))
+    assert st2.occurrence_number == 2
+    assert st2.is_repeat is True
+    assert st2.status == "pending"
+
+    # Attempting to complete the procedure while the repetition is pending must be BLOCKED
+    with pytest.raises(HTTPException) as exc_info:
+        await cmd_service.update_work_item_status(
+            patient.id,
+            proc.id,
+            schemas.ClinicalWorkItemStatusUpdate(status="completed"),
+        )
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail.get("code") == "OVERRIDE_REASON_REQUIRED"
+    assert exc_info.value.detail.get("outstanding_steps_count") == 1
+
+    # Now complete the repeated step
+    await care_service.update_step(patient.id, s1.id, st2.id, schemas.CareSessionStepUpdate(status="completed"))
+
+    # Completion should now succeed without override
+    updated = await cmd_service.update_work_item_status(
+        patient.id,
+        proc.id,
+        schemas.ClinicalWorkItemStatusUpdate(status="completed"),
+    )
+    assert updated.effective_status == "completed"
+    assert updated.work_item.status == "completed"
+
+
+async def test_round3_issue3_correcting_source_measurement_updates_carried_references(async_db_session, setup_test_env):
+    """
+    Review 3 Issue 3: Correcting a source measurement resolves references through the
+    effective correction chain, ensuring subsequent visits receive the corrected measurement.
+    Reproduction: visit 1 records 20, visit 2 carries it forward, then original is corrected to 21.
+    Visit 3 receives 21 from visit 2.
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    tenant = env["tenant"]
+    doctor = env["doctor"]
+
+    care_service = CareSessionService(async_db_session, tenant.id, doctor)
+
+    proc = models.ClinicalWorkItem(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        created_by_user_id=doctor.id,
+    )
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    # Visit 1: record observation with length 20.0
+    s1 = await care_service.start_session(patient.id, schemas.CareSessionCreate(work_item_ids=[proc.id], notes="Visit 1"))
+    obs1 = await care_service.add_observation(patient.id, s1.id, schemas.CareObservationCreate(
+        observation_code="working_length",
+        tooth_key="16",
+        canal_id="MB1",
+        structured_value={"canal_id": "MB1", "length_mm": 20.0},
+        work_item_id=proc.id,
+    ))
+    await care_service.finish_session(patient.id, s1.id, schemas.CareSessionFinish(notes="Visit 1 finish"))
+
+    # Visit 2: carries forward from Visit 1
+    s2 = await care_service.start_session(patient.id, schemas.CareSessionCreate(
+        resume_work_item_id=proc.id,
+        resume_from_session_id=s1.id,
+        notes="Visit 2",
+    ))
+    s2_obs = await care_service.list_observations(patient.id, s2.id)
+    assert len(s2_obs) == 1
+    assert s2_obs[0].structured_value["length_mm"] == 20.0
+    assert s2_obs[0].reference_source_observation_id == obs1.id
+    await care_service.finish_session(patient.id, s2.id, schemas.CareSessionFinish(notes="Visit 2 finish"))
+
+    # Now, original measurement in Visit 1 is corrected to 21.0
+    amended = await care_service.amend_observation(
+        patient.id,
+        obs1.id,
+        schemas.CareObservationAmend(
+            structured_value={"canal_id": "MB1", "length_mm": 21.0},
+            reason="Corrected apex locator calibration",
+        ),
+    )
+    assert amended.structured_value["length_mm"] == 21.0
+
+    # Visit 3: resumes from Visit 2
+    s3 = await care_service.start_session(patient.id, schemas.CareSessionCreate(
+        resume_work_item_id=proc.id,
+        resume_from_session_id=s2.id,
+        notes="Visit 3",
+    ))
+    s3_obs = await care_service.list_observations(patient.id, s3.id)
+    assert len(s3_obs) == 1
+    # Visit 3 must receive 21.0 (the effective corrected measurement), NOT the obsolete 20.0!
+    assert s3_obs[0].structured_value["length_mm"] == 21.0
+    assert s3_obs[0].reference_source_observation_id == amended.id
+
+
+
 

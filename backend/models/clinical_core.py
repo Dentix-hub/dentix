@@ -585,6 +585,7 @@ class CareObservation(Base):
     amendment_reason = Column(Text, nullable=True)
     reference_source_session_id = Column(Integer, nullable=True, index=True)
     reference_source_date = Column(DateTime(timezone=True), nullable=True)
+    reference_source_observation_id = Column(Integer, nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     __table_args__ = (

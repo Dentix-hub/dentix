@@ -218,6 +218,11 @@ class CareSessionStepCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=255, description="Human-readable step title")
     step_order: Optional[int] = Field(None, ge=1, description="Sequential step order (auto-assigned if omitted)")
     work_item_id: Optional[int] = Field(None, description="Optional associated clinical work item ID")
+    logical_step_code: Optional[str] = Field(None, max_length=64, description="Logical step identifier code")
+    occurrence_number: Optional[int] = Field(None, ge=1, description="Repetition or occurrence index (auto-computed if omitted)")
+    template_step_id: Optional[str] = Field(None, max_length=64, description="Template step reference ID")
+    is_repeat: Optional[bool] = Field(False, description="Flag indicating if this step is a repeated action")
+    repeat_reason: Optional[str] = Field(None, description="Reason for repeating step")
     status: Optional[str] = Field("pending", description="Initial status: pending, in_progress, partial, completed, skipped")
     notes: Optional[str] = Field(None, description="Free-text clinical notes for this step")
 
@@ -305,6 +310,7 @@ class CareObservationRead(BaseModel):
     amendment_reason: Optional[str] = None
     reference_source_session_id: Optional[int] = None
     reference_source_date: Optional[datetime] = None
+    reference_source_observation_id: Optional[int] = None
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

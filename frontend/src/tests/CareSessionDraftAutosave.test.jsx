@@ -127,6 +127,66 @@ describe('Slice S25 / G10-M17: Care Session Server Drafts Autosave Hook', () => 
         expect(result.current.draftData).toEqual({});
         expect(result.current.status).toBe('idle');
     });
+
+    it('resets state and prevents draft leakage across patient boundaries during navigation (Review 3 Issue 1)', async () => {
+        // Patient A has existing draft
+        patientsApi.getCareSessionDraft.mockImplementation((pid) => {
+            if (pid === 42) {
+                return Promise.resolve({
+                    data: {
+                        draft_data: { notes: "Patient A's private clinical note" },
+                        version_id: 2,
+                    },
+                });
+            }
+            // Patient B (99) has no draft on server (404)
+            const err = new Error('Not found');
+            err.response = { status: 404, data: { detail: 'Draft not found' } };
+            return Promise.reject(err);
+        });
+
+        // 1. Mount with Patient A
+        const { result, rerender } = renderHook(
+            ({ patientId, careSessionId }) => useCareSessionDraft({ patientId, careSessionId }),
+            { initialProps: { patientId: 42, careSessionId: 10 } }
+        );
+
+        await act(async () => {});
+
+        expect(result.current.draftData).toEqual({ notes: "Patient A's private clinical note" });
+        expect(result.current.status).toBe('saved');
+        expect(result.current.versionId).toBe(2);
+
+        // 2. Patient A updates draft (triggers debounce timer)
+        act(() => {
+            result.current.updateDraft({ notes: "Patient A's unsaved quick note" });
+        });
+        expect(result.current.draftData).toEqual({ notes: "Patient A's unsaved quick note" });
+
+        // 3. User navigates to Patient B before debounce completes!
+        rerender({ patientId: 99, careSessionId: 20 });
+
+        // State for Patient B must be cleanly reset immediately
+        expect(result.current.draftData).toEqual({});
+        expect(result.current.versionId).toBe(1);
+        expect(result.current.status).toBe('idle');
+
+        // Resolve loadExistingDraft for Patient B (returns 404)
+        await act(async () => {
+            vi.advanceTimersByTime(2000);
+        });
+
+        // Patient B must still have clean empty state, NOT Patient A's note
+        expect(result.current.draftData).toEqual({});
+        expect(result.current.versionId).toBe(1);
+        expect(result.current.status).toBe('idle');
+
+        // Verify save was NEVER called for Patient 99 with Patient 42's note
+        const callsForPatientB = patientsApi.saveCareSessionDraft.mock.calls.filter(
+            (call) => call[0] === 99
+        );
+        expect(callsForPatientB).toHaveLength(0);
+    });
 });
 
 describe('FinishCareSessionSheet Draft Restoration & Autosave Integration (Review 2 Issue 1)', () => {

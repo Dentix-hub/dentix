@@ -75,6 +75,8 @@ def upgrade():
             op.add_column("care_observations", sa.Column("reference_source_session_id", sa.Integer(), nullable=True))
         if "reference_source_date" not in cols:
             op.add_column("care_observations", sa.Column("reference_source_date", sa.DateTime(timezone=True), nullable=True))
+        if "reference_source_observation_id" not in cols:
+            op.add_column("care_observations", sa.Column("reference_source_observation_id", sa.Integer(), nullable=True))
 
     # 5. Update next_visit_requests
     if "next_visit_requests" in existing_tables:

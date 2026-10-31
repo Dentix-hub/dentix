@@ -341,25 +341,44 @@ class CareSessionService:
                 )
                 prior_obs = (await self.db.execute(obs_query)).scalars().all()
 
+                seen_carried_sources = set()
                 for p_obs in prior_obs:
                     if associated_wi_ids and p_obs.work_item_id and p_obs.work_item_id not in associated_wi_ids:
                         continue
 
-                    target_obs_wi = p_obs.work_item_id or data.resume_work_item_id
+                    # Resolve measurement through provenance and effective correction chain
+                    effective_obs = await self._resolve_effective_observation_chain(p_obs)
+                    if effective_obs.is_superseded:
+                        continue
+
+                    seen_key = (
+                        effective_obs.observation_code,
+                        effective_obs.tooth_key,
+                        effective_obs.canal_id,
+                        effective_obs.id,
+                    )
+                    if seen_key in seen_carried_sources:
+                        continue
+                    seen_carried_sources.add(seen_key)
+
+                    target_obs_wi = effective_obs.work_item_id or p_obs.work_item_id or data.resume_work_item_id
+                    src_session_id = effective_obs.reference_source_session_id or effective_obs.care_session_id
+                    src_date = effective_obs.reference_source_date or effective_obs.recorded_at or effective_obs.created_at
 
                     carried_obs = models.CareObservation(
                         tenant_id=self.tenant_id,
                         patient_id=patient_id,
                         care_session_id=session.id,
                         work_item_id=target_obs_wi,
-                        observation_code=p_obs.observation_code,
-                        tooth_key=p_obs.tooth_key,
-                        structured_value=dict(p_obs.structured_value or {}),
-                        notes=f"[Reference from Session {p_obs.reference_source_session_id or p_obs.care_session_id}] {p_obs.notes or ''}".strip() if p_obs.notes else None,
+                        observation_code=effective_obs.observation_code,
+                        tooth_key=effective_obs.tooth_key,
+                        structured_value=dict(effective_obs.structured_value or {}),
+                        notes=f"[Reference from Session {src_session_id}] {effective_obs.notes or ''}".strip() if effective_obs.notes else None,
                         recorded_by_user_id=user.id if user else None,
                         is_superseded=False,
-                        reference_source_session_id=p_obs.reference_source_session_id or p_obs.care_session_id,
-                        reference_source_date=p_obs.reference_source_date or p_obs.recorded_at or p_obs.created_at,
+                        reference_source_session_id=src_session_id,
+                        reference_source_date=src_date,
+                        reference_source_observation_id=effective_obs.id,
                     )
                     self.db.add(carried_obs)
 
@@ -650,6 +669,34 @@ class CareSessionService:
             max_order = (await self.db.execute(stmt)).scalar_one()
             step_order = max_order + 1
 
+        logical_code = (data.logical_step_code or data.step_code or "").strip()
+        occurrence_number = data.occurrence_number
+        is_repeat = data.is_repeat
+
+        if occurrence_number is None or occurrence_number <= 0:
+            if data.work_item_id is not None:
+                occ_stmt = select(func.coalesce(func.max(models.CareSessionStep.occurrence_number), 0)).where(
+                    models.CareSessionStep.tenant_id == self.tenant_id,
+                    models.CareSessionStep.work_item_id == data.work_item_id,
+                    func.coalesce(models.CareSessionStep.logical_step_code, models.CareSessionStep.step_code) == logical_code,
+                )
+            else:
+                occ_stmt = select(func.coalesce(func.max(models.CareSessionStep.occurrence_number), 0)).where(
+                    models.CareSessionStep.tenant_id == self.tenant_id,
+                    models.CareSessionStep.care_session_id == session_id,
+                    func.coalesce(models.CareSessionStep.logical_step_code, models.CareSessionStep.step_code) == logical_code,
+                )
+            max_occ = (await self.db.execute(occ_stmt)).scalar_one()
+            if max_occ > 0:
+                occurrence_number = max_occ + 1
+                is_repeat = True
+            else:
+                occurrence_number = 1
+                is_repeat = bool(data.is_repeat)
+        else:
+            if is_repeat is None:
+                is_repeat = occurrence_number > 1
+
         now = datetime.now(timezone.utc)
         step_status = data.status or "pending"
         started_at = now if step_status == "in_progress" else None
@@ -661,6 +708,11 @@ class CareSessionService:
             work_item_id=data.work_item_id,
             step_order=step_order,
             step_code=data.step_code.strip(),
+            logical_step_code=logical_code,
+            occurrence_number=occurrence_number,
+            template_step_id=data.template_step_id,
+            is_repeat=bool(is_repeat),
+            repeat_reason=data.repeat_reason,
             title=data.title.strip(),
             status=step_status,
             started_at=started_at,
@@ -839,13 +891,31 @@ class CareSessionService:
         created_steps: List[models.CareSessionStep] = []
         now = datetime.now(timezone.utc)
         for tpl_step in template.steps:
+            tpl_code = tpl_step.step_code.strip()
+            occ_num = 1
+            is_rep = False
+            if data.work_item_id is not None:
+                occ_stmt = select(func.coalesce(func.max(models.CareSessionStep.occurrence_number), 0)).where(
+                    models.CareSessionStep.tenant_id == self.tenant_id,
+                    models.CareSessionStep.work_item_id == data.work_item_id,
+                    func.coalesce(models.CareSessionStep.logical_step_code, models.CareSessionStep.step_code) == tpl_code,
+                )
+                max_occ = (await self.db.execute(occ_stmt)).scalar_one()
+                if max_occ > 0:
+                    occ_num = max_occ + 1
+                    is_rep = True
+
             step = models.CareSessionStep(
                 tenant_id=self.tenant_id,
                 care_session_id=session_id,
                 work_item_id=data.work_item_id,
                 step_order=base_order + tpl_step.step_order,
-                step_code=tpl_step.step_code,
-                title=tpl_step.title,
+                step_code=tpl_code,
+                logical_step_code=tpl_code,
+                occurrence_number=occ_num,
+                template_step_id=tpl_code,
+                is_repeat=is_rep,
+                title=tpl_step.title.strip(),
                 status="pending",
                 notes=tpl_step.description or None,
             )
@@ -1374,6 +1444,18 @@ class CareSessionService:
                 alt_obs = list((await self.db.execute(alt_obs_stmt)).scalars().all())
                 if alt_obs:
                     obs = alt_obs
+
+            # Resolve effective observations through provenance & correction chain
+            resolved_obs = []
+            seen_obs_keys = set()
+            for raw_o in obs:
+                eff_o = await self._resolve_effective_observation_chain(raw_o)
+                if not eff_o.is_superseded:
+                    key = (eff_o.observation_code, eff_o.tooth_key, eff_o.canal_id, eff_o.id)
+                    if key not in seen_obs_keys:
+                        seen_obs_keys.add(key)
+                        resolved_obs.append(eff_o)
+            obs = resolved_obs
 
             # Only include work items that have either session steps, observations, or are active/in_progress procedures
             if not steps and not obs and wi.status not in ("active", "in_progress"):
@@ -2368,6 +2450,36 @@ class CareSessionService:
     # Observation Amendments & Supersession (Section 2.7)
     # -----------------------------------------------------------------------
 
+    async def _resolve_effective_observation_chain(
+        self, obs: models.CareObservation
+    ) -> models.CareObservation:
+        """
+        Resolves an observation (or carried reference) to its latest effective non-superseded observation.
+        Follows both reference_source_observation_id provenance and superseded_by_id amendment chains.
+        """
+        curr = obs
+        if curr.reference_source_observation_id:
+            root_stmt = select(models.CareObservation).where(
+                models.CareObservation.id == curr.reference_source_observation_id,
+                models.CareObservation.tenant_id == self.tenant_id,
+            )
+            root = (await self.db.execute(root_stmt)).scalar_one_or_none()
+            if root:
+                curr = root
+
+        visited = set()
+        while curr.is_superseded and curr.superseded_by_id and curr.id not in visited:
+            visited.add(curr.id)
+            next_stmt = select(models.CareObservation).where(
+                models.CareObservation.id == curr.superseded_by_id,
+                models.CareObservation.tenant_id == self.tenant_id,
+            )
+            next_obs = (await self.db.execute(next_stmt)).scalar_one_or_none()
+            if not next_obs:
+                break
+            curr = next_obs
+        return curr
+
     async def amend_observation(
         self,
         patient_id: int,
@@ -2422,6 +2534,7 @@ class CareSessionService:
             amendment_reason=payload.reason,
             reference_source_session_id=orig.care_session_id,
             reference_source_date=orig.recorded_at or orig.created_at,
+            reference_source_observation_id=orig.reference_source_observation_id or orig.id,
         )
         self.db.add(new_obs)
         await self.db.flush()
@@ -2429,6 +2542,21 @@ class CareSessionService:
         orig.is_superseded = True
         orig.superseded_by_id = new_obs.id
         orig.amendment_reason = payload.reason
+
+        # Synchronize any existing carried references to preserve provenance and effective values
+        source_ids = [orig.id]
+        if orig.reference_source_observation_id:
+            source_ids.append(orig.reference_source_observation_id)
+        downstream_stmt = select(models.CareObservation).where(
+            models.CareObservation.tenant_id == self.tenant_id,
+            models.CareObservation.patient_id == patient_id,
+            models.CareObservation.reference_source_observation_id.in_(source_ids),
+        )
+        downstream_refs = (await self.db.execute(downstream_stmt)).scalars().all()
+        for ref in downstream_refs:
+            ref.reference_source_observation_id = new_obs.id
+            ref.reference_source_date = new_obs.recorded_at or now
+            ref.structured_value = dict(new_obs.structured_value or {})
 
         event = models.ClinicalEvent(
             tenant_id=self.tenant_id,

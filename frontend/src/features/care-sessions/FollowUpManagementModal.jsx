@@ -234,11 +234,17 @@ export default function FollowUpManagementModal({
                                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 shadow-xs focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                                 >
                                     <option value="">{t('follow_up.choose_doctor', '-- Choose Doctor --')}</option>
-                                    {doctors.map((doc) => (
-                                        <option key={doc.id} value={doc.id}>
-                                            Dr. {doc.name || doc.username}
-                                        </option>
-                                    ))}
+                                    {doctors.map((doc) => {
+                                        const rawName = (doc.full_name || doc.name || doc.username || '').trim();
+                                        const formattedName = rawName
+                                            ? (rawName.startsWith('Dr.') || rawName.startsWith('د.') ? rawName : `Dr. ${rawName}`)
+                                            : `Doctor #${doc.id}`;
+                                        return (
+                                            <option key={doc.id} value={doc.id}>
+                                                {formattedName}
+                                            </option>
+                                        );
+                                    })}
                                 </select>
                             </div>
                             <div className="space-y-1">

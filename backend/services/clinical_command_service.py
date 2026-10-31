@@ -1186,12 +1186,11 @@ class ClinicalCommandService:
 
                 outstanding_tasks = []
                 for key, task_occurrences in logical_tasks.items():
-                    # If any occurrence was completed, or the latest occurrence was omitted/skipped/cancelled,
-                    # the logical task is satisfied.
-                    is_completed = any(s.status == "completed" for s in task_occurrences)
-                    latest_status = task_occurrences[-1].status
-                    if not is_completed and latest_status not in ("omitted", "skipped", "cancelled"):
-                        outstanding_tasks.append((key, task_occurrences[-1]))
+                    # The effective state of each distinct task occurrence is evaluated by its latest record.
+                    # If the latest record is completed, omitted, skipped, or cancelled, it is satisfied.
+                    latest_step = task_occurrences[-1]
+                    if latest_step.status not in ("completed", "omitted", "skipped", "cancelled"):
+                        outstanding_tasks.append((key, latest_step))
 
                 if outstanding_tasks and not (payload.override_reason or payload.reason):
                     raise HTTPException(
