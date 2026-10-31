@@ -2,6 +2,8 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- PR #339 TOTP boundary follow-up (2026-10-31): reproduced the original PostgreSQL 401 by advancing the OTP clock across a 30-second boundary; pinned only PyOTP's test clock on both sides and added expired/wrong-code rejection with no auth cookies. Real verification, application policy, JWT/database clocks and existing assertions remain intact.
+- Verification: 14 restricted-role PostgreSQL auth/session/cross-tenant checks + 32 auth/RBAC unit tests PASS; 1 unchanged TestClient refresh skip (request.client.host unavailable), covered by real PostgreSQL refresh checks. Targeted Ruff/diff PASS. Status: DONE for this failure; fresh GitHub CI pending.
 - PR #339 security follow-up (2026-10-31): CI application tests passed (1706 backend, 1 existing skip); Safety blocked three urllib3 2.7.0 advisories. Updated only that locked dependency to 2.8.0, which fixes the reported proxy TLS and streaming issues: https://github.com/urllib3/urllib3/releases/tag/2.8.0.
 - Verification: frozen sync/lock check, unchanged Safety runner (0 reported; existing exceptions retained), 31 HTTP/OAuth/Drive/GeoIP/security tests, targeted Ruff and diff checks PASS. Proxy certificate-policy regression fails on 2.7.0 and passes on 2.8.0.
 - Optional uv pip check still reports the same two baseline findings on old/new environments (intentional ecdsa exclusion; platform-specific NVIDIA wheel). Status: DONE for the reported Safety blocker; fresh GitHub CI pending.
