@@ -178,6 +178,76 @@ async def list_care_session_steps(
 
 
 # ---------------------------------------------------------------------------
+# Care Session Procedures & Workspace Operations (Requirement 1 & 3)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{patient_id}/care-sessions/{session_id}/procedures/{work_item_id}",
+    response_model=StandardResponse[schemas.CareSessionProcedureRead],
+    status_code=status.HTTP_201_CREATED,
+    summary="Add procedure to active care session",
+    description="Associate an active procedure with an in-progress care session and populate its template snapshot.",
+)
+async def add_procedure_to_care_session(
+    patient_id: int,
+    session_id: int,
+    work_item_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    proc = await service.add_procedure_to_session(patient_id, session_id, work_item_id)
+    return success_response(
+        data=schemas.CareSessionProcedureRead.model_validate(proc),
+        message="Procedure associated with care session successfully",
+    )
+
+
+@router.delete(
+    "/{patient_id}/care-sessions/{session_id}/procedures/{work_item_id}",
+    response_model=StandardResponse[bool],
+    summary="Remove procedure from care session",
+    description="Remove an unworked procedure selected accidentally from the visit without deleting the procedure itself.",
+)
+async def remove_procedure_from_care_session(
+    patient_id: int,
+    session_id: int,
+    work_item_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    removed = await service.remove_procedure_from_session(patient_id, session_id, work_item_id)
+    return success_response(
+        data=removed,
+        message="Procedure removed from care session",
+    )
+
+
+@router.patch(
+    "/{patient_id}/care-sessions/{session_id}/procedures/{work_item_id}",
+    response_model=StandardResponse[schemas.CareSessionProcedureRead],
+    summary="Update care session procedure notes and next action",
+    description="Save procedure-specific notes and next action within the active visit.",
+)
+async def update_care_session_procedure(
+    patient_id: int,
+    session_id: int,
+    work_item_id: int,
+    payload: schemas.CareSessionProcedureUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    proc = await service.update_session_procedure(patient_id, session_id, work_item_id, payload)
+    return success_response(
+        data=schemas.CareSessionProcedureRead.model_validate(proc),
+        message="Procedure details updated successfully",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Care Observation Endpoints (Slice S19 / G10-M07, G10-M15)
 # ---------------------------------------------------------------------------
 

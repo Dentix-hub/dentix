@@ -158,4 +158,13 @@ export const resumeNextVisitRequest = (patientId, requestId) =>
 export const handoffNextVisitRequest = (patientId, requestId, data) =>
     api.post(`/api/v1/patients/${patientId}/next-visit-requests/${requestId}/handoff`, data);
 
+// Multi-Procedure Care Session Management
+export const addCareSessionProcedure = (patientId, sessionId, workItemId, data = {}) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/procedures/${workItemId}`, data);
+export const removeCareSessionProcedure = (patientId, sessionId, workItemId) =>
+    api.delete(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/procedures/${workItemId}`);
+export const updateCareSessionProcedure = (patientId, sessionId, workItemId, data) =>
+    api.patch(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/procedures/${workItemId}`, data);
+
+
 

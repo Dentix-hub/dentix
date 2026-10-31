@@ -127,6 +127,7 @@ from .care_session import (
     CareSessionStepRead,
     CareSessionTemplateApply,
     CareSessionProcedureRead,
+    CareSessionProcedureUpdate,
     CareSessionDraftSave,
     CareSessionDraftRead,
     CareObservationCreate,
@@ -142,6 +143,18 @@ from .care_session import (
     NextVisitSuggestionRead,
     ResumableWorkItemRead,
     CareSessionResumableResponse,
+    FollowUpDashboardCounts,
+    FollowUpDashboardResponse,
+)
+
+# Workflow Templates (VNext)
+from .workflow_template import (
+    WorkflowFieldSchema,
+    WorkflowStepSchema,
+    WorkflowTemplateDefinitionPayload,
+    WorkflowTemplateCreate,
+    WorkflowTemplateUpdate,
+    WorkflowTemplateRead,
 )
 
 # Care Session Materials (Slice S30)

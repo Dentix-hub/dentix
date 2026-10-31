@@ -480,6 +480,7 @@ from backend.routers import (
     clinical_charges,  # Clinical Charges (Slice S33)
     admin_finance_parity,  # Admin Finance Parity (Slice S34)
     admin_clinical_rollout,  # Admin Clinical Rollout (Slice S36)
+    workflow_templates,  # Workflow Templates & Custom Fields (VNext)
 )
 
 # --- Register Exception Handlers ---
@@ -516,6 +517,8 @@ app.include_router(next_visit_requests.router, prefix=API_V1_STR)
 app.include_router(next_visit_requests.router)
 app.include_router(clinical_charges.router, prefix=API_V1_STR)
 app.include_router(clinical_charges.router)
+app.include_router(workflow_templates.router, prefix=API_V1_STR)
+app.include_router(workflow_templates.router)
 app.include_router(auth.router, prefix=f"{API_V1_STR}/auth")
 
 app.include_router(password_reset.router, prefix=f"{API_V1_STR}/auth")

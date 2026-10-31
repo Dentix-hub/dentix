@@ -27,12 +27,23 @@ class CareSessionProcedureRead(BaseModel):
     care_session_id: int
     work_item_id: int
     notes: Optional[str] = None
+    procedure_notes: Optional[str] = None
+    next_action: Optional[str] = None
+    next_action_reason_omitted: Optional[str] = None
     template_code: Optional[str] = None
     template_version: Optional[int] = None
     template_snapshot: Optional[Dict[str, Any]] = None
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CareSessionProcedureUpdate(BaseModel):
+    procedure_notes: Optional[str] = Field(None, description="Notes specific to this procedure in the visit")
+    next_action: Optional[str] = Field(None, description="Next planned clinical action for this procedure")
+    next_action_reason_omitted: Optional[str] = Field(None, description="Reason if next action is omitted")
+
+    model_config = ConfigDict(extra="forbid")
 
 
 
@@ -122,6 +133,9 @@ class NextVisitRequestRead(BaseModel):
     patient_name: Optional[str] = None
     patient_phone: Optional[str] = None
     fulfilled_appointment_id: Optional[int] = None
+    assigned_doctor_name: Optional[str] = None
+    procedure_name: Optional[str] = None
+    due_category: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -161,6 +175,23 @@ class NextVisitRequestScheduleResult(BaseModel):
     status: str = "scheduled"
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class FollowUpDashboardCounts(BaseModel):
+    total: int = 0
+    requested: int = 0
+    overdue: int = 0
+    upcoming: int = 0
+    unscheduled: int = 0
+    postponed: int = 0
+    stopped: int = 0
+    scheduled: int = 0
+
+
+class FollowUpDashboardResponse(BaseModel):
+    counts: FollowUpDashboardCounts
+    items: List[NextVisitRequestRead]
+    total_count: int
 
 
 class NextVisitSuggestionRead(BaseModel):

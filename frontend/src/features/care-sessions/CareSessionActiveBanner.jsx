@@ -140,7 +140,7 @@ export default function CareSessionActiveBanner({
                     className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-blue-600 bg-blue-600 px-3.5 py-2 text-xs font-bold text-white shadow-sm transition-colors hover:bg-blue-700"
                 >
                     <Activity className="h-4 w-4" aria-hidden="true" />
-                    <span>{t('care_session.view_workflow', 'RCT Workflow & Measurements')}</span>
+                    <span>{t('care_session.view_workflow', 'Visit Workspace & Documentation')}</span>
                 </button>
                 <button
                     type="button"

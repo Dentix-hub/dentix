@@ -258,12 +258,21 @@ class CareSessionService:
                 detail="Concurrent care session conflict",
             ) from exc
 
-        # Create CareSessionProcedure rows for all associated procedures
+        # Create CareSessionProcedure rows for all associated procedures with populated template snapshot
+        from backend.services.workflow_template_service import WorkflowTemplateService
+        tpl_service = WorkflowTemplateService(self.db, self.tenant_id, self.current_user)
         for wi_id in associated_wi_ids:
+            wi = await self.db.get(models.ClinicalWorkItem, wi_id)
+            tpl_dict = None
+            proc_code = getattr(wi, "code", None)
+            if proc_code:
+                tpl_dict = await tpl_service.get_active_template_for_procedure(proc_code)
             session_proc = models.CareSessionProcedure(
                 tenant_id=self.tenant_id,
                 care_session_id=session.id,
                 work_item_id=wi_id,
+                template_snapshot=tpl_dict,
+                template_version=tpl_dict.get("version") if tpl_dict else None,
                 created_at=now,
             )
             self.db.add(session_proc)
@@ -898,13 +907,37 @@ class CareSessionService:
         if data.work_item_id is not None:
             await self._verify_work_item(patient_id, data.work_item_id)
 
-        try:
-            template = get_latest_template(data.template_code)
-        except Exception as exc:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Workflow template '{data.template_code}' not found",
-            ) from exc
+        from backend.services.workflow_template_service import WorkflowTemplateService
+        tpl_service = WorkflowTemplateService(self.db, self.tenant_id, self.current_user)
+        tpl_dict = await tpl_service.get_active_template_for_procedure(data.template_code)
+        if not tpl_dict:
+            try:
+                canonical = get_latest_template(data.template_code)
+                tpl_dict = canonical.to_dict()
+            except Exception as exc:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Workflow template '{data.template_code}' not found",
+                ) from exc
+
+        # Associate template snapshot with the procedure in this care session
+        if data.work_item_id is not None:
+            csp_stmt = select(models.CareSessionProcedure).where(
+                models.CareSessionProcedure.tenant_id == self.tenant_id,
+                models.CareSessionProcedure.care_session_id == session_id,
+                models.CareSessionProcedure.work_item_id == data.work_item_id,
+            )
+            csp = (await self.db.execute(csp_stmt)).scalar_one_or_none()
+            if not csp:
+                csp = models.CareSessionProcedure(
+                    tenant_id=self.tenant_id,
+                    care_session_id=session_id,
+                    work_item_id=data.work_item_id,
+                    created_at=datetime.now(timezone.utc),
+                )
+                self.db.add(csp)
+            csp.template_snapshot = tpl_dict
+            csp.template_version = tpl_dict.get("version")
 
         # Find current max step_order
         stmt = select(func.coalesce(func.max(models.CareSessionStep.step_order), 0)).where(
@@ -915,8 +948,13 @@ class CareSessionService:
 
         created_steps: List[models.CareSessionStep] = []
         now = datetime.now(timezone.utc)
-        for tpl_step in template.steps:
-            tpl_code = tpl_step.step_code.strip()
+        raw_steps = tpl_dict.get("steps") or []
+        for tpl_step in raw_steps:
+            tpl_code = (tpl_step.get("step_code") if isinstance(tpl_step, dict) else tpl_step.step_code).strip()
+            tpl_title = (tpl_step.get("title") if isinstance(tpl_step, dict) else tpl_step.title).strip()
+            tpl_order = tpl_step.get("step_order") if isinstance(tpl_step, dict) else tpl_step.step_order
+            tpl_desc = (tpl_step.get("description") if isinstance(tpl_step, dict) else tpl_step.description) or None
+
             occ_num = 1
             is_rep = False
             if data.work_item_id is not None:
@@ -934,15 +972,15 @@ class CareSessionService:
                 tenant_id=self.tenant_id,
                 care_session_id=session_id,
                 work_item_id=data.work_item_id,
-                step_order=base_order + tpl_step.step_order,
+                step_order=base_order + tpl_order,
                 step_code=tpl_code,
                 logical_step_code=tpl_code,
                 occurrence_number=occ_num,
                 template_step_id=tpl_code,
                 is_repeat=is_rep,
-                title=tpl_step.title.strip(),
+                title=tpl_title,
                 status="pending",
-                notes=tpl_step.description or None,
+                notes=tpl_desc,
             )
             self.db.add(step)
             created_steps.append(step)
@@ -1004,6 +1042,148 @@ class CareSessionService:
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    # -----------------------------------------------------------------------
+    # Multi-Procedure Workspace Operations (Requirement 1 & 3)
+    # -----------------------------------------------------------------------
+
+    async def add_procedure_to_session(
+        self, patient_id: int, session_id: int, work_item_id: int
+    ) -> models.CareSessionProcedure:
+        """
+        Associate an existing active procedure (work item) with an active care session.
+        Resolves the procedure's active workflow template and populates template_snapshot.
+        """
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+        await self._verify_work_item(patient_id, work_item_id)
+
+        session = await self.get_session(patient_id, session_id)
+        if session.status != "in_progress":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot add procedure to session with status '{session.status}'. Session must be in_progress.",
+            )
+
+        # Check if already associated
+        stmt = select(models.CareSessionProcedure).where(
+            models.CareSessionProcedure.tenant_id == self.tenant_id,
+            models.CareSessionProcedure.care_session_id == session_id,
+            models.CareSessionProcedure.work_item_id == work_item_id,
+        )
+        existing = (await self.db.execute(stmt)).scalar_one_or_none()
+        if existing:
+            return existing
+
+        from backend.services.workflow_template_service import WorkflowTemplateService
+        tpl_service = WorkflowTemplateService(self.db, self.tenant_id, self.current_user)
+        wi = await self.db.get(models.ClinicalWorkItem, work_item_id)
+        tpl_dict = None
+        proc_code = getattr(wi, "code", None)
+        if proc_code:
+            tpl_dict = await tpl_service.get_active_template_for_procedure(proc_code)
+
+        session_proc = models.CareSessionProcedure(
+            tenant_id=self.tenant_id,
+            care_session_id=session_id,
+            work_item_id=work_item_id,
+            template_snapshot=tpl_dict,
+            template_version=tpl_dict.get("version") if tpl_dict else None,
+            created_at=datetime.now(timezone.utc),
+        )
+        self.db.add(session_proc)
+        await self.db.commit()
+        await self.db.refresh(session_proc)
+        return session_proc
+
+    async def remove_procedure_from_session(
+        self, patient_id: int, session_id: int, work_item_id: int
+    ) -> bool:
+        """
+        Remove a procedure selected accidentally from the current visit before work is documented.
+        Enforces Decision §2.2: does NOT delete the underlying procedure or its clinical history.
+        Rejects removal if any steps or observations have already been recorded/completed in this visit.
+        """
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        session = await self.get_session(patient_id, session_id)
+        if session.status != "in_progress":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot modify procedures for session with status '{session.status}'.",
+            )
+
+        # Check if any step has been started or completed
+        steps_stmt = select(models.CareSessionStep).where(
+            models.CareSessionStep.tenant_id == self.tenant_id,
+            models.CareSessionStep.care_session_id == session_id,
+            models.CareSessionStep.work_item_id == work_item_id,
+        )
+        steps = list((await self.db.execute(steps_stmt)).scalars().all())
+        completed_or_in_progress = [s for s in steps if s.status in ("completed", "in_progress", "partial")]
+        if completed_or_in_progress:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot remove procedure with documented clinical work in this visit. Finish or cancel steps instead.",
+            )
+
+        # Check if observations exist
+        obs_stmt = select(models.CareObservation).where(
+            models.CareObservation.tenant_id == self.tenant_id,
+            models.CareObservation.care_session_id == session_id,
+            models.CareObservation.work_item_id == work_item_id,
+        )
+        obs_count = len(list((await self.db.execute(obs_stmt)).scalars().all()))
+        if obs_count > 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot remove procedure with recorded observations in this visit.",
+            )
+
+        # Delete pending steps
+        for s in steps:
+            await self.db.delete(s)
+
+        # Delete CareSessionProcedure
+        csp_stmt = select(models.CareSessionProcedure).where(
+            models.CareSessionProcedure.tenant_id == self.tenant_id,
+            models.CareSessionProcedure.care_session_id == session_id,
+            models.CareSessionProcedure.work_item_id == work_item_id,
+        )
+        csp = (await self.db.execute(csp_stmt)).scalar_one_or_none()
+        if csp:
+            await self.db.delete(csp)
+
+        await self.db.commit()
+        return True
+
+    async def update_session_procedure(
+        self, patient_id: int, session_id: int, work_item_id: int, data: schemas.CareSessionProcedureUpdate
+    ) -> models.CareSessionProcedure:
+        """Update procedure-specific notes and next action within this visit."""
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        stmt = select(models.CareSessionProcedure).where(
+            models.CareSessionProcedure.tenant_id == self.tenant_id,
+            models.CareSessionProcedure.care_session_id == session_id,
+            models.CareSessionProcedure.work_item_id == work_item_id,
+        )
+        csp = (await self.db.execute(stmt)).scalar_one_or_none()
+        if not csp:
+            raise HTTPException(status_code=404, detail="Care session procedure association not found")
+
+        if data.procedure_notes is not None:
+            csp.procedure_notes = data.procedure_notes.strip() if data.procedure_notes else None
+        if data.next_action is not None:
+            csp.next_action = data.next_action.strip() if data.next_action else None
+        if data.next_action_reason_omitted is not None:
+            csp.next_action_reason_omitted = data.next_action_reason_omitted.strip() if data.next_action_reason_omitted else None
+
+        await self.db.commit()
+        await self.db.refresh(csp)
+        return csp
 
     # -----------------------------------------------------------------------
     # Observation Operations (Slice S19 / G10-M07, G10-M15)
@@ -1186,7 +1366,7 @@ class CareSessionService:
         )
         if eager_load:
             stmt = stmt.execution_options(populate_existing=True).options(
-                selectinload(models.CareSession.procedures),
+                selectinload(models.CareSession.procedures).selectinload(models.CareSessionProcedure.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.steps).selectinload(models.CareSessionStep.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.observations),
                 selectinload(models.CareSession.next_visit_requests),
@@ -1211,7 +1391,7 @@ class CareSessionService:
             select(models.CareSession)
             .execution_options(populate_existing=True)
             .options(
-                selectinload(models.CareSession.procedures),
+                selectinload(models.CareSession.procedures).selectinload(models.CareSessionProcedure.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.steps).selectinload(models.CareSessionStep.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.observations),
                 selectinload(models.CareSession.next_visit_requests),
@@ -1939,6 +2119,124 @@ class CareSessionService:
                 setattr(r, "patient_name", r.patient.name)
                 setattr(r, "patient_phone", r.patient.phone)
         return requests
+
+    async def get_follow_up_dashboard(
+        self,
+        status: Optional[str] = None,
+        doctor_id: Optional[int] = None,
+        due_category: Optional[str] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+        search: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 50,
+    ) -> schemas.FollowUpDashboardResponse:
+        """
+        Dashboard query engine for clinic-wide follow-ups and next-visit requests.
+        Enforces tenant isolation, patient visibility, and explicit overdue/upcoming semantics.
+        """
+        await self.ensure_native_writes_enabled()
+
+        now = datetime.now(timezone.utc)
+
+        base_stmt = (
+            select(models.NextVisitRequest)
+            .options(
+                selectinload(models.NextVisitRequest.patient),
+                selectinload(models.NextVisitRequest.care_session),
+                selectinload(models.NextVisitRequest.work_item),
+                selectinload(models.NextVisitRequest.assigned_doctor),
+            )
+            .where(models.NextVisitRequest.tenant_id == self.tenant_id)
+        )
+
+        all_requests = list((await self.db.execute(base_stmt)).scalars().all())
+
+        counts = schemas.FollowUpDashboardCounts()
+        enriched_list = []
+
+        for req in all_requests:
+            target_date = req.postponed_to_date or req.preferred_time_window_start or req.preferred_time_window_end
+
+            if req.status == "scheduled":
+                cat = "scheduled"
+            elif req.status == "stopped":
+                cat = "stopped"
+            elif req.status == "completed":
+                cat = "completed"
+            elif target_date is not None:
+                if target_date < now:
+                    cat = "overdue"
+                else:
+                    cat = "upcoming"
+            else:
+                cat = "unscheduled"
+
+            counts.total += 1
+            if req.status == "requested":
+                counts.requested += 1
+            if cat == "overdue":
+                counts.overdue += 1
+            elif cat == "upcoming":
+                counts.upcoming += 1
+            elif cat == "unscheduled":
+                counts.unscheduled += 1
+            if req.status == "postponed":
+                counts.postponed += 1
+            elif req.status == "stopped":
+                counts.stopped += 1
+            elif req.status == "scheduled":
+                counts.scheduled += 1
+
+            if req.patient:
+                setattr(req, "patient_name", req.patient.name)
+                setattr(req, "patient_phone", req.patient.phone)
+            if req.assigned_doctor:
+                doc_name = req.assigned_doctor.full_name or req.assigned_doctor.username or f"Dr. #{req.assigned_doctor.id}"
+                setattr(req, "assigned_doctor_name", doc_name)
+            if req.work_item:
+                setattr(req, "procedure_name", getattr(req.work_item, "code", None))
+            setattr(req, "due_category", cat)
+
+            # Filtering
+            if status and status.lower() != "all" and req.status != status:
+                continue
+            if doctor_id is not None and req.assigned_doctor_id != doctor_id:
+                continue
+            if due_category and due_category.lower() != "all" and cat != due_category:
+                continue
+            if date_from and target_date and target_date < date_from:
+                continue
+            if date_to and target_date and target_date > date_to:
+                continue
+            if search:
+                s_lower = search.strip().lower()
+                p_name = (req.patient.name if req.patient else "").lower()
+                p_phone = (req.patient.phone if req.patient else "").lower()
+                r_reason = (req.reason or "").lower()
+                r_notes = (req.notes or "").lower()
+                if not (s_lower in p_name or s_lower in p_phone or s_lower in r_reason or s_lower in r_notes):
+                    continue
+
+            enriched_list.append(req)
+
+        def sort_key(r):
+            cat_order = {"overdue": 0, "upcoming": 1, "unscheduled": 2, "postponed": 3, "scheduled": 4, "stopped": 5, "completed": 6}
+            cat = getattr(r, "due_category", "unscheduled")
+            t_date = r.postponed_to_date or r.preferred_time_window_start or r.created_at
+            return (cat_order.get(cat, 9), t_date or now)
+
+        sorted_items = sorted(enriched_list, key=sort_key)
+        total_filtered = len(sorted_items)
+        paged_items = sorted_items[skip : skip + limit]
+
+        reads = [schemas.NextVisitRequestRead.model_validate(item) for item in paged_items]
+
+        return schemas.FollowUpDashboardResponse(
+            counts=counts,
+            items=reads,
+            total_count=total_filtered,
+        )
 
     async def schedule_next_visit_request(
         self,

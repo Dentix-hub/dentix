@@ -43,7 +43,7 @@ import TreatmentPlansCard from '@/features/clinical-plans/TreatmentPlansCard';
 import {
     CareSessionActiveBanner,
     ContinueTreatmentCard,
-    RctStructuredCard,
+    GenericVisitWorkspace,
     FinishCareSessionSheet,
     useCareSessionDraft,
 } from '@/features/care-sessions';
@@ -1147,28 +1147,25 @@ export default function PatientDetails() {
             </Modal>
 
             {isRctWorkflowOpen && activeCareSession && (
-                <Modal
+                <GenericVisitWorkspace
+                    session={activeCareSession}
+                    patient={patient}
+                    patientWorkItems={workspaceSnapshot?.work_items || []}
                     isOpen={isRctWorkflowOpen}
                     onClose={() => setIsRctWorkflowOpen(false)}
-                    title={t('care_session.rct_modal_title', 'Root Canal Treatment (RCT) Workflow')}
-                    size="xl"
-                >
-                    <RctStructuredCard
-                        session={activeCareSession}
-                        toothKey={resolvedActiveTooth || '46'}
-                        onUpdateStepStatus={handleUpdateStepStatus}
-                        onSaveObservation={handleSaveObservation}
-                        onFinishSession={handleFinishSession}
-                        isUpdatingStep={updateCareSessionStepMutation.isPending}
-                        isSavingObservation={recordCareObservationMutation.isPending}
-                        isFinishingSession={finishCareSessionMutation.isPending}
-                        patientId={id}
-                        attachments={attachments}
-                        draftData={careSessionDraftData}
-                        onDraftChange={updateCareSessionDraft}
-                        t={t}
-                    />
-                </Modal>
+                    onUpdateStepStatus={handleUpdateStepStatus}
+                    onSaveObservation={handleSaveObservation}
+                    onOpenFinishSheet={() => {
+                        setIsRctWorkflowOpen(false);
+                        setIsFinishSheetOpen(true);
+                    }}
+                    draftData={careSessionDraftData}
+                    onDraftChange={updateCareSessionDraft}
+                    careSessionDraftStatus={careSessionDraftStatus}
+                    resolveConflict={resolveCareSessionDraftConflict}
+                    refetchSession={refetchActiveSession}
+                    t={t}
+                />
             )}
 
             {isFinishSheetOpen && activeCareSession && (
