@@ -174,7 +174,9 @@ def test_restore_gate_covers_each_archived_business_table():
     import importlib
     from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS
     migration = importlib.import_module('backend.alembic.versions.d42a71e9bc83_restore_transaction_gate')
-    assert set(ARCHIVE_COLUMNS) == set(migration.TENANT_TABLES) - {'users'} | {'price_list_items'}
+    unification = importlib.import_module('backend.alembic.versions.b1c2d3e4f5a6_care_session_workflow_unification')
+    covered_tables = (set(migration.TENANT_TABLES) | set(unification.TENANT_TABLES)) - {'users'} | {'price_list_items'}
+    assert set(ARCHIVE_COLUMNS) == covered_tables
 
 
 def test_serialized_references_are_rebound_and_unknown_values_fail_closed():
@@ -609,3 +611,122 @@ async def test_tenant_consistency_audit_report(async_db_session, test_user, test
     inconsistent_report = format_consistency_report(inconsistent)
     assert "INCONSISTENT" in inconsistent_report
     assert "FORBIDDEN CROSS TENANT REFERENCE" in inconsistent_report
+
+
+@pytest.mark.asyncio
+async def test_round5_issue3_restore_remaps_care_observation_reference_columns_round_trip(async_db_session, test_user, test_patient, monkeypatch):
+    """
+    Review 5 Issue 3:
+    Restore remapping for superseded_by_id, reference_source_session_id, and
+    reference_source_observation_id plain integer columns.
+    Ensures that when restored IDs change from original archive IDs, all row references
+    are explicitly remapped to the newly generated database IDs.
+    """
+    from sqlalchemy import select
+    from sqlalchemy.sql.elements import TextClause
+    from backend import models, schemas
+    from backend.services.tenant_archive_export import export_clinic_archive_data
+    from backend.services.tenant_archive_import import replace_clinic_business_data
+    from backend.services.care_session_service import CareSessionService
+    from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
+    from backend.services.feature_service import FeatureFlagService
+
+    tenant_id = test_user.tenant_id
+    flag = models.FeatureFlag(
+        key=FEATURE_FLAG_CLINICAL_NATIVE_WRITES,
+        description="Clinical native writes",
+        is_global_enabled=True,
+    )
+    async_db_session.add(flag)
+    await async_db_session.flush()
+    await FeatureFlagService.set_tenant_override(
+        async_db_session, tenant_id, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, True
+    )
+
+    care_service = CareSessionService(async_db_session, tenant_id, test_user)
+
+    proc = models.ClinicalWorkItem(
+        tenant_id=tenant_id,
+        patient_id=test_patient.id,
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        created_by_user_id=test_user.id,
+    )
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    # 1. Create Visit 1 with observation obs1, then amended to obs2
+    s1 = await care_service.start_session(test_patient.id, schemas.CareSessionCreate(work_item_ids=[proc.id], notes="V1"))
+    obs1 = await care_service.add_observation(test_patient.id, s1.id, schemas.CareObservationCreate(
+        observation_code="working_length",
+        tooth_key="16",
+        canal_id="MB1",
+        structured_value={"canal_id": "MB1", "length_mm": 20.0},
+        work_item_id=proc.id,
+    ))
+    obs2 = await care_service.amend_observation(test_patient.id, obs1.id, schemas.CareObservationAmend(
+        structured_value={"canal_id": "MB1", "length_mm": 21.0},
+        reason="V1 amendment",
+    ))
+    await care_service.finish_session(test_patient.id, s1.id, schemas.CareSessionFinish())
+
+    # 2. Create Visit 2 carrying obs2 as carried obs3
+    s2 = await care_service.start_session(test_patient.id, schemas.CareSessionCreate(work_item_ids=[proc.id], notes="V2"))
+    assert len(s2.observations) == 1
+    obs3 = s2.observations[0]
+    assert obs3.reference_source_observation_id == obs2.id
+    assert obs3.reference_source_session_id == s1.id
+
+    # Export archive data
+    payload = await export_clinic_archive_data(async_db_session, tenant_id, validate_restore=True)
+
+    archive_data = payload["data"]
+    staff_map = {archive_data["staff_references"][0]["id"]: test_user.id}
+
+    # Intercept pg_advisory_xact_lock on non-PostgreSQL testing engines
+    orig_execute = async_db_session.execute
+
+    async def mock_execute(stmt, *args, **kwargs):
+        if isinstance(stmt, TextClause) and "pg_advisory_xact_lock" in str(stmt.text):
+            return None
+        return await orig_execute(stmt, *args, **kwargs)
+
+    monkeypatch.setattr(async_db_session, "execute", mock_execute)
+    monkeypatch.setattr(async_db_session.bind.dialect, "name", "postgresql")
+
+    # Execute restore import into tenant_id
+    stats, id_mapping = await replace_clinic_business_data(
+        async_db_session,
+        tenant_id=tenant_id,
+        data=archive_data,
+        staff_mapping=staff_map,
+    )
+
+    # Query restored care_observations in tenant_id
+    restored_obs_stmt = select(models.CareObservation).where(
+        models.CareObservation.tenant_id == tenant_id
+    ).order_by(models.CareObservation.id.asc())
+    restored_obs = list((await async_db_session.execute(restored_obs_stmt)).scalars().all())
+    assert len(restored_obs) == 3
+
+    new_obs1_id = id_mapping["care_observations"][obs1.id]
+    new_obs2_id = id_mapping["care_observations"][obs2.id]
+    new_obs3_id = id_mapping["care_observations"][obs3.id]
+    new_s1_id = id_mapping["care_sessions"][s1.id]
+
+    obs_by_new_id = {o.id: o for o in restored_obs}
+    restored_obs1 = obs_by_new_id[new_obs1_id]
+    restored_obs2 = obs_by_new_id[new_obs2_id]
+    restored_obs3 = obs_by_new_id[new_obs3_id]
+    assert restored_obs2.structured_value["length_mm"] == 21.0
+
+    # Verification: superseded_by_id was remapped to new_obs2_id!
+    assert restored_obs1.is_superseded is True
+    assert restored_obs1.superseded_by_id == new_obs2_id
+
+    # Verification: reference_source_observation_id was remapped to new_obs2_id!
+    assert restored_obs3.reference_source_observation_id == new_obs2_id
+
+    # Verification: reference_source_session_id was remapped to new_s1_id!
+    assert restored_obs3.reference_source_session_id == new_s1_id

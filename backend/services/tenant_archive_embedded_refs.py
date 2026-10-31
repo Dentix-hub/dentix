@@ -20,8 +20,15 @@ EVENT_IDS = {
     'resume_work_item_id': 'clinical_work_items', 'resume_from_session_id': 'care_sessions',
     'step_id': 'care_session_steps', 'observation_id': 'care_observations',
     'request_id': 'next_visit_requests', 'material_id': 'materials',
+    'original_observation_id': 'care_observations', 'replacement_observation_id': 'care_observations',
+    'amends_session_id': 'care_sessions', 'superseded_by_id': 'care_observations',
+    'reference_source_session_id': 'care_sessions', 'reference_source_observation_id': 'care_observations',
+    'assigned_doctor_id': 'users',
+    'stopped_by_user_id': 'users', 'postponed_by_user_id': 'users',
+    'handoff_by_user_id': 'users', 'handoff_to_user_id': 'users',
+    'author_user_id': 'users', 'performing_user_id': 'users',
 }
-EVENT_ID_LISTS = {'bulk_work_item_ids': 'clinical_work_items', 'usage_ids': 'treatment_material_usages'}
+EVENT_ID_LISTS = {'bulk_work_item_ids': 'clinical_work_items', 'work_item_ids': 'clinical_work_items', 'usage_ids': 'treatment_material_usages', 'associated_work_item_ids': 'clinical_work_items'}
 NON_DATABASE_IDS = {'version_id', 'expected_version_id', 'root_id', 'canal_id', 'idempotency_key'}
 REFERENCE_PREFIXES = {'TREATMENT': 'treatments', 'TREATMENT_MATERIALS': 'treatments', 'CARE_SESSION': 'care_sessions'}
 

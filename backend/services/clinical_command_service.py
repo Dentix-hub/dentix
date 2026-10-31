@@ -997,6 +997,331 @@ class ClinicalCommandService:
         reloaded = (await self.db.execute(stmt_reload)).scalar_one()
         return reloaded
 
+    async def update_work_item_status(
+        self,
+        patient_id: int,
+        work_item_id: int,
+        payload: schemas.ClinicalWorkItemStatusUpdate,
+        idempotency_key: Optional[str] = None,
+    ) -> schemas.ClinicalWorkItemStatusResponse:
+        """
+        Dedicated status-only command for procedures (active <-> completed).
+        - Validates tenant, patient visibility, procedure kind, permission, version, and transition.
+        - Synchronizes linked legacy treatment if present (active -> In Progress, completed -> Done).
+        - Transitions completed -> active require intent='reopen_correction' and an explicit reason.
+        - Automatically voids pending ClinicalCharge on reopening; invoiced charges are left untouched
+          with review warning and audit log.
+        - On completion, hooks ClinicalChargeService.create_pending_for_work_item unless linked to legacy treatment.
+        - Atomically appends ClinicalEvent for audit.
+        - Does NOT invoke the full treatment update path, replace targets or notes, or reverse stock.
+        """
+        await self.ensure_native_writes_enabled()
+        await self._ensure_patient_access(patient_id)
+
+        user = await self._get_active_current_user()
+        user_role = getattr(user, "role", "guest")
+        if not has_permission(user_role, Permission.TREATMENT_PLAN_WRITE):
+            raise HTTPException(
+                status_code=403,
+                detail="Permission denied. Required: treatment_plan:write for procedure status change",
+            )
+
+        key = self._validate_idempotency_key(idempotency_key or getattr(payload, "idempotency_key", None))
+        fingerprint = None
+        if key:
+            await self._acquire_advisory_lock(key)
+            fp_data = {
+                "action": "update_work_item_status",
+                "patient_id": patient_id,
+                "work_item_id": work_item_id,
+                "status": payload.status,
+                "intent": payload.intent,
+                "reason": payload.reason,
+                "override_reason": payload.override_reason,
+                "expected_version_id": payload.expected_version_id,
+            }
+            fingerprint = compute_request_fingerprint(fp_data)
+            existing_ev = await self._find_idempotent_event(patient_id, key, fingerprint)
+            if existing_ev:
+                stmt_wi = (
+                    select(models.ClinicalWorkItem)
+                    .options(selectinload(models.ClinicalWorkItem.targets))
+                    .where(
+                        models.ClinicalWorkItem.id == work_item_id,
+                        models.ClinicalWorkItem.tenant_id == self.tenant_id,
+                    )
+                )
+                reloaded = (await self.db.execute(stmt_wi)).scalar_one()
+                return schemas.ClinicalWorkItemStatusResponse(
+                    work_item=schemas.ClinicalWorkItemRead.model_validate(reloaded),
+                    previous_status=existing_ev.payload.get("previous_status", reloaded.status),
+                    effective_status=reloaded.status,
+                    version_id=reloaded.version_id,
+                    event_id=existing_ev.id,
+                    legacy_treatment_id=existing_ev.payload.get("legacy_treatment_id"),
+                    legacy_treatment_status=existing_ev.payload.get("legacy_treatment_status"),
+                    warnings=[
+                        schemas.ClinicalWorkItemCorrectionWarning(**w)
+                        for w in existing_ev.payload.get("warnings", [])
+                    ],
+                )
+
+        stmt = (
+            select(models.ClinicalWorkItem)
+            .options(selectinload(models.ClinicalWorkItem.targets))
+            .where(
+                models.ClinicalWorkItem.id == work_item_id,
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+            )
+            .with_for_update()
+        )
+        res = await self.db.execute(stmt)
+        work_item = res.scalar_one_or_none()
+        if not work_item or work_item.patient_id != patient_id:
+            raise HTTPException(status_code=404, detail="Clinical work item not found")
+
+        if work_item.kind != "procedure":
+            raise HTTPException(status_code=422, detail="Status shortcut is only supported for procedures")
+
+        if payload.expected_version_id is not None and work_item.version_id != payload.expected_version_id:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Stale version: expected {payload.expected_version_id}, found {work_item.version_id}",
+            )
+
+        old_status = work_item.status
+        target_status = payload.status
+
+        if old_status in (CORRECTION_STATUS_SUPERSEDED, CORRECTION_STATUS_ENTERED_IN_ERROR, "cancelled"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot transition from terminal status '{old_status}' through status shortcut",
+            )
+
+        warnings: List[schemas.ClinicalWorkItemCorrectionWarning] = []
+
+        if old_status == "completed" and target_status == "active":
+            if payload.intent != "reopen_correction" or not payload.reason or not payload.reason.strip():
+                raise HTTPException(
+                    status_code=422,
+                    detail="Reopening a completed procedure requires intent='reopen_correction' and an explicit reason",
+                )
+            # F-05: Auto-void pending charge on reopening
+            charge_stmt = select(models.ClinicalCharge).where(
+                models.ClinicalCharge.tenant_id == self.tenant_id,
+                models.ClinicalCharge.work_item_id == work_item.id,
+                models.ClinicalCharge.status == CLINICAL_CHARGE_STATUS_PENDING,
+            )
+            pending_charges = (await self.db.execute(charge_stmt)).scalars().all()
+            for pending_charge in pending_charges:
+                old_version = pending_charge.version_id
+                pending_charge.status = CLINICAL_CHARGE_STATUS_VOIDED
+                pending_charge.notes = (
+                    f"{pending_charge.notes or ''}; Auto-voided due to procedure reopen ({payload.reason})"
+                ).strip("; ")
+                log_admin_action(
+                    db=self.db,
+                    admin_user=self.current_user,
+                    action="void",
+                    entity_type="clinical_charge",
+                    entity_id=pending_charge.id,
+                    tenant_id=self.tenant_id,
+                    details=f"Clinical charge {pending_charge.id} automatically voided due to procedure {work_item.id} reopen",
+                    old_value={"status": CLINICAL_CHARGE_STATUS_PENDING, "version_id": old_version},
+                    new_value={"status": CLINICAL_CHARGE_STATUS_VOIDED, "version_id": pending_charge.version_id},
+                )
+
+            # Check invoiced charges: leave untouched and issue warnings
+            invoiced_stmt = select(models.ClinicalCharge).where(
+                models.ClinicalCharge.tenant_id == self.tenant_id,
+                models.ClinicalCharge.work_item_id == work_item.id,
+                models.ClinicalCharge.status == CLINICAL_CHARGE_STATUS_INVOICED,
+            )
+            invoiced_charges = list((await self.db.execute(invoiced_stmt)).scalars().all())
+            for inv_charge in invoiced_charges:
+                log_admin_action(
+                    db=self.db,
+                    admin_user=self.current_user,
+                    action="invoiced_charge_requires_manual_review",
+                    entity_type="clinical_charge",
+                    entity_id=inv_charge.id,
+                    tenant_id=self.tenant_id,
+                    details=(
+                        f"Work item {work_item.id} was reopened but charge {inv_charge.id} is already invoiced. "
+                        f"Manual review required by clinic reception/accountant."
+                    ),
+                    old_value={"status": CLINICAL_CHARGE_STATUS_INVOICED, "version_id": inv_charge.version_id},
+                    new_value={"status": CLINICAL_CHARGE_STATUS_INVOICED, "version_id": inv_charge.version_id},
+                )
+                warnings.append(
+                    schemas.ClinicalWorkItemCorrectionWarning(
+                        code="invoiced_charge_requires_manual_review",
+                        charge_id=inv_charge.id,
+                        message=f"Clinical charge {inv_charge.id} is already invoiced and requires manual review.",
+                    )
+                )
+
+        elif target_status == "completed" and old_status != "completed":
+            # Check outstanding logical workflow steps across visits
+            step_stmt = (
+                select(models.CareSessionStep)
+                .where(
+                    models.CareSessionStep.tenant_id == self.tenant_id,
+                    models.CareSessionStep.work_item_id == work_item.id,
+                )
+                .order_by(
+                    models.CareSessionStep.care_session_id.asc(),
+                    models.CareSessionStep.step_order.asc(),
+                    models.CareSessionStep.id.asc(),
+                )
+            )
+            all_steps = (await self.db.execute(step_stmt)).scalars().all()
+            if all_steps:
+                logical_tasks = {}
+                for s in all_steps:
+                    key = (s.logical_step_code or s.step_code or s.title or f"step_{s.step_order}", s.occurrence_number or 1)
+                    if key not in logical_tasks:
+                        logical_tasks[key] = []
+                    logical_tasks[key].append(s)
+
+                outstanding_tasks = []
+                for key, task_occurrences in logical_tasks.items():
+                    # The effective state of each distinct task occurrence is evaluated by its latest record.
+                    # If the latest record is completed, omitted, skipped, or cancelled, it is satisfied.
+                    latest_step = task_occurrences[-1]
+                    if latest_step.status not in ("completed", "omitted", "skipped", "cancelled"):
+                        outstanding_tasks.append((key, latest_step))
+
+                if outstanding_tasks and not (payload.override_reason or payload.reason):
+                    raise HTTPException(
+                        status_code=422,
+                        detail={
+                            "code": "OVERRIDE_REASON_REQUIRED",
+                            "message": f"Procedure has {len(outstanding_tasks)} outstanding workflow step(s). Confirming completion requires an override reason.",
+                            "outstanding_steps_count": len(outstanding_tasks),
+                        },
+                    )
+
+        now = datetime.now(timezone.utc)
+        work_item.status = target_status
+        work_item.updated_at = now
+
+        # Resolve linked legacy treatment
+        linked_treatment_id = None
+        legacy_treatment_status = None
+        ev_stmt = select(models.ClinicalEvent).where(
+            models.ClinicalEvent.tenant_id == self.tenant_id,
+            models.ClinicalEvent.work_item_id == work_item.id,
+        ).order_by(models.ClinicalEvent.id.asc())
+        events = (await self.db.execute(ev_stmt)).scalars().all()
+        for ev in events:
+            if isinstance(ev.payload, dict):
+                tid = ev.payload.get("treatment_id") or ev.payload.get("legacy_treatment_id")
+                if tid is not None:
+                    try:
+                        linked_treatment_id = int(tid)
+                        break
+                    except (ValueError, TypeError):
+                        pass
+
+        if linked_treatment_id:
+            tx_stmt = select(models.Treatment).where(
+                models.Treatment.id == linked_treatment_id,
+                models.Treatment.tenant_id == self.tenant_id,
+            ).with_for_update()
+            legacy_tx = (await self.db.execute(tx_stmt)).scalar_one_or_none()
+            if legacy_tx:
+                if target_status == "completed":
+                    legacy_tx.status = "Done"
+                elif target_status == "active":
+                    legacy_tx.status = "In Progress"
+                legacy_tx.updated_at = now
+                legacy_treatment_status = legacy_tx.status
+
+        # Create pending charge on transition to completed (unless linked to legacy treatment)
+        if target_status == "completed" and old_status != "completed" and not linked_treatment_id:
+            try:
+                from backend.services.clinical_charge_service import ClinicalChargeService
+                charge_service = ClinicalChargeService(self.db, self.tenant_id, user)
+                await charge_service.create_pending_for_work_item(
+                    work_item.id, doctor_id=self.current_user_id
+                )
+            except Exception as exc:
+                logger.error("clinical_charge_dispatch_failed on status update: %s", exc, exc_info=True)
+
+        event_type = "procedure_reopened" if (old_status == "completed" and target_status == "active") else "procedure_status_changed"
+        ev_payload = {
+            "work_item_id": work_item.id,
+            "kind": "procedure",
+            "code": work_item.code,
+            "previous_status": old_status,
+            "status": target_status,
+            "intent": payload.intent,
+            "reason": payload.reason or payload.override_reason,
+            "version_id": work_item.version_id + 1,
+            "legacy_treatment_id": linked_treatment_id,
+            "legacy_treatment_status": legacy_treatment_status,
+            "warnings": [w.model_dump() for w in warnings],
+        }
+        if key and fingerprint:
+            ev_payload["idempotency_key"] = key
+            ev_payload["request_fingerprint"] = fingerprint
+
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=patient_id,
+            work_item_id=work_item.id,
+            event_type=event_type,
+            occurred_at=now,
+            actor_user_id=self.current_user_id,
+            payload=ev_payload,
+            notes=payload.reason or payload.override_reason,
+            created_at=now,
+        )
+        for t in work_item.targets:
+            event.targets.append(
+                models.ClinicalEventTarget(
+                    tenant_id=self.tenant_id,
+                    target_kind=t.target_kind,
+                    tooth_key=t.tooth_key,
+                    surface_code=t.surface_code,
+                    root_id=t.root_id,
+                    canal_id=t.canal_id,
+                    created_at=now,
+                )
+            )
+        self.db.add(event)
+
+        try:
+            await self.db.commit()
+        except StaleDataError:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Concurrent modification detected (stale version)",
+            )
+
+        stmt_reload = (
+            select(models.ClinicalWorkItem)
+            .options(selectinload(models.ClinicalWorkItem.targets))
+            .where(
+                models.ClinicalWorkItem.id == work_item.id,
+                models.ClinicalWorkItem.tenant_id == self.tenant_id,
+            )
+        )
+        reloaded = (await self.db.execute(stmt_reload)).scalar_one()
+
+        return schemas.ClinicalWorkItemStatusResponse(
+            work_item=schemas.ClinicalWorkItemRead.model_validate(reloaded),
+            previous_status=old_status,
+            effective_status=reloaded.status,
+            version_id=reloaded.version_id,
+            event_id=event.id,
+            legacy_treatment_id=linked_treatment_id,
+            legacy_treatment_status=legacy_treatment_status,
+            warnings=warnings,
+        )
+
     async def list_work_items(
         self,
         patient_id: int,

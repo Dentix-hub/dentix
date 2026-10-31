@@ -132,3 +132,30 @@ export const getClinicalAttachmentLink = (patientId, linkId) =>
 export const deleteClinicalAttachmentLink = (patientId, linkId) =>
     api.delete(`/api/v1/patients/${patientId}/clinical-attachment-links/${linkId}`);
 
+// Status-Only Procedure Command (Slice S25 / G10-M16)
+export const updateClinicalWorkItemStatus = (patientId, workItemId, data, options = {}) =>
+    api.patch(`/api/v1/patients/${patientId}/clinical-work-items/${workItemId}/status`, data, options);
+
+// Care Session Server Drafts (Slice S25 / G10-M17)
+export const getCareSessionDraft = (patientId) =>
+    api.get(`/api/v1/patients/${patientId}/care-sessions/draft`);
+export const saveCareSessionDraft = (patientId, data) =>
+    api.put(`/api/v1/patients/${patientId}/care-sessions/draft`, data);
+export const deleteCareSessionDraft = (patientId) =>
+    api.delete(`/api/v1/patients/${patientId}/care-sessions/draft`);
+
+// Care Observation Amendment (Slice S25 / G10-M18)
+export const amendCareObservation = (patientId, sessionId, observationId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/observations/${observationId}/amend`, data);
+
+// Next-Visit Request Lifecycle Actions (Slice S25 / G11-M10..M13)
+export const stopNextVisitRequest = (patientId, requestId, data) =>
+    api.post(`/api/v1/patients/${patientId}/next-visit-requests/${requestId}/stop`, data);
+export const postponeNextVisitRequest = (patientId, requestId, data) =>
+    api.post(`/api/v1/patients/${patientId}/next-visit-requests/${requestId}/postpone`, data);
+export const resumeNextVisitRequest = (patientId, requestId) =>
+    api.post(`/api/v1/patients/${patientId}/next-visit-requests/${requestId}/resume`);
+export const handoffNextVisitRequest = (patientId, requestId, data) =>
+    api.post(`/api/v1/patients/${patientId}/next-visit-requests/${requestId}/handoff`, data);
+
+

@@ -1933,7 +1933,9 @@ export default function QuickTreatmentSheet({
                                                         #{sessions.length - index}
                                                     </span>
                                                     <span className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">
-                                                        {session.created_at ? format(new Date(session.created_at), 'PPP', { locale: ar }) : ''}
+                                                        {session.actual_visit_date || session.session_date || session.date || session.created_at
+                                                            ? format(new Date(session.actual_visit_date || session.session_date || session.date || session.created_at), 'PPP', { locale: ar })
+                                                            : ''}
                                                     </span>
                                                 </div>
                                                 <CheckCircle2 size={14} className="text-emerald-500" />

@@ -5,6 +5,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import NextVisitQueue from '@/features/appointments/components/NextVisitQueue';
 import Appointments from '@/pages/Appointments';
 
@@ -19,9 +20,10 @@ vi.mock('react-router-dom', () => ({
     useSearchParams: () => [new URLSearchParams(), vi.fn()],
 }));
 
+let mockAuthUser = { id: 10, role: 'receptionist', tenant_id: 1, permissions: [] };
 vi.mock('@/auth/useAuth', () => ({
     useAuth: () => ({
-        user: { id: 10, role: 'receptionist', tenant_id: 1 },
+        user: mockAuthUser,
     }),
 }));
 
@@ -176,6 +178,37 @@ describe('NextVisitQueue Component', () => {
         render(<NextVisitQueue requests={[]} />);
 
         expect(screen.getByText('No pending follow-up requests')).toBeInTheDocument();
+    });
+
+    it('hides clinical manage button for receptionists without CLINICAL_WRITE (Review 2 Issue 7)', () => {
+        mockAuthUser = { id: 10, role: 'receptionist', tenant_id: 1, permissions: [] };
+        render(<NextVisitQueue requests={mockRequests} />);
+        expect(screen.queryByTestId('manage-request-btn-101')).not.toBeInTheDocument();
+        expect(screen.getByTestId('schedule-request-btn-101')).toBeInTheDocument();
+        expect(screen.getByTestId('dismiss-request-btn-101')).toBeInTheDocument();
+    });
+
+    it('shows clinical manage button for clinicians with CLINICAL_WRITE and loads doctors (Review 2 Issue 7)', async () => {
+        mockAuthUser = { id: 1, role: 'doctor', tenant_id: 1, permissions: ['clinical:write'] };
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(
+            <QueryClientProvider client={queryClient}>
+                <NextVisitQueue
+                    requests={mockRequests}
+                    doctors={[{ id: 10, name: 'Dr. Sarah Specialist' }]}
+                />
+            </QueryClientProvider>
+        );
+        const manageBtn = screen.getByTestId('manage-request-btn-101');
+        expect(manageBtn).toBeInTheDocument();
+
+        fireEvent.click(manageBtn);
+        expect(screen.getByTestId('follow-up-management-modal')).toBeInTheDocument();
+
+        // Switch to handoff tab and verify doctors are present
+        const handoffTab = screen.getByTestId('tab-handoff');
+        fireEvent.click(handoffTab);
+        expect(screen.getByRole('option', { name: /Dr\. Sarah Specialist/i })).toBeInTheDocument();
     });
 });
 

@@ -45,9 +45,10 @@ import {
     ContinueTreatmentCard,
     RctStructuredCard,
     FinishCareSessionSheet,
+    useCareSessionDraft,
 } from '@/features/care-sessions';
 import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
-import { Baby, Sparkles } from 'lucide-react';
+import { Baby, Sparkles, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 import { getTodayStr } from '../utils/toothUtils';
 import {
@@ -252,6 +253,57 @@ export default function PatientDetails() {
     const applyCareSessionTemplateMutation = useApplyCareSessionTemplate();
     const recordCareObservationMutation = useRecordCareObservation();
 
+    const {
+        draftData: careSessionDraftData,
+        updateDraft: updateCareSessionDraft,
+        discardDraft: discardCareSessionDraft,
+        status: careSessionDraftStatus,
+        resolveConflict: resolveCareSessionDraftConflict,
+    } = useCareSessionDraft({
+        patientId: id ? Number(id) : null,
+        careSessionId: activeCareSession?.id || null,
+        enabled: Boolean(activeCareSession?.id && isNativeWritesEnabled),
+    });
+
+    const autosaveIndicator = useMemo(() => {
+        if (!activeCareSession || careSessionDraftStatus === 'idle') return null;
+        return (
+            <div data-testid="care-session-autosave-indicator" className="inline-flex items-center gap-1.5 text-xs">
+                {careSessionDraftStatus === 'saving' && (
+                    <span className="flex items-center gap-1 text-slate-500 font-medium">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>{t('care_session.saving_draft', 'Saving draft...')}</span>
+                    </span>
+                )}
+                {careSessionDraftStatus === 'saved' && (
+                    <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                        <CheckCircle2 className="h-3 w-3" />
+                        <span>{t('care_session.draft_saved', 'Draft autosaved')}</span>
+                    </span>
+                )}
+                {careSessionDraftStatus === 'conflict' && (
+                    <span className="flex items-center gap-1 text-amber-600 font-bold">
+                        <AlertTriangle className="h-3 w-3" />
+                        <span>{t('care_session.draft_conflict', 'Draft conflict')}</span>
+                        <button
+                            type="button"
+                            onClick={() => resolveCareSessionDraftConflict({ overwrite: true })}
+                            className="underline text-[10px] ml-1 text-amber-700 hover:text-amber-900"
+                        >
+                            {t('common.overwrite', 'Overwrite')}
+                        </button>
+                    </span>
+                )}
+                {careSessionDraftStatus === 'error' && (
+                    <span className="flex items-center gap-1 text-red-500 font-medium">
+                        <AlertTriangle className="h-3 w-3" />
+                        <span>{t('care_session.draft_error', 'Sync error')}</span>
+                    </span>
+                )}
+            </div>
+        );
+    }, [activeCareSession, careSessionDraftStatus, resolveCareSessionDraftConflict, t]);
+
     const [isRctWorkflowOpen, setIsRctWorkflowOpen] = useState(false);
     const [isFinishSheetOpen, setIsFinishSheetOpen] = useState(false);
     const [careSessionDisabledNotice, setCareSessionDisabledNotice] = useState(null);
@@ -286,7 +338,7 @@ export default function PatientDetails() {
         }
     }, [id, resolvedActiveTooth, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
 
-    const handleResumeTreatment = useCallback(async ({ workItemId, sessionId, isPaused, toothKey }) => {
+    const handleResumeTreatment = useCallback(async ({ workItemId, workItemIds, sessionId, isPaused, toothKey, procedureCode }) => {
         try {
             if (isPaused && sessionId) {
                 await transitionCareSessionMutation.mutateAsync({
@@ -295,21 +347,48 @@ export default function PatientDetails() {
                     data: { to_status: 'in_progress' },
                 });
             } else {
+                const effectiveWorkItemIds = (workItemIds && workItemIds.length > 0)
+                    ? workItemIds
+                    : (workItemId ? [workItemId] : undefined);
+
                 const sessionRes = await startCareSessionMutation.mutateAsync({
                     patientId: id,
                     data: {
-                        resume_work_item_id: workItemId || undefined,
+                        resume_work_item_id: effectiveWorkItemIds?.[0] || workItemId || undefined,
+                        resume_work_item_ids: effectiveWorkItemIds,
                         resume_from_session_id: sessionId || undefined,
                         notes: toothKey ? `Resumed treatment on tooth ${toothKey}` : undefined,
                     },
                 });
                 const createdSession = sessionRes.data;
-                if (createdSession?.id && (!createdSession.steps || createdSession.steps.length === 0)) {
-                    await applyCareSessionTemplateMutation.mutateAsync({
-                        patientId: id,
-                        sessionId: createdSession.id,
-                        data: { template_code: 'ENDO_RCT', work_item_id: workItemId || undefined },
-                    });
+                if (createdSession?.id) {
+                    const existingWorkItemIdsWithSteps = new Set(
+                        (createdSession.steps || []).map((s) => s.work_item_id).filter(Boolean)
+                    );
+
+                    const itemsToApply = (resumableCareSession?.items || []).filter(
+                        (it) => !effectiveWorkItemIds || effectiveWorkItemIds.includes(it.work_item_id)
+                    );
+
+                    if (itemsToApply.length > 0) {
+                        for (const it of itemsToApply) {
+                            if (!existingWorkItemIdsWithSteps.has(it.work_item_id)) {
+                                const templateCode = it.procedure_code || 'ENDO_RCT';
+                                await applyCareSessionTemplateMutation.mutateAsync({
+                                    patientId: id,
+                                    sessionId: createdSession.id,
+                                    data: { template_code: templateCode, work_item_id: it.work_item_id },
+                                });
+                            }
+                        }
+                    } else if (workItemId && !existingWorkItemIdsWithSteps.has(workItemId)) {
+                        const templateCode = procedureCode || 'ENDO_RCT';
+                        await applyCareSessionTemplateMutation.mutateAsync({
+                            patientId: id,
+                            sessionId: createdSession.id,
+                            data: { template_code: templateCode, work_item_id: workItemId },
+                        });
+                    }
                 }
             }
             await refetchActiveSession();
@@ -325,7 +404,7 @@ export default function PatientDetails() {
             }
             toast.error(err?.response?.data?.detail?.message || err?.response?.data?.detail || t('care_session.resume_error', 'Failed to resume treatment'));
         }
-    }, [id, transitionCareSessionMutation, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
+    }, [id, resumableCareSession?.items, transitionCareSessionMutation, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
 
     const handleUpdateStepStatus = useCallback(async (stepId, updateData) => {
         if (!activeCareSession?.id) return;
@@ -376,6 +455,7 @@ export default function PatientDetails() {
                 sessionId: activeCareSession.id,
                 data: { notes, next_visit_request },
             });
+            await discardCareSessionDraft();
             await refetchActiveSession();
             await refetchResumableSession();
             refetchWorkspace();
@@ -385,7 +465,7 @@ export default function PatientDetails() {
         } catch (err) {
             toast.error(err?.response?.data?.detail || 'Failed to finish care session');
         }
-    }, [id, activeCareSession?.id, finishCareSessionMutation, refetchActiveSession, refetchResumableSession, refetchWorkspace, t]);
+    }, [id, activeCareSession?.id, finishCareSessionMutation, discardCareSessionDraft, refetchActiveSession, refetchResumableSession, refetchWorkspace, t]);
 
     const adaptedChart = useMemo(() => {
         return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {
@@ -841,6 +921,7 @@ export default function PatientDetails() {
                                                     onOpenWorkflow={() => setIsRctWorkflowOpen(true)}
                                                     onOpenFinishSheet={() => setIsFinishSheetOpen(true)}
                                                     patientId={id}
+                                                    autosaveIndicator={autosaveIndicator}
                                                     t={t}
                                                 />
                                             </div>
@@ -960,6 +1041,7 @@ export default function PatientDetails() {
                         {activeTab === 'history' && (
                             <TreatmentHistory
                                 history={history}
+                                patientId={id}
                                 onAdd={openManualTreatment}
                                 onEdit={handleEditTreatment}
                                 onDelete={handleDeleteTreatment}
@@ -1082,6 +1164,8 @@ export default function PatientDetails() {
                         isFinishingSession={finishCareSessionMutation.isPending}
                         patientId={id}
                         attachments={attachments}
+                        draftData={careSessionDraftData}
+                        onDraftChange={updateCareSessionDraft}
                         t={t}
                     />
                 </Modal>
@@ -1094,6 +1178,8 @@ export default function PatientDetails() {
                     session={activeCareSession}
                     onFinishSession={handleFinishSession}
                     isFinishing={finishCareSessionMutation.isPending}
+                    draftData={careSessionDraftData}
+                    onDraftChange={updateCareSessionDraft}
                     t={t}
                 />
             )}

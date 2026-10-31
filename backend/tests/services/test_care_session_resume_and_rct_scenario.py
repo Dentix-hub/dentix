@@ -363,39 +363,39 @@ async def test_full_multi_visit_rct_scenario_e2e(async_db_session, seed_data):
     )
     assert session_2.status == "in_progress"
 
-    # Verify steps were carried forward automatically into session 2
+    # Verify remaining logical steps were prepared separately in session 2 (Issue 6)
     session_2_steps = await service.list_steps(patient_id, session_2.id)
-    assert len(session_2_steps) == 6
-    assert session_2_steps[0].status == "completed"  # assessment
-    assert session_2_steps[1].status == "completed"  # access
-    assert session_2_steps[2].status == "completed"  # canal_measurement
+    assert len(session_2_steps) == 3
+    assert session_2_steps[0].step_code == "clean_shape"
+    assert session_2_steps[1].step_code == "obturate"
+    assert session_2_steps[2].step_code == "restore"
 
-    # Verify canal observations were carried forward into session 2
+    # Verify canal observations were carried forward into session 2 as dated references
     session_2_obs = await service.list_observations(patient_id, session_2.id)
     assert len(session_2_obs) == 3
     s2_canals = {o.canal_id: o.structured_value["length_mm"] for o in session_2_obs}
     assert s2_canals == {"MB": 20.0, "ML": 20.5, "D": 21.0}
 
     # Doctor completes the remaining steps in Visit 2
-    # Step 4: Cleaning & Shaping
+    # Step 1: Cleaning & Shaping
     await service.update_step(
         patient_id,
         session_2.id,
-        session_2_steps[3].id,
+        session_2_steps[0].id,
         schemas.CareSessionStepUpdate(status="completed", notes="Final irrigation with 5.25% NaOCl and 17% EDTA"),
     )
-    # Step 5: Obturation
+    # Step 2: Obturation
     await service.update_step(
         patient_id,
         session_2.id,
-        session_2_steps[4].id,
+        session_2_steps[1].id,
         schemas.CareSessionStepUpdate(status="completed", notes="Warm vertical compaction, AH Plus sealer"),
     )
-    # Step 6: Restoration
+    # Step 3: Restoration
     await service.update_step(
         patient_id,
         session_2.id,
-        session_2_steps[5].id,
+        session_2_steps[2].id,
         schemas.CareSessionStepUpdate(status="completed", notes="Composite core build-up completed"),
     )
 
@@ -406,7 +406,7 @@ async def test_full_multi_visit_rct_scenario_e2e(async_db_session, seed_data):
         schemas.CareSessionFinish(notes="Endodontic therapy completed successfully. Post-op PA X-ray confirmed excellent obturation."),
     )
     assert finished_session_2.status == "completed"
-    assert "6/6 steps completed" in finished_session_2.summary
+    assert "3/3 steps completed" in finished_session_2.summary
 
     # Mark work item completed
     work_item.status = "completed"
@@ -506,14 +506,12 @@ async def test_care_session_3_visit_resume_scenario(async_db_session, seed_data)
         schemas.CareSessionCreate(resume_work_item_id=work_item.id, notes="Visit 2"),
     )
     v2_steps = await service.list_steps(patient_id, session_2.id)
-    assert len(v2_steps) == 6
-    assert v2_steps[0].status == "completed"
-    assert v2_steps[1].status == "completed"
-    assert v2_steps[2].status == "partial"
+    assert len(v2_steps) == 4
+    assert v2_steps[0].status == "partial"
 
     # In Visit 2, complete step 2 and mark step 3 partial
-    await service.update_step(patient_id, session_2.id, v2_steps[2].id, schemas.CareSessionStepUpdate(status="completed"))
-    await service.update_step(patient_id, session_2.id, v2_steps[3].id, schemas.CareSessionStepUpdate(status="partial"))
+    await service.update_step(patient_id, session_2.id, v2_steps[0].id, schemas.CareSessionStepUpdate(status="completed"))
+    await service.update_step(patient_id, session_2.id, v2_steps[1].id, schemas.CareSessionStepUpdate(status="partial"))
     await service.finish_session(patient_id, session_2.id, schemas.CareSessionFinish(notes="Visit 2 done"))
 
     # Resumable context check after Visit 2:
@@ -528,11 +526,10 @@ async def test_care_session_3_visit_resume_scenario(async_db_session, seed_data)
         schemas.CareSessionCreate(resume_work_item_id=work_item.id, notes="Visit 3"),
     )
     v3_steps = await service.list_steps(patient_id, session_3.id)
-    assert len(v3_steps) == 6
+    assert len(v3_steps) == 3
 
-    # Step 2 MUST be completed (not reverted to Visit 1 partial!)
-    assert v3_steps[2].status == "completed", f"Step 2 reverted to {v3_steps[2].status} instead of completed"
-    assert v3_steps[3].status == "partial", f"Step 3 expected partial, got {v3_steps[3].status}"
+    # Step 3 MUST be partial (carried from Visit 2, while completed step 2 was not duplicated)
+    assert v3_steps[0].status == "partial", f"Step 3 expected partial, got {v3_steps[0].status}"
 
     # Observations in Visit 3 MUST be 2 (not 4 or 6)
     v3_obs = await service.list_observations(patient_id, session_3.id)

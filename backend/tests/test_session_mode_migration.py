@@ -4,13 +4,14 @@ from alembic.config import Config
 import sqlalchemy as sa
 
 
-def test_session_mode_upgrade_and_roundtrip(tmp_path, monkeypatch):
+def test_session_mode_upgrade_and_roundtrip(tmp_path, monkeypatch, legacy_clinical_schema):
     url = f"sqlite:///{tmp_path / 'sessions.db'}"
     monkeypatch.setenv("DATABASE_URL", url)
     config = Config("backend/alembic.ini")
     config.set_main_option("sqlalchemy.url", url)
     engine = sa.create_engine(url)
     with engine.begin() as conn:
+        legacy_clinical_schema(conn)
         conn.execute(sa.text("CREATE TABLE tenants (id INTEGER PRIMARY KEY, google_refresh_token VARCHAR)"))
         conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY)"))
         conn.execute(sa.text("CREATE TABLE attachments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))

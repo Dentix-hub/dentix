@@ -208,6 +208,57 @@ async def get_treatments(db: AsyncSession, patient_id: int, tenant_id: int):
     except Exception as e:
         logger.error("Error reconstructing consumed materials: %s", e)
 
+    # 3. Resolve linked ClinicalWorkItem and version via ClinicalEvent provenance
+    try:
+        ev_stmt = (
+            select(models.ClinicalEvent)
+            .where(
+                models.ClinicalEvent.tenant_id == tenant_id,
+                models.ClinicalEvent.patient_id == patient_id,
+                models.ClinicalEvent.work_item_id.is_not(None),
+            )
+            .order_by(models.ClinicalEvent.id.desc())
+        )
+        ev_result = await db.execute(ev_stmt)
+        events = ev_result.scalars().all()
+
+        treatment_to_wi_id = {}
+        for ev in events:
+            if isinstance(ev.payload, dict):
+                tid = ev.payload.get("treatment_id") or ev.payload.get("legacy_treatment_id")
+                if tid is not None:
+                    try:
+                        tid_int = int(tid)
+                        if tid_int not in treatment_to_wi_id:
+                            treatment_to_wi_id[tid_int] = ev.work_item_id
+                    except (ValueError, TypeError):
+                        pass
+
+        wi_map = {}
+        if treatment_to_wi_id:
+            distinct_wi_ids = list(set(treatment_to_wi_id.values()))
+            wi_stmt = select(models.ClinicalWorkItem).where(
+                models.ClinicalWorkItem.id.in_(distinct_wi_ids),
+                models.ClinicalWorkItem.tenant_id == tenant_id,
+            )
+            wi_res = await db.execute(wi_stmt)
+            for wi in wi_res.scalars().all():
+                wi_map[wi.id] = wi
+
+        for t in treatments:
+            wi_id = treatment_to_wi_id.get(t.id)
+            if wi_id and wi_id in wi_map:
+                t.work_item_id = wi_id
+                t.work_item_version_id = wi_map[wi_id].version_id
+            else:
+                t.work_item_id = None
+                t.work_item_version_id = None
+    except Exception as exc:
+        logger.warning("Could not resolve clinical work items for treatments: %s", exc)
+        for t in treatments:
+            t.work_item_id = getattr(t, "work_item_id", None)
+            t.work_item_version_id = getattr(t, "work_item_version_id", None)
+
     return treatments
 
 
