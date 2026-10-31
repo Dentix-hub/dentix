@@ -77,13 +77,17 @@ export default function HistoricalCareSessionModal({
     const handleAddStep = (e) => {
         e?.preventDefault();
         if (!newStepTitle.trim()) return;
+        const title = newStepTitle.trim();
+        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `step_${steps.length + 1}`;
         setSteps((prev) => [
             ...prev,
             {
-                title: newStepTitle.trim(),
+                title,
                 notes: newStepNotes.trim() || null,
                 status: 'completed',
                 work_item_id: selectedWorkItemIds[0] || null,
+                step_code: slug,
+                logical_step_code: slug,
             },
         ]);
         setNewStepTitle('');
@@ -99,16 +103,24 @@ export default function HistoricalCareSessionModal({
         if (!obsValue.trim()) return;
         const isLength = obsCode === 'working_length';
         const numVal = isLength ? Number.parseFloat(obsValue) : undefined;
+        const canal = obsCanal.trim() || null;
         setObservations((prev) => [
             ...prev,
             {
                 observation_code: obsCode,
                 tooth_key: obsToothKey.trim() || null,
-                canal_id: obsCanal.trim() || null,
+                canal_id: canal,
                 value: obsValue.trim(),
                 structured_value: isLength
-                    ? { length_mm: !Number.isNaN(numVal) ? numVal : undefined, value: obsValue.trim() }
-                    : { value: obsValue.trim() },
+                    ? {
+                          length_mm: !Number.isNaN(numVal) ? numVal : undefined,
+                          value: obsValue.trim(),
+                          ...(canal ? { canal_id: canal } : {}),
+                      }
+                    : {
+                          value: obsValue.trim(),
+                          ...(canal ? { canal_id: canal } : {}),
+                      },
                 notes: obsNotes.trim() || null,
                 work_item_id: selectedWorkItemIds[0] || null,
             },
@@ -152,22 +164,34 @@ export default function HistoricalCareSessionModal({
             provider_user_id: providerUserId ? Number(providerUserId) : null,
             work_item_ids: selectedWorkItemIds,
             notes: notes.trim() || null,
-            historical_steps: steps.map((s, idx) => ({
-                step_order: idx + 1,
-                step_code: `step_${idx + 1}`,
-                title: s.title,
-                status: s.status || 'completed',
-                notes: s.notes || null,
-                work_item_id: s.work_item_id || selectedWorkItemIds[0],
-            })),
-            historical_observations: observations.map((o) => ({
-                observation_code: o.observation_code || 'measurement',
-                tooth_key: o.tooth_key || null,
-                canal_id: o.canal_id || null,
-                structured_value: o.structured_value || { value: o.value },
-                notes: o.notes || null,
-                work_item_id: o.work_item_id || selectedWorkItemIds[0],
-            })),
+            historical_steps: steps.map((s, idx) => {
+                const title = s.title.trim();
+                const slug = s.logical_step_code || s.step_code || title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || `step_${idx + 1}`;
+                return {
+                    step_order: idx + 1,
+                    step_code: slug,
+                    logical_step_code: slug,
+                    title,
+                    status: s.status || 'completed',
+                    notes: s.notes || null,
+                    work_item_id: s.work_item_id || selectedWorkItemIds[0],
+                };
+            }),
+            historical_observations: observations.map((o) => {
+                const canal = o.canal_id || null;
+                return {
+                    observation_code: o.observation_code || 'measurement',
+                    tooth_key: o.tooth_key || null,
+                    canal_id: canal,
+                    structured_value: {
+                        ...(o.structured_value || {}),
+                        value: o.value || o.structured_value?.value,
+                        ...(canal ? { canal_id: canal } : {}),
+                    },
+                    notes: o.notes || null,
+                    work_item_id: o.work_item_id || selectedWorkItemIds[0],
+                };
+            }),
         };
 
         try {

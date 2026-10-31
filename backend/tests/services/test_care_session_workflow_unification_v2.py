@@ -718,3 +718,36 @@ async def test_disabled_template_cannot_be_reactivated_by_apply_fallback(async_d
     with pytest.raises(HTTPException) as error:
         await svc.apply_template(env['patient1'].id, visit.id, schemas.CareSessionTemplateApply(template_code='REST_COMPOSITE', work_item_id=item.id))
     assert error.value.status_code in (400, 404)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('read_path', ['historical', 'continuation'])
+async def test_historical_canal_identity_and_continuation_are_preserved(async_db_session, setup_env, read_path):
+    env = setup_env
+    item = models.ClinicalWorkItem(tenant_id=env['tenant'].id, patient_id=env['patient1'].id, kind='procedure', code='ENDO_RCT', status='active')
+    async_db_session.add(item)
+    await async_db_session.commit()
+    service = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    entries = [{'observation_code': 'working_length', 'tooth_key': '46', 'canal_id': canal, 'work_item_id': item.id, 'structured_value': {'length_mm': length, 'value': str(length)}} for canal, length in [('MB', 20), ('ML', 21)]]
+    historical = await service.start_session(env['patient1'].id, schemas.CareSessionCreate(is_historical=True, actual_visit_date=datetime.now(timezone.utc) - timedelta(days=7), work_item_ids=[item.id], historical_observations=entries))
+    if read_path == 'historical':
+        assert {(obs.canal_id, obs.structured_value['length_mm']) for obs in historical.observations} == {('MB', 20), ('ML', 21)}
+    else:
+        continued = await service.start_session(env['patient1'].id, schemas.CareSessionCreate(work_item_ids=[item.id], resume_from_session_id=historical.id))
+        assert len(continued.observations) == 2
+        assert {(obs.canal_id, obs.structured_value['length_mm']) for obs in continued.observations} == {('MB', 20), ('ML', 21)}
+
+
+@pytest.mark.asyncio
+async def test_different_historical_steps_are_not_merged_by_positional_codes(async_db_session, setup_env):
+    env = setup_env
+    item = models.ClinicalWorkItem(tenant_id=env['tenant'].id, patient_id=env['patient1'].id, kind='procedure', code='REST_COMPOSITE', status='active')
+    async_db_session.add(item)
+    await async_db_session.commit()
+    service = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    for days, title in [(7, 'Initial assessment'), (3, 'Restoration finishing')]:
+        await service.start_session(env['patient1'].id, schemas.CareSessionCreate(is_historical=True, actual_visit_date=datetime.now(timezone.utc) - timedelta(days=days), work_item_ids=[item.id], historical_steps=[{'step_order': 1, 'step_code': 'step_1', 'title': title, 'status': 'completed', 'work_item_id': item.id}]))
+    context = await service.get_resumable_context(env['patient1'].id)
+    procedure = next(row for row in context['items'] if row['work_item_id'] == item.id)
+    assert procedure['total_steps'] == 2
+    assert procedure['completed_steps_count'] == 2

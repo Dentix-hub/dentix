@@ -4,8 +4,34 @@ Defines request/response models for chairside CareSession lifecycle, steps, and 
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class HistoricalStepCreate(BaseModel):
+    step_order: Optional[int] = Field(None, description="Display order of step in historical visit")
+    step_code: Optional[str] = Field(None, max_length=64, description="Step identifier")
+    logical_step_code: Optional[str] = Field(None, max_length=64, description="Procedure-wide semantic logical step identity")
+    occurrence_number: Optional[int] = Field(None, ge=1, description="Occurrence number for repeated steps")
+    title: str = Field(..., min_length=1, max_length=255, description="Clinical step title or description")
+    status: Optional[str] = Field("completed", description="Status of step: completed, in_progress, etc.")
+    notes: Optional[str] = Field(None, description="Clinical notes for this step")
+    work_item_id: Optional[int] = Field(None, description="Associated work item ID")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class HistoricalObservationCreate(BaseModel):
+    observation_code: str = Field(default="measurement", min_length=1, max_length=64, description="Observation / measurement key")
+    work_item_id: Optional[int] = Field(None, description="Optional clinical work item ID")
+    tooth_key: Optional[str] = Field(None, description="Target tooth key in FDI notation (11-48, 51-85)")
+    surface_code: Optional[str] = Field(None, description="Target tooth surface (M, O, D, B, L, etc.)")
+    root_id: Optional[str] = Field(None, description="Root identifier (e.g. MB, ML, D, P)")
+    canal_id: Optional[str] = Field(None, description="Canal identifier (e.g. MB1, MB2)")
+    structured_value: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Structured measurement data")
+    notes: Optional[str] = Field(None, description="Free-text clinical notes")
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class CareSessionCreate(BaseModel):
@@ -17,8 +43,12 @@ class CareSessionCreate(BaseModel):
     resume_from_session_id: Optional[int] = Field(None, description="Optional previous care session ID to carry forward steps and observations from")
     actual_visit_date: Optional[datetime] = Field(None, description="Actual visit date/time if distinct from recording time")
     is_historical: bool = Field(False, description="Flag indicating if this is documenting a past historical visit")
-    historical_steps: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Optional steps performed during historical visit")
-    historical_observations: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Optional measurements/observations recorded during historical visit")
+    historical_steps: Optional[List[Union[HistoricalStepCreate, Dict[str, Any]]]] = Field(
+        default_factory=list, description="Optional steps performed during historical visit"
+    )
+    historical_observations: Optional[List[Union[HistoricalObservationCreate, Dict[str, Any]]]] = Field(
+        default_factory=list, description="Optional measurements/observations recorded during historical visit"
+    )
 
     model_config = ConfigDict(extra="forbid")
 

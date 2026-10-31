@@ -180,4 +180,17 @@ describe('FollowUpDashboard', () => {
             );
         });
     });
+
+    it('keeps a daytime appointment on the selected final day inside the requested range', async () => {
+        renderComponent();
+        await waitFor(() => {
+            expect(appointmentsApi.getFollowUpDashboard).toHaveBeenCalled();
+        });
+        fireEvent.change(screen.getByTestId('input-filter-date-to'), { target: { value: '2026-11-30' } });
+        await waitFor(() => {
+            expect(appointmentsApi.getFollowUpDashboard.mock.lastCall[0].date_to).toBeTruthy();
+        });
+        const endBoundary = Date.parse(appointmentsApi.getFollowUpDashboard.mock.lastCall[0].date_to);
+        expect(Date.parse('2026-11-30T12:00:00Z')).toBeLessThanOrEqual(endBoundary);
+    });
 });

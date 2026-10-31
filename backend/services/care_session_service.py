@@ -17,7 +17,8 @@ Enforces:
 """
 
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
+import re
 from typing import Any, List, Optional, Tuple
 from fastapi import HTTPException
 from sqlalchemy import func, inspect, select, text
@@ -32,7 +33,9 @@ from backend.models.clinical_core import FDI_TOOTH_KEYS
 from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
 from backend.services.feature_service import FeatureFlagService
 from backend.services.patient_access_service import ensure_patient_visible
+from backend.services.tenant_time_service import get_tenant_timezone
 from backend.utils.audit_logger import log_admin_action
+from backend.utils.tenant_time import resolve_timezone
 
 ALLOWED_SESSION_TRANSITIONS = {
     "in_progress": {"paused", "completed", "cancelled"},
@@ -426,21 +429,62 @@ class CareSessionService:
                     detail="Concurrent care session conflict during step carryover",
                 ) from exc
 
-        # F15: Persist historical steps and observations if provided
+        # F15, R3-01, R3-02: Persist historical steps and observations with stable clinical identities
         if is_historical:
             step_order = 1
-            for s in (getattr(data, "historical_steps", None) or []):
-                step_code = str(s.get("step_code") or f"step_{step_order}").strip()
-                title = str(s.get("title") or step_code).strip()
+            assigned_occurrences: dict[Tuple[Optional[int], str], int] = {}
+            for raw_s in (getattr(data, "historical_steps", None) or []):
+                s = raw_s if isinstance(raw_s, dict) else raw_s.model_dump()
+                raw_code = str(s.get("step_code") or "").strip()
+                title = str(s.get("title") or raw_code or f"step_{step_order}").strip()
                 wi_id = s.get("work_item_id") or (associated_wi_ids[0] if associated_wi_ids else None)
+                if wi_id is not None:
+                    await self._verify_work_item(patient_id, wi_id)
+
+                # R3-02: Derive stable semantic identifiers rather than collapsing distinct activities by positional indices
+                is_positional = bool(re.match(r"^step_\d+$", raw_code, re.IGNORECASE))
+                if s.get("logical_step_code"):
+                    logical_code = str(s.get("logical_step_code")).strip()
+                elif raw_code and not is_positional:
+                    logical_code = raw_code
+                else:
+                    semantic_slug = re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_")
+                    logical_code = semantic_slug if semantic_slug else f"step_{step_order}"
+
+                step_code = raw_code if raw_code and not is_positional else logical_code
+
+                # Resolve occurrence number with continuity
+                occ_key = (wi_id, logical_code)
+                occ_num = s.get("occurrence_number")
+                if occ_num is None or occ_num <= 0:
+                    if occ_key not in assigned_occurrences:
+                        if wi_id is not None:
+                            occ_stmt = select(func.coalesce(func.max(models.CareSessionStep.occurrence_number), 0)).where(
+                                models.CareSessionStep.tenant_id == self.tenant_id,
+                                models.CareSessionStep.work_item_id == wi_id,
+                                func.coalesce(models.CareSessionStep.logical_step_code, models.CareSessionStep.step_code) == logical_code,
+                            )
+                            max_db_occ = (await self.db.execute(occ_stmt)).scalar_one()
+                            assigned_occurrences[occ_key] = max_db_occ
+                        else:
+                            assigned_occurrences[occ_key] = 0
+
+                    assigned_occurrences[occ_key] += 1
+                    occ_num = assigned_occurrences[occ_key]
+                    is_rep = occ_num > 1
+                else:
+                    is_rep = occ_num > 1
+                    assigned_occurrences[occ_key] = max(assigned_occurrences.get(occ_key, 0), occ_num)
+
                 h_step = models.CareSessionStep(
                     tenant_id=self.tenant_id,
                     care_session_id=session.id,
                     work_item_id=wi_id,
-                    step_order=step_order,
+                    step_order=s.get("step_order") or step_order,
                     step_code=step_code,
-                    logical_step_code=s.get("logical_step_code") or step_code,
-                    occurrence_number=s.get("occurrence_number", 1),
+                    logical_step_code=logical_code,
+                    occurrence_number=occ_num,
+                    is_repeat=is_rep,
                     title=title,
                     status=s.get("status", "completed"),
                     notes=s.get("notes"),
@@ -451,17 +495,52 @@ class CareSessionService:
                 self.db.add(h_step)
                 step_order += 1
 
-            for obs in (getattr(data, "historical_observations", None) or []):
+            for raw_obs in (getattr(data, "historical_observations", None) or []):
+                obs = raw_obs if isinstance(raw_obs, dict) else raw_obs.model_dump()
                 obs_code = str(obs.get("observation_code") or "measurement").strip()
                 wi_id = obs.get("work_item_id") or (associated_wi_ids[0] if associated_wi_ids else None)
+                if wi_id is not None:
+                    await self._verify_work_item(patient_id, wi_id)
+
+                tooth_key = obs.get("tooth_key")
+                if tooth_key is not None:
+                    if tooth_key not in FDI_TOOTH_KEYS:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"Invalid tooth key '{tooth_key}'. Must be valid FDI notation (11-48, 51-85).",
+                        )
+
+                # Canonical structured value normalization (R3-01)
+                structured_val = dict(obs.get("structured_value") or {})
+                surface_code = obs.get("surface_code") or structured_val.get("surface_code")
+                root_id = obs.get("root_id") or structured_val.get("root_id")
+                canal_id = obs.get("canal_id") or structured_val.get("canal_id")
+
+                if surface_code:
+                    structured_val["surface_code"] = surface_code
+                if root_id:
+                    structured_val["root_id"] = root_id
+                if canal_id:
+                    structured_val["canal_id"] = canal_id
+
+                # Normalize numeric length_mm for working length observations
+                if obs_code == "working_length":
+                    if "length_mm" not in structured_val or structured_val.get("length_mm") is None:
+                        val = obs.get("value") or structured_val.get("value")
+                        if val is not None:
+                            try:
+                                structured_val["length_mm"] = float(val)
+                            except (ValueError, TypeError):
+                                pass
+
                 h_obs = models.CareObservation(
                     tenant_id=self.tenant_id,
                     patient_id=patient_id,
                     care_session_id=session.id,
                     work_item_id=wi_id,
                     observation_code=obs_code,
-                    tooth_key=obs.get("tooth_key"),
-                    structured_value=obs.get("structured_value") or {},
+                    tooth_key=tooth_key,
+                    structured_value=structured_val,
                     notes=obs.get("notes"),
                     recorded_by_user_id=user.id if user else None,
                     is_superseded=False,
@@ -2369,10 +2448,21 @@ class CareSessionService:
                 return dt.replace(tzinfo=timezone.utc)
             return dt.astimezone(timezone.utc)
 
+        # Resolve clinic timezone for calendar range bounds (R3-03)
+        tz_name = await get_tenant_timezone(self.db, self.tenant_id)
+        tz = resolve_timezone(tz_name)
+
         now = datetime.now(timezone.utc)
         norm_now = _normalize_dt(now)
         norm_date_from = _normalize_dt(date_from)
         norm_date_to = _normalize_dt(date_to)
+
+        # R3-03: If date_to is a calendar date boundary with zero time component,
+        # expand it to include the entire clinic-local day (up to the next local midnight)
+        if norm_date_to and norm_date_to.hour == 0 and norm_date_to.minute == 0 and norm_date_to.second == 0 and norm_date_to.microsecond == 0:
+            local_date = norm_date_to.astimezone(tz).date() if norm_date_to.tzinfo else norm_date_to.date()
+            next_midnight = datetime.combine(local_date + timedelta(days=1), time(0, 0, 0), tzinfo=tz)
+            norm_date_to = next_midnight.astimezone(timezone.utc) - timedelta(microseconds=1)
 
         base_stmt = (
             select(models.NextVisitRequest)

@@ -104,10 +104,11 @@ describe('HistoricalCareSessionModal', () => {
         expect(screen.getByTestId('historical-step-item-0')).toBeInTheDocument();
         expect(screen.getByText('Excavation of deep caries')).toBeInTheDocument();
 
-        // Add an observation
-        fireEvent.change(screen.getByTestId('input-historical-obs-tooth'), { target: { value: '24' } });
-        fireEvent.change(screen.getByTestId('input-historical-obs-value'), { target: { value: 'A3' } });
-        fireEvent.change(screen.getByTestId('select-historical-obs-code'), { target: { value: 'shade' } });
+        // Add an observation with canal identity
+        fireEvent.change(screen.getByTestId('input-historical-obs-tooth'), { target: { value: '46' } });
+        fireEvent.change(screen.getByTestId('input-historical-obs-canal'), { target: { value: 'MB' } });
+        fireEvent.change(screen.getByTestId('input-historical-obs-value'), { target: { value: '20' } });
+        fireEvent.change(screen.getByTestId('select-historical-obs-code'), { target: { value: 'working_length' } });
         fireEvent.click(screen.getByTestId('btn-add-historical-obs'));
 
         expect(screen.getByTestId('historical-obs-item-0')).toBeInTheDocument();
@@ -122,10 +123,19 @@ describe('HistoricalCareSessionModal', () => {
                 expect.objectContaining({
                     is_historical: true,
                     historical_steps: expect.arrayContaining([
-                        expect.objectContaining({ title: 'Excavation of deep caries', status: 'completed' }),
+                        expect.objectContaining({
+                            title: 'Excavation of deep caries',
+                            status: 'completed',
+                            logical_step_code: 'excavation_of_deep_caries',
+                        }),
                     ]),
                     historical_observations: expect.arrayContaining([
-                        expect.objectContaining({ observation_code: 'shade', tooth_key: '24' }),
+                        expect.objectContaining({
+                            observation_code: 'working_length',
+                            tooth_key: '46',
+                            canal_id: 'MB',
+                            structured_value: expect.objectContaining({ length_mm: 20, canal_id: 'MB' }),
+                        }),
                     ]),
                 })
             );
