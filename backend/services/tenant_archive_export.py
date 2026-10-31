@@ -30,19 +30,28 @@ async def export_clinic_archive_data(db, tenant_id, *, validate_restore=True):
     classes = {mapper.local_table.name: mapper.class_ for mapper in models.Base.registry.mappers}
     for name, columns in ARCHIVE_COLUMNS.items():
         model = classes[name]
-        query = select(model)
-        if hasattr(model, 'tenant_id'):
-            query = query.where(model.tenant_id == tenant_id)
-        elif name == 'price_list_items':
-            query = query.join(models.PriceList, model.price_list_id == models.PriceList.id).where(models.PriceList.tenant_id == tenant_id)
+        table = model.__table__
+        query = select(*[table.c[column] for column in columns])
+        if "tenant_id" in table.c:
+            query = query.where(table.c.tenant_id == tenant_id)
+        elif name == "price_list_items":
+            price_lists_table = models.PriceList.__table__
+            query = query.join(
+                price_lists_table,
+                table.c.price_list_id == price_lists_table.c.id,
+            ).where(price_lists_table.c.tenant_id == tenant_id)
         else:
-            raise ValueError(f'Unsupported archive ownership: {name}')
-        rows = (await db.execute(query)).scalars().all()
-        result[name] = [{column: _serialize(getattr(row, column)) for column in columns} for row in rows]
-    query = select(models.User).where(models.User.tenant_id == tenant_id)
-    result['staff_references'] = [
-        {column: _serialize(getattr(user, column)) for column in STAFF_REFERENCE_COLUMNS}
-        for user in (await db.execute(query)).scalars().all()
+            raise ValueError(f"Unsupported archive ownership: {name}")
+        rows = (await db.execute(query)).mappings().all()
+        result[name] = [{column: _serialize(row[column]) for column in columns} for row in rows]
+    user_table = models.User.__table__
+    user_query = select(*[user_table.c[col] for col in STAFF_REFERENCE_COLUMNS]).where(
+        user_table.c.tenant_id == tenant_id
+    )
+    user_rows = (await db.execute(user_query)).mappings().all()
+    result["staff_references"] = [
+        {column: _serialize(row[column]) for column in STAFF_REFERENCE_COLUMNS}
+        for row in user_rows
     ]
     payload = {'data': result}
     from backend.services.tenant_archive_history import disclose_unresolved_treatment_history

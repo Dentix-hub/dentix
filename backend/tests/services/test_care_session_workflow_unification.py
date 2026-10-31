@@ -1876,6 +1876,13 @@ async def test_round5_issue1_active_session_reads_project_effective_values_while
     raw_db_obs = (await async_db_session.execute(db_stmt)).scalar_one()
     assert not async_db_session.is_modified(raw_db_obs)
 
+    # 6. Archive export in the same AsyncSession must export stored historical 20.0, NOT projected 21.0!
+    from backend.services.tenant_archive_export import export_clinic_archive_data
+    export_payload = await export_clinic_archive_data(async_db_session, tenant.id, validate_restore=False)
+    exported_obs = export_payload["data"]["care_observations"]
+    exported_carried = next(o for o in exported_obs if o["id"] == s2_carried.id)
+    assert exported_carried["structured_value"]["length_mm"] == 20.0
+
 
 async def test_round5_issue2_accepted_correction_to_carried_reference_preserved_next_visit(async_db_session, setup_test_env):
     """

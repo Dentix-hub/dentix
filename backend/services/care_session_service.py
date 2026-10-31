@@ -17,13 +17,12 @@ Enforces:
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from fastapi import HTTPException
 from sqlalchemy import func, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy.orm.exc import StaleDataError
 
 from backend import models, schemas
@@ -42,6 +41,30 @@ ALLOWED_SESSION_TRANSITIONS = {
 }
 
 ALLOWED_STEP_STATUSES = {"pending", "in_progress", "partial", "completed", "skipped"}
+
+
+class CareSessionPresentation:
+    """
+    Presentation wrapper for a CareSession that provides projected/effective
+    observation response copies/DTOs without mutating underlying persistence entities.
+    """
+    def __init__(self, raw_session: models.CareSession, observations: list):
+        self._raw = raw_session
+        self.observations = observations
+        if hasattr(raw_session, "summary"):
+            self.summary = raw_session.summary
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._raw, name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name in ("_raw", "observations", "summary"):
+            super().__setattr__(name, value)
+        else:
+            setattr(self._raw, name, value)
+
+    def __repr__(self) -> str:
+        return f"<CareSessionPresentation id={getattr(self, 'id', None)} status={getattr(self, 'status', None)}>"
 
 
 class CareSessionService:
@@ -1133,13 +1156,19 @@ class CareSessionService:
         result = await self.db.execute(stmt)
         observations = list(result.scalars().all())
         if not include_superseded:
+            projected = []
             for obs in observations:
                 if not obs.is_superseded and obs.reference_source_observation_id:
                     eff = await self._resolve_effective_observation_chain(obs)
                     if eff and eff.id != obs.id:
-                        set_committed_value(obs, "structured_value", dict(eff.structured_value or {}))
+                        dto = schemas.CareObservationRead.model_validate(obs)
+                        dto.structured_value = dict(eff.structured_value or {})
                         if eff.notes and not obs.notes:
-                            set_committed_value(obs, "notes", eff.notes)
+                            dto.notes = eff.notes
+                        projected.append(dto)
+                        continue
+                projected.append(obs)
+            return projected
         return observations
 
     # -----------------------------------------------------------------------
@@ -1148,7 +1177,7 @@ class CareSessionService:
 
     async def get_session(
         self, patient_id: int, session_id: int, eager_load: bool = True
-    ) -> models.CareSession:
+    ) -> Any:
         """Retrieve a care session by ID with tenant and patient scoping."""
         await self.ensure_native_writes_enabled()
         await self._verify_patient(patient_id)
@@ -1169,13 +1198,14 @@ class CareSessionService:
         if not session:
             raise HTTPException(status_code=404, detail="Care session not found")
 
-        await self._project_session_observations(session)
+        projected_obs = await self._project_session_observations(session)
+        pres = CareSessionPresentation(session, projected_obs)
 
         if session.status == "completed":
-            setattr(session, "summary", self.generate_session_summary(session))
-        return session
+            pres.summary = self.generate_session_summary(pres)
+        return pres
 
-    async def get_active_session(self, patient_id: int) -> Optional[models.CareSession]:
+    async def get_active_session(self, patient_id: int) -> Optional[Any]:
         """Retrieve the currently active ('in_progress') care session for a patient, if any."""
         await self.ensure_native_writes_enabled()
         await self._verify_patient(patient_id)
@@ -1198,15 +1228,16 @@ class CareSessionService:
         )
         session = (await self.db.execute(stmt)).scalars().first()
         if session:
-            await self._project_session_observations(session)
+            projected_obs = await self._project_session_observations(session)
+            pres = CareSessionPresentation(session, projected_obs)
             if session.status == "completed":
-                setattr(session, "summary", self.generate_session_summary(session))
-            return session
+                pres.summary = self.generate_session_summary(pres)
+            return pres
         return None
 
     async def list_sessions(
         self, patient_id: int, status: Optional[str] = None
-    ) -> List[models.CareSession]:
+    ) -> List[Any]:
         """List care sessions for a patient with optional status filtering."""
         await self.ensure_native_writes_enabled()
         await self._verify_patient(patient_id)
@@ -1238,11 +1269,14 @@ class CareSessionService:
         )
         result = await self.db.execute(stmt)
         sessions = list(result.scalars().all())
+        pres_list = []
         for s in sessions:
-            await self._project_session_observations(s)
+            projected_obs = await self._project_session_observations(s)
+            pres = CareSessionPresentation(s, projected_obs)
             if s.status == "completed":
-                setattr(s, "summary", self.generate_session_summary(s))
-        return sessions
+                pres.summary = self.generate_session_summary(pres)
+            pres_list.append(pres)
+        return pres_list
 
     # -----------------------------------------------------------------------
     # Summary Generation & Resume Engine (Slice S21 / G10-M12, G10-M14)
@@ -2500,22 +2534,28 @@ class CareSessionService:
 
     async def _project_session_observations(
         self, session: models.CareSession
-    ) -> None:
+    ) -> List[Any]:
         """
         Projects effective measurements for observations attached to a care session.
-        Preserves stored historical values in the database using set_committed_value
-        so SQLAlchemy does not mark observations dirty or emit updates.
+        Returns a list of separate response copies/DTOs for presentation,
+        keeping the underlying persistence entities completely unchanged.
         """
         if not session or not session.observations:
-            return
+            return []
 
+        projected = []
         for obs in session.observations:
             if not obs.is_superseded and obs.reference_source_observation_id:
                 eff = await self._resolve_effective_observation_chain(obs)
                 if eff and eff.id != obs.id:
-                    set_committed_value(obs, "structured_value", dict(eff.structured_value or {}))
+                    dto = schemas.CareObservationRead.model_validate(obs)
+                    dto.structured_value = dict(eff.structured_value or {})
                     if eff.notes and not obs.notes:
-                        set_committed_value(obs, "notes", eff.notes)
+                        dto.notes = eff.notes
+                    projected.append(dto)
+                    continue
+            projected.append(obs)
+        return projected
 
     async def amend_observation(
         self,

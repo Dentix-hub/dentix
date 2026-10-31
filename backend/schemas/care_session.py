@@ -450,9 +450,10 @@ class CareSessionRead(BaseModel):
     def handle_unloaded_relationships(cls, data: Any) -> Any:
         if isinstance(data, dict):
             return data
+        raw = getattr(data, "_raw", data)
         try:
             from sqlalchemy.inspection import inspect as sa_inspect
-            ins = sa_inspect(data)
+            ins = sa_inspect(raw)
             if ins is not None:
                 unloaded = ins.unloaded
                 return {
