@@ -23,6 +23,7 @@ from sqlalchemy import func, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.orm.attributes import set_committed_value
 from sqlalchemy.orm.exc import StaleDataError
 
 from backend import models, schemas
@@ -1130,7 +1131,16 @@ class CareSessionService:
 
         stmt = stmt.order_by(models.CareObservation.recorded_at.asc(), models.CareObservation.id.asc())
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        observations = list(result.scalars().all())
+        if not include_superseded:
+            for obs in observations:
+                if not obs.is_superseded and obs.reference_source_observation_id:
+                    eff = await self._resolve_effective_observation_chain(obs)
+                    if eff and eff.id != obs.id:
+                        set_committed_value(obs, "structured_value", dict(eff.structured_value or {}))
+                        if eff.notes and not obs.notes:
+                            set_committed_value(obs, "notes", eff.notes)
+        return observations
 
     # -----------------------------------------------------------------------
     # Queries
@@ -1159,6 +1169,8 @@ class CareSessionService:
         if not session:
             raise HTTPException(status_code=404, detail="Care session not found")
 
+        await self._project_session_observations(session)
+
         if session.status == "completed":
             setattr(session, "summary", self.generate_session_summary(session))
         return session
@@ -1186,6 +1198,7 @@ class CareSessionService:
         )
         session = (await self.db.execute(stmt)).scalars().first()
         if session:
+            await self._project_session_observations(session)
             if session.status == "completed":
                 setattr(session, "summary", self.generate_session_summary(session))
             return session
@@ -1226,6 +1239,7 @@ class CareSessionService:
         result = await self.db.execute(stmt)
         sessions = list(result.scalars().all())
         for s in sessions:
+            await self._project_session_observations(s)
             if s.status == "completed":
                 setattr(s, "summary", self.generate_session_summary(s))
         return sessions
@@ -2455,19 +2469,12 @@ class CareSessionService:
     ) -> models.CareObservation:
         """
         Resolves an observation (or carried reference) to its latest effective non-superseded observation.
-        Follows both reference_source_observation_id provenance and superseded_by_id amendment chains.
+        Follows local superseded_by_id amendment chains first, and if the effective measurement
+        is a carried reference, follows reference_source_observation_id provenance recursively.
         """
         curr = obs
-        if curr.reference_source_observation_id:
-            root_stmt = select(models.CareObservation).where(
-                models.CareObservation.id == curr.reference_source_observation_id,
-                models.CareObservation.tenant_id == self.tenant_id,
-            )
-            root = (await self.db.execute(root_stmt)).scalar_one_or_none()
-            if root:
-                curr = root
-
         visited = set()
+        # 1. Follow amendment lineage: amendments in the current session supersede initial state
         while curr.is_superseded and curr.superseded_by_id and curr.id not in visited:
             visited.add(curr.id)
             next_stmt = select(models.CareObservation).where(
@@ -2478,7 +2485,37 @@ class CareSessionService:
             if not next_obs:
                 break
             curr = next_obs
+
+        # 2. If the effective observation is an un-amended carried reference, resolve through reference provenance
+        if curr.reference_source_observation_id:
+            root_stmt = select(models.CareObservation).where(
+                models.CareObservation.id == curr.reference_source_observation_id,
+                models.CareObservation.tenant_id == self.tenant_id,
+            )
+            root = (await self.db.execute(root_stmt)).scalar_one_or_none()
+            if root:
+                curr = await self._resolve_effective_observation_chain(root)
+
         return curr
+
+    async def _project_session_observations(
+        self, session: models.CareSession
+    ) -> None:
+        """
+        Projects effective measurements for observations attached to a care session.
+        Preserves stored historical values in the database using set_committed_value
+        so SQLAlchemy does not mark observations dirty or emit updates.
+        """
+        if not session or not session.observations:
+            return
+
+        for obs in session.observations:
+            if not obs.is_superseded and obs.reference_source_observation_id:
+                eff = await self._resolve_effective_observation_chain(obs)
+                if eff and eff.id != obs.id:
+                    set_committed_value(obs, "structured_value", dict(eff.structured_value or {}))
+                    if eff.notes and not obs.notes:
+                        set_committed_value(obs, "notes", eff.notes)
 
     async def amend_observation(
         self,
@@ -2534,7 +2571,7 @@ class CareSessionService:
             amendment_reason=payload.reason,
             reference_source_session_id=orig.care_session_id,
             reference_source_date=orig.recorded_at or orig.created_at,
-            reference_source_observation_id=orig.reference_source_observation_id,
+            reference_source_observation_id=None,
         )
         self.db.add(new_obs)
         await self.db.flush()

@@ -139,6 +139,38 @@ def validate_archive_references(data, *, tenant_id, external_ids=None):
                         section=name, field=column.name, referenced_section=referenced,
                         category='invalid_reference', counts=invalid_ref_count,
                     )
+        explicit_refs = {
+            'care_observations': {
+                'superseded_by_id': 'care_observations',
+                'reference_source_observation_id': 'care_observations',
+                'reference_source_session_id': 'care_sessions',
+            }
+        }.get(name, {})
+        for col_name, referenced in explicit_refs.items():
+            if col_name not in ARCHIVE_COLUMNS.get(name, ()):
+                continue
+            allowed = ids.get(referenced, set()) | set(external_ids.get(referenced, ()))
+            type_mismatch_count = 0
+            invalid_ref_count = 0
+            for row in rows:
+                value = row.get(col_name)
+                if value is not None:
+                    if not isinstance(value, int) or isinstance(value, bool):
+                        type_mismatch_count += 1
+                    elif value not in allowed:
+                        invalid_ref_count += 1
+            if type_mismatch_count > 0:
+                raise ArchiveError(
+                    f'نوع أو قيمة غير صالحة في النسخة الاحتياطية ({name}.{col_name})',
+                    section=name, field=col_name, referenced_section=referenced,
+                    category='invalid_reference_type', counts=type_mismatch_count,
+                )
+            if invalid_ref_count > 0:
+                raise ArchiveError(
+                    f'تحتوي النسخة الاحتياطية على مرجع غير صالح ({name}.{col_name})',
+                    section=name, field=col_name, referenced_section=referenced,
+                    category='invalid_reference', counts=invalid_ref_count,
+                )
 
 
 def _is_valid_scalar(kind, value):

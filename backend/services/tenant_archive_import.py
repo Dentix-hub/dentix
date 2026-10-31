@@ -129,6 +129,14 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
                     later[key] = value
                     values[key] = None
                     continue
+                if name == 'care_observations' and key in {
+                    'superseded_by_id',
+                    'reference_source_session_id',
+                    'reference_source_observation_id',
+                }:
+                    later[key] = value
+                    values[key] = None
+                    continue
                 for foreign in col.foreign_keys:
                     if value is not None:
                         try:
@@ -176,6 +184,37 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
             row.price_snapshot = remap_price_snapshot(later['price_snapshot'], mapping)
         elif name == 'next_visit_requests':
             row.notes = remap_next_visit_note(later['notes'], mapping)
+        elif name == 'care_observations':
+            if 'superseded_by_id' in later and later['superseded_by_id'] is not None:
+                old_id = later['superseded_by_id']
+                if old_id in mapping.get('care_observations', {}):
+                    row.superseded_by_id = mapping['care_observations'][old_id]
+                else:
+                    raise ArchiveError(
+                        'تحتوي النسخة الاحتياطية على مرجع غير صالح (care_observations.superseded_by_id)',
+                        section='care_observations', field='superseded_by_id',
+                        referenced_section='care_observations', category='invalid_reference', counts=1,
+                    )
+            if 'reference_source_observation_id' in later and later['reference_source_observation_id'] is not None:
+                old_id = later['reference_source_observation_id']
+                if old_id in mapping.get('care_observations', {}):
+                    row.reference_source_observation_id = mapping['care_observations'][old_id]
+                else:
+                    raise ArchiveError(
+                        'تحتوي النسخة الاحتياطية على مرجع غير صالح (care_observations.reference_source_observation_id)',
+                        section='care_observations', field='reference_source_observation_id',
+                        referenced_section='care_observations', category='invalid_reference', counts=1,
+                    )
+            if 'reference_source_session_id' in later and later['reference_source_session_id'] is not None:
+                old_id = later['reference_source_session_id']
+                if old_id in mapping.get('care_sessions', {}):
+                    row.reference_source_session_id = mapping['care_sessions'][old_id]
+                else:
+                    raise ArchiveError(
+                        'تحتوي النسخة الاحتياطية على مرجع غير صالح (care_observations.reference_source_session_id)',
+                        section='care_observations', field='reference_source_session_id',
+                        referenced_section='care_sessions', category='invalid_reference', counts=1,
+                    )
     # Only the financial staff attributes are business backup data. Never
     # restore login credentials, permission/role fields, sessions, or 2FA.
     financial_fields = ('commission_percent', 'fixed_salary', 'per_appointment_fee', 'hire_date')

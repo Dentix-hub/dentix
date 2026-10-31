@@ -341,6 +341,7 @@ class CareObservationRead(BaseModel):
                 "amendment_reason": getattr(data, "amendment_reason", None),
                 "reference_source_session_id": getattr(data, "reference_source_session_id", None),
                 "reference_source_date": getattr(data, "reference_source_date", None),
+                "reference_source_observation_id": getattr(data, "reference_source_observation_id", None),
                 "created_at": data.created_at,
             }
         elif isinstance(data, dict):

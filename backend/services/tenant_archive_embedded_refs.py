@@ -28,7 +28,7 @@ EVENT_IDS = {
     'handoff_by_user_id': 'users', 'handoff_to_user_id': 'users',
     'author_user_id': 'users', 'performing_user_id': 'users',
 }
-EVENT_ID_LISTS = {'bulk_work_item_ids': 'clinical_work_items', 'usage_ids': 'treatment_material_usages', 'associated_work_item_ids': 'clinical_work_items'}
+EVENT_ID_LISTS = {'bulk_work_item_ids': 'clinical_work_items', 'work_item_ids': 'clinical_work_items', 'usage_ids': 'treatment_material_usages', 'associated_work_item_ids': 'clinical_work_items'}
 NON_DATABASE_IDS = {'version_id', 'expected_version_id', 'root_id', 'canal_id', 'idempotency_key'}
 REFERENCE_PREFIXES = {'TREATMENT': 'treatments', 'TREATMENT_MATERIALS': 'treatments', 'CARE_SESSION': 'care_sessions'}
 

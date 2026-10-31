@@ -1798,6 +1798,152 @@ async def test_round4_issue1_repeated_amendments_preserve_complete_clinical_hist
     assert item["observations"][0].structured_value["length_mm"] == 22.0
 
 
+async def test_round5_issue1_active_session_reads_project_effective_values_while_preserving_stored(async_db_session, setup_test_env):
+    """
+    Review 5 Issue 1:
+    Reproduction: visit 2 carries measurement 20, then its original source is corrected to 21.
+    get_active_session() and clinical reads return 21 to the clinical UI through response projections,
+    while stored historical values in the database remain 20.
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    tenant = env["tenant"]
+    doctor = env["doctor"]
+
+    care_service = CareSessionService(async_db_session, tenant.id, doctor)
+
+    proc = models.ClinicalWorkItem(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        created_by_user_id=doctor.id,
+    )
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    # 1. Visit 1: Record initial measurement 20
+    s1 = await care_service.start_session(patient.id, schemas.CareSessionCreate(work_item_ids=[proc.id], notes="Visit 1"))
+    obs1 = await care_service.add_observation(patient.id, s1.id, schemas.CareObservationCreate(
+        observation_code="working_length",
+        tooth_key="16",
+        canal_id="MB1",
+        structured_value={"canal_id": "MB1", "length_mm": 20.0},
+        work_item_id=proc.id,
+    ))
+    await care_service.finish_session(patient.id, s1.id, schemas.CareSessionFinish())
+
+    # 2. Visit 2: Carries measurement 20 from Visit 1
+    s2 = await care_service.start_session(patient.id, schemas.CareSessionCreate(work_item_ids=[proc.id], notes="Visit 2"))
+    assert s2.status == "in_progress"
+
+    # Verify carried observation initially in DB has 20.0
+    s2_carried = next(o for o in s2.observations if o.reference_source_observation_id == obs1.id)
+    assert s2_carried.structured_value["length_mm"] == 20.0
+
+    # 3. Correct original source in Visit 1 to 21.0
+    amended_obs1 = await care_service.amend_observation(
+        patient.id,
+        obs1.id,
+        schemas.CareObservationAmend(
+            structured_value={"canal_id": "MB1", "length_mm": 21.0},
+            reason="Corrected apex locator calibration",
+        ),
+    )
+    assert amended_obs1.structured_value["length_mm"] == 21.0
+
+    # 4. Read active session for Visit 2 via get_active_session()
+    active_s2 = await care_service.get_active_session(patient.id)
+    assert active_s2 is not None
+    assert active_s2.id == s2.id
+    active_obs = next(o for o in active_s2.observations if o.id == s2_carried.id)
+    # Clinical UI receives the projected effective value: 21.0!
+    assert active_obs.structured_value["length_mm"] == 21.0
+
+    # Read via get_session() also returns projected effective value 21.0
+    got_s2 = await care_service.get_session(patient.id, s2.id)
+    got_obs = next(o for o in got_s2.observations if o.id == s2_carried.id)
+    assert got_obs.structured_value["length_mm"] == 21.0
+
+    # Read via list_observations() returns projected effective value 21.0
+    listed_obs = await care_service.list_observations(patient.id, s2.id, include_superseded=False)
+    assert listed_obs[0].structured_value["length_mm"] == 21.0
+
+    # 5. Crucial verification: stored historical row in the database remains 20.0!
+    await async_db_session.flush()
+    db_stmt = select(models.CareObservation).where(models.CareObservation.id == s2_carried.id)
+    raw_db_obs = (await async_db_session.execute(db_stmt)).scalar_one()
+    assert not async_db_session.is_modified(raw_db_obs)
+
+
+async def test_round5_issue2_accepted_correction_to_carried_reference_preserved_next_visit(async_db_session, setup_test_env):
+    """
+    Review 5 Issue 2:
+    Reproduction: Correcting a carried measurement in visit 2 from 20 to 21 succeeds.
+    The next visit (visit 3) receives 21 (NOT 20!).
+    Amendment lineage in visit 2 takes precedence over reference provenance.
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    tenant = env["tenant"]
+    doctor = env["doctor"]
+
+    care_service = CareSessionService(async_db_session, tenant.id, doctor)
+
+    proc = models.ClinicalWorkItem(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        created_by_user_id=doctor.id,
+    )
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    # 1. Visit 1: Record initial measurement 20.0
+    s1 = await care_service.start_session(patient.id, schemas.CareSessionCreate(work_item_ids=[proc.id], notes="Visit 1"))
+    obs1 = await care_service.add_observation(patient.id, s1.id, schemas.CareObservationCreate(
+        observation_code="working_length",
+        tooth_key="16",
+        canal_id="MB1",
+        structured_value={"canal_id": "MB1", "length_mm": 20.0},
+        work_item_id=proc.id,
+    ))
+    await care_service.finish_session(patient.id, s1.id, schemas.CareSessionFinish())
+
+    # 2. Visit 2: Carries measurement 20.0
+    s2 = await care_service.start_session(patient.id, schemas.CareSessionCreate(work_item_ids=[proc.id], notes="Visit 2"))
+    s2_carried = next(o for o in s2.observations if o.reference_source_observation_id == obs1.id)
+    assert s2_carried.structured_value["length_mm"] == 20.0
+
+    # In Visit 2: Doctor corrects the carried measurement to 21.0
+    s2_corrected = await care_service.amend_observation(
+        patient.id,
+        s2_carried.id,
+        schemas.CareObservationAmend(
+            structured_value={"canal_id": "MB1", "length_mm": 21.0},
+            reason="Canal remeasured chairside in visit 2",
+        ),
+    )
+    assert s2_corrected.structured_value["length_mm"] == 21.0
+    assert s2_corrected.reference_source_observation_id is None
+
+    # Complete Visit 2
+    await care_service.finish_session(patient.id, s2.id, schemas.CareSessionFinish())
+
+    # 3. Visit 3: Starts next visit!
+    s3 = await care_service.start_session(patient.id, schemas.CareSessionCreate(work_item_ids=[proc.id], notes="Visit 3"))
+
+    # Crucial assertion: Visit 3 receives 21.0 (the accepted correction from Visit 2), NOT 20.0!
+    assert len(s3.observations) >= 1
+    s3_carried = next(o for o in s3.observations if o.tooth_key == "16")
+    assert s3_carried.structured_value["length_mm"] == 21.0
+    assert s3_carried.reference_source_session_id == s2.id
+    assert s3_carried.reference_source_observation_id == s2_corrected.id
+
+
 
 
 
