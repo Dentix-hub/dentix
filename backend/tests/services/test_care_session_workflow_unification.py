@@ -1951,6 +1951,132 @@ async def test_round5_issue2_accepted_correction_to_carried_reference_preserved_
     assert s3_carried.reference_source_observation_id == s2_corrected.id
 
 
+@pytest.mark.parametrize("read_path", ["active", "session", "sessions", "observations"])
+@pytest.mark.parametrize("clear_targets", [False, True], ids=["corrected-targets", "cleared-targets"])
+async def test_effective_observation_projection_preserves_identity_and_history(
+    async_db_session, setup_test_env, read_path, clear_targets
+):
+    """Effective clinical fields agree while reference identity and stored history stay intact."""
+    from backend.services.tenant_archive_export import export_clinic_archive_data
+
+    env = setup_test_env
+    tenant_id = env["tenant"].id
+    patient_id = env["patient"].id
+    work_item = models.ClinicalWorkItem(
+        tenant_id=tenant_id,
+        patient_id=patient_id,
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        created_by_user_id=env["doctor"].id,
+    )
+    async_db_session.add(work_item)
+    await async_db_session.flush()
+    service = CareSessionService(async_db_session, tenant_id, env["doctor"])
+
+    source_visit = await service.start_session(
+        patient_id, schemas.CareSessionCreate(work_item_ids=[work_item.id])
+    )
+    historical_value = {
+        "length_mm": 20,
+        "surface_code": "B",
+        "root_id": "mesiobuccal",
+        "canal_id": "MB1",
+        "extra": {"readings": [20]},
+    }
+    source = await service.add_observation(
+        patient_id,
+        source_visit.id,
+        schemas.CareObservationCreate(
+            work_item_id=work_item.id,
+            observation_code="working_length",
+            tooth_key="16",
+            structured_value=historical_value,
+            notes="Original measurement",
+        ),
+    )
+    await service.finish_session(patient_id, source_visit.id, schemas.CareSessionFinish())
+    continued_visit = await service.start_session(
+        patient_id, schemas.CareSessionCreate(resume_work_item_id=work_item.id)
+    )
+    reference = continued_visit.observations[0]
+    reference_snapshot = schemas.CareObservationRead.model_validate(reference).model_dump()
+    effective_targets = {
+        "surface_code": None if clear_targets else "L",
+        "root_id": None if clear_targets else "mesial",
+        "canal_id": None if clear_targets else "ML1",
+    }
+    corrected = await service.amend_observation(
+        patient_id,
+        source.id,
+        schemas.CareObservationAmend(
+            observation_code="canal_measurement",
+            tooth_key="26",
+            structured_value={
+                "length_mm": 21,
+                "extra": {"readings": [21]},
+                **effective_targets,
+            },
+            notes="Corrected measurement identity",
+            reason="Correct transcription of the measurement and its target",
+        ),
+    )
+
+    if read_path == "observations":
+        observations = await service.list_observations(patient_id, continued_visit.id)
+    else:
+        if read_path == "active":
+            visit = await service.get_active_session(patient_id)
+        elif read_path == "session":
+            visit = await service.get_session(patient_id, continued_visit.id)
+        else:
+            visits = await service.list_sessions(patient_id)
+            visit = next(v for v in visits if v.id == continued_visit.id)
+        observations = schemas.CareSessionRead.model_validate(visit).observations
+    projected = schemas.CareObservationRead.model_validate(
+        next(o for o in observations if o.id == reference.id)
+    )
+
+    assert projected.observation_code == "canal_measurement"
+    assert projected.tooth_key == "26"
+    assert projected.structured_value == corrected.structured_value
+    assert {key: getattr(projected, key) for key in effective_targets} == effective_targets
+    assert projected.notes == corrected.notes
+    for field in (
+        "id", "tenant_id", "patient_id", "care_session_id", "step_id", "work_item_id",
+        "recorded_at", "recorded_by_user_id", "created_at", "reference_source_session_id",
+        "reference_source_date", "reference_source_observation_id",
+    ):
+        assert getattr(projected, field) == reference_snapshot[field], field
+
+    # Presentation edits must not mutate nested values on the effective ORM measurement.
+    projected.structured_value["extra"]["readings"].append(99)
+    assert corrected.structured_value["extra"]["readings"] == [21]
+    await async_db_session.flush()
+    persisted = (
+        await async_db_session.execute(
+            select(models.CareObservation.__table__.c.structured_value).where(
+                models.CareObservation.__table__.c.id == reference.id
+            )
+        )
+    ).scalar_one()
+    assert persisted == historical_value
+    reference_entity = (
+        await async_db_session.execute(
+            select(models.CareObservation).where(models.CareObservation.id == reference.id)
+        )
+    ).scalar_one()
+    assert reference_entity.structured_value == historical_value
+    assert not async_db_session.is_modified(reference_entity)
+
+    # Export from the same unit of work must retain all stored historical values.
+    archive = await export_clinic_archive_data(async_db_session, tenant_id)
+    archived = {row["id"]: row for row in archive["data"]["care_observations"]}
+    assert archived[reference.id]["structured_value"] == historical_value
+    assert archived[source.id]["structured_value"] == historical_value
+    assert archived[corrected.id]["structured_value"] == corrected.structured_value
+
+
 
 
 

@@ -2,8 +2,9 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
-- Care Sessions Workflow Unification (feat/care-session-workflow-unification, 2026-10-31): Unified chairside visit model, status shortcuts, server drafts, observation amendments, and multi-procedure follow-up. Reviews 1-6 (30 total findings) resolved: strict RBAC, provenance resolution, draft context isolation, distinct repetition identities, immutable amendment history, late recovery edit preservation, late discard isolation, response DTO copies for presentation without identity-map contamination, and archive direct-table serialization.
-- Delivery Status: Review fixes are DONE (91 backend tests, 74 frontend tests pass, 0 lint warnings, build clean). Overall initiative remains PARTIAL: 5 original plan items remain incomplete (generic visit workspace, template/custom-field editor, populated snapshots, historical entry/correction UI, and follow-up dashboards). Gated under clinical_vnext_native_writes.
+- Care Sessions Workflow Unification (feat/care-session-workflow-unification, 2026-10-31): Effective observation projections now share one DTO builder; type, tooth, surface, root, canal, value and notes stay consistent while reference identity, provenance and stored clinical history remain intact.
+- Verification: 93 targeted backend tests PASS (8 new regression cases cover corrected/cleared targets across four read paths, nested data isolation and same-session historical exports); Ruff and diff checks PASS. Local delivery only.
+- Delivery Status: Projection correction DONE. Overall initiative remains PARTIAL: 5 original plan items remain incomplete (generic visit workspace, template/custom-field editor, populated snapshots, historical entry/correction UI, and follow-up dashboards). Gated under clinical_vnext_native_writes.
 
 - Arabic UI polish (2026-10-30): password visibility and patient search controls occupy separate layout slots; remember-me has a larger pointer/keyboard target; quick-start checklist temporarily hidden on Dashboard.
 - Revenue/status charts now lazy-load as complete charts so Recharts recognizes series/axes; zero-revenue and empty status data display explicit messages. Existing efficiency, financial values and APIs retained.

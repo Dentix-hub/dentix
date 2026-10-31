@@ -16,6 +16,7 @@ Enforces:
 - Preservation of free-text notes across sessions, steps, and observations (G10-M15).
 """
 
+from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, List, Optional, Tuple
 from fastapi import HTTPException
@@ -1161,11 +1162,7 @@ class CareSessionService:
                 if not obs.is_superseded and obs.reference_source_observation_id:
                     eff = await self._resolve_effective_observation_chain(obs)
                     if eff and eff.id != obs.id:
-                        dto = schemas.CareObservationRead.model_validate(obs)
-                        dto.structured_value = dict(eff.structured_value or {})
-                        if eff.notes and not obs.notes:
-                            dto.notes = eff.notes
-                        projected.append(dto)
+                        projected.append(self._build_effective_observation_dto(obs, eff))
                         continue
                 projected.append(obs)
             return projected
@@ -2532,6 +2529,22 @@ class CareSessionService:
 
         return curr
 
+    @staticmethod
+    def _build_effective_observation_dto(
+        reference: models.CareObservation, effective: models.CareObservation
+    ) -> schemas.CareObservationRead:
+        """Keep reference identity/provenance while presenting the complete effective measurement."""
+        reference_data = schemas.CareObservationRead.model_validate(reference).model_dump()
+        clinical_data = schemas.CareObservationRead.model_validate(effective).model_dump(
+            include={
+                "observation_code", "tooth_key", "structured_value", "notes",
+                "surface_code", "root_id", "canal_id",
+            }
+        )
+        return schemas.CareObservationRead.model_validate(
+            {**reference_data, **deepcopy(clinical_data)}
+        )
+
     async def _project_session_observations(
         self, session: models.CareSession
     ) -> List[Any]:
@@ -2548,11 +2561,7 @@ class CareSessionService:
             if not obs.is_superseded and obs.reference_source_observation_id:
                 eff = await self._resolve_effective_observation_chain(obs)
                 if eff and eff.id != obs.id:
-                    dto = schemas.CareObservationRead.model_validate(obs)
-                    dto.structured_value = dict(eff.structured_value or {})
-                    if eff.notes and not obs.notes:
-                        dto.notes = eff.notes
-                    projected.append(dto)
+                    projected.append(self._build_effective_observation_dto(obs, eff))
                     continue
             projected.append(obs)
         return projected
