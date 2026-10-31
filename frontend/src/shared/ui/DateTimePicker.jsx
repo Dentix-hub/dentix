@@ -17,6 +17,7 @@ import {
     isValid
 } from 'date-fns';
 import { useTranslation } from 'react-i18next';
+import { arEG, enUS } from 'date-fns/locale';
 
 function parsePickerValue(value, isMonthOnly) {
     if (!value) return new Date();
@@ -39,7 +40,8 @@ export default function DateTimePicker({
     compact = false
 }) {
     const { t, i18n } = useTranslation();
-    const isArabic = i18n.language === 'ar';
+    const isArabic = (i18n.resolvedLanguage || i18n.language)?.startsWith('ar');
+    const locale = isArabic ? arEG : enUS;
     const isDateOnly = mode === 'date';
     const isMonthOnly = mode === 'month';
     const initialDate = useMemo(() => parsePickerValue(value, isMonthOnly), [value, isMonthOnly]);
@@ -74,10 +76,11 @@ export default function DateTimePicker({
     }, [viewMode]);
 
     const days = useMemo(() => {
-        const start = startOfWeek(startOfMonth(viewDate));
-        const end = endOfWeek(endOfMonth(viewDate));
+        const weekOptions = { weekStartsOn: isArabic ? 6 : 0 };
+        const start = startOfWeek(startOfMonth(viewDate), weekOptions);
+        const end = endOfWeek(endOfMonth(viewDate), weekOptions);
         return eachDayOfInterval({ start, end });
-    }, [viewDate]);
+    }, [viewDate, isArabic]);
 
     const years = useMemo(() => {
         const currentYear = new Date().getFullYear();
@@ -158,13 +161,13 @@ export default function DateTimePicker({
     const displayValue = !value && placeholder
         ? placeholder
         : isMonthOnly
-            ? format(initialDate, 'MMMM yyyy')
+            ? format(initialDate, 'MMMM yyyy', { locale })
             : isDateOnly
-                ? format(initialDate, 'yyyy-MM-dd')
-                : format(initialDate, 'yyyy-MM-dd hh:mm a');
+                ? format(initialDate, isArabic ? 'd MMMM yyyy' : 'yyyy-MM-dd', { locale })
+                : format(initialDate, isArabic ? 'd MMMM yyyy، h:mm a' : 'yyyy-MM-dd hh:mm a', { locale });
 
     return (
-        <div className={`w-full min-w-0 ${compact ? '' : 'space-y-1.5'}`}>
+        <div dir={isArabic ? 'rtl' : 'ltr'} className={`w-full min-w-0 ${compact ? '' : 'space-y-1.5'}`}>
             {!compact && label && (
                 <label className="block text-sm font-bold text-text-primary">
                     {label}
@@ -184,7 +187,7 @@ export default function DateTimePicker({
                     <span className={`shrink-0 rounded-lg p-1.5 transition-colors ${isOpen ? 'bg-primary text-white' : 'bg-primary/10 text-primary'}`}>
                         {isDateOnly || isMonthOnly ? <CalendarIcon size={compact ? 12 : 14} aria-hidden="true" /> : <Clock size={compact ? 12 : 14} aria-hidden="true" />}
                     </span>
-                    <span dir="ltr" className={`min-w-0 truncate ${!value && placeholder ? 'font-medium text-slate-500' : ''} ${compact ? 'text-xs' : 'text-sm'}`}>
+                    <span dir={isArabic ? 'rtl' : 'ltr'} className={`min-w-0 truncate ${!value && placeholder ? 'font-medium text-slate-500' : ''} ${compact ? 'text-xs' : 'text-sm'}`}>
                         {displayValue}
                     </span>
                 </span>
@@ -195,9 +198,10 @@ export default function DateTimePicker({
                 <DialogPrimitive.Portal>
                     <DialogPrimitive.Overlay className="fixed inset-0 z-modal bg-backdrop backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in data-[state=closed]:fade-out motion-reduce:animate-none motion-reduce:backdrop-blur-none" />
                     <DialogPrimitive.Content
+                        dir={isArabic ? 'rtl' : 'ltr'}
                         aria-describedby={undefined}
                         data-date-time-picker-dialog
-                        className="fixed inset-x-0 bottom-0 z-modal mx-auto flex max-h-[calc(100dvh-0.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-overlay border border-b-0 border-border bg-surface-elevated text-start align-middle shadow-high outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-bottom-6 data-[state=closed]:slide-out-to-bottom-6 duration-emphasized motion-reduce:animate-none sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:mx-0 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-overlay sm:border-b sm:data-[state=open]:zoom-in-95 sm:data-[state=closed]:zoom-out-95"
+                        className="fixed inset-x-0 bottom-0 z-modal mx-auto flex max-h-[calc(100dvh-0.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-t-overlay border border-b-0 border-border bg-surface-elevated text-start align-middle shadow-high outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:slide-in-from-bottom-6 data-[state=closed]:slide-out-to-bottom-6 duration-emphasized motion-reduce:animate-none sm:bottom-auto sm:left-1/2 sm:right-auto sm:top-1/2 sm:mx-0 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-overlay sm:border-b sm:data-[state=open]:zoom-in-95 sm:data-[state=closed]:zoom-out-95"
                     >
                         <div className="flex min-w-0 shrink-0 items-center justify-between gap-3 border-b border-border px-3 py-2.5 sm:px-4">
                             <DialogPrimitive.Title className="min-w-0 truncate text-sm font-bold text-text-primary sm:text-base">
@@ -236,7 +240,7 @@ export default function DateTimePicker({
                                                                 ? `${years[0]} - ${years[years.length - 1]}`
                                                                 : viewMode === 'months'
                                                                     ? format(viewDate, 'yyyy')
-                                                                    : `${format(viewDate, 'MMMM')} ${format(viewDate, 'yyyy')}`}
+                                                                    : format(viewDate, 'MMMM yyyy', { locale })}
                                                         </span>
                                                         <ChevronDown size={14} className="shrink-0 text-primary opacity-60" aria-hidden="true" />
                                                     </span>
@@ -284,7 +288,7 @@ export default function DateTimePicker({
                                                                     data-picker-option="month"
                                                                     className={`min-h-12 rounded-xl px-1 py-3 text-xs font-bold transition-colors sm:min-h-14 sm:text-sm ${isSelectedMonth ? 'bg-primary text-white shadow-medium' : 'text-text-primary hover:bg-primary/10'}`}
                                                                 >
-                                                                    {format(monthDate, 'MMM')}
+                                                                    {format(monthDate, isArabic ? 'MMMM' : 'MMM', { locale })}
                                                                 </button>
                                                             );
                                                         })}
@@ -292,9 +296,9 @@ export default function DateTimePicker({
                                                 ) : (
                                                     <>
                                                         <div className="mb-2 grid grid-cols-7 gap-1">
-                                                            {(isArabic ? ['ح', 'ن', 'ث', 'ر', 'خ', 'ج', 'س'] : ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa']).map((dayLabel, index) => (
-                                                                <span key={index} className="py-1 text-center text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                                                                    {dayLabel}
+                                                            {days.slice(0, 7).map(day => (
+                                                                <span key={day.getDay()} className="py-1 text-center text-[10px] font-bold text-slate-500">
+                                                                    {format(day, isArabic ? 'EEE' : 'EEEEEE', { locale })}
                                                                 </span>
                                                             ))}
                                                         </div>
@@ -354,7 +358,7 @@ export default function DateTimePicker({
                                                 <div className="space-y-4">
                                                     <div>
                                                         <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-slate-500">{t('common.hour', 'Hour')}</label>
-                                                        <div className="grid grid-cols-6 gap-1.5 md:grid-cols-4 md:gap-2">
+                                                        <div dir="ltr" className="grid grid-cols-6 gap-1.5 md:grid-cols-4 md:gap-2">
                                                             {[12, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(hour => (
                                                                 <button
                                                                     key={hour}
@@ -373,7 +377,7 @@ export default function DateTimePicker({
 
                                                     <div>
                                                         <label className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-slate-500">{t('common.minute', 'Minutes')}</label>
-                                                        <div className="grid grid-cols-4 gap-2">
+                                                        <div dir="ltr" className="grid grid-cols-4 gap-2">
                                                             {[0, 15, 30, 45].map(minute => (
                                                                 <button
                                                                     key={minute}
@@ -400,7 +404,7 @@ export default function DateTimePicker({
                                                                 data-picker-option="period"
                                                                 className={`min-h-11 rounded-lg text-xs font-bold transition-colors ${tempTime.ampm === period ? 'bg-primary text-white shadow-low' : 'text-slate-500 hover:bg-surface-hover hover:text-text-primary'}`}
                                                             >
-                                                                {period}
+                                                                {isArabic ? (period === 'AM' ? 'صباحًا' : 'مساءً') : period}
                                                             </button>
                                                         ))}
                                                     </div>

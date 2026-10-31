@@ -48,12 +48,15 @@ export default function GlobalSearch() {
     };
 
     const renderSearchInput = ({ autoFocus = false } = {}) => (
-        <div className="relative min-w-0">
-            <Search className="pointer-events-none absolute end-4 top-1/2 -translate-y-1/2 text-slate-500" size={20} aria-hidden="true" />
+        <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-transparent bg-slate-100 px-3 text-slate-700 shadow-sm transition-all focus-within:border-primary/20 focus-within:bg-white focus-within:ring-2 focus-within:ring-primary/10 dark:bg-slate-800 dark:text-slate-200 dark:focus-within:bg-slate-900">
+            <Search className="pointer-events-none shrink-0 text-slate-500" size={20} aria-hidden="true" />
             <input
-                type="search"
+                type="text"
+                role="searchbox"
+                inputMode="search"
+                aria-label={t('common.search_patient', 'Search patient...')}
                 placeholder={t('common.search_patient', 'Search patient...')}
-                className="min-h-11 w-full rounded-2xl border border-transparent bg-slate-100 py-3 ps-4 pe-12 text-sm font-bold text-slate-700 shadow-sm outline-none transition-all focus:border-primary/20 focus:bg-white focus:ring-2 focus:ring-primary/10 dark:bg-slate-800 dark:text-slate-200 dark:focus:bg-slate-900"
+                className="min-h-11 min-w-0 flex-1 border-0 bg-transparent py-3 text-start text-sm font-bold text-inherit outline-none focus-visible:ring-0"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onFocus={() => debouncedQuery.length >= 2 && setIsOpen(true)}
@@ -65,7 +68,7 @@ export default function GlobalSearch() {
                 <button
                     type="button"
                     onClick={clear}
-                    className="absolute start-1 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-200/70 hover:text-red-500 dark:hover:bg-slate-700"
+                    className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-200/70 hover:text-red-500 dark:hover:bg-slate-700"
                     aria-label={t('common.clear', 'Clear')}
                 >
                     <X size={18} aria-hidden="true" />
