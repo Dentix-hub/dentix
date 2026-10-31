@@ -322,6 +322,7 @@ class TreatmentSessionBase(BaseModel):
     treatment_id: int
     notes: Optional[str] = None
     session_date: Optional[datetime] = None
+    next_session_date: Optional[datetime] = None
 
 
 class TreatmentSessionCreate(TreatmentSessionBase):

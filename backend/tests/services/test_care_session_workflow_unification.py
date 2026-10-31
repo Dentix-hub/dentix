@@ -1,0 +1,931 @@
+"""
+Comprehensive Tests for Care Session Workflow Unification (Step 2 & Step 3).
+Verifies:
+1. Status-only command:
+   - Transition active <-> completed
+   - Pending charge creation on native completion
+   - Auto-void pending charge on reopen correction
+   - Invoiced charge manual review warning
+   - Legacy treatment synchronization (In Progress <-> Done) without duplicate charges
+   - Outstanding workflow steps override reason requirement
+   - Kind guard (procedures only)
+2. Identity & Continuation:
+   - Defect 1: Legitimate repetitions not deduplicated by step_code
+   - Defect 2: Procedure-scoped step copying (no cross-assignment)
+   - Multi-procedure visit association in care_session_procedures
+   - Observation reference source attribution
+3. Historical visits (Defect 4):
+   - actual_visit_date vs created_at
+   - No conflict with active in_progress session
+   - Rejection of future dates
+4. Server Drafts:
+   - Optimistic concurrency conflict (409)
+   - Draft recovery & clearing
+5. Observation Amendments:
+   - Traceable supersession and linkage
+6. Follow-up Lifecycle:
+   - Multiple next visit requests on finish
+   - Stop, postpone, resume, and handoff
+"""
+
+from datetime import datetime, timedelta, timezone
+from decimal import Decimal
+import pytest
+from fastapi import HTTPException
+from sqlalchemy import select, func
+
+from backend import models, schemas
+from backend.models.clinical_core import (
+    CLINICAL_CHARGE_STATUS_INVOICED,
+    CLINICAL_CHARGE_STATUS_PENDING,
+    CLINICAL_CHARGE_STATUS_VOIDED,
+)
+from backend.services.care_session_service import CareSessionService
+from backend.services.clinical_command_service import ClinicalCommandService
+from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
+from backend.services.feature_service import FeatureFlagService
+
+
+async def set_native_writes_flag(db, tenant_id: int, enabled: bool):
+    stmt = select(models.FeatureFlag).where(
+        models.FeatureFlag.key == FEATURE_FLAG_CLINICAL_NATIVE_WRITES
+    )
+    flag = (await db.execute(stmt)).scalar_one_or_none()
+    if not flag:
+        flag = models.FeatureFlag(
+            key=FEATURE_FLAG_CLINICAL_NATIVE_WRITES,
+            description="Clinical native writes",
+            is_global_enabled=True,
+            rollout_percentage=0,
+        )
+        db.add(flag)
+        await db.commit()
+        await db.refresh(flag)
+    await FeatureFlagService.set_tenant_override(
+        db, tenant_id, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, enabled
+    )
+
+
+@pytest.fixture
+async def setup_test_env(async_db_session):
+    tenant = models.Tenant(name="Clinic Alpha", domain="alpha.example.com", is_active=True)
+    async_db_session.add(tenant)
+    await async_db_session.flush()
+
+    doctor = models.User(
+        tenant_id=tenant.id,
+        username="doc_alpha",
+        email="doc1@alpha.com",
+        hashed_password="hashed-password",
+        role="doctor",
+        is_active=True,
+    )
+    doctor_2 = models.User(
+        tenant_id=tenant.id,
+        username="doc2_alpha",
+        email="doc2@alpha.com",
+        hashed_password="hashed-password",
+        role="doctor",
+        is_active=True,
+    )
+    async_db_session.add_all([doctor, doctor_2])
+    await async_db_session.flush()
+
+    patient = models.Patient(
+        tenant_id=tenant.id,
+        name="John Doe",
+        age=32,
+        phone="+1234567890",
+        assigned_doctor_id=doctor.id,
+        is_deleted=False,
+    )
+    async_db_session.add(patient)
+
+    proc_rct = models.Procedure(
+        tenant_id=tenant.id,
+        name="ENDO_RCT",
+        price=300.00,
+    )
+    async_db_session.add(proc_rct)
+    await async_db_session.flush()
+
+    # Enable native writes
+    await set_native_writes_flag(async_db_session, tenant.id, True)
+
+    return {
+        "tenant": tenant,
+        "doctor": doctor,
+        "doctor_2": doctor_2,
+        "patient": patient,
+    }
+
+
+# ---------------------------------------------------------------------------
+# 1. Status-only command tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_status_only_update_active_to_completed_with_charge_and_audit(async_db_session, setup_test_env):
+    env = setup_test_env
+    cmd_service = ClinicalCommandService(async_db_session, env["tenant"].id, env["doctor"])
+
+    # Create procedure work item
+    wi_payload = schemas.ClinicalWorkItemCreate(
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="16")],
+    )
+    wi = await cmd_service.create_work_item(env["patient"].id, wi_payload)
+    assert wi.status == "active"
+
+    # Status update: active -> completed
+    status_payload = schemas.ClinicalWorkItemStatusUpdate(
+        status="completed",
+        expected_version_id=wi.version_id,
+        override_reason="Completed successfully",
+    )
+    res = await cmd_service.update_work_item_status(env["patient"].id, wi.id, status_payload)
+
+    assert res.effective_status == "completed"
+    assert res.previous_status == "active"
+    assert res.work_item.status == "completed"
+
+    # Verify event logged
+    ev_stmt = select(models.ClinicalEvent).where(
+        models.ClinicalEvent.tenant_id == env["tenant"].id,
+        models.ClinicalEvent.work_item_id == wi.id,
+        models.ClinicalEvent.event_type == "procedure_status_changed",
+    )
+    event = (await async_db_session.execute(ev_stmt)).scalar_one()
+    assert event.payload["status"] == "completed"
+
+    # Verify pending charge was created
+    charge_stmt = select(models.ClinicalCharge).where(
+        models.ClinicalCharge.tenant_id == env["tenant"].id,
+        models.ClinicalCharge.work_item_id == wi.id,
+    )
+    charge = (await async_db_session.execute(charge_stmt)).scalar_one_or_none()
+    assert charge is not None
+    assert charge.status == CLINICAL_CHARGE_STATUS_PENDING
+
+
+@pytest.mark.asyncio
+async def test_status_only_update_completed_to_active_reopen_voids_pending_charge(async_db_session, setup_test_env):
+    env = setup_test_env
+    cmd_service = ClinicalCommandService(async_db_session, env["tenant"].id, env["doctor"])
+
+    # Create active procedure
+    wi_payload = schemas.ClinicalWorkItemCreate(
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="16")],
+    )
+    wi = await cmd_service.create_work_item(env["patient"].id, wi_payload)
+
+    # Complete it
+    await cmd_service.update_work_item_status(
+        env["patient"].id,
+        wi.id,
+        schemas.ClinicalWorkItemStatusUpdate(status="completed", override_reason="Done"),
+    )
+
+    # Verify pending charge exists
+    charge_stmt = select(models.ClinicalCharge).where(
+        models.ClinicalCharge.tenant_id == env["tenant"].id,
+        models.ClinicalCharge.work_item_id == wi.id,
+        models.ClinicalCharge.status == CLINICAL_CHARGE_STATUS_PENDING,
+    )
+    charge = (await async_db_session.execute(charge_stmt)).scalar_one()
+    assert charge.status == CLINICAL_CHARGE_STATUS_PENDING
+
+    # Attempt reopening without intent="reopen_correction" should fail (422)
+    with pytest.raises(HTTPException) as exc_info:
+        await cmd_service.update_work_item_status(
+            env["patient"].id,
+            wi.id,
+            schemas.ClinicalWorkItemStatusUpdate(status="active", reason="Just reopening"),
+        )
+    assert exc_info.value.status_code == 422
+
+    # Reopen correctly with intent="reopen_correction" and reason
+    reopen_payload = schemas.ClinicalWorkItemStatusUpdate(
+        status="active",
+        intent="reopen_correction",
+        reason="Patient reported lingering tenderness on percussion, canal needs further irrigation",
+    )
+    res = await cmd_service.update_work_item_status(env["patient"].id, wi.id, reopen_payload)
+    assert res.effective_status == "active"
+
+    # Pending charge must now be VOIDED
+    await async_db_session.refresh(charge)
+    assert charge.status == CLINICAL_CHARGE_STATUS_VOIDED
+    assert "reopen" in (charge.notes or "")
+
+
+@pytest.mark.asyncio
+async def test_status_only_reopen_with_invoiced_charge_returns_warning(async_db_session, setup_test_env):
+    env = setup_test_env
+    cmd_service = ClinicalCommandService(async_db_session, env["tenant"].id, env["doctor"])
+
+    wi_payload = schemas.ClinicalWorkItemCreate(
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="16")],
+    )
+    wi = await cmd_service.create_work_item(env["patient"].id, wi_payload)
+
+    # Complete it
+    await cmd_service.update_work_item_status(
+        env["patient"].id,
+        wi.id,
+        schemas.ClinicalWorkItemStatusUpdate(status="completed", override_reason="Done"),
+    )
+
+    # Manually transition charge to invoiced
+    charge_stmt = select(models.ClinicalCharge).where(
+        models.ClinicalCharge.tenant_id == env["tenant"].id,
+        models.ClinicalCharge.work_item_id == wi.id,
+    )
+    charge = (await async_db_session.execute(charge_stmt)).scalar_one()
+    charge.status = CLINICAL_CHARGE_STATUS_INVOICED
+    await async_db_session.commit()
+
+    # Reopen procedure
+    reopen_payload = schemas.ClinicalWorkItemStatusUpdate(
+        status="active",
+        intent="reopen_correction",
+        reason="Incorrectly marked completed",
+    )
+    res = await cmd_service.update_work_item_status(env["patient"].id, wi.id, reopen_payload)
+
+    # Charge must remain invoiced
+    await async_db_session.refresh(charge)
+    assert charge.status == CLINICAL_CHARGE_STATUS_INVOICED
+
+    # Warning must be returned in response
+    assert len(res.warnings) == 1
+    assert res.warnings[0].code == "invoiced_charge_requires_manual_review"
+
+
+@pytest.mark.asyncio
+async def test_status_only_legacy_treatment_synchronization(async_db_session, setup_test_env):
+    env = setup_test_env
+    cmd_service = ClinicalCommandService(async_db_session, env["tenant"].id, env["doctor"])
+
+    # Create legacy treatment
+    legacy_tx = models.Treatment(
+        tenant_id=env["tenant"].id,
+        patient_id=env["patient"].id,
+        doctor_id=env["doctor"].id,
+        procedure="ENDO_RCT",
+        tooth_number=16,
+        status="In Progress",
+        cost=Decimal("500.00"),
+    )
+    async_db_session.add(legacy_tx)
+    await async_db_session.flush()
+
+    # Create native work item linked via event payload
+    wi_payload = schemas.ClinicalWorkItemCreate(
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="16")],
+    )
+    wi = await cmd_service.create_work_item(env["patient"].id, wi_payload)
+
+    # Record linking event
+    link_ev = models.ClinicalEvent(
+        tenant_id=env["tenant"].id,
+        patient_id=env["patient"].id,
+        work_item_id=wi.id,
+        event_type="legacy_sync",
+        occurred_at=datetime.now(timezone.utc),
+        payload={"legacy_treatment_id": legacy_tx.id},
+    )
+    async_db_session.add(link_ev)
+    await async_db_session.commit()
+
+    # Complete via status shortcut
+    res = await cmd_service.update_work_item_status(
+        env["patient"].id,
+        wi.id,
+        schemas.ClinicalWorkItemStatusUpdate(status="completed", override_reason="Done"),
+    )
+    assert res.effective_status == "completed"
+    assert res.legacy_treatment_id == legacy_tx.id
+    assert res.legacy_treatment_status == "Done"
+
+    # Legacy treatment must be 'Done'
+    await async_db_session.refresh(legacy_tx)
+    assert legacy_tx.status == "Done"
+
+    # Must NOT create duplicate clinical charges for legacy-linked procedures
+    charge_stmt = select(models.ClinicalCharge).where(
+        models.ClinicalCharge.tenant_id == env["tenant"].id,
+        models.ClinicalCharge.work_item_id == wi.id,
+    )
+    charges = (await async_db_session.execute(charge_stmt)).scalars().all()
+    assert len(charges) == 0
+
+    # Reopen via status shortcut
+    reopen_res = await cmd_service.update_work_item_status(
+        env["patient"].id,
+        wi.id,
+        schemas.ClinicalWorkItemStatusUpdate(
+            status="active",
+            intent="reopen_correction",
+            reason="Additional canal discovered",
+        ),
+    )
+    assert reopen_res.effective_status == "active"
+    assert reopen_res.legacy_treatment_status == "In Progress"
+
+    await async_db_session.refresh(legacy_tx)
+    assert legacy_tx.status == "In Progress"
+
+
+@pytest.mark.asyncio
+async def test_status_only_requires_override_reason_when_steps_outstanding(async_db_session, setup_test_env):
+    env = setup_test_env
+    cmd_service = ClinicalCommandService(async_db_session, env["tenant"].id, env["doctor"])
+    care_service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+
+    wi_payload = schemas.ClinicalWorkItemCreate(
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="16")],
+    )
+    wi = await cmd_service.create_work_item(env["patient"].id, wi_payload)
+
+    # Start session and add pending step
+    session = await care_service.start_session(
+        env["patient"].id,
+        schemas.CareSessionCreate(work_item_ids=[wi.id]),
+    )
+    await care_service.add_step(
+        env["patient"].id,
+        session.id,
+        schemas.CareSessionStepCreate(
+            step_code="obturation",
+            title="Canal Obturation",
+            work_item_id=wi.id,
+            status="pending",
+        ),
+    )
+
+    # Attempting to complete procedure without override reason must fail (422)
+    with pytest.raises(HTTPException) as exc_info:
+        await cmd_service.update_work_item_status(
+            env["patient"].id,
+            wi.id,
+            schemas.ClinicalWorkItemStatusUpdate(status="completed"),
+        )
+    assert exc_info.value.status_code == 422
+    assert "outstanding workflow step" in exc_info.value.detail
+
+    # Providing override reason succeeds
+    res = await cmd_service.update_work_item_status(
+        env["patient"].id,
+        wi.id,
+        schemas.ClinicalWorkItemStatusUpdate(
+            status="completed",
+            override_reason="Obturation completed using alternate technique",
+        ),
+    )
+    assert res.effective_status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_status_only_forbidden_for_finding(async_db_session, setup_test_env):
+    env = setup_test_env
+    cmd_service = ClinicalCommandService(async_db_session, env["tenant"].id, env["doctor"])
+
+    wi = await cmd_service.create_work_item(
+        env["patient"].id,
+        schemas.ClinicalWorkItemCreate(
+            kind="finding",
+            code="CARIES",
+            status="proposed",
+            targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="16")],
+        ),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await cmd_service.update_work_item_status(
+            env["patient"].id,
+            wi.id,
+            schemas.ClinicalWorkItemStatusUpdate(status="active"),
+        )
+    assert exc_info.value.status_code == 422
+    assert "only supported for procedures" in exc_info.value.detail
+
+
+# ---------------------------------------------------------------------------
+# 2. Defect 1 & Defect 2 Continuation Tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_defect_1_repetition_preservation_not_deduplicated_by_step_code(async_db_session, setup_test_env):
+    env = setup_test_env
+    care_service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+    cmd_service = ClinicalCommandService(async_db_session, env["tenant"].id, env["doctor"])
+
+    wi = await cmd_service.create_work_item(
+        env["patient"].id,
+        schemas.ClinicalWorkItemCreate(
+            kind="procedure",
+            code="ENDO_RCT",
+            status="active",
+            targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="16")],
+        ),
+    )
+
+    # First session has multiple steps with SAME step_code
+    session_1 = await care_service.start_session(
+        env["patient"].id,
+        schemas.CareSessionCreate(work_item_ids=[wi.id]),
+    )
+    await care_service.add_step(
+        env["patient"].id,
+        session_1.id,
+        schemas.CareSessionStepCreate(
+            step_code="irrigation",
+            title="Initial NaOCl Irrigation",
+            work_item_id=wi.id,
+            status="completed",
+        ),
+    )
+    await care_service.add_step(
+        env["patient"].id,
+        session_1.id,
+        schemas.CareSessionStepCreate(
+            step_code="irrigation",
+            title="Ultrasonic Activation & Final Rinse",
+            work_item_id=wi.id,
+            status="completed",
+        ),
+    )
+    await care_service.finish_session(
+        env["patient"].id,
+        session_1.id,
+        schemas.CareSessionFinish(notes="Session 1 completed"),
+    )
+
+    # Start Session 2 resuming wi.id
+    session_2 = await care_service.start_session(
+        env["patient"].id,
+        schemas.CareSessionCreate(
+            work_item_ids=[wi.id],
+            resume_from_session_id=session_1.id,
+        ),
+    )
+
+    # Defect 1 check: Both irrigation steps MUST be carried over!
+    session_2_steps = session_2.steps
+    irrigation_steps = [s for s in session_2_steps if s.step_code == "irrigation"]
+    assert len(irrigation_steps) == 2, f"Expected 2 irrigation steps, found {len(irrigation_steps)} (Defect 1 regression)"
+
+
+@pytest.mark.asyncio
+async def test_defect_2_procedure_scoped_step_copying_no_cross_assignment(async_db_session, setup_test_env):
+    env = setup_test_env
+    care_service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+    cmd_service = ClinicalCommandService(async_db_session, env["tenant"].id, env["doctor"])
+
+    # Create two procedures: RCT on tooth 16, Filling on tooth 24
+    wi_rct = await cmd_service.create_work_item(
+        env["patient"].id,
+        schemas.ClinicalWorkItemCreate(
+            kind="procedure",
+            code="ENDO_RCT",
+            status="active",
+            targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="16")],
+        ),
+    )
+    wi_fill = await cmd_service.create_work_item(
+        env["patient"].id,
+        schemas.ClinicalWorkItemCreate(
+            kind="procedure",
+            code="REST_COMPOSITE",
+            status="active",
+            targets=[schemas.ClinicalTargetInput(target_kind="surface", tooth_key="24", surface_code="O")],
+        ),
+    )
+
+    # Session 1: Documents work on BOTH procedures in one visit
+    session_1 = await care_service.start_session(
+        env["patient"].id,
+        schemas.CareSessionCreate(work_item_ids=[wi_rct.id, wi_fill.id]),
+    )
+    await care_service.add_step(
+        env["patient"].id,
+        session_1.id,
+        schemas.CareSessionStepCreate(
+            step_code="access_cavity",
+            title="Access Cavity",
+            work_item_id=wi_rct.id,
+            status="completed",
+        ),
+    )
+    await care_service.add_step(
+        env["patient"].id,
+        session_1.id,
+        schemas.CareSessionStepCreate(
+            step_code="etch_bond",
+            title="Etch & Bond",
+            work_item_id=wi_fill.id,
+            status="completed",
+        ),
+    )
+    await care_service.finish_session(
+        env["patient"].id,
+        session_1.id,
+        schemas.CareSessionFinish(notes="Session 1 finish"),
+    )
+
+    # Session 2: Resumes ONLY RCT (wi_rct.id)
+    session_2 = await care_service.start_session(
+        env["patient"].id,
+        schemas.CareSessionCreate(
+            work_item_ids=[wi_rct.id],
+            resume_from_session_id=session_1.id,
+        ),
+    )
+
+    # Defect 2 check:
+    # 1. Filling steps must NOT be copied into Session 2
+    # 2. RCT steps must NOT be assigned to another work item
+    session_2_steps = session_2.steps
+    assert len(session_2_steps) == 1
+    assert session_2_steps[0].step_code == "access_cavity"
+    assert session_2_steps[0].work_item_id == wi_rct.id
+
+
+@pytest.mark.asyncio
+async def test_multi_procedure_care_session_procedures_table(async_db_session, setup_test_env):
+    env = setup_test_env
+    care_service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+    cmd_service = ClinicalCommandService(async_db_session, env["tenant"].id, env["doctor"])
+
+    wi_1 = await cmd_service.create_work_item(
+        env["patient"].id,
+        schemas.ClinicalWorkItemCreate(
+            kind="procedure",
+            code="ENDO_RCT",
+            status="active",
+            targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="16")],
+        ),
+    )
+    wi_2 = await cmd_service.create_work_item(
+        env["patient"].id,
+        schemas.ClinicalWorkItemCreate(
+            kind="procedure",
+            code="REST_COMPOSITE",
+            status="active",
+            targets=[schemas.ClinicalTargetInput(target_kind="surface", tooth_key="24", surface_code="O")],
+        ),
+    )
+
+    session = await care_service.start_session(
+        env["patient"].id,
+        schemas.CareSessionCreate(work_item_ids=[wi_1.id, wi_2.id]),
+    )
+
+    # Verify procedures loaded
+    reloaded = await care_service.get_session(env["patient"].id, session.id)
+    proc_wi_ids = {p.work_item_id for p in reloaded.procedures}
+    assert proc_wi_ids == {wi_1.id, wi_2.id}
+
+
+# ---------------------------------------------------------------------------
+# 3. Historical Visits (Defect 4 & Section 2.7)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_historical_visit_creation_and_no_active_session_conflict(async_db_session, setup_test_env):
+    env = setup_test_env
+    care_service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+
+    # 1. Start an ongoing active session
+    active_session = await care_service.start_session(
+        env["patient"].id,
+        schemas.CareSessionCreate(notes="Current active visit"),
+    )
+    assert active_session.status == "in_progress"
+
+    # 2. Document a historical past visit
+    past_date = datetime.now(timezone.utc) - timedelta(days=7)
+    historical_session = await care_service.start_session(
+        env["patient"].id,
+        schemas.CareSessionCreate(
+            is_historical=True,
+            actual_visit_date=past_date,
+            notes="Documentation of visit from last week",
+        ),
+    )
+
+    assert historical_session.is_historical is True
+    assert historical_session.status == "completed"
+    assert historical_session.actual_visit_date is not None
+
+    # The ongoing active session must NOT have been cancelled or conflicted
+    reloaded_active = await care_service.get_session(env["patient"].id, active_session.id)
+    assert reloaded_active.status == "in_progress"
+
+    # Future date must be rejected
+    future_date = datetime.now(timezone.utc) + timedelta(days=2)
+    with pytest.raises(HTTPException) as exc_info:
+        await care_service.start_session(
+            env["patient"].id,
+            schemas.CareSessionCreate(
+                is_historical=True,
+                actual_visit_date=future_date,
+            ),
+        )
+    assert exc_info.value.status_code == 422
+    assert "future" in exc_info.value.detail.lower()
+
+
+# ---------------------------------------------------------------------------
+# 4. Server Drafts (Section 2.6)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_server_drafts_lifecycle_and_optimistic_concurrency(async_db_session, setup_test_env):
+    env = setup_test_env
+    care_service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+
+    # Save draft
+    draft_payload = schemas.CareSessionDraftSave(
+        draft_data={"notes": "Doctor is typing findings...", "canals": [{"id": "MB1", "length": 21.5}]},
+    )
+    draft = await care_service.save_draft(env["patient"].id, draft_payload)
+    assert draft.version_id == 1
+    assert draft.draft_payload["canals"][0]["length"] == 21.5
+
+    # Retrieve draft
+    recovered = await care_service.get_draft(env["patient"].id)
+    assert recovered is not None
+    assert recovered.version_id == 1
+    assert recovered.draft_payload["notes"] == "Doctor is typing findings..."
+    read_model = schemas.CareSessionDraftRead.model_validate(recovered)
+    assert read_model.draft_data["notes"] == "Doctor is typing findings..."
+
+    # Conflict check: save with stale expected_version_id
+    with pytest.raises(HTTPException) as exc_info:
+        await care_service.save_draft(
+            env["patient"].id,
+            schemas.CareSessionDraftSave(
+                draft_data={"notes": "Conflicting edit"},
+                expected_version_id=999,
+            ),
+        )
+    assert exc_info.value.status_code == 409
+
+    # Delete draft
+    assert await care_service.delete_draft(env["patient"].id) is True
+    assert await care_service.get_draft(env["patient"].id) is None
+
+
+# ---------------------------------------------------------------------------
+# 5. Observation Amendments (Section 2.7)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_observation_amendment_supersedes_and_links_original(async_db_session, setup_test_env):
+    env = setup_test_env
+    care_service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+
+    session = await care_service.start_session(
+        env["patient"].id,
+        schemas.CareSessionCreate(notes="Session for measurement"),
+    )
+    obs = await care_service.add_observation(
+        env["patient"].id,
+        session.id,
+        schemas.CareObservationCreate(
+            observation_code="working_length",
+            tooth_key="16",
+            canal_id="MB1",
+            structured_value={"canal_id": "MB1", "length_mm": 21.0},
+        ),
+    )
+    assert obs.is_superseded is False
+
+    # Amend observation
+    amend_payload = schemas.CareObservationAmend(
+        reason="Apex locator recalibrated; true working length is 20.5mm",
+        structured_value={"canal_id": "MB1", "length_mm": 20.5},
+    )
+    new_obs = await care_service.amend_observation(env["patient"].id, obs.id, amend_payload)
+
+    assert new_obs.id != obs.id
+    assert new_obs.structured_value["length_mm"] == 20.5
+    assert new_obs.amendment_reason == amend_payload.reason
+    assert new_obs.reference_source_session_id == session.id
+
+    # Original must now be marked superseded
+    await async_db_session.refresh(obs)
+    assert obs.is_superseded is True
+    assert obs.superseded_by_id == new_obs.id
+
+    # Double amendment on superseded record must fail
+    with pytest.raises(HTTPException) as exc_info:
+        await care_service.amend_observation(
+            env["patient"].id,
+            obs.id,
+            schemas.CareObservationAmend(reason="Second attempt"),
+        )
+    assert exc_info.value.status_code == 409
+
+
+# ---------------------------------------------------------------------------
+# 6. Follow-up Lifecycle Actions (Section 2.8 & Scenario 13, 14, 15)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_follow_up_stopping_postponing_resuming_handoff_audit(async_db_session, setup_test_env):
+    env = setup_test_env
+    care_service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+
+    session = await care_service.start_session(
+        env["patient"].id,
+        schemas.CareSessionCreate(notes="Session with follow-up"),
+    )
+    req = await care_service.create_next_visit_request(
+        env["patient"].id,
+        schemas.NextVisitRequestCreate(
+            care_session_id=session.id,
+            reason="Crown seating follow-up",
+            suggested_duration_minutes=45,
+        ),
+    )
+    assert req.status == "requested"
+
+    # 1. Stop follow-up
+    stopped_req = await care_service.stop_next_visit_request(
+        req.id,
+        reason="Patient travelling abroad indefinitely",
+    )
+    assert stopped_req.status == "stopped"
+    assert stopped_req.stopped_reason == "Patient travelling abroad indefinitely"
+
+    # 2. Resume follow-up
+    resumed_req = await care_service.resume_next_visit_request(
+        req.id,
+        reason="Patient returned and requested resumption",
+    )
+    assert resumed_req.status == "requested"
+    assert resumed_req.stopped_at is None
+
+    # 3. Postpone follow-up
+    new_date = datetime.now(timezone.utc) + timedelta(days=14)
+    postponed_req = await care_service.postpone_next_visit_request(
+        req.id,
+        postponed_to_date=new_date,
+        reason="Patient has flu",
+    )
+    assert postponed_req.status == "postponed"
+    assert postponed_req.postponed_reason == "Patient has flu"
+
+    # 4. Handoff to unauthorized doctor must fail (Section 2.8)
+    with pytest.raises(HTTPException) as exc_info:
+        await care_service.handoff_next_visit_request(
+            req.id,
+            handoff_to_user_id=env["doctor_2"].id,
+            reason="Primary doctor attending endodontic conference",
+        )
+    assert exc_info.value.status_code in (403, 404)
+
+    # Grant doctor_2 authorized access to patient via mixed visibility mode + appointment
+    env["doctor_2"].patient_visibility_mode = "mixed"
+    appt = models.Appointment(
+        tenant_id=env["tenant"].id,
+        patient_id=env["patient"].id,
+        doctor_id=env["doctor_2"].id,
+        date_time=datetime.now(timezone.utc) + timedelta(days=1),
+        duration_minutes=30,
+        status="Confirmed",
+    )
+    async_db_session.add(appt)
+    await async_db_session.commit()
+
+    # Handoff to authorized doctor succeeds
+    handoff_req = await care_service.handoff_next_visit_request(
+        req.id,
+        handoff_to_user_id=env["doctor_2"].id,
+        reason="Primary doctor attending endodontic conference",
+        notes="Inspect MB1 obturation before final core build-up",
+    )
+    assert handoff_req.assigned_doctor_id == env["doctor_2"].id
+    assert handoff_req.handoff_reason == "Primary doctor attending endodontic conference"
+
+
+@pytest.mark.asyncio
+async def test_status_only_does_not_alter_stock_movements_targets_or_notes(async_db_session, setup_test_env):
+    """
+    Scenario 17/18 & Line 499: Explicit assertion that status-only updates do not
+    alter stock movements, targets, notes, or unrelated clinical records.
+    """
+    env = setup_test_env
+    await set_native_writes_flag(async_db_session, env["tenant"].id, True)
+
+    command_service = ClinicalCommandService(
+        async_db_session, env["tenant"].id, current_user=env["doctor"]
+    )
+
+    # Count existing stock movements before status change
+    stmt_stock = select(func.count()).select_from(models.StockMovement)
+    stock_count_before = (await async_db_session.execute(stmt_stock)).scalar() or 0
+
+    wi_payload = schemas.ClinicalWorkItemCreate(
+        kind="procedure",
+        code="REST_COMPOSITE",
+        status="active",
+        notes="Original detailed clinical notes about cavity prep",
+        targets=[
+            schemas.ClinicalTargetInput(
+                target_kind="surface",
+                tooth_key="16",
+                surface_code="O",
+            )
+        ],
+    )
+    wi = await command_service.create_work_item(env["patient"].id, wi_payload)
+
+    # Perform status-only completion
+    resp = await command_service.update_work_item_status(
+        patient_id=env["patient"].id,
+        work_item_id=wi.id,
+        payload=schemas.ClinicalWorkItemStatusUpdate(status="completed"),
+    )
+    assert resp.effective_status == "completed"
+
+    # Verify notes and targets are completely preserved
+    reloaded_wi = (await async_db_session.execute(
+        select(models.ClinicalWorkItem).where(models.ClinicalWorkItem.id == wi.id)
+    )).scalar_one()
+    assert reloaded_wi.notes == "Original detailed clinical notes about cavity prep"
+    assert len(reloaded_wi.targets) == 1
+    assert reloaded_wi.targets[0].surface_code == "O"
+
+    # Verify zero stock movements were added by the status-only shortcut
+    stock_count_after = (await async_db_session.execute(stmt_stock)).scalar() or 0
+    assert stock_count_after == stock_count_before
+
+
+@pytest.mark.asyncio
+async def test_cross_tenant_isolation_fails_all_new_operations(async_db_session, setup_test_env):
+    """
+    Scenario 18: Cross-tenant and unauthorized patient access fail for every new operation.
+    """
+    env = setup_test_env
+    tenant_2 = models.Tenant(name="Second Clinic Tenant", domain="clinic-2.example.com")
+    async_db_session.add(tenant_2)
+    await async_db_session.commit()
+
+    doctor_t2 = models.User(
+        tenant_id=tenant_2.id,
+        username="doc_t2",
+        email="doc_t2@dentix.io",
+        hashed_password="hashed_pw_test",
+        role="doctor",
+        is_active=True,
+    )
+    async_db_session.add(doctor_t2)
+    await async_db_session.commit()
+
+    await set_native_writes_flag(async_db_session, tenant_2.id, True)
+
+    command_service_t2 = ClinicalCommandService(
+        async_db_session, tenant_2.id, current_user=doctor_t2
+    )
+    care_service_t2 = CareSessionService(
+        async_db_session, tenant_2.id, current_user=doctor_t2
+    )
+
+    # Attempt status update on tenant 1 patient with tenant 2 doctor
+    with pytest.raises(HTTPException) as exc_info:
+        await command_service_t2.update_work_item_status(
+            patient_id=env["patient"].id,
+            work_item_id=999,
+            payload=schemas.ClinicalWorkItemStatusUpdate(status="completed"),
+        )
+    assert exc_info.value.status_code in (403, 404)
+
+    # Attempt draft access on tenant 1 patient with tenant 2 doctor
+    with pytest.raises(HTTPException) as exc_info:
+        await care_service_t2.get_draft(patient_id=env["patient"].id)
+    assert exc_info.value.status_code in (403, 404)
+

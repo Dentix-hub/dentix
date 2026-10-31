@@ -83,6 +83,33 @@ async def update_patient_clinical_work_item(
     )
 
 
+@router.patch(
+    "/{patient_id}/clinical-work-items/{work_item_id}/status",
+    response_model=StandardResponse[schemas.ClinicalWorkItemStatusResponse],
+    summary="Update clinical work item status",
+    description="Dedicated status-only transition shortcut (active <-> completed) with audit and legacy sync.",
+)
+async def update_patient_clinical_work_item_status(
+    patient_id: int,
+    work_item_id: int,
+    payload: schemas.ClinicalWorkItemStatusUpdate,
+    idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(
+        require_permission(Permission.CLINICAL_WRITE, Permission.TREATMENT_PLAN_WRITE)
+    ),
+):
+    service = ClinicalCommandService(db, current_user.tenant_id, current_user)
+    result = await service.update_work_item_status(
+        patient_id, work_item_id, payload, idempotency_key=idempotency_key
+    )
+    return success_response(
+        data=result,
+        message=f"Work item status updated to {result.effective_status}",
+    )
+
+
+
 @router.post(
     "/{patient_id}/clinical-findings",
     response_model=StandardResponse[schemas.ClinicalWorkItemRead],

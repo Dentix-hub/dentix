@@ -73,6 +73,8 @@ from .clinical_core import (
     ClinicalEvent,
     ClinicalEventTarget,
     CareSession,
+    CareSessionProcedure,
+    CareSessionDraft,
     CareSessionStep,
     CareObservation,
     WorkflowTemplate,

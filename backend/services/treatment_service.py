@@ -1336,6 +1336,7 @@ class TreatmentService:
             treatment_id=session_data.treatment_id,
             notes=session_data.notes,
             session_date=session_data.session_date or datetime.now(timezone.utc),
+            next_session_date=session_data.next_session_date,
             tenant_id=self.tenant_id
         )
         self.db.add(session)

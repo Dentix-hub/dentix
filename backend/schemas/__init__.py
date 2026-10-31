@@ -88,6 +88,8 @@ from .clinical_commands import (
     ClinicalWorkItemCorrectionWarning,
     ClinicalEventRead,
     ClinicalToothDetailRead,
+    ClinicalWorkItemStatusUpdate,
+    ClinicalWorkItemStatusResponse,
 )
 
 
@@ -124,12 +126,19 @@ from .care_session import (
     CareSessionStepUpdate,
     CareSessionStepRead,
     CareSessionTemplateApply,
+    CareSessionProcedureRead,
+    CareSessionDraftSave,
+    CareSessionDraftRead,
     CareObservationCreate,
     CareObservationRead,
+    CareObservationAmend,
     NextVisitRequestCreate,
     NextVisitRequestRead,
     NextVisitRequestSchedule,
     NextVisitRequestScheduleResult,
+    NextVisitRequestStop,
+    NextVisitRequestPostpone,
+    NextVisitRequestHandoff,
     NextVisitSuggestionRead,
     ResumableWorkItemRead,
     CareSessionResumableResponse,

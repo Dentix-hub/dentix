@@ -152,7 +152,8 @@ class CareSessionService:
         """
         Start a new care session for a patient (G10-M02).
         Enforces Decision D3 (G10-M18): strictly one active ('in_progress') care session per patient.
-        Returns 409 Conflict if another session is already in_progress.
+        Supports multi-procedure association (care_session_procedures), historical past visit recording,
+        and procedure-scoped step/observation carryover without deduplicating repeated occurrences.
         """
         await self.ensure_native_writes_enabled()
         await self._verify_patient(patient_id)
@@ -160,34 +161,60 @@ class CareSessionService:
         if data.appointment_id is not None:
             await self._verify_appointment(patient_id, data.appointment_id)
 
-        # Acquire concurrency lock for patient care sessions (R05)
-        await self._acquire_advisory_lock(f"care_session:{patient_id}")
+        # Collect and validate all associated work item IDs
+        associated_wi_ids = list(getattr(data, "work_item_ids", []) or [])
+        if data.resume_work_item_id is not None and data.resume_work_item_id not in associated_wi_ids:
+            associated_wi_ids.append(data.resume_work_item_id)
 
-        # D3 guard: check if active session already exists for this patient
-        stmt = select(models.CareSession).where(
-            models.CareSession.tenant_id == self.tenant_id,
-            models.CareSession.patient_id == patient_id,
-            models.CareSession.status == "in_progress",
-        )
-        existing_active = (await self.db.execute(stmt)).scalars().first()
-        if existing_active:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "message": f"An active care session is already in progress for this patient (session {existing_active.id})",
-                    "active_session_id": existing_active.id,
-                },
-            )
+        for wi_id in associated_wi_ids:
+            await self._verify_work_item(patient_id, wi_id)
 
         now = datetime.now(timezone.utc)
         user = await self._get_active_current_user()
+
+        is_historical = bool(getattr(data, "is_historical", False))
+        actual_visit_date = getattr(data, "actual_visit_date", None)
+        if is_historical:
+            if not actual_visit_date:
+                raise HTTPException(status_code=422, detail="Historical care session requires actual_visit_date")
+            if actual_visit_date > now:
+                raise HTTPException(status_code=422, detail="Historical visit date cannot be in the future")
+
+        # Acquire concurrency lock for patient care sessions (R05)
+        await self._acquire_advisory_lock(f"care_session:{patient_id}")
+
+        # D3 guard: check if active session already exists for this patient (only applies to non-historical active sessions)
+        if not is_historical:
+            stmt = select(models.CareSession).where(
+                models.CareSession.tenant_id == self.tenant_id,
+                models.CareSession.patient_id == patient_id,
+                models.CareSession.status == "in_progress",
+            )
+            existing_active = (await self.db.execute(stmt)).scalars().first()
+            if existing_active:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": f"An active care session is already in progress for this patient (session {existing_active.id})",
+                        "active_session_id": existing_active.id,
+                    },
+                )
+
+        session_status = "completed" if is_historical else "in_progress"
+        session_started = actual_visit_date if is_historical else now
+        session_finished = actual_visit_date if is_historical else None
+
         session = models.CareSession(
             tenant_id=self.tenant_id,
             patient_id=patient_id,
             appointment_id=data.appointment_id,
             provider_user_id=user.id if user else None,
-            status="in_progress",
-            started_at=now,
+            status=session_status,
+            started_at=session_started,
+            finished_at=session_finished,
+            actual_visit_date=actual_visit_date or now,
+            recorded_by_user_id=user.id if user else None,
+            is_historical=is_historical,
             notes=data.notes,
         )
         self.db.add(session)
@@ -202,50 +229,60 @@ class CareSessionService:
                 detail="Concurrent care session conflict",
             ) from exc
 
-        # G10-M12 / G10-M19: Resume carryover support
-        if data.resume_work_item_id is not None or data.resume_from_session_id is not None:
-            resume_wi_id = data.resume_work_item_id
-            if resume_wi_id is not None:
-                await self._verify_work_item(patient_id, resume_wi_id)
+        # Create CareSessionProcedure rows for all associated procedures
+        for wi_id in associated_wi_ids:
+            session_proc = models.CareSessionProcedure(
+                tenant_id=self.tenant_id,
+                care_session_id=session.id,
+                work_item_id=wi_id,
+                created_at=now,
+            )
+            self.db.add(session_proc)
 
-            # Resolve single source session: explicit resume_from_session_id or most recent prior session for work item
-            source_session_id = data.resume_from_session_id
-            if source_session_id is None and resume_wi_id is not None:
-                source_session_stmt = (
-                    select(models.CareSessionStep.care_session_id)
-                    .join(models.CareSession, models.CareSession.id == models.CareSessionStep.care_session_id)
-                    .where(
-                        models.CareSessionStep.tenant_id == self.tenant_id,
-                        models.CareSession.patient_id == patient_id,
-                        models.CareSessionStep.work_item_id == resume_wi_id,
-                        models.CareSession.id != session.id,
-                    )
-                    .order_by(models.CareSession.started_at.desc(), models.CareSession.id.desc())
-                    .limit(1)
-                )
-                source_session_id = (await self.db.execute(source_session_stmt)).scalar_one_or_none()
-                if source_session_id is None:
-                    source_obs_stmt = (
-                        select(models.CareObservation.care_session_id)
-                        .join(models.CareSession, models.CareSession.id == models.CareObservation.care_session_id)
+        # Continuation / carryover support
+        if data.resume_work_item_id is not None or data.resume_from_session_id is not None or associated_wi_ids:
+            source_session_ids = []
+            if data.resume_from_session_id is not None:
+                source_session_ids = [data.resume_from_session_id]
+            else:
+                target_check_wis = associated_wi_ids if associated_wi_ids else ([data.resume_work_item_id] if data.resume_work_item_id else [])
+                for wi_id in target_check_wis:
+                    source_session_stmt = (
+                        select(models.CareSessionStep.care_session_id)
+                        .join(models.CareSession, models.CareSession.id == models.CareSessionStep.care_session_id)
                         .where(
-                            models.CareObservation.tenant_id == self.tenant_id,
-                            models.CareObservation.patient_id == patient_id,
-                            models.CareObservation.work_item_id == resume_wi_id,
+                            models.CareSessionStep.tenant_id == self.tenant_id,
+                            models.CareSession.patient_id == patient_id,
+                            models.CareSessionStep.work_item_id == wi_id,
                             models.CareSession.id != session.id,
                         )
                         .order_by(models.CareSession.started_at.desc(), models.CareSession.id.desc())
                         .limit(1)
                     )
-                    source_session_id = (await self.db.execute(source_obs_stmt)).scalar_one_or_none()
+                    s_id = (await self.db.execute(source_session_stmt)).scalar_one_or_none()
+                    if s_id is None:
+                        source_obs_stmt = (
+                            select(models.CareObservation.care_session_id)
+                            .join(models.CareSession, models.CareSession.id == models.CareObservation.care_session_id)
+                            .where(
+                                models.CareObservation.tenant_id == self.tenant_id,
+                                models.CareObservation.patient_id == patient_id,
+                                models.CareObservation.work_item_id == wi_id,
+                                models.CareSession.id != session.id,
+                            )
+                            .order_by(models.CareSession.started_at.desc(), models.CareSession.id.desc())
+                            .limit(1)
+                        )
+                        s_id = (await self.db.execute(source_obs_stmt)).scalar_one_or_none()
+                    if s_id is not None and s_id not in source_session_ids:
+                        source_session_ids.append(s_id)
 
-            if source_session_id is not None:
-                # Query prior steps from that single source session only
+            if source_session_ids:
                 prior_steps_query = (
                     select(models.CareSessionStep)
                     .where(
                         models.CareSessionStep.tenant_id == self.tenant_id,
-                        models.CareSessionStep.care_session_id == source_session_id,
+                        models.CareSessionStep.care_session_id.in_(source_session_ids),
                     )
                     .order_by(
                         models.CareSessionStep.step_order.asc(),
@@ -254,24 +291,28 @@ class CareSessionService:
                 )
                 prior_steps = (await self.db.execute(prior_steps_query)).scalars().all()
 
-                # Carry over steps into new session
-                seen_step_codes = set()
                 new_order = 1
                 for p_step in prior_steps:
-                    if p_step.step_code in seen_step_codes:
+                    # Filter by associated procedures if specified
+                    if associated_wi_ids and p_step.work_item_id and p_step.work_item_id not in associated_wi_ids:
                         continue
-                    seen_step_codes.add(p_step.step_code)
 
-                    # Preserve completed state; if partial/in_progress, keep partial/in_progress; otherwise pending
-                    step_status = p_step.status
+                    # Maintain procedure-scoped work_item_id without overwriting with another procedure's ID
+                    target_wi_id = p_step.work_item_id or data.resume_work_item_id
+
                     new_step = models.CareSessionStep(
                         tenant_id=self.tenant_id,
                         care_session_id=session.id,
-                        work_item_id=resume_wi_id or p_step.work_item_id,
+                        work_item_id=target_wi_id,
                         step_order=new_order,
                         step_code=p_step.step_code,
+                        logical_step_code=p_step.logical_step_code or p_step.step_code,
+                        occurrence_number=p_step.occurrence_number,
+                        template_step_id=p_step.template_step_id,
+                        is_repeat=p_step.is_repeat,
+                        repeat_reason=p_step.repeat_reason,
                         title=p_step.title,
-                        status=step_status,
+                        status=p_step.status,
                         started_at=p_step.started_at,
                         completed_at=p_step.completed_at,
                         notes=f"[Resumed from Step #{p_step.step_order}] {p_step.notes or ''}".strip() if p_step.notes else None,
@@ -279,29 +320,35 @@ class CareSessionService:
                     self.db.add(new_step)
                     new_order += 1
 
-                # Query and carry forward canal observations from source session only
                 obs_query = (
                     select(models.CareObservation)
                     .where(
                         models.CareObservation.tenant_id == self.tenant_id,
                         models.CareObservation.patient_id == patient_id,
-                        models.CareObservation.care_session_id == source_session_id,
+                        models.CareObservation.care_session_id.in_(source_session_ids),
                     )
                     .order_by(models.CareObservation.recorded_at.asc(), models.CareObservation.id.asc())
                 )
                 prior_obs = (await self.db.execute(obs_query)).scalars().all()
 
                 for p_obs in prior_obs:
+                    if associated_wi_ids and p_obs.work_item_id and p_obs.work_item_id not in associated_wi_ids:
+                        continue
+
+                    target_obs_wi = p_obs.work_item_id or data.resume_work_item_id
+
                     carried_obs = models.CareObservation(
                         tenant_id=self.tenant_id,
                         patient_id=patient_id,
                         care_session_id=session.id,
-                        work_item_id=resume_wi_id or p_obs.work_item_id,
+                        work_item_id=target_obs_wi,
                         observation_code=p_obs.observation_code,
                         tooth_key=p_obs.tooth_key,
                         structured_value=dict(p_obs.structured_value or {}),
                         notes=f"[Carried over from Session {p_obs.care_session_id}] {p_obs.notes or ''}".strip() if p_obs.notes else None,
                         recorded_by_user_id=user.id if user else None,
+                        reference_source_session_id=p_obs.care_session_id,
+                        reference_source_date=p_obs.recorded_at or p_obs.created_at,
                     )
                     self.db.add(carried_obs)
 
@@ -320,7 +367,10 @@ class CareSessionService:
             "session_id": session.id,
             "appointment_id": session.appointment_id,
             "provider_user_id": session.provider_user_id,
-            "status": "in_progress",
+            "status": session.status,
+            "is_historical": session.is_historical,
+            "actual_visit_date": session.actual_visit_date.isoformat() if session.actual_visit_date else None,
+            "work_item_ids": associated_wi_ids,
         }
         if data.resume_work_item_id is not None:
             event_payload["resume_work_item_id"] = data.resume_work_item_id
@@ -428,8 +478,15 @@ class CareSessionService:
         )
         self.db.add(event)
 
-        # G11-M02: Create chairside next-visit request if specified
-        if getattr(data, "next_visit_request", None) is not None:
+        # G11-M02: Create chairside next-visit request(s) if specified
+        if getattr(data, "next_visit_requests", None):
+            for req in data.next_visit_requests:
+                await self._create_next_visit_request_internal(
+                    patient_id=patient_id,
+                    data=req,
+                    session=session,
+                )
+        elif getattr(data, "next_visit_request", None) is not None:
             await self._create_next_visit_request_internal(
                 patient_id=patient_id,
                 data=data.next_visit_request,
@@ -1009,6 +1066,7 @@ class CareSessionService:
         )
         if eager_load:
             stmt = stmt.execution_options(populate_existing=True).options(
+                selectinload(models.CareSession.procedures),
                 selectinload(models.CareSession.steps).selectinload(models.CareSessionStep.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.observations),
                 selectinload(models.CareSession.next_visit_requests),
@@ -1030,6 +1088,7 @@ class CareSessionService:
             select(models.CareSession)
             .execution_options(populate_existing=True)
             .options(
+                selectinload(models.CareSession.procedures),
                 selectinload(models.CareSession.steps).selectinload(models.CareSessionStep.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.observations),
                 selectinload(models.CareSession.next_visit_requests),
@@ -1058,8 +1117,10 @@ class CareSessionService:
         stmt = (
             select(models.CareSession)
             .options(
+                selectinload(models.CareSession.procedures),
                 selectinload(models.CareSession.steps),
                 selectinload(models.CareSession.observations),
+                selectinload(models.CareSession.next_visit_requests),
             )
             .where(
                 models.CareSession.tenant_id == self.tenant_id,
@@ -1069,7 +1130,10 @@ class CareSessionService:
         if status:
             stmt = stmt.where(models.CareSession.status == status)
 
-        stmt = stmt.order_by(models.CareSession.created_at.desc(), models.CareSession.id.desc())
+        stmt = stmt.order_by(
+            func.coalesce(models.CareSession.actual_visit_date, models.CareSession.started_at, models.CareSession.created_at).desc(),
+            models.CareSession.id.desc(),
+        )
         result = await self.db.execute(stmt)
         sessions = list(result.scalars().all())
         for s in sessions:
@@ -1537,12 +1601,20 @@ class CareSessionService:
             if not data.suggested_duration_minutes or data.suggested_duration_minutes == 30:
                 duration = suggestion.suggested_duration_minutes
 
+        associated_wis = list(getattr(data, "associated_work_item_ids", []) or [])
+        if target_work_item_id and target_work_item_id not in associated_wis:
+            associated_wis.insert(0, target_work_item_id)
+        elif not target_work_item_id and associated_wis:
+            target_work_item_id = associated_wis[0]
+
         user = await self._get_active_current_user()
         request = models.NextVisitRequest(
             tenant_id=self.tenant_id,
             patient_id=patient_id,
             care_session_id=target_session_id,
             work_item_id=target_work_item_id,
+            associated_work_item_ids=associated_wis if associated_wis else None,
+            assigned_doctor_id=getattr(data, "assigned_doctor_id", None),
             requested_by_user_id=user.id if user else None,
             reason=reason,
             suggested_duration_minutes=duration,
@@ -1568,6 +1640,8 @@ class CareSessionService:
                 "suggested_duration_minutes": request.suggested_duration_minutes,
                 "care_session_id": target_session_id,
                 "work_item_id": target_work_item_id,
+                "associated_work_item_ids": associated_wis if associated_wis else None,
+                "assigned_doctor_id": request.assigned_doctor_id,
                 "status": "requested",
             },
             notes=data.notes,
@@ -1889,3 +1963,406 @@ class CareSessionService:
             setattr(req, "patient_name", req.patient.name)
             setattr(req, "patient_phone", req.patient.phone)
         return req
+
+    async def _get_next_visit_request_row(self, request_id: int) -> models.NextVisitRequest:
+        stmt = (
+            select(models.NextVisitRequest)
+            .options(selectinload(models.NextVisitRequest.patient))
+            .where(
+                models.NextVisitRequest.id == request_id,
+                models.NextVisitRequest.tenant_id == self.tenant_id,
+            )
+        )
+        req = (await self.db.execute(stmt)).scalar_one_or_none()
+        if not req:
+            raise HTTPException(status_code=404, detail="Next-visit request not found")
+        return req
+
+    async def stop_next_visit_request(
+        self,
+        request_id: int,
+        reason: str,
+    ) -> models.NextVisitRequest:
+        """Stop a pending next-visit reminder with an explicit reason (audited)."""
+        await self.ensure_native_writes_enabled()
+        req = await self._get_next_visit_request_row(request_id)
+        await self._verify_patient(req.patient_id)
+
+        user = await self._get_active_current_user()
+        now = datetime.now(timezone.utc)
+
+        req.status = "stopped"
+        req.stopped_at = now
+        req.stopped_reason = reason
+        req.stopped_by_user_id = user.id if user else None
+
+        stop_note = f"Stopped: {reason.strip()}"
+        req.notes = f"{req.notes} ({stop_note})" if req.notes else stop_note
+
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=req.patient_id,
+            care_session_id=req.care_session_id,
+            work_item_id=req.work_item_id,
+            event_type="next_visit_request_stopped",
+            occurred_at=now,
+            actor_user_id=user.id if user else None,
+            payload={
+                "request_id": req.id,
+                "status": "stopped",
+                "reason": reason,
+            },
+            notes=stop_note,
+        )
+        self.db.add(event)
+        await self.db.commit()
+        await self.db.refresh(req)
+        if req.patient:
+            setattr(req, "patient_name", req.patient.name)
+            setattr(req, "patient_phone", req.patient.phone)
+        return req
+
+    async def postpone_next_visit_request(
+        self,
+        request_id: int,
+        postponed_to_date: datetime,
+        reason: str,
+    ) -> models.NextVisitRequest:
+        """Postpone a next-visit reminder with a reason and new target date (audited)."""
+        await self.ensure_native_writes_enabled()
+        req = await self._get_next_visit_request_row(request_id)
+        await self._verify_patient(req.patient_id)
+
+        user = await self._get_active_current_user()
+        now = datetime.now(timezone.utc)
+
+        req.status = "postponed"
+        req.postponed_to_date = postponed_to_date
+        req.postponed_reason = reason
+        req.postponed_by_user_id = user.id if user else None
+        req.preferred_time_window_start = postponed_to_date
+
+        postpone_note = f"Postponed to {postponed_to_date.isoformat()}: {reason.strip()}"
+        req.notes = f"{req.notes} ({postpone_note})" if req.notes else postpone_note
+
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=req.patient_id,
+            care_session_id=req.care_session_id,
+            work_item_id=req.work_item_id,
+            event_type="next_visit_request_postponed",
+            occurred_at=now,
+            actor_user_id=user.id if user else None,
+            payload={
+                "request_id": req.id,
+                "status": "postponed",
+                "postponed_to_date": postponed_to_date.isoformat(),
+                "reason": reason,
+            },
+            notes=postpone_note,
+        )
+        self.db.add(event)
+        await self.db.commit()
+        await self.db.refresh(req)
+        if req.patient:
+            setattr(req, "patient_name", req.patient.name)
+            setattr(req, "patient_phone", req.patient.phone)
+        return req
+
+    async def resume_next_visit_request(
+        self,
+        request_id: int,
+        reason: Optional[str] = None,
+    ) -> models.NextVisitRequest:
+        """Resume an active follow-up reminder that was previously stopped or postponed."""
+        await self.ensure_native_writes_enabled()
+        req = await self._get_next_visit_request_row(request_id)
+        await self._verify_patient(req.patient_id)
+
+        user = await self._get_active_current_user()
+        now = datetime.now(timezone.utc)
+
+        req.status = "requested"
+        req.stopped_at = None
+        req.stopped_reason = None
+        req.stopped_by_user_id = None
+
+        resume_note = f"Resumed: {reason.strip()}" if reason and reason.strip() else "Resumed follow-up"
+        req.notes = f"{req.notes} ({resume_note})" if req.notes else resume_note
+
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=req.patient_id,
+            care_session_id=req.care_session_id,
+            work_item_id=req.work_item_id,
+            event_type="next_visit_request_resumed",
+            occurred_at=now,
+            actor_user_id=user.id if user else None,
+            payload={
+                "request_id": req.id,
+                "status": "requested",
+                "reason": reason,
+            },
+            notes=resume_note,
+        )
+        self.db.add(event)
+        await self.db.commit()
+        await self.db.refresh(req)
+        if req.patient:
+            setattr(req, "patient_name", req.patient.name)
+            setattr(req, "patient_phone", req.patient.phone)
+        return req
+
+    async def handoff_next_visit_request(
+        self,
+        request_id: int,
+        handoff_to_user_id: int,
+        reason: str,
+        notes: Optional[str] = None,
+    ) -> models.NextVisitRequest:
+        """Handoff follow-up responsibility to another doctor in tenant (audited)."""
+        await self.ensure_native_writes_enabled()
+        req = await self._get_next_visit_request_row(request_id)
+        await self._verify_patient(req.patient_id)
+
+        # Validate recipient doctor belongs to tenant
+        recipient = (await self.db.execute(
+            select(models.User).where(
+                models.User.id == handoff_to_user_id,
+                models.User.tenant_id == self.tenant_id,
+            )
+        )).scalar_one_or_none()
+        if not recipient:
+            raise HTTPException(status_code=404, detail="Handoff recipient doctor not found in clinic")
+
+        # Verify recipient has access to patient
+        await ensure_patient_visible(self.db, recipient, req.patient_id)
+
+        user = await self._get_active_current_user()
+        now = datetime.now(timezone.utc)
+
+        req.assigned_doctor_id = handoff_to_user_id
+        req.handoff_at = now
+        req.handoff_reason = reason
+        req.handoff_by_user_id = user.id if user else None
+        req.handoff_to_user_id = handoff_to_user_id
+
+        handoff_note = f"Handoff to Dr. {getattr(recipient, 'name', handoff_to_user_id)}: {reason}"
+        if notes:
+            handoff_note += f". Instructions: {notes}"
+        req.notes = f"{req.notes} ({handoff_note})" if req.notes else handoff_note
+
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=req.patient_id,
+            care_session_id=req.care_session_id,
+            work_item_id=req.work_item_id,
+            event_type="next_visit_request_handed_off",
+            occurred_at=now,
+            actor_user_id=user.id if user else None,
+            payload={
+                "request_id": req.id,
+                "handoff_to_user_id": handoff_to_user_id,
+                "reason": reason,
+                "instructions": notes,
+            },
+            notes=handoff_note,
+        )
+        self.db.add(event)
+        await self.db.commit()
+        await self.db.refresh(req)
+        if req.patient:
+            setattr(req, "patient_name", req.patient.name)
+            setattr(req, "patient_phone", req.patient.phone)
+        return req
+
+    # -----------------------------------------------------------------------
+    # Server Drafts Management (Step 3 / Section 2.6)
+    # -----------------------------------------------------------------------
+
+    async def save_draft(
+        self,
+        patient_id: int,
+        payload: schemas.CareSessionDraftSave,
+    ) -> models.CareSessionDraft:
+        """Save autosaved documentation draft with optimistic concurrency."""
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        user = await self._get_active_current_user()
+        if not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+        now = datetime.now(timezone.utc)
+        stmt = select(models.CareSessionDraft).where(
+            models.CareSessionDraft.tenant_id == self.tenant_id,
+            models.CareSessionDraft.patient_id == patient_id,
+            models.CareSessionDraft.author_user_id == user.id,
+        ).with_for_update()
+        draft = (await self.db.execute(stmt)).scalar_one_or_none()
+
+        if draft:
+            if payload.expected_version_id is not None and draft.version_id != payload.expected_version_id:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "message": f"Draft conflict: expected version {payload.expected_version_id}, server has {draft.version_id}",
+                        "current_version_id": draft.version_id,
+                        "server_draft_data": draft.draft_payload,
+                    },
+                )
+            draft.draft_payload = payload.draft_data
+            draft.care_session_id = payload.care_session_id
+            draft.version_id += 1
+            draft.updated_at = now
+        else:
+            draft = models.CareSessionDraft(
+                tenant_id=self.tenant_id,
+                patient_id=patient_id,
+                author_user_id=user.id,
+                care_session_id=payload.care_session_id,
+                draft_payload=payload.draft_data,
+                version_id=1,
+                created_at=now,
+                updated_at=now,
+            )
+            self.db.add(draft)
+
+        try:
+            await self.db.commit()
+            await self.db.refresh(draft)
+        except (IntegrityError, StaleDataError) as exc:
+            await self.db.rollback()
+            raise HTTPException(status_code=409, detail="Concurrent conflict while saving draft") from exc
+
+        return draft
+
+    async def get_draft(
+        self,
+        patient_id: int,
+    ) -> Optional[models.CareSessionDraft]:
+        """Recover editable draft for current author on this patient."""
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        user = await self._get_active_current_user()
+        if not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+        stmt = select(models.CareSessionDraft).where(
+            models.CareSessionDraft.tenant_id == self.tenant_id,
+            models.CareSessionDraft.patient_id == patient_id,
+            models.CareSessionDraft.author_user_id == user.id,
+        )
+        return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def delete_draft(
+        self,
+        patient_id: int,
+    ) -> bool:
+        """Clear draft after successful finalization or discarding."""
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        user = await self._get_active_current_user()
+        if not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+        stmt = select(models.CareSessionDraft).where(
+            models.CareSessionDraft.tenant_id == self.tenant_id,
+            models.CareSessionDraft.patient_id == patient_id,
+            models.CareSessionDraft.author_user_id == user.id,
+        )
+        draft = (await self.db.execute(stmt)).scalar_one_or_none()
+        if draft:
+            await self.db.delete(draft)
+            await self.db.commit()
+            return True
+        return False
+
+    # -----------------------------------------------------------------------
+    # Observation Amendments & Supersession (Section 2.7)
+    # -----------------------------------------------------------------------
+
+    async def amend_observation(
+        self,
+        patient_id: int,
+        observation_id: int,
+        payload: schemas.CareObservationAmend,
+    ) -> models.CareObservation:
+        """
+        Amend a chairside observation / measurement.
+        Preserves original row, sets is_superseded=True, and creates replacement observation
+        referencing original. Atomically logs observation_amended ClinicalEvent.
+        """
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        user = await self._get_active_current_user()
+        now = datetime.now(timezone.utc)
+
+        stmt = select(models.CareObservation).where(
+            models.CareObservation.id == observation_id,
+            models.CareObservation.tenant_id == self.tenant_id,
+            models.CareObservation.patient_id == patient_id,
+        ).with_for_update()
+        orig = (await self.db.execute(stmt)).scalar_one_or_none()
+        if not orig:
+            raise HTTPException(status_code=404, detail="Observation not found")
+
+        if orig.is_superseded:
+            raise HTTPException(status_code=409, detail="Observation has already been superseded by a prior amendment")
+
+        merged_sv = dict(orig.structured_value or {})
+        if payload.structured_value is not None:
+            merged_sv.update(payload.structured_value)
+        if payload.surface_code:
+            merged_sv["surface_code"] = payload.surface_code
+        if payload.root_id:
+            merged_sv["root_id"] = payload.root_id
+        if payload.canal_id:
+            merged_sv["canal_id"] = payload.canal_id
+
+        new_obs = models.CareObservation(
+            tenant_id=self.tenant_id,
+            patient_id=patient_id,
+            care_session_id=orig.care_session_id,
+            step_id=orig.step_id,
+            work_item_id=orig.work_item_id,
+            observation_code=payload.observation_code or orig.observation_code,
+            tooth_key=payload.tooth_key or orig.tooth_key,
+            structured_value=merged_sv,
+            notes=f"[Amendment] {payload.reason}: {payload.notes or ''}".strip(),
+            recorded_by_user_id=user.id if user else None,
+            recorded_at=now,
+            amendment_reason=payload.reason,
+            reference_source_session_id=orig.care_session_id,
+            reference_source_date=orig.recorded_at or orig.created_at,
+        )
+        self.db.add(new_obs)
+        await self.db.flush()
+
+        orig.is_superseded = True
+        orig.superseded_by_id = new_obs.id
+        orig.amendment_reason = payload.reason
+
+        event = models.ClinicalEvent(
+            tenant_id=self.tenant_id,
+            patient_id=patient_id,
+            care_session_id=orig.care_session_id,
+            work_item_id=orig.work_item_id,
+            event_type="observation_amended",
+            occurred_at=now,
+            actor_user_id=user.id if user else None,
+            payload={
+                "original_observation_id": orig.id,
+                "replacement_observation_id": new_obs.id,
+                "reason": payload.reason,
+            },
+            notes=payload.reason,
+        )
+        self.db.add(event)
+
+        await self.db.commit()
+        await self.db.refresh(new_obs)
+        return new_obs

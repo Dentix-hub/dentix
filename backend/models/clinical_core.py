@@ -38,6 +38,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     column,
+    false,
     func,
     text,
     true,
@@ -148,6 +149,7 @@ class ClinicalWorkItem(Base):
     observations = relationship("CareObservation", back_populates="work_item")
     next_visit_requests = relationship("NextVisitRequest", back_populates="work_item")
     attachment_links = relationship("ClinicalAttachmentLink", back_populates="work_item")
+    session_procedures = relationship("CareSessionProcedure", back_populates="work_item", cascade="all, delete-orphan")
     lab_orders = relationship("LabOrder", back_populates="work_item", lazy="selectin")
 
     @validates("code")
@@ -456,6 +458,11 @@ class CareSession(Base):
     started_at = Column(DateTime(timezone=True), nullable=True)
     finished_at = Column(DateTime(timezone=True), nullable=True)
     notes = Column(Text, nullable=True)
+    actual_visit_date = Column(DateTime(timezone=True), nullable=True)
+    recorded_by_user_id = Column(Integer, nullable=True, index=True)
+    is_historical = Column(Boolean, nullable=False, default=False, server_default=false())
+    amends_session_id = Column(Integer, nullable=True, index=True)
+    amendment_reason = Column(Text, nullable=True)
     version_id = Column(Integer, nullable=False, default=1, server_default="1")
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
@@ -465,6 +472,7 @@ class CareSession(Base):
         Index("ix_cs_tenant_patient", "tenant_id", "patient_id"),
         Index("ix_cs_tenant_status", "tenant_id", "status"),
         Index("ix_cs_tenant_appointment", "tenant_id", "appointment_id"),
+        Index("ix_cs_tenant_actual_visit", "tenant_id", "actual_visit_date"),
     )
 
     __mapper_args__ = {
@@ -474,6 +482,18 @@ class CareSession(Base):
     patient = relationship("Patient")
     appointment = relationship("Appointment")
     provider = relationship("User", foreign_keys=[provider_user_id])
+    recorded_by = relationship("User", foreign_keys=[recorded_by_user_id], primaryjoin="CareSession.recorded_by_user_id == User.id")
+    amended_session = relationship("CareSession", remote_side=[id], foreign_keys=[amends_session_id], primaryjoin="CareSession.amends_session_id == CareSession.id")
+    procedures = relationship(
+        "CareSessionProcedure",
+        back_populates="care_session",
+        cascade="all, delete-orphan",
+    )
+    drafts = relationship(
+        "CareSessionDraft",
+        back_populates="care_session",
+        cascade="all, delete-orphan",
+    )
     steps = relationship(
         "CareSessionStep",
         back_populates="care_session",
@@ -484,6 +504,7 @@ class CareSession(Base):
         "CareObservation",
         back_populates="care_session",
         cascade="all, delete-orphan",
+        foreign_keys="[CareObservation.care_session_id]",
     )
     events = relationship("ClinicalEvent", back_populates="care_session")
     next_visit_requests = relationship("NextVisitRequest", back_populates="care_session")
@@ -505,6 +526,11 @@ class CareSessionStep(Base):
     work_item_id = Column(Integer, ForeignKey("clinical_work_items.id", ondelete="SET NULL"), nullable=True, index=True)
     step_order = Column(Integer, nullable=False, default=1, server_default="1")
     step_code = Column(String(64), nullable=False)
+    logical_step_code = Column(String(64), nullable=True)
+    occurrence_number = Column(Integer, nullable=False, default=1, server_default="1")
+    template_step_id = Column(String(64), nullable=True)
+    is_repeat = Column(Boolean, nullable=False, default=False, server_default=false())
+    repeat_reason = Column(Text, nullable=True)
     title = Column(String(255), nullable=False)
     status = Column(String(32), nullable=False, default="pending", server_default="pending")
     started_at = Column(DateTime(timezone=True), nullable=True)
@@ -522,6 +548,7 @@ class CareSessionStep(Base):
         UniqueConstraint("care_session_id", "step_order", name="uq_css_session_step_order"),
         Index("ix_css_tenant_session", "tenant_id", "care_session_id"),
         Index("ix_css_tenant_work_item", "tenant_id", "work_item_id"),
+        Index("ix_css_tenant_wi_logical_step", "tenant_id", "work_item_id", "logical_step_code"),
     )
 
     __mapper_args__ = {
@@ -553,6 +580,11 @@ class CareObservation(Base):
     notes = Column(Text, nullable=True)
     recorded_at = Column(DateTime(timezone=True), nullable=False, default=func.now(), server_default=func.now())
     recorded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    is_superseded = Column(Boolean, nullable=False, default=False, server_default=false())
+    superseded_by_id = Column(Integer, nullable=True, index=True)
+    amendment_reason = Column(Text, nullable=True)
+    reference_source_session_id = Column(Integer, nullable=True, index=True)
+    reference_source_date = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
 
     __table_args__ = (
@@ -565,7 +597,9 @@ class CareObservation(Base):
     )
 
     patient = relationship("Patient")
-    care_session = relationship("CareSession", back_populates="observations")
+    care_session = relationship("CareSession", back_populates="observations", foreign_keys=[care_session_id])
+    reference_source_session = relationship("CareSession", foreign_keys=[reference_source_session_id], primaryjoin="CareObservation.reference_source_session_id == CareSession.id")
+    superseded_by = relationship("CareObservation", remote_side=[id], foreign_keys=[superseded_by_id], primaryjoin="CareObservation.superseded_by_id == CareObservation.id")
     step = relationship("CareSessionStep", back_populates="observations")
     work_item = relationship("ClinicalWorkItem", back_populates="observations")
     recorded_by = relationship("User", foreign_keys=[recorded_by_user_id])
@@ -632,6 +666,18 @@ class NextVisitRequest(Base):
     preferred_time_window_end = Column(DateTime(timezone=True), nullable=True)
     status = Column(String(32), nullable=False, default="requested", server_default="requested")
     notes = Column(Text, nullable=True)
+    associated_work_item_ids = Column(JSON, nullable=True, default=list)
+    assigned_doctor_id = Column(Integer, nullable=True, index=True)
+    stopped_at = Column(DateTime(timezone=True), nullable=True)
+    stopped_reason = Column(Text, nullable=True)
+    stopped_by_user_id = Column(Integer, nullable=True, index=True)
+    postponed_to_date = Column(DateTime(timezone=True), nullable=True)
+    postponed_reason = Column(Text, nullable=True)
+    postponed_by_user_id = Column(Integer, nullable=True, index=True)
+    handoff_at = Column(DateTime(timezone=True), nullable=True)
+    handoff_reason = Column(Text, nullable=True)
+    handoff_by_user_id = Column(Integer, nullable=True, index=True)
+    handoff_to_user_id = Column(Integer, nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
 
@@ -643,12 +689,18 @@ class NextVisitRequest(Base):
         Index("ix_nvr_tenant_status", "tenant_id", "status"),
         Index("ix_nvr_tenant_care_session", "tenant_id", "care_session_id"),
         Index("ix_nvr_tenant_work_item", "tenant_id", "work_item_id"),
+        Index("ix_nvr_tenant_assigned_doc", "tenant_id", "assigned_doctor_id"),
     )
 
     patient = relationship("Patient")
     care_session = relationship("CareSession", back_populates="next_visit_requests")
     work_item = relationship("ClinicalWorkItem", back_populates="next_visit_requests")
     requested_by = relationship("User", foreign_keys=[requested_by_user_id])
+    assigned_doctor = relationship("User", foreign_keys=[assigned_doctor_id], primaryjoin="NextVisitRequest.assigned_doctor_id == User.id")
+    stopped_by = relationship("User", foreign_keys=[stopped_by_user_id], primaryjoin="NextVisitRequest.stopped_by_user_id == User.id")
+    postponed_by = relationship("User", foreign_keys=[postponed_by_user_id], primaryjoin="NextVisitRequest.postponed_by_user_id == User.id")
+    handoff_by = relationship("User", foreign_keys=[handoff_by_user_id], primaryjoin="NextVisitRequest.handoff_by_user_id == User.id")
+    handoff_to = relationship("User", foreign_keys=[handoff_to_user_id], primaryjoin="NextVisitRequest.handoff_to_user_id == User.id")
 
 
 class ClinicalAttachmentLink(Base):
@@ -829,6 +881,81 @@ class ClinicalCharge(Base):
     legacy_treatment = relationship("Treatment", foreign_keys=[legacy_treatment_id])
 
 
+class CareSessionProcedure(Base):
+    """
+    Explicit association between a CareSession (visit) and a ClinicalWorkItem (procedure).
+    Enables documenting procedures with visit notes, template snapshots, and next actions.
+    """
+    __tablename__ = "care_session_procedures"
+
+    __rls_policies__ = _tenant_rls_policy()
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    care_session_id = Column(Integer, ForeignKey("care_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    work_item_id = Column(Integer, ForeignKey("clinical_work_items.id", ondelete="CASCADE"), nullable=False, index=True)
+    procedure_notes = Column(Text, nullable=True)
+    next_action = Column(Text, nullable=True)
+    next_action_reason_omitted = Column(Text, nullable=True)
+    template_snapshot = Column(JSON, nullable=True)
+    template_version = Column(Integer, nullable=True)
+    performing_user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("care_session_id", "work_item_id", name="uq_csp_session_work_item"),
+        Index("ix_csp_tenant_session", "tenant_id", "care_session_id"),
+        Index("ix_csp_tenant_work_item", "tenant_id", "work_item_id"),
+    )
+
+    care_session = relationship("CareSession", back_populates="procedures")
+    work_item = relationship("ClinicalWorkItem", back_populates="session_procedures")
+    performing_user = relationship("User", foreign_keys=[performing_user_id])
+
+
+class CareSessionDraft(Base):
+    """
+    Persisted chairside documentation draft with optimistic concurrency (version_id).
+    Draft edits never trigger financial, billing, or terminal clinical completions.
+    """
+    __tablename__ = "care_session_drafts"
+
+    __rls_policies__ = _tenant_rls_policy()
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    patient_id = Column(Integer, ForeignKey("patients.id", ondelete="CASCADE"), nullable=False, index=True)
+    care_session_id = Column(Integer, ForeignKey("care_sessions.id", ondelete="CASCADE"), nullable=True, index=True)
+    author_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    draft_payload = Column(JSON, nullable=False, default=dict)
+    version_id = Column(Integer, nullable=False, default=1, server_default="1")
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
+
+    @property
+    def draft_data(self):
+        return self.draft_payload
+
+    @draft_data.setter
+    def draft_data(self, val):
+        self.draft_payload = val
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "patient_id", "author_user_id", "care_session_id", name="uq_csd_tenant_patient_author_session"),
+        Index("ix_csd_tenant_patient_author", "tenant_id", "patient_id", "author_user_id"),
+        Index("ix_csd_tenant_session", "tenant_id", "care_session_id"),
+    )
+
+    __mapper_args__ = {
+        "version_id_col": version_id,
+    }
+
+    patient = relationship("Patient")
+    care_session = relationship("CareSession", back_populates="drafts")
+    author = relationship("User", foreign_keys=[author_user_id])
+
+
 __all__ = [
     "ClinicalWorkItem",
     "ClinicalWorkItemTarget",
@@ -838,6 +965,8 @@ __all__ = [
     "ClinicalEvent",
     "ClinicalEventTarget",
     "CareSession",
+    "CareSessionProcedure",
+    "CareSessionDraft",
     "CareSessionStep",
     "CareObservation",
     "WorkflowTemplate",

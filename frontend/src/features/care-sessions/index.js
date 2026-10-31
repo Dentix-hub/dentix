@@ -5,4 +5,6 @@ export { default as FinishCareSessionSheet } from './FinishCareSessionSheet';
 export { default as CareSessionActiveBanner } from './CareSessionActiveBanner';
 export { default as ContinueTreatmentCard } from './ContinueTreatmentCard';
 export { default as LabHandoffSheet } from './LabHandoffSheet';
+export { default as FollowUpManagementModal } from './FollowUpManagementModal';
+export { useCareSessionDraft } from './useCareSessionDraft';
 export * from './canalAnatomy';

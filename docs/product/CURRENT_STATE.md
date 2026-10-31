@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Care Sessions Workflow Unification (feat/care-session-workflow-unification, 2026-10-31): Unified chairside visit model (1 visit = N procedures/teeth, 1 procedure = N visits), ~10s inline status shortcut with pending-charge auto-void and invoiced review warning, ~1-min chairside notes, optimistic server drafts (PUT/GET/DELETE /draft), observation amendments (superseded lineage), and multi-procedure follow-up lifecycle (stop/postpone/resume/handoff).
+- Resolved all 7 known defects: (1) step repetition preservation, (2) procedure-scoped step copying, (3) multi-procedure continuation card tabs/resume-all, (4) actual_visit_date display parity, (5) next_session_date backend persistence, (6) expandable real care session visit history in treatments table, (7) inline ProcedureStatusControl without full modal.
+- Verification: 68 backend tests PASS (0 failed, 1 PostgreSQL skip); 50 targeted frontend Vitest tests PASS across 9 test suites; Vite build, design guardrails and strict marketing semantic checks PASS. Gated under clinical_vnext_native_writes. Status: DONE locally; remote delivery pending authorization.
+
 - Arabic UI polish (2026-10-30): password visibility and patient search controls occupy separate layout slots; remember-me has a larger pointer/keyboard target; quick-start checklist temporarily hidden on Dashboard.
 - Revenue/status charts now lazy-load as complete charts so Recharts recognizes series/axes; zero-revenue and empty status data display explicit messages. Existing efficiency, financial values and APIs retained.
 - Date picker uses Arabic months/weekdays/periods, Saturday-first RTL calendar and LTR numeric time grids; desktop RTL dialog stays centered. ISO date/month/datetime output unchanged.

@@ -11,10 +11,28 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 class CareSessionCreate(BaseModel):
     appointment_id: Optional[int] = None
     notes: Optional[str] = None
+    work_item_ids: Optional[List[int]] = Field(default_factory=list, description="Associated clinical work item IDs for this care session")
     resume_work_item_id: Optional[int] = Field(None, description="Optional work item ID to resume in this new session")
     resume_from_session_id: Optional[int] = Field(None, description="Optional previous care session ID to carry forward steps and observations from")
+    actual_visit_date: Optional[datetime] = Field(None, description="Actual visit date/time if distinct from recording time")
+    is_historical: bool = Field(False, description="Flag indicating if this is documenting a past historical visit")
 
     model_config = ConfigDict(extra="forbid")
+
+
+class CareSessionProcedureRead(BaseModel):
+    id: int
+    tenant_id: int
+    care_session_id: int
+    work_item_id: int
+    notes: Optional[str] = None
+    template_code: Optional[str] = None
+    template_version: Optional[int] = None
+    template_snapshot: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 
 # ---------------------------------------------------------------------------
@@ -31,6 +49,8 @@ class CareSessionLinkAppointment(BaseModel):
 class NextVisitRequestCreate(BaseModel):
     care_session_id: Optional[int] = Field(None, description="Optional care session ID generating this request")
     work_item_id: Optional[int] = Field(None, description="Optional clinical work item ID")
+    associated_work_item_ids: Optional[List[int]] = Field(default_factory=list, description="Associated clinical work item IDs")
+    assigned_doctor_id: Optional[int] = Field(None, description="Assigned doctor user ID")
     reason: Optional[str] = Field(None, description="Reason for next visit (auto-populated if omitted)")
     suggested_duration_minutes: int = Field(30, ge=5, le=480, description="Suggested appointment duration in minutes")
     preferred_time_window_start: Optional[datetime] = Field(None, description="Preferred window start datetime")
@@ -50,12 +70,35 @@ class NextVisitRequestSchedule(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class NextVisitRequestStop(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=500, description="Reason for stopping follow-up reminders")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class NextVisitRequestPostpone(BaseModel):
+    postponed_to_date: datetime = Field(..., description="New target reminder date")
+    reason: str = Field(..., min_length=1, max_length=500, description="Reason for postponing follow-up")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class NextVisitRequestHandoff(BaseModel):
+    handoff_to_user_id: int = Field(..., description="Target doctor user ID")
+    reason: str = Field(..., min_length=1, max_length=500, description="Clinical reason for handoff")
+    notes: Optional[str] = Field(None, max_length=1000, description="Next tasks and instructions for receiving doctor")
+
+    model_config = ConfigDict(extra="forbid")
+
+
 class NextVisitRequestRead(BaseModel):
     id: int
     tenant_id: int
     patient_id: int
     care_session_id: Optional[int] = None
     work_item_id: Optional[int] = None
+    associated_work_item_ids: Optional[List[int]] = None
+    assigned_doctor_id: Optional[int] = None
     requested_by_user_id: Optional[int] = None
     reason: str
     suggested_duration_minutes: int = 30
@@ -63,6 +106,16 @@ class NextVisitRequestRead(BaseModel):
     preferred_time_window_end: Optional[datetime] = None
     status: str = "requested"
     notes: Optional[str] = None
+    stopped_at: Optional[datetime] = None
+    stopped_reason: Optional[str] = None
+    stopped_by_user_id: Optional[int] = None
+    postponed_to_date: Optional[datetime] = None
+    postponed_reason: Optional[str] = None
+    postponed_by_user_id: Optional[int] = None
+    handoff_at: Optional[datetime] = None
+    handoff_reason: Optional[str] = None
+    handoff_by_user_id: Optional[int] = None
+    handoff_to_user_id: Optional[int] = None
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     patient_name: Optional[str] = None
@@ -127,8 +180,18 @@ class CareSessionFinish(BaseModel):
     next_visit_request: Optional[NextVisitRequestCreate] = Field(
         None, description="Optional chairside next-visit request to create when completing session"
     )
+    next_visit_requests: Optional[List[NextVisitRequestCreate]] = Field(
+        None, description="Optional multiple chairside next-visit requests"
+    )
 
     model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def validate_requests(self) -> "CareSessionFinish":
+        if self.next_visit_request is not None and self.next_visit_requests is not None:
+            raise ValueError("Provide either next_visit_request or next_visit_requests, not both")
+        return self
+
 
 
 class CareSessionTransition(BaseModel):
@@ -176,6 +239,11 @@ class CareSessionStepRead(BaseModel):
     work_item_id: Optional[int] = None
     step_order: int
     step_code: str
+    logical_step_code: Optional[str] = None
+    occurrence_number: int = 1
+    template_step_id: Optional[str] = None
+    is_repeat: bool = False
+    repeat_reason: Optional[str] = None
     title: str
     status: str
     started_at: Optional[datetime] = None
@@ -186,6 +254,7 @@ class CareSessionStepRead(BaseModel):
     updated_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
 
 
 class CareSessionTemplateApply(BaseModel):
@@ -230,6 +299,11 @@ class CareObservationRead(BaseModel):
     notes: Optional[str] = None
     recorded_at: Optional[datetime] = None
     recorded_by_user_id: Optional[int] = None
+    is_superseded: bool = False
+    superseded_by_id: Optional[int] = None
+    amendment_reason: Optional[str] = None
+    reference_source_session_id: Optional[int] = None
+    reference_source_date: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
@@ -255,6 +329,11 @@ class CareObservationRead(BaseModel):
                 "notes": data.notes,
                 "recorded_at": data.recorded_at,
                 "recorded_by_user_id": data.recorded_by_user_id,
+                "is_superseded": getattr(data, "is_superseded", False),
+                "superseded_by_id": getattr(data, "superseded_by_id", None),
+                "amendment_reason": getattr(data, "amendment_reason", None),
+                "reference_source_session_id": getattr(data, "reference_source_session_id", None),
+                "reference_source_date": getattr(data, "reference_source_date", None),
                 "created_at": data.created_at,
             }
         elif isinstance(data, dict):
@@ -265,6 +344,65 @@ class CareObservationRead(BaseModel):
                 data["root_id"] = sv["root_id"]
             if "canal_id" not in data and "canal_id" in sv:
                 data["canal_id"] = sv["canal_id"]
+        return data
+
+
+class CareObservationAmend(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=500, description="Reason for amendment")
+    observation_code: Optional[str] = None
+    tooth_key: Optional[str] = None
+    surface_code: Optional[str] = None
+    root_id: Optional[str] = None
+    canal_id: Optional[str] = None
+    structured_value: Optional[Dict[str, Any]] = None
+    notes: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CareSessionDraftSave(BaseModel):
+    draft_data: Dict[str, Any] = Field(..., description="Draft payload containing uncommitted form state")
+    expected_version_id: Optional[int] = Field(None, description="Expected draft version ID for optimistic concurrency")
+    care_session_id: Optional[int] = Field(None, description="Optional active care session ID")
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class CareSessionDraftRead(BaseModel):
+    id: int
+    tenant_id: int
+    patient_id: int
+    author_user_id: int
+    care_session_id: Optional[int] = None
+    draft_data: Dict[str, Any] = Field(default_factory=dict)
+    draft_payload: Optional[Dict[str, Any]] = None
+    version_id: int = 1
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_draft_payload(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if "draft_payload" in data and "draft_data" not in data:
+                data["draft_data"] = data["draft_payload"]
+            return data
+        payload = getattr(data, "draft_payload", None)
+        if payload is not None and not getattr(data, "draft_data", None):
+            return {
+                "id": getattr(data, "id", None),
+                "tenant_id": getattr(data, "tenant_id", None),
+                "patient_id": getattr(data, "patient_id", None),
+                "author_user_id": getattr(data, "author_user_id", None),
+                "care_session_id": getattr(data, "care_session_id", None),
+                "draft_data": payload,
+                "draft_payload": payload,
+                "version_id": getattr(data, "version_id", 1),
+                "created_at": getattr(data, "created_at", None),
+                "updated_at": getattr(data, "updated_at", None),
+            }
         return data
 
 
@@ -282,11 +420,17 @@ class CareSessionRead(BaseModel):
     status: str
     started_at: Optional[datetime] = None
     finished_at: Optional[datetime] = None
+    actual_visit_date: Optional[datetime] = None
+    recorded_by_user_id: Optional[int] = None
+    is_historical: bool = False
+    amends_session_id: Optional[int] = None
+    amendment_reason: Optional[str] = None
     notes: Optional[str] = None
     version_id: int = 1
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     summary: Optional[str] = None
+    procedures: List[CareSessionProcedureRead] = Field(default_factory=list)
     steps: List[CareSessionStepRead] = Field(default_factory=list)
     observations: List[CareObservationRead] = Field(default_factory=list)
     next_visit_requests: List[NextVisitRequestRead] = Field(default_factory=list)
@@ -312,11 +456,17 @@ class CareSessionRead(BaseModel):
                     "status": getattr(data, "status", None),
                     "started_at": getattr(data, "started_at", None),
                     "finished_at": getattr(data, "finished_at", None),
+                    "actual_visit_date": getattr(data, "actual_visit_date", None),
+                    "recorded_by_user_id": getattr(data, "recorded_by_user_id", None),
+                    "is_historical": getattr(data, "is_historical", False),
+                    "amends_session_id": getattr(data, "amends_session_id", None),
+                    "amendment_reason": getattr(data, "amendment_reason", None),
                     "notes": getattr(data, "notes", None),
                     "version_id": getattr(data, "version_id", 1),
                     "created_at": getattr(data, "created_at", None),
                     "updated_at": getattr(data, "updated_at", None),
                     "summary": getattr(data, "summary", None),
+                    "procedures": [] if "procedures" in unloaded else getattr(data, "procedures", []),
                     "steps": [] if "steps" in unloaded else getattr(data, "steps", []),
                     "observations": [] if "observations" in unloaded else getattr(data, "observations", []),
                     "next_visit_requests": [] if "next_visit_requests" in unloaded else getattr(data, "next_visit_requests", []),
@@ -324,6 +474,7 @@ class CareSessionRead(BaseModel):
         except Exception:
             pass
         return data
+
 
 
 # ---------------------------------------------------------------------------

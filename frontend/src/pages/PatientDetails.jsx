@@ -960,6 +960,7 @@ export default function PatientDetails() {
                         {activeTab === 'history' && (
                             <TreatmentHistory
                                 history={history}
+                                patientId={id}
                                 onAdd={openManualTreatment}
                                 onEdit={handleEditTreatment}
                                 onDelete={handleDeleteTreatment}
