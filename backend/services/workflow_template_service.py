@@ -344,3 +344,37 @@ class WorkflowTemplateService:
             pass
 
         return None
+
+    async def is_template_deactivated(self, procedure_or_template_code: str) -> bool:
+        """
+        Check if a template matching the procedure or template code is explicitly deactivated for this clinic.
+        """
+        if not procedure_or_template_code:
+            return False
+        code = procedure_or_template_code.strip().upper()
+
+        stmt = (
+            select(models.WorkflowTemplate)
+            .where(models.WorkflowTemplate.tenant_id == self.tenant_id)
+            .order_by(models.WorkflowTemplate.version.desc())
+        )
+        result = await self.db.execute(stmt)
+        tenant_templates = list(result.scalars().all())
+
+        tenant_latest: Dict[str, models.WorkflowTemplate] = {}
+        for t in tenant_templates:
+            if t.template_code not in tenant_latest:
+                tenant_latest[t.template_code] = t
+
+        matching = []
+        for t in tenant_latest.values():
+            proc_c = (t.definition.get("procedure_code") or t.template_code or "").strip().upper()
+            if proc_c == code or t.template_code == code:
+                priority = 1 if (t.definition.get("procedure_code") or "").strip().upper() == code else 2
+                matching.append((priority, t))
+
+        if matching:
+            matching.sort(key=lambda x: (x[0], -(x[1].id or 0)))
+            return not bool(matching[0][1].is_active)
+
+        return False

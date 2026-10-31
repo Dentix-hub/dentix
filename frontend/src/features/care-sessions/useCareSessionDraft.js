@@ -225,6 +225,7 @@ export function useCareSessionDraft({
                     setStatus('error');
                     setErrorMessage(err.response?.data?.detail || err.message || 'Draft autosave failed');
                 }
+                throw err;
             }
         },
         [patientId, careSessionId, enabled]
@@ -244,7 +245,7 @@ export function useCareSessionDraft({
                         clearTimeout(debounceTimerRef.current);
                     }
                     debounceTimerRef.current = setTimeout(() => {
-                        saveToServer(next);
+                        saveToServer(next).catch(() => {});
                     }, DEBOUNCE_DELAY_MS);
                 }
 
@@ -258,8 +259,9 @@ export function useCareSessionDraft({
     const saveNow = useCallback(async () => {
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);
+            debounceTimerRef.current = null;
         }
-        await saveToServer(latestDataRef.current);
+        return await saveToServer(latestDataRef.current);
     }, [saveToServer]);
 
     // Conflict resolution: overwrite or accept server draft

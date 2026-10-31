@@ -219,17 +219,21 @@ export default function GenericVisitWorkspace({
 
     const handleSaveMeasurement = (measurement) => {
         if (onSaveObservation) {
+            const lengthVal = measurement.length_mm != null ? Number(measurement.length_mm) : undefined;
             onSaveObservation({
                 observation_code: 'working_length',
                 work_item_id: selectedWorkItemId,
-                tooth_key: String(procedureToothKey),
+                tooth_key: String(procedureToothKey || measurement.tooth_key),
                 canal_id: measurement.canal_id,
                 root_id: measurement.root_id,
                 structured_value: {
-                    length_mm: measurement.length_mm,
+                    length_mm: lengthVal,
                     reference_point: measurement.reference_point,
                     maf: measurement.maf,
                 },
+                length_mm: lengthVal,
+                reference_point: measurement.reference_point,
+                maf: measurement.maf,
                 notes: measurement.notes,
             });
         }

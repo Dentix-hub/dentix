@@ -31,6 +31,11 @@ export default function FollowUpDashboard({ onSchedule }) {
     const [dueCategory, setDueCategory] = useState('all'); // all, overdue, upcoming, unscheduled
     const [status, setStatus] = useState('all'); // all, requested, postponed, stopped, scheduled, completed
     const [doctorId, setDoctorId] = useState('');
+    const [dateFrom, setDateFrom] = useState('');
+    const [dateTo, setDateTo] = useState('');
+    const [procedureCode, setProcedureCode] = useState('all');
+    const [page, setPage] = useState(1);
+    const pageSize = 20;
     const [managingRequest, setManagingRequest] = useState(null);
 
     // Fetch doctors
@@ -46,13 +51,19 @@ export default function FollowUpDashboard({ onSchedule }) {
 
     // Query parameters
     const queryParams = useMemo(() => {
-        const p = {};
+        const p = {
+            skip: (page - 1) * pageSize,
+            limit: pageSize,
+        };
         if (search.trim()) p.search = search.trim();
         if (dueCategory && dueCategory !== 'all') p.due_category = dueCategory;
         if (status && status !== 'all') p.status = status;
         if (doctorId) p.doctor_id = Number(doctorId);
+        if (procedureCode && procedureCode !== 'all') p.procedure_code = procedureCode;
+        if (dateFrom) p.date_from = new Date(dateFrom).toISOString();
+        if (dateTo) p.date_to = new Date(dateTo).toISOString();
         return p;
-    }, [search, dueCategory, status, doctorId]);
+    }, [search, dueCategory, status, doctorId, procedureCode, dateFrom, dateTo, page, pageSize]);
 
     // Fetch Dashboard data
     const {
@@ -70,19 +81,28 @@ export default function FollowUpDashboard({ onSchedule }) {
 
     const counts = response?.counts || {};
     const items = response?.items || [];
+    const totalCount = response?.total_count ?? response?.total ?? items.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
 
     const handleClearFilters = () => {
         setSearch('');
         setDueCategory('all');
         setStatus('all');
         setDoctorId('');
+        setProcedureCode('all');
+        setDateFrom('');
+        setDateTo('');
+        setPage(1);
     };
 
     const hasActiveFilters = Boolean(
         search.trim() ||
         (dueCategory && dueCategory !== 'all') ||
         (status && status !== 'all') ||
-        doctorId
+        doctorId ||
+        (procedureCode && procedureCode !== 'all') ||
+        dateFrom ||
+        dateTo
     );
 
     const formatTargetDate = (item) => {
@@ -302,14 +322,20 @@ export default function FollowUpDashboard({ onSchedule }) {
                             type="text"
                             data-testid="search-input"
                             value={search}
-                            onChange={(e) => setSearch(e.target.value)}
+                            onChange={(e) => {
+                                setSearch(e.target.value);
+                                setPage(1);
+                            }}
                             placeholder={t('follow_up.search_placeholder', 'Search patient name, phone, or clinical reason...')}
                             className="w-full rounded-xl border border-slate-200 bg-slate-50/60 py-2 ps-9 pe-3 text-xs focus:border-primary focus:bg-white focus:outline-none focus:ring-1 focus:ring-primary dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                         />
                         {search && (
                             <button
                                 type="button"
-                                onClick={() => setSearch('')}
+                                onClick={() => {
+                                    setSearch('');
+                                    setPage(1);
+                                }}
                                 className="absolute end-2.5 top-2.5 text-slate-400 hover:text-slate-600"
                             >
                                 <X className="h-3.5 w-3.5" />
@@ -318,11 +344,14 @@ export default function FollowUpDashboard({ onSchedule }) {
                     </div>
 
                     {/* Status Dropdown */}
-                    <div className="min-w-[140px]">
+                    <div className="min-w-[130px]">
                         <select
                             data-testid="status-select"
                             value={status}
-                            onChange={(e) => setStatus(e.target.value)}
+                            onChange={(e) => {
+                                setStatus(e.target.value);
+                                setPage(1);
+                            }}
                             className="w-full rounded-xl border border-slate-200 bg-white py-2 px-3 text-xs font-medium text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                         >
                             <option value="all">{t('common.all_statuses', 'All Statuses')}</option>
@@ -335,11 +364,14 @@ export default function FollowUpDashboard({ onSchedule }) {
                     </div>
 
                     {/* Doctor Dropdown */}
-                    <div className="min-w-[160px]">
+                    <div className="min-w-[140px]">
                         <select
                             data-testid="doctor-select"
                             value={doctorId}
-                            onChange={(e) => setDoctorId(e.target.value)}
+                            onChange={(e) => {
+                                setDoctorId(e.target.value);
+                                setPage(1);
+                            }}
                             className="w-full rounded-xl border border-slate-200 bg-white py-2 px-3 text-xs font-medium text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
                         >
                             <option value="">{t('common.all_doctors', 'All Doctors')}</option>
@@ -351,6 +383,54 @@ export default function FollowUpDashboard({ onSchedule }) {
                         </select>
                     </div>
 
+                    {/* Procedure Filter */}
+                    <div className="min-w-[140px]">
+                        <select
+                            data-testid="select-filter-procedure"
+                            value={procedureCode}
+                            onChange={(e) => {
+                                setProcedureCode(e.target.value);
+                                setPage(1);
+                            }}
+                            className="w-full rounded-xl border border-slate-200 bg-white py-2 px-3 text-xs font-medium text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        >
+                            <option value="all">{t('common.all_procedures', 'All Procedures')}</option>
+                            <option value="ENDO_RCT">Endodontics (RCT)</option>
+                            <option value="PROS_CROWN">Crown</option>
+                            <option value="PROS_BRIDGE">Bridge</option>
+                            <option value="REST_COMPOSITE">Composite Restoration</option>
+                            <option value="SURG_EXTRACTION">Extraction</option>
+                            <option value="PROS_DENTURE">Denture</option>
+                        </select>
+                    </div>
+
+                    {/* Date Range Pickers */}
+                    <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-400">
+                        <input
+                            type="date"
+                            data-testid="input-filter-date-from"
+                            value={dateFrom}
+                            onChange={(e) => {
+                                setDateFrom(e.target.value);
+                                setPage(1);
+                            }}
+                            title={t('common.date_from', 'Date from')}
+                            className="rounded-xl border border-slate-200 bg-white py-1.5 px-2.5 text-xs text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        />
+                        <span>-</span>
+                        <input
+                            type="date"
+                            data-testid="input-filter-date-to"
+                            value={dateTo}
+                            onChange={(e) => {
+                                setDateTo(e.target.value);
+                                setPage(1);
+                            }}
+                            title={t('common.date_to', 'Date to')}
+                            className="rounded-xl border border-slate-200 bg-white py-1.5 px-2.5 text-xs text-slate-700 focus:border-primary focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                        />
+                    </div>
+
                     {/* Due Category Filter Pills */}
                     <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-1 text-xs font-semibold dark:border-slate-700 dark:bg-slate-800">
                         {['all', 'overdue', 'upcoming', 'unscheduled'].map((cat) => (
@@ -358,7 +438,10 @@ export default function FollowUpDashboard({ onSchedule }) {
                                 key={cat}
                                 type="button"
                                 data-testid={`filter-cat-${cat}`}
-                                onClick={() => setDueCategory(cat)}
+                                onClick={() => {
+                                    setDueCategory(cat);
+                                    setPage(1);
+                                }}
                                 className={`rounded-lg px-2.5 py-1 capitalize transition-colors ${
                                     dueCategory === cat
                                         ? 'bg-white text-indigo-700 shadow-xs dark:bg-slate-700 dark:text-white'
@@ -527,6 +610,38 @@ export default function FollowUpDashboard({ onSchedule }) {
                                 ))}
                             </tbody>
                         </table>
+                    </div>
+                )}
+
+                {/* Pagination Controls */}
+                {totalCount > 0 && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-4 py-3 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/50">
+                        <span className="text-xs text-slate-500">
+                            {t('common.showing_results', `Showing ${Math.min((page - 1) * pageSize + 1, totalCount)} to ${Math.min(page * pageSize, totalCount)} of ${totalCount} follow-ups`)}
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="xs"
+                                data-testid="btn-prev-page"
+                                disabled={page <= 1 || isLoading}
+                                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                            >
+                                {t('common.previous', 'Previous')}
+                            </Button>
+                            <span data-testid="page-indicator" className="text-xs font-semibold text-slate-700 dark:text-slate-300 px-2">
+                                {page} / {totalPages}
+                            </span>
+                            <Button
+                                variant="outline"
+                                size="xs"
+                                data-testid="btn-next-page"
+                                disabled={page >= totalPages || isLoading}
+                                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                            >
+                                {t('common.next', 'Next')}
+                            </Button>
+                        </div>
                     </div>
                 )}
             </div>

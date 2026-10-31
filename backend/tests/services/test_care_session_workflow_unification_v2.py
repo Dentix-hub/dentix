@@ -627,3 +627,94 @@ async def test_add_procedure_initializes_the_snapshotted_steps(async_db_session,
     assert added.template_snapshot['steps']
     current = await svc.get_session(env['patient1'].id, visit.id)
     assert [s for s in current.steps if s.work_item_id == item.id], 'Workspace has no apply-template action after adding a procedure'
+
+
+@pytest.mark.asyncio
+async def test_finish_consumes_only_finishing_authors_draft(async_db_session, setup_env):
+    env = setup_env
+    visit, item, _ = await seed_visit(async_db_session, env)
+    svc = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    # A separate authorized writer has their own draft for this shared visit.
+    env['doctor2'].role = 'admin'
+    await async_db_session.commit()
+    await svc.save_draft(env['patient1'].id, schemas.CareSessionDraftSave(care_session_id=visit.id, draft_data={f'proc_notes_{item.id}': 'Doctor A unfinished private draft'}))
+    other = CareSessionService(async_db_session, env['tenant'].id, env['doctor2'])
+    await other.save_draft(env['patient1'].id, schemas.CareSessionDraftSave(care_session_id=visit.id, draft_data={f'proc_notes_{item.id}': 'Doctor B intended final documentation'}))
+    current = await other.finish_session(env['patient1'].id, visit.id, schemas.CareSessionFinish())
+    assert current.procedures[0].procedure_notes == 'Doctor B intended final documentation'
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('field,value', [
+    ({'field_id': 'length', 'field_type': 'number', 'label': 'Length', 'is_required': True}, 'not-a-number'),
+    ({'field_id': 'shade', 'field_type': 'choice', 'label': 'Shade', 'is_required': True, 'choices': ['A1', 'A2']}, 'Unknown impossible shade'),
+    ({'field_id': 'visit_date', 'field_type': 'date', 'label': 'Visit date', 'is_required': True}, 'not-a-date'),
+])
+async def test_finish_rejects_invalid_typed_custom_fields(async_db_session, setup_env, field, value):
+    env = setup_env
+    visit, item, proc = await seed_visit(async_db_session, env)
+    proc.template_snapshot = {'custom_fields': [field], 'steps': []}
+    await async_db_session.commit()
+    svc = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    await svc.save_draft(env['patient1'].id, schemas.CareSessionDraftSave(care_session_id=visit.id, draft_data={f'proc_custom_{item.id}_{field["field_id"]}': value}))
+    with pytest.raises(HTTPException) as error:
+        await svc.finish_session(env['patient1'].id, visit.id, schemas.CareSessionFinish())
+    assert error.value.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_add_procedure_response_serializes_on_cold_identity_map(async_db_session, setup_env):
+    env = setup_env
+    visit, _, _ = await seed_visit(async_db_session, env)
+    new = models.ClinicalWorkItem(tenant_id=env['tenant'].id, patient_id=env['patient1'].id, kind='procedure', code='SURG_EXTRACTION', status='active')
+    async_db_session.add(new)
+    await async_db_session.commit()
+    patient_id, tenant_id, session_id, item_id = env['patient1'].id, env['tenant'].id, visit.id, new.id
+    actor = env['doctor1']
+    async_db_session.expunge_all()
+    svc = CareSessionService(async_db_session, tenant_id, actor)
+    result = await svc.add_procedure_to_session(patient_id, session_id, item_id)
+    response = schemas.CareSessionProcedureRead.model_validate(result)
+    assert response.work_item_version_id == 1
+    assert response.work_item_status == 'active'
+
+
+@pytest.mark.asyncio
+async def test_historical_observation_keeps_actual_visit_and_recording_time_separate(async_db_session, setup_env):
+    env = setup_env
+    item = models.ClinicalWorkItem(tenant_id=env['tenant'].id, patient_id=env['patient1'].id, kind='procedure', code='REST_COMPOSITE', status='active')
+    async_db_session.add(item)
+    await async_db_session.commit()
+    actual = datetime.now(timezone.utc) - timedelta(days=365)
+    before = datetime.now(timezone.utc)
+    svc = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    visit = await svc.start_session(env['patient1'].id, schemas.CareSessionCreate(is_historical=True, actual_visit_date=actual, work_item_ids=[item.id], historical_observations=[{'observation_code': 'measurement', 'tooth_key': '46', 'structured_value': {'value': 'A2'}}]))
+    visit_date = visit.actual_visit_date
+    if visit_date.tzinfo is None:
+        visit_date = visit_date.replace(tzinfo=timezone.utc)
+    assert visit_date == actual
+    created = visit.observations[0].created_at
+    if created.tzinfo is None:
+        created = created.replace(tzinfo=timezone.utc)
+    assert created >= before
+    recorded = visit.observations[0].recorded_at
+    if recorded.tzinfo is None:
+        recorded = recorded.replace(tzinfo=timezone.utc)
+    assert recorded >= before
+
+
+@pytest.mark.asyncio
+async def test_disabled_template_cannot_be_reactivated_by_apply_fallback(async_db_session, setup_env):
+    env = setup_env
+    from backend.services.workflow_template_service import WorkflowTemplateService
+    ts = WorkflowTemplateService(async_db_session, env['tenant'].id, env['doctor1'])
+    await ts.create_template(schemas.WorkflowTemplateCreate(template_code='REST_COMPOSITE', title='Disabled clinic protocol', is_active=False, definition={'steps': [{'step_code': 'assessment', 'step_order': 1, 'title': 'Assessment'}]}))
+    item = models.ClinicalWorkItem(tenant_id=env['tenant'].id, patient_id=env['patient1'].id, kind='procedure', code='REST_COMPOSITE', status='active')
+    async_db_session.add(item)
+    await async_db_session.commit()
+    svc = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    visit = await svc.start_session(env['patient1'].id, schemas.CareSessionCreate(work_item_ids=[item.id]))
+    assert visit.procedures[0].template_snapshot is None
+    with pytest.raises(HTTPException) as error:
+        await svc.apply_template(env['patient1'].id, visit.id, schemas.CareSessionTemplateApply(template_code='REST_COMPOSITE', work_item_id=item.id))
+    assert error.value.status_code in (400, 404)

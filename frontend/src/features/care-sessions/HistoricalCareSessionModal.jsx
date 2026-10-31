@@ -55,10 +55,71 @@ export default function HistoricalCareSessionModal({
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState(null);
 
+    // Historical Steps State
+    const [steps, setSteps] = useState([]);
+    const [newStepTitle, setNewStepTitle] = useState('');
+    const [newStepNotes, setNewStepNotes] = useState('');
+
+    // Historical Observations State
+    const [observations, setObservations] = useState([]);
+    const [obsToothKey, setObsToothKey] = useState('');
+    const [obsCode, setObsCode] = useState('measurement');
+    const [obsValue, setObsValue] = useState('');
+    const [obsCanal, setObsCanal] = useState('');
+    const [obsNotes, setObsNotes] = useState('');
+
     const toggleWorkItem = (id) => {
         setSelectedWorkItemIds((prev) =>
             prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
         );
+    };
+
+    const handleAddStep = (e) => {
+        e?.preventDefault();
+        if (!newStepTitle.trim()) return;
+        setSteps((prev) => [
+            ...prev,
+            {
+                title: newStepTitle.trim(),
+                notes: newStepNotes.trim() || null,
+                status: 'completed',
+                work_item_id: selectedWorkItemIds[0] || null,
+            },
+        ]);
+        setNewStepTitle('');
+        setNewStepNotes('');
+    };
+
+    const handleRemoveStep = (index) => {
+        setSteps((prev) => prev.filter((_, i) => i !== index));
+    };
+
+    const handleAddObservation = (e) => {
+        e?.preventDefault();
+        if (!obsValue.trim()) return;
+        const isLength = obsCode === 'working_length';
+        const numVal = isLength ? Number.parseFloat(obsValue) : undefined;
+        setObservations((prev) => [
+            ...prev,
+            {
+                observation_code: obsCode,
+                tooth_key: obsToothKey.trim() || null,
+                canal_id: obsCanal.trim() || null,
+                value: obsValue.trim(),
+                structured_value: isLength
+                    ? { length_mm: !Number.isNaN(numVal) ? numVal : undefined, value: obsValue.trim() }
+                    : { value: obsValue.trim() },
+                notes: obsNotes.trim() || null,
+                work_item_id: selectedWorkItemIds[0] || null,
+            },
+        ]);
+        setObsValue('');
+        setObsCanal('');
+        setObsNotes('');
+    };
+
+    const handleRemoveObservation = (index) => {
+        setObservations((prev) => prev.filter((_, i) => i !== index));
     };
 
     const validate = () => {
@@ -91,6 +152,22 @@ export default function HistoricalCareSessionModal({
             provider_user_id: providerUserId ? Number(providerUserId) : null,
             work_item_ids: selectedWorkItemIds,
             notes: notes.trim() || null,
+            historical_steps: steps.map((s, idx) => ({
+                step_order: idx + 1,
+                step_code: `step_${idx + 1}`,
+                title: s.title,
+                status: s.status || 'completed',
+                notes: s.notes || null,
+                work_item_id: s.work_item_id || selectedWorkItemIds[0],
+            })),
+            historical_observations: observations.map((o) => ({
+                observation_code: o.observation_code || 'measurement',
+                tooth_key: o.tooth_key || null,
+                canal_id: o.canal_id || null,
+                structured_value: o.structured_value || { value: o.value },
+                notes: o.notes || null,
+                work_item_id: o.work_item_id || selectedWorkItemIds[0],
+            })),
         };
 
         try {
@@ -228,6 +305,161 @@ export default function HistoricalCareSessionModal({
                             })}
                         </div>
                     )}
+                </div>
+
+                {/* Delivered Steps Section */}
+                <div className="space-y-2 rounded-xl border border-border bg-surface/50 p-3">
+                    <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-text-primary">
+                            {t('care_session.delivered_steps', 'Delivered Clinical Steps')}
+                        </label>
+                        <span className="text-[10px] text-text-secondary">
+                            {steps.length} {t('care_session.steps_added', 'steps recorded')}
+                        </span>
+                    </div>
+
+                    {steps.length > 0 && (
+                        <div className="space-y-1 max-h-36 overflow-y-auto">
+                            {steps.map((st, idx) => (
+                                <div
+                                    key={idx}
+                                    data-testid={`historical-step-item-${idx}`}
+                                    className="flex items-center justify-between rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <Badge variant="success" size="xs">Completed</Badge>
+                                        <span className="font-semibold text-text-primary">{st.title}</span>
+                                        {st.notes && <span className="text-text-secondary italic">({st.notes})</span>}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        data-testid={`btn-remove-step-${idx}`}
+                                        onClick={() => handleRemoveStep(idx)}
+                                        className="text-[11px] font-bold text-danger hover:underline"
+                                    >
+                                        {t('common.remove', 'Remove')}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 pt-1">
+                        <input
+                            type="text"
+                            value={newStepTitle}
+                            onChange={(e) => setNewStepTitle(e.target.value)}
+                            placeholder={t('care_session.step_title_placeholder', 'Step title (e.g. Access cavity, Instrumentation)')}
+                            data-testid="input-historical-step-title"
+                            className="sm:col-span-6 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary"
+                        />
+                        <input
+                            type="text"
+                            value={newStepNotes}
+                            onChange={(e) => setNewStepNotes(e.target.value)}
+                            placeholder={t('care_session.step_notes_placeholder', 'Optional notes')}
+                            data-testid="input-historical-step-notes"
+                            className="sm:col-span-4 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary"
+                        />
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleAddStep}
+                            data-testid="btn-add-historical-step"
+                            className="sm:col-span-2 text-xs"
+                        >
+                            + {t('common.add', 'Add')}
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Measurements & Observations Section */}
+                <div className="space-y-2 rounded-xl border border-border bg-surface/50 p-3">
+                    <div className="flex items-center justify-between">
+                        <label className="text-xs font-bold text-text-primary">
+                            {t('care_session.historical_measurements', 'Clinical Measurements & Observations')}
+                        </label>
+                        <span className="text-[10px] text-text-secondary">
+                            {observations.length} {t('care_session.obs_added', 'measurements')}
+                        </span>
+                    </div>
+
+                    {observations.length > 0 && (
+                        <div className="space-y-1 max-h-36 overflow-y-auto">
+                            {observations.map((ob, idx) => (
+                                <div
+                                    key={idx}
+                                    data-testid={`historical-obs-item-${idx}`}
+                                    className="flex items-center justify-between rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs"
+                                >
+                                    <div className="flex items-center gap-2 font-mono">
+                                        <Badge variant="primary" size="xs">{ob.observation_code}</Badge>
+                                        {ob.tooth_key && <span>Tooth #{ob.tooth_key}</span>}
+                                        {ob.canal_id && <span>({ob.canal_id})</span>}
+                                        <span className="font-bold text-text-primary">: {ob.value}</span>
+                                        {ob.notes && <span className="text-text-secondary italic">({ob.notes})</span>}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        data-testid={`btn-remove-obs-${idx}`}
+                                        onClick={() => handleRemoveObservation(idx)}
+                                        className="text-[11px] font-bold text-danger hover:underline"
+                                    >
+                                        {t('common.remove', 'Remove')}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 sm:grid-cols-12 gap-2 pt-1">
+                        <input
+                            type="text"
+                            value={obsToothKey}
+                            onChange={(e) => setObsToothKey(e.target.value)}
+                            placeholder={t('care_session.tooth_placeholder', 'Tooth # (e.g. 46)')}
+                            data-testid="input-historical-obs-tooth"
+                            className="sm:col-span-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary font-mono"
+                        />
+                        <select
+                            value={obsCode}
+                            onChange={(e) => setObsCode(e.target.value)}
+                            data-testid="select-historical-obs-code"
+                            className="sm:col-span-3 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary"
+                        >
+                            <option value="measurement">{t('care_session.obs_measurement', 'Measurement')}</option>
+                            <option value="working_length">{t('care_session.obs_working_length', 'Working Length')}</option>
+                            <option value="shade">{t('care_session.obs_shade', 'Shade')}</option>
+                            <option value="vitality">{t('care_session.obs_vitality', 'Vitality')}</option>
+                        </select>
+                        <input
+                            type="text"
+                            value={obsValue}
+                            onChange={(e) => setObsValue(e.target.value)}
+                            placeholder={t('care_session.obs_val_placeholder', 'Value (e.g. 21.5, A2)')}
+                            data-testid="input-historical-obs-value"
+                            className="sm:col-span-3 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary"
+                        />
+                        <input
+                            type="text"
+                            value={obsCanal}
+                            onChange={(e) => setObsCanal(e.target.value)}
+                            placeholder={t('care_session.canal_placeholder', 'Canal (e.g. MB)')}
+                            data-testid="input-historical-obs-canal"
+                            className="sm:col-span-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary"
+                        />
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleAddObservation}
+                            data-testid="btn-add-historical-obs"
+                            className="col-span-2 sm:col-span-2 text-xs"
+                        >
+                            + {t('common.add', 'Add')}
+                        </Button>
+                    </div>
                 </div>
 
                 {/* Clinical Notes */}

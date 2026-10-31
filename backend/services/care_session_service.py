@@ -446,7 +446,7 @@ class CareSessionService:
                     notes=s.get("notes"),
                     started_at=actual_visit_date,
                     completed_at=actual_visit_date,
-                    created_at=actual_visit_date,
+                    created_at=now,
                 )
                 self.db.add(h_step)
                 step_order += 1
@@ -465,8 +465,8 @@ class CareSessionService:
                     notes=obs.get("notes"),
                     recorded_by_user_id=user.id if user else None,
                     is_superseded=False,
-                    recorded_at=actual_visit_date,
-                    created_at=actual_visit_date,
+                    recorded_at=now,
+                    created_at=now,
                 )
                 self.db.add(h_obs)
 
@@ -547,11 +547,12 @@ class CareSessionService:
             else:
                 session.notes = data.notes
 
-        # F03 & F10: Durable persistence of procedure documentation and required field validation
+        # F03, F10, R2-03, R2-05: Durable persistence of procedure documentation and strict typed validation
         draft_stmt = select(models.CareSessionDraft).where(
             models.CareSessionDraft.tenant_id == self.tenant_id,
             models.CareSessionDraft.patient_id == patient_id,
             models.CareSessionDraft.care_session_id == session.id,
+            models.CareSessionDraft.author_user_id == user.id,
         )
         draft = (await self.db.execute(draft_stmt)).scalars().first()
         draft_data = draft.draft_payload if draft and isinstance(draft.draft_payload, dict) else {}
@@ -575,17 +576,69 @@ class CareSessionService:
 
             snapshot = proc.template_snapshot or {}
             custom_fields_def = snapshot.get("custom_fields") or []
+            known_field_ids = {f.get("field_id") for f in custom_fields_def if f.get("field_id")}
+
+            # Validate unknown custom field identifiers when template snapshot defines fields
+            if known_field_ids:
+                for fid in custom_values:
+                    if fid not in known_field_ids:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"Unknown custom field '{fid}' for procedure #{wi_id}",
+                        )
+
             for field_def in custom_fields_def:
                 fid = field_def.get("field_id")
                 flabel = field_def.get("label", fid)
                 is_req = field_def.get("is_required", False)
+                ftype = field_def.get("field_type")
                 val = custom_values.get(fid)
+
                 if is_req:
                     if val is None or (isinstance(val, str) and not val.strip()):
                         raise HTTPException(
                             status_code=422,
                             detail=f"Required custom field '{flabel}' ({fid}) is missing for procedure #{wi_id}",
                         )
+
+                # Validate typed values when present
+                if val is not None and not (isinstance(val, str) and not val.strip()):
+                    if ftype == "number":
+                        try:
+                            float(str(val).strip())
+                        except (ValueError, TypeError):
+                            raise HTTPException(
+                                status_code=422,
+                                detail=f"Custom field '{flabel}' ({fid}) must be a valid number",
+                            )
+                    elif ftype == "choice":
+                        choices = field_def.get("choices") or []
+                        if choices:
+                            str_choices = [str(c).strip() for c in choices]
+                            if str(val).strip() not in str_choices:
+                                raise HTTPException(
+                                    status_code=422,
+                                    detail=f"Custom field '{flabel}' ({fid}) has invalid choice '{val}'. Allowed: {choices}",
+                                )
+                    elif ftype == "date":
+                        val_str = str(val).strip()
+                        try:
+                            datetime.fromisoformat(val_str.replace("Z", "+00:00"))
+                        except ValueError:
+                            try:
+                                from datetime import date
+                                date.fromisoformat(val_str)
+                            except ValueError:
+                                raise HTTPException(
+                                    status_code=422,
+                                    detail=f"Custom field '{flabel}' ({fid}) must be a valid date (YYYY-MM-DD)",
+                                )
+                    elif ftype == "boolean":
+                        if not isinstance(val, bool) and str(val).lower() not in ("true", "false", "1", "0", "yes", "no"):
+                            raise HTTPException(
+                                status_code=422,
+                                detail=f"Custom field '{flabel}' ({fid}) must be a boolean",
+                            )
 
             if custom_values:
                 updated_snapshot = dict(proc.template_snapshot or {})
@@ -1008,16 +1061,17 @@ class CareSessionService:
 
         from backend.services.workflow_template_service import WorkflowTemplateService
         tpl_service = WorkflowTemplateService(self.db, self.tenant_id, self.current_user)
+        if await tpl_service.is_template_deactivated(data.template_code):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Workflow template '{data.template_code}' is deactivated for this clinic",
+            )
         tpl_dict = await tpl_service.get_active_template_for_procedure(data.template_code)
         if not tpl_dict:
-            try:
-                canonical = get_latest_template(data.template_code)
-                tpl_dict = canonical.to_dict()
-            except Exception as exc:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Workflow template '{data.template_code}' not found",
-                ) from exc
+            raise HTTPException(
+                status_code=404,
+                detail=f"Workflow template '{data.template_code}' not found",
+            )
 
         # Associate template snapshot with the procedure in this care session
         if data.work_item_id is not None:
@@ -1225,8 +1279,12 @@ class CareSessionService:
                 self.db.add(step_row)
 
         await self.db.commit()
-        await self.db.refresh(session_proc)
-        return session_proc
+        stmt = (
+            select(models.CareSessionProcedure)
+            .options(selectinload(models.CareSessionProcedure.work_item))
+            .where(models.CareSessionProcedure.id == session_proc.id)
+        )
+        return (await self.db.execute(stmt)).scalar_one()
 
     async def remove_procedure_from_session(
         self, patient_id: int, session_id: int, work_item_id: int
@@ -1322,8 +1380,12 @@ class CareSessionService:
             csp.next_action_reason_omitted = data.next_action_reason_omitted.strip() if data.next_action_reason_omitted else None
 
         await self.db.commit()
-        await self.db.refresh(csp)
-        return csp
+        stmt = (
+            select(models.CareSessionProcedure)
+            .options(selectinload(models.CareSessionProcedure.work_item))
+            .where(models.CareSessionProcedure.id == csp.id)
+        )
+        return (await self.db.execute(stmt)).scalar_one()
 
     # -----------------------------------------------------------------------
     # Observation Operations (Slice S19 / G10-M07, G10-M15)
@@ -2281,6 +2343,7 @@ class CareSessionService:
         due_category: Optional[str] = None,
         date_from: Optional[datetime] = None,
         date_to: Optional[datetime] = None,
+        procedure_code: Optional[str] = None,
         search: Optional[str] = None,
         skip: int = 0,
         limit: int = 50,
@@ -2385,6 +2448,10 @@ class CareSessionService:
                 continue
             if norm_date_to and norm_target_date and norm_target_date > norm_date_to:
                 continue
+            if procedure_code and procedure_code.lower() != "all":
+                proc_name = getattr(req, "procedure_name", None) or (req.work_item.code if req.work_item else None)
+                if not proc_name or proc_name.strip().upper() != procedure_code.strip().upper():
+                    continue
             if search:
                 s_lower = search.strip().lower()
                 p_name = (req.patient.name if req.patient else "").lower()

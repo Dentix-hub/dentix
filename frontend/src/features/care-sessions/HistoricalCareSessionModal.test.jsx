@@ -79,4 +79,56 @@ describe('HistoricalCareSessionModal', () => {
             expect(mockOnClose).toHaveBeenCalledTimes(1);
         });
     });
+
+    it('submits historical visit with recorded steps and clinical measurements', async () => {
+        const mockOnSuccess = vi.fn();
+        patientsApi.startCareSession.mockResolvedValueOnce({ data: { id: 78, is_historical: true } });
+
+        render(
+            <HistoricalCareSessionModal
+                isOpen={true}
+                onClose={vi.fn()}
+                patientId={5}
+                patientWorkItems={mockWorkItems}
+                doctors={mockDoctors}
+                currentUserId={1}
+                onSuccess={mockOnSuccess}
+            />
+        );
+
+        // Add a step
+        fireEvent.change(screen.getByTestId('input-historical-step-title'), { target: { value: 'Excavation of deep caries' } });
+        fireEvent.change(screen.getByTestId('input-historical-step-notes'), { target: { value: 'No pulp exposure' } });
+        fireEvent.click(screen.getByTestId('btn-add-historical-step'));
+
+        expect(screen.getByTestId('historical-step-item-0')).toBeInTheDocument();
+        expect(screen.getByText('Excavation of deep caries')).toBeInTheDocument();
+
+        // Add an observation
+        fireEvent.change(screen.getByTestId('input-historical-obs-tooth'), { target: { value: '24' } });
+        fireEvent.change(screen.getByTestId('input-historical-obs-value'), { target: { value: 'A3' } });
+        fireEvent.change(screen.getByTestId('select-historical-obs-code'), { target: { value: 'shade' } });
+        fireEvent.click(screen.getByTestId('btn-add-historical-obs'));
+
+        expect(screen.getByTestId('historical-obs-item-0')).toBeInTheDocument();
+
+        // Submit
+        fireEvent.click(screen.getByTestId('btn-submit-historical-session'));
+
+        await waitFor(() => {
+            expect(patientsApi.startCareSession).toHaveBeenCalledTimes(1);
+            expect(patientsApi.startCareSession).toHaveBeenCalledWith(
+                5,
+                expect.objectContaining({
+                    is_historical: true,
+                    historical_steps: expect.arrayContaining([
+                        expect.objectContaining({ title: 'Excavation of deep caries', status: 'completed' }),
+                    ]),
+                    historical_observations: expect.arrayContaining([
+                        expect.objectContaining({ observation_code: 'shade', tooth_key: '24' }),
+                    ]),
+                })
+            );
+        });
+    });
 });

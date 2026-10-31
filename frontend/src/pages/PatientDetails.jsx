@@ -259,6 +259,7 @@ export default function PatientDetails() {
         discardDraft: discardCareSessionDraft,
         status: careSessionDraftStatus,
         resolveConflict: resolveCareSessionDraftConflict,
+        saveNow: flushCareSessionDraft,
     } = useCareSessionDraft({
         patientId: id ? Number(id) : null,
         careSessionId: activeCareSession?.id || null,
@@ -424,24 +425,28 @@ export default function PatientDetails() {
     const handleSaveObservation = useCallback(async (obsData) => {
         if (!activeCareSession?.id) return;
         try {
+            const lengthMm = obsData.structured_value?.length_mm ?? obsData.length_mm;
+            const refPoint = obsData.structured_value?.reference_point ?? obsData.reference_point;
+            const maf = obsData.structured_value?.maf ?? obsData.maf;
             await recordCareObservationMutation.mutateAsync({
                 patientId: id,
                 sessionId: activeCareSession.id,
                 data: {
-                    observation_code: 'working_length',
+                    observation_code: obsData.observation_code || 'working_length',
+                    work_item_id: obsData.work_item_id,
                     tooth_key: String(obsData.tooth_key),
                     root_id: obsData.root_id,
                     canal_id: obsData.canal_id,
-                    structured_value: {
-                        length_mm: obsData.length_mm,
-                        reference_point: obsData.reference_point,
-                        maf: obsData.maf,
+                    structured_value: obsData.structured_value || {
+                        length_mm: lengthMm != null ? Number(lengthMm) : undefined,
+                        reference_point: refPoint,
+                        maf: maf,
                     },
                     notes: obsData.notes,
                 },
             });
             await refetchActiveSession();
-            toast.success(t('care_session.length_saved', `Saved ${obsData.canal_id} length: ${obsData.length_mm} mm`));
+            toast.success(t('care_session.length_saved', `Saved ${obsData.canal_id} length: ${lengthMm} mm`));
         } catch (err) {
             toast.error(err?.response?.data?.detail || 'Failed to record measurement');
         }
@@ -450,6 +455,9 @@ export default function PatientDetails() {
     const handleFinishSession = useCallback(async ({ notes, next_visit_request } = {}) => {
         if (!activeCareSession?.id) return;
         try {
+            if (flushCareSessionDraft) {
+                await flushCareSessionDraft();
+            }
             await finishCareSessionMutation.mutateAsync({
                 patientId: id,
                 sessionId: activeCareSession.id,
@@ -463,9 +471,9 @@ export default function PatientDetails() {
             setIsFinishSheetOpen(false);
             toast.success(t('care_session.finished_success', 'Care session completed successfully'));
         } catch (err) {
-            toast.error(err?.response?.data?.detail || 'Failed to finish care session');
+            toast.error(err?.response?.data?.detail || err?.message || 'Failed to finish care session');
         }
-    }, [id, activeCareSession?.id, finishCareSessionMutation, discardCareSessionDraft, refetchActiveSession, refetchResumableSession, refetchWorkspace, t]);
+    }, [id, activeCareSession?.id, finishCareSessionMutation, discardCareSessionDraft, flushCareSessionDraft, refetchActiveSession, refetchResumableSession, refetchWorkspace, t]);
 
     const adaptedChart = useMemo(() => {
         return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {

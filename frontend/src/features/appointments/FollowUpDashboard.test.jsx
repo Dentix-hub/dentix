@@ -132,4 +132,52 @@ describe('FollowUpDashboard', () => {
             );
         });
     });
+
+    it('filters requests by procedure and date range', async () => {
+        renderComponent();
+
+        await waitFor(() => {
+            expect(screen.getByTestId('select-filter-procedure')).toBeInTheDocument();
+        });
+
+        fireEvent.change(screen.getByTestId('select-filter-procedure'), { target: { value: 'ENDO_RCT' } });
+        fireEvent.change(screen.getByTestId('input-filter-date-from'), { target: { value: '2026-11-01' } });
+        fireEvent.change(screen.getByTestId('input-filter-date-to'), { target: { value: '2026-11-30' } });
+
+        await waitFor(() => {
+            expect(appointmentsApi.getFollowUpDashboard).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    procedure_code: 'ENDO_RCT',
+                    date_from: expect.stringContaining('2026-11-01'),
+                    date_to: expect.stringContaining('2026-11-30'),
+                })
+            );
+        });
+    });
+
+    it('supports pagination controls and total_count handling', async () => {
+        appointmentsApi.getFollowUpDashboard.mockResolvedValueOnce({
+            data: {
+                data: {
+                    ...mockDashboardData,
+                    total_count: 50,
+                },
+            },
+        });
+
+        renderComponent();
+
+        await waitFor(() => {
+            expect(screen.getByTestId('btn-next-page')).toBeInTheDocument();
+            expect(screen.getByTestId('page-indicator')).toHaveTextContent('1 / 3');
+        });
+
+        fireEvent.click(screen.getByTestId('btn-next-page'));
+
+        await waitFor(() => {
+            expect(appointmentsApi.getFollowUpDashboard).toHaveBeenCalledWith(
+                expect.objectContaining({ skip: 20, limit: 20 })
+            );
+        });
+    });
 });
