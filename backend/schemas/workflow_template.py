@@ -187,6 +187,7 @@ class WorkflowTemplateCreate(BaseModel):
 
 class WorkflowTemplateUpdate(BaseModel):
     title: Optional[str] = Field(None, description="Updated display title")
+    procedure_code: Optional[str] = Field(None, description="Procedure code association")
     description: Optional[str] = Field(None, description="Updated description")
     definition: Optional[WorkflowTemplateDefinitionPayload] = Field(None, description="Updated steps and fields")
     is_active: Optional[bool] = Field(None, description="Active status")

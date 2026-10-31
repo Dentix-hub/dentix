@@ -17,6 +17,8 @@ class CareSessionCreate(BaseModel):
     resume_from_session_id: Optional[int] = Field(None, description="Optional previous care session ID to carry forward steps and observations from")
     actual_visit_date: Optional[datetime] = Field(None, description="Actual visit date/time if distinct from recording time")
     is_historical: bool = Field(False, description="Flag indicating if this is documenting a past historical visit")
+    historical_steps: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Optional steps performed during historical visit")
+    historical_observations: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Optional measurements/observations recorded during historical visit")
 
     model_config = ConfigDict(extra="forbid")
 
@@ -33,6 +35,8 @@ class CareSessionProcedureRead(BaseModel):
     template_code: Optional[str] = None
     template_version: Optional[int] = None
     template_snapshot: Optional[Dict[str, Any]] = None
+    work_item_version_id: Optional[int] = None
+    work_item_status: Optional[str] = None
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)

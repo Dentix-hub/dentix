@@ -566,6 +566,7 @@ class ClinicalWorkspaceService:
                     lab_ready=wi.lab_ready,
                     shade=wi.shade,
                     material=wi.material,
+                    version_id=getattr(wi, "version_id", 1),
                 )
                 work_item_summaries.append(summary)
 

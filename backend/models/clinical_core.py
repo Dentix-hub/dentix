@@ -914,6 +914,14 @@ class CareSessionProcedure(Base):
     work_item = relationship("ClinicalWorkItem", back_populates="session_procedures")
     performing_user = relationship("User", foreign_keys=[performing_user_id])
 
+    @property
+    def work_item_version_id(self):
+        return getattr(self.work_item, "version_id", None) if self.work_item else None
+
+    @property
+    def work_item_status(self):
+        return getattr(self.work_item, "status", None) if self.work_item else None
+
 
 class CareSessionDraft(Base):
     """

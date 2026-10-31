@@ -131,9 +131,9 @@ const TreatmentHistory = ({
     const careSessions = propCareSessions || fetchedSessions;
 
     const availableWorkItems = (history || [])
-        .filter((h) => h.work_item_id || h.id)
+        .filter((h) => Boolean(h.work_item_id))
         .map((h) => ({
-            id: h.work_item_id || h.id,
+            id: h.work_item_id,
             code: h.procedure || h.procedure_code || 'PROC',
             tooth_number: h.tooth_number,
             display_label: `${h.procedure || 'Procedure'} ${h.tooth_number ? `(Tooth ${fdiToPalmer(h.tooth_number) || h.tooth_number})` : ''}`,

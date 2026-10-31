@@ -426,6 +426,60 @@ class CareSessionService:
                     detail="Concurrent care session conflict during step carryover",
                 ) from exc
 
+        # F15: Persist historical steps and observations if provided
+        if is_historical:
+            step_order = 1
+            for s in (getattr(data, "historical_steps", None) or []):
+                step_code = str(s.get("step_code") or f"step_{step_order}").strip()
+                title = str(s.get("title") or step_code).strip()
+                wi_id = s.get("work_item_id") or (associated_wi_ids[0] if associated_wi_ids else None)
+                h_step = models.CareSessionStep(
+                    tenant_id=self.tenant_id,
+                    care_session_id=session.id,
+                    work_item_id=wi_id,
+                    step_order=step_order,
+                    step_code=step_code,
+                    logical_step_code=s.get("logical_step_code") or step_code,
+                    occurrence_number=s.get("occurrence_number", 1),
+                    title=title,
+                    status=s.get("status", "completed"),
+                    notes=s.get("notes"),
+                    started_at=actual_visit_date,
+                    completed_at=actual_visit_date,
+                    created_at=actual_visit_date,
+                )
+                self.db.add(h_step)
+                step_order += 1
+
+            for obs in (getattr(data, "historical_observations", None) or []):
+                obs_code = str(obs.get("observation_code") or "measurement").strip()
+                wi_id = obs.get("work_item_id") or (associated_wi_ids[0] if associated_wi_ids else None)
+                h_obs = models.CareObservation(
+                    tenant_id=self.tenant_id,
+                    patient_id=patient_id,
+                    care_session_id=session.id,
+                    work_item_id=wi_id,
+                    observation_code=obs_code,
+                    tooth_key=obs.get("tooth_key"),
+                    structured_value=obs.get("structured_value") or {},
+                    notes=obs.get("notes"),
+                    recorded_by_user_id=user.id if user else None,
+                    is_superseded=False,
+                    recorded_at=actual_visit_date,
+                    created_at=actual_visit_date,
+                )
+                self.db.add(h_obs)
+
+            try:
+                await self.db.flush()
+            except (IntegrityError, StaleDataError) as exc:
+                await self.db.rollback()
+                await self._get_active_current_user()
+                raise HTTPException(
+                    status_code=409,
+                    detail="Concurrent care session conflict during historical data entry",
+                ) from exc
+
         # Audit event
         event_payload = {
             "session_id": session.id,
@@ -492,6 +546,51 @@ class CareSessionService:
                 session.notes = f"{session.notes}\n{data.notes}"
             else:
                 session.notes = data.notes
+
+        # F03 & F10: Durable persistence of procedure documentation and required field validation
+        draft_stmt = select(models.CareSessionDraft).where(
+            models.CareSessionDraft.tenant_id == self.tenant_id,
+            models.CareSessionDraft.patient_id == patient_id,
+            models.CareSessionDraft.care_session_id == session.id,
+        )
+        draft = (await self.db.execute(draft_stmt)).scalars().first()
+        draft_data = draft.draft_payload if draft and isinstance(draft.draft_payload, dict) else {}
+
+        for proc in (session.procedures or []):
+            wi_id = proc.work_item_id
+            proc_note_key = f"proc_notes_{wi_id}"
+            if proc_note_key in draft_data and draft_data[proc_note_key]:
+                proc.procedure_notes = str(draft_data[proc_note_key]).strip()
+
+            proc_na_key = f"proc_next_action_{wi_id}"
+            if proc_na_key in draft_data and draft_data[proc_na_key]:
+                proc.next_action = str(draft_data[proc_na_key]).strip()
+
+            custom_prefix = f"proc_custom_{wi_id}_"
+            custom_values = {}
+            for k, v in draft_data.items():
+                if k.startswith(custom_prefix):
+                    field_id = k[len(custom_prefix):]
+                    custom_values[field_id] = v
+
+            snapshot = proc.template_snapshot or {}
+            custom_fields_def = snapshot.get("custom_fields") or []
+            for field_def in custom_fields_def:
+                fid = field_def.get("field_id")
+                flabel = field_def.get("label", fid)
+                is_req = field_def.get("is_required", False)
+                val = custom_values.get(fid)
+                if is_req:
+                    if val is None or (isinstance(val, str) and not val.strip()):
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"Required custom field '{flabel}' ({fid}) is missing for procedure #{wi_id}",
+                        )
+
+            if custom_values:
+                updated_snapshot = dict(proc.template_snapshot or {})
+                updated_snapshot["custom_field_values"] = custom_values
+                proc.template_snapshot = updated_snapshot
 
         try:
             await self.db.flush()
@@ -936,8 +1035,12 @@ class CareSessionService:
                     created_at=datetime.now(timezone.utc),
                 )
                 self.db.add(csp)
-            csp.template_snapshot = tpl_dict
-            csp.template_version = tpl_dict.get("version")
+            if csp.template_snapshot is None:
+                csp.template_snapshot = tpl_dict
+                csp.template_version = tpl_dict.get("version")
+            else:
+                # F06: Retain frozen recorded snapshot
+                tpl_dict = csp.template_snapshot
 
         # Find current max step_order
         stmt = select(func.coalesce(func.max(models.CareSessionStep.step_order), 0)).where(
@@ -1092,6 +1195,35 @@ class CareSessionService:
             created_at=datetime.now(timezone.utc),
         )
         self.db.add(session_proc)
+
+        # F09: Initialize steps from snapshotted template for added procedure
+        now = datetime.now(timezone.utc)
+        if tpl_dict and tpl_dict.get("steps"):
+            stmt_order = select(func.coalesce(func.max(models.CareSessionStep.step_order), 0)).where(
+                models.CareSessionStep.tenant_id == self.tenant_id,
+                models.CareSessionStep.care_session_id == session_id,
+            )
+            base_order = (await self.db.execute(stmt_order)).scalar_one()
+            for idx, s in enumerate(tpl_dict["steps"]):
+                step_code = (s.get("step_code") if isinstance(s, dict) else s.step_code).strip()
+                step_title = (s.get("title") if isinstance(s, dict) else s.title).strip()
+                step_desc = (s.get("description") if isinstance(s, dict) else s.description) or None
+                step_row = models.CareSessionStep(
+                    tenant_id=self.tenant_id,
+                    care_session_id=session_id,
+                    work_item_id=work_item_id,
+                    step_code=step_code,
+                    logical_step_code=step_code,
+                    occurrence_number=1,
+                    is_repeat=False,
+                    title=step_title,
+                    notes=step_desc,
+                    status="pending",
+                    step_order=base_order + idx + 1,
+                    created_at=now,
+                )
+                self.db.add(step_row)
+
         await self.db.commit()
         await self.db.refresh(session_proc)
         return session_proc
@@ -1164,6 +1296,14 @@ class CareSessionService:
         """Update procedure-specific notes and next action within this visit."""
         await self.ensure_native_writes_enabled()
         await self._verify_patient(patient_id)
+        await self._verify_work_item(patient_id, work_item_id)
+
+        session = await self.get_session(patient_id, session_id)
+        if session.status != "in_progress":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot update procedure on session with status '{session.status}'. Must be in_progress.",
+            )
 
         stmt = select(models.CareSessionProcedure).where(
             models.CareSessionProcedure.tenant_id == self.tenant_id,
@@ -1542,6 +1682,20 @@ class CareSessionService:
             cleaned_notes = session.notes.strip()
             if cleaned_notes and not cleaned_notes.startswith("[CARE SESSION SUMMARY]"):
                 parts.append(f"Notes: {cleaned_notes}")
+
+        # Procedure notes, next actions, and custom fields (F03)
+        for proc in (session.procedures or []):
+            proc_parts = []
+            if proc.procedure_notes:
+                proc_parts.append(proc.procedure_notes)
+            if proc.next_action:
+                proc_parts.append(f"Next: {proc.next_action}")
+            snapshot = proc.template_snapshot or {}
+            cf_values = snapshot.get("custom_field_values") or {}
+            for fid, fval in cf_values.items():
+                proc_parts.append(f"{fid.title()}: {fval}")
+            if proc_parts:
+                parts.append(" | ".join(proc_parts))
 
         return " | ".join(parts)
 
@@ -2137,7 +2291,25 @@ class CareSessionService:
         """
         await self.ensure_native_writes_enabled()
 
+        user = await self._get_active_current_user()
+        if not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+        # F01: Enforce doctor visibility scope so hidden patients are never leaked
+        from backend.services.patient_access_service import visible_patient_ids_query
+        visible_ids_subq = await visible_patient_ids_query(self.db, user)
+
+        def _normalize_dt(dt: Optional[datetime]) -> Optional[datetime]:
+            if dt is None:
+                return None
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
+
         now = datetime.now(timezone.utc)
+        norm_now = _normalize_dt(now)
+        norm_date_from = _normalize_dt(date_from)
+        norm_date_to = _normalize_dt(date_to)
 
         base_stmt = (
             select(models.NextVisitRequest)
@@ -2147,7 +2319,10 @@ class CareSessionService:
                 selectinload(models.NextVisitRequest.work_item),
                 selectinload(models.NextVisitRequest.assigned_doctor),
             )
-            .where(models.NextVisitRequest.tenant_id == self.tenant_id)
+            .where(
+                models.NextVisitRequest.tenant_id == self.tenant_id,
+                models.NextVisitRequest.patient_id.in_(visible_ids_subq),
+            )
         )
 
         all_requests = list((await self.db.execute(base_stmt)).scalars().all())
@@ -2157,6 +2332,7 @@ class CareSessionService:
 
         for req in all_requests:
             target_date = req.postponed_to_date or req.preferred_time_window_start or req.preferred_time_window_end
+            norm_target_date = _normalize_dt(target_date)
 
             if req.status == "scheduled":
                 cat = "scheduled"
@@ -2164,8 +2340,8 @@ class CareSessionService:
                 cat = "stopped"
             elif req.status == "completed":
                 cat = "completed"
-            elif target_date is not None:
-                if target_date < now:
+            elif norm_target_date is not None:
+                if norm_target_date < norm_now:
                     cat = "overdue"
                 else:
                     cat = "upcoming"
@@ -2205,9 +2381,9 @@ class CareSessionService:
                 continue
             if due_category and due_category.lower() != "all" and cat != due_category:
                 continue
-            if date_from and target_date and target_date < date_from:
+            if norm_date_from and norm_target_date and norm_target_date < norm_date_from:
                 continue
-            if date_to and target_date and target_date > date_to:
+            if norm_date_to and norm_target_date and norm_target_date > norm_date_to:
                 continue
             if search:
                 s_lower = search.strip().lower()
@@ -2223,8 +2399,8 @@ class CareSessionService:
         def sort_key(r):
             cat_order = {"overdue": 0, "upcoming": 1, "unscheduled": 2, "postponed": 3, "scheduled": 4, "stopped": 5, "completed": 6}
             cat = getattr(r, "due_category", "unscheduled")
-            t_date = r.postponed_to_date or r.preferred_time_window_start or r.created_at
-            return (cat_order.get(cat, 9), t_date or now)
+            t_date = _normalize_dt(r.postponed_to_date or r.preferred_time_window_start or r.created_at)
+            return (cat_order.get(cat, 9), t_date or norm_now)
 
         sorted_items = sorted(enriched_list, key=sort_key)
         total_filtered = len(sorted_items)

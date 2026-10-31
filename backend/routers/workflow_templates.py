@@ -39,6 +39,7 @@ async def list_workflow_templates(
     current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     service = WorkflowTemplateService(db, current_user.tenant_id, current_user)
+    await service.ensure_native_writes_enabled()
     templates = await service.list_templates(include_inactive=include_inactive)
     return success_response(
         data=templates,
@@ -59,6 +60,7 @@ async def create_workflow_template(
     current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     service = WorkflowTemplateService(db, current_user.tenant_id, current_user)
+    await service.ensure_native_writes_enabled()
     tpl = await service.create_template(payload)
     await db.commit()
     await db.refresh(tpl)
@@ -92,6 +94,7 @@ async def get_workflow_template(
     current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     service = WorkflowTemplateService(db, current_user.tenant_id, current_user)
+    await service.ensure_native_writes_enabled()
     template = await service.get_template(code_or_id, version=version)
     return success_response(
         data=template,
@@ -112,6 +115,7 @@ async def update_workflow_template(
     current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     service = WorkflowTemplateService(db, current_user.tenant_id, current_user)
+    await service.ensure_native_writes_enabled()
     new_tpl = await service.update_template(code_or_id, payload)
     await db.commit()
     await db.refresh(new_tpl)
@@ -145,6 +149,7 @@ async def set_workflow_template_status(
     current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     service = WorkflowTemplateService(db, current_user.tenant_id, current_user)
+    await service.ensure_native_writes_enabled()
     tpl = await service.set_active_status(template_id, payload.is_active)
     await db.commit()
     await db.refresh(tpl)

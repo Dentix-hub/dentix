@@ -18,9 +18,10 @@ import {
     Layers,
     Sliders,
 } from 'lucide-react';
-import { Button, Badge } from '@/shared/ui';
+import { Button, Badge, DentixDialog } from '@/shared/ui';
 import ProcedureStatusControl from '@/features/clinical-chart/components/ProcedureStatusControl';
 import WorkingLengthEntryTable from './WorkingLengthEntryTable';
+import CanalTargetSelector from './CanalTargetSelector';
 import {
     addCareSessionProcedure,
     removeCareSessionProcedure,
@@ -178,6 +179,84 @@ export default function GenericVisitWorkspace({
         }
     };
 
+    // Tooth key for the selected procedure
+    const procedureToothKey = useMemo(() => {
+        const canalTarget = selectedWorkItem?.targets?.find((t) => t.target_kind === 'canal' || t.tooth_key);
+        return String(canalTarget?.tooth_key || selectedWorkItem?.tooth_number || '46');
+    }, [selectedWorkItem]);
+
+    // Initial canal targets from selected procedure work item
+    const initialCanals = useMemo(() => {
+        const canalTargets = selectedWorkItem?.targets?.filter((t) => t.target_kind === 'canal') || [];
+        if (canalTargets.length > 0) {
+            return canalTargets.map((t) => ({
+                canalId: t.canal_id || t.canalId || 'MB',
+                rootId: t.root_id || t.rootId || 'mesial',
+            }));
+        }
+        return [];
+    }, [selectedWorkItem]);
+
+    const [selectedCanals, setSelectedCanals] = useState(initialCanals);
+
+    useEffect(() => {
+        setSelectedCanals(initialCanals);
+    }, [initialCanals]);
+
+    const handleToggleCanal = (canal) => {
+        setSelectedCanals((prev) => {
+            const exists = prev.some(
+                (c) => c.canalId?.toLowerCase() === canal.canalId?.toLowerCase() && c.rootId === canal.rootId
+            );
+            if (exists) {
+                return prev.filter(
+                    (c) => !(c.canalId?.toLowerCase() === canal.canalId?.toLowerCase() && c.rootId === canal.rootId)
+                );
+            }
+            return [...prev, canal];
+        });
+    };
+
+    const handleSaveMeasurement = (measurement) => {
+        if (onSaveObservation) {
+            onSaveObservation({
+                observation_code: 'working_length',
+                work_item_id: selectedWorkItemId,
+                tooth_key: String(procedureToothKey),
+                canal_id: measurement.canal_id,
+                root_id: measurement.root_id,
+                structured_value: {
+                    length_mm: measurement.length_mm,
+                    reference_point: measurement.reference_point,
+                    maf: measurement.maf,
+                },
+                notes: measurement.notes,
+            });
+        }
+    };
+
+    const [validationError, setValidationError] = useState(null);
+
+    const handleFinishVisit = (e) => {
+        e?.preventDefault?.();
+        // F10: Enforce required custom fields
+        for (const proc of sessionProcedures) {
+            const fields = proc.template_snapshot?.custom_fields || [];
+            for (const f of fields) {
+                if (f.is_required) {
+                    const key = `proc_custom_${proc.work_item_id}_${f.field_id}`;
+                    const val = draftData?.[key] ?? proc.template_snapshot?.custom_field_values?.[f.field_id];
+                    if (val === undefined || val === null || String(val).trim() === '') {
+                        setValidationError(t('care_session.missing_required_field', `Required field missing: ${f.label}`));
+                        return;
+                    }
+                }
+            }
+        }
+        setValidationError(null);
+        onOpenFinishSheet?.();
+    };
+
     // UI state for adding a procedure dropdown
     const [isAddProcOpen, setIsAddProcOpen] = useState(false);
     const [isAddingProc, setIsAddingProc] = useState(false);
@@ -265,14 +344,23 @@ export default function GenericVisitWorkspace({
     if (!isOpen || !session) return null;
 
     return (
-        <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('care_session.workspace_title', 'Chairside Visit Workspace')}
-            data-testid="generic-visit-workspace"
-            className="fixed inset-0 z-50 flex flex-col bg-slate-900/60 backdrop-blur-xs transition-opacity animate-in fade-in"
+        <DentixDialog
+            open={isOpen}
+            onOpenChange={(nextOpen) => {
+                if (!nextOpen) onClose?.();
+            }}
+            title={t('care_session.workspace_title', 'Chairside Visit Workspace')}
+            size="5xl"
+            maxWidth="w-[calc(100%-1rem)] max-w-7xl h-[calc(100dvh-1rem)]"
+            scrollable={false}
+            className="p-0 overflow-hidden"
         >
-            <div className="flex h-full w-full flex-col bg-surface overflow-hidden shadow-2xl">
+            <div
+                role="region"
+                aria-label={t('care_session.workspace_title', 'Chairside Visit Workspace')}
+                data-testid="generic-visit-workspace"
+                className="flex h-full w-full flex-col bg-surface overflow-hidden"
+            >
                 {/* ---------------- Top Header Bar ---------------- */}
                 <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-elevated px-4 py-3 sm:px-6">
                     <div className="flex items-center gap-3">
@@ -358,7 +446,7 @@ export default function GenericVisitWorkspace({
                         <Button
                             variant="success"
                             size="sm"
-                            onClick={onOpenFinishSheet}
+                            onClick={handleFinishVisit}
                             data-testid="workspace-finish-visit-btn"
                             className="gap-1.5 font-bold shadow-xs"
                         >
@@ -378,6 +466,15 @@ export default function GenericVisitWorkspace({
                         </button>
                     </div>
                 </header>
+
+                {validationError && (
+                    <div
+                        data-testid="workspace-validation-error"
+                        className="mx-4 mt-2 rounded-lg bg-red-50 p-2.5 text-xs font-semibold text-red-700 dark:bg-red-950/40 dark:text-red-300 border border-red-200 dark:border-red-800"
+                    >
+                        {validationError}
+                    </div>
+                )}
 
                 {actionError && (
                     <div
@@ -430,8 +527,8 @@ export default function GenericVisitWorkspace({
                                     <ProcedureStatusControl
                                         patientId={session.patient_id}
                                         workItemId={sp.work_item_id}
-                                        currentStatus={wi?.status || 'active'}
-                                        versionId={wi?.version_id || 1}
+                                        currentStatus={sp.work_item_status || wi?.status || 'active'}
+                                        versionId={sp.work_item_version_id || wi?.version_id || 1}
                                         procedureCode={wi?.code || ''}
                                         procedureTitle={wi?.title || wi?.code || ''}
                                         onSuccess={() => refetchSession && refetchSession()}
@@ -894,17 +991,25 @@ export default function GenericVisitWorkspace({
                         <section
                             data-testid="workspace-rct-tools"
                             aria-label="Root Canal Anatomy Tools"
-                            className="rounded-2xl border border-primary/20 bg-primary/5 p-4 shadow-xs"
+                            className="rounded-2xl border border-primary/20 bg-primary/5 p-4 shadow-xs space-y-4"
                         >
-                            <div className="flex items-center gap-2 border-b border-primary/20 pb-3 mb-3">
+                            <div className="flex items-center gap-2 border-b border-primary/20 pb-3 mb-1">
                                 <Sparkles className="h-4 w-4 text-primary" />
                                 <h4 className="text-sm font-bold text-text-primary">
                                     {t('care_session.rct_anatomy_title', 'Root Canal Anatomy & Working Length Measurements')}
                                 </h4>
                             </div>
+                            <CanalTargetSelector
+                                toothKey={procedureToothKey}
+                                selectedCanals={selectedCanals}
+                                onToggleCanal={handleToggleCanal}
+                                t={t}
+                            />
                             <WorkingLengthEntryTable
-                                observations={procedureObservations}
-                                onSaveObservation={onSaveObservation}
+                                toothKey={procedureToothKey}
+                                selectedCanals={selectedCanals}
+                                recordedObservations={procedureObservations}
+                                onSaveMeasurement={handleSaveMeasurement}
                                 t={t}
                             />
                         </section>
@@ -948,7 +1053,7 @@ export default function GenericVisitWorkspace({
                     </section>
                 </main>
             </div>
-        </div>
+        </DentixDialog>
     );
 }
 

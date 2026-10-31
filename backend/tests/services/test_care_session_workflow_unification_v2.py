@@ -10,9 +10,10 @@ Covers:
 """
 
 from datetime import datetime, timedelta, timezone
+from copy import deepcopy
 import pytest
 from fastapi import HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, func
 
 from backend import models, schemas
 from backend.services.care_session_service import CareSessionService
@@ -63,7 +64,15 @@ async def setup_env(async_db_session):
         role="doctor",
         is_active=True,
     )
-    async_db_session.add_all([doctor1, doctor2])
+    admin = models.User(
+        tenant_id=tenant.id,
+        username="admin_apex",
+        email="admin@apex.com",
+        hashed_password="hashed-password",
+        role="admin",
+        is_active=True,
+    )
+    async_db_session.add_all([doctor1, doctor2, admin])
     await async_db_session.flush()
 
     patient1 = models.Patient(
@@ -92,6 +101,7 @@ async def setup_env(async_db_session):
         "tenant": tenant,
         "doctor1": doctor1,
         "doctor2": doctor2,
+        "admin": admin,
         "patient1": patient1,
         "patient2": patient2,
     }
@@ -251,6 +261,11 @@ async def test_care_session_generic_workspace_and_snapshot_association(async_db_
     assert len(session_after_add.procedures) == 2
 
     # Document a step for Extraction
+    stmt_max = select(func.coalesce(func.max(models.CareSessionStep.step_order), 0)).where(
+        models.CareSessionStep.care_session_id == session.id
+    )
+    max_order = (await async_db_session.execute(stmt_max)).scalar_one()
+
     step = models.CareSessionStep(
         tenant_id=tenant.id,
         care_session_id=session.id,
@@ -258,7 +273,7 @@ async def test_care_session_generic_workspace_and_snapshot_association(async_db_
         step_code="surg_luxation",
         title="Elevator Luxation",
         status="completed",
-        step_order=1,
+        step_order=max_order + 1,
     )
     async_db_session.add(step)
     await async_db_session.flush()
@@ -400,8 +415,9 @@ async def test_follow_up_dashboard_metrics_and_filters(async_db_session, setup_e
     doctor2 = setup_env["doctor2"]
     patient1 = setup_env["patient1"]
     patient2 = setup_env["patient2"]
+    admin = setup_env["admin"]
 
-    service = CareSessionService(async_db_session, tenant.id, doctor1)
+    service = CareSessionService(async_db_session, tenant.id, admin)
 
     now = datetime.now(timezone.utc)
     past_due = now - timedelta(days=3)
@@ -472,3 +488,142 @@ async def test_follow_up_dashboard_metrics_and_filters(async_db_session, setup_e
     dash_search = await service.get_follow_up_dashboard(search="Suture")
     assert len(dash_search.items) == 1
     assert dash_search.items[0].id == req_upcoming.id
+
+
+async def seed_visit(db, env, patient_key='patient1', status='in_progress'):
+    patient = env[patient_key]
+    item = models.ClinicalWorkItem(tenant_id=env['tenant'].id, patient_id=patient.id, kind='procedure', code='REST_COMPOSITE', status='active')
+    visit = models.CareSession(tenant_id=env['tenant'].id, patient_id=patient.id, status=status)
+    db.add_all([item, visit])
+    await db.flush()
+    proc = models.CareSessionProcedure(tenant_id=env['tenant'].id, care_session_id=visit.id, work_item_id=item.id, procedure_notes='Original clinical note')
+    db.add(proc)
+    await db.commit()
+    return visit, item, proc
+
+
+@pytest.mark.asyncio
+async def test_dashboard_excludes_patients_hidden_from_doctor(async_db_session, setup_env):
+    env = setup_env
+    req = models.NextVisitRequest(tenant_id=env['tenant'].id, patient_id=env['patient2'].id, reason='Private follow-up', status='requested')
+    async_db_session.add(req)
+    await async_db_session.commit()
+    svc = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    with pytest.raises(HTTPException) as error:
+        await svc._verify_patient(env['patient2'].id)
+    assert error.value.status_code == 404
+    result = await svc.get_follow_up_dashboard()
+    assert result.counts.total == 0
+    assert all(row.patient_id != env['patient2'].id for row in result.items)
+
+
+@pytest.mark.asyncio
+async def test_procedure_update_cannot_use_visible_patient_to_modify_hidden_patient(async_db_session, setup_env):
+    env = setup_env
+    visit, item, proc = await seed_visit(async_db_session, env, 'patient2')
+    svc = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    with pytest.raises(HTTPException) as error:
+        await svc.update_session_procedure(env['patient1'].id, visit.id, item.id, schemas.CareSessionProcedureUpdate(procedure_notes='Unauthorized replacement'))
+    assert error.value.status_code == 404
+    await async_db_session.refresh(proc)
+    assert proc.procedure_notes == 'Original clinical note'
+
+
+@pytest.mark.asyncio
+async def test_completed_visit_notes_require_traceable_correction(async_db_session, setup_env):
+    env = setup_env
+    visit, item, proc = await seed_visit(async_db_session, env, status='completed')
+    svc = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    with pytest.raises(HTTPException):
+        await svc.update_session_procedure(env['patient1'].id, visit.id, item.id, schemas.CareSessionProcedureUpdate(procedure_notes='Untracked historical rewrite'))
+    await async_db_session.refresh(proc)
+    assert proc.procedure_notes == 'Original clinical note'
+
+
+@pytest.mark.asyncio
+async def test_custom_template_procedure_association_is_respected(async_db_session, setup_env):
+    env = setup_env
+    svc = WorkflowTemplateService(async_db_session, env['tenant'].id, env['doctor1'])
+    payload = schemas.WorkflowTemplateCreate(template_code='MY_COMPOSITE', procedure_code='REST_COMPOSITE', title='Clinic composite', definition={'steps': [{'step_code': 'clinic_assessment', 'step_order': 1, 'title': 'Clinic assessment'}]})
+    await svc.create_template(payload)
+    selected = await svc.get_active_template_for_procedure('REST_COMPOSITE')
+    assert selected['template_code'] == 'MY_COMPOSITE'
+    assert selected['steps'][0]['step_code'] == 'clinic_assessment'
+
+
+@pytest.mark.asyncio
+async def test_deactivation_does_not_resurrect_old_version(async_db_session, setup_env):
+    env = setup_env
+    svc = WorkflowTemplateService(async_db_session, env['tenant'].id, env['doctor1'])
+    created = await svc.create_template(schemas.WorkflowTemplateCreate(template_code='REST_COMPOSITE', title='Clinic composite', definition={'steps': [{'step_code': 'clinic_assessment', 'step_order': 1, 'title': 'Clinic assessment'}]}))
+    await svc.update_template(created.id, schemas.WorkflowTemplateUpdate(is_active=False))
+    selected = await svc.get_active_template_for_procedure('REST_COMPOSITE')
+    assert selected is None
+
+
+@pytest.mark.asyncio
+async def test_existing_visit_snapshot_is_not_replaced_by_new_template_version(async_db_session, setup_env):
+    env = setup_env
+    ts = WorkflowTemplateService(async_db_session, env['tenant'].id, env['doctor1'])
+    tpl = await ts.create_template(schemas.WorkflowTemplateCreate(template_code='REST_COMPOSITE', title='Clinic v1', definition={'steps': [{'step_code': 'assessment', 'step_order': 1, 'title': 'Original clinical step'}]}))
+    item = models.ClinicalWorkItem(tenant_id=env['tenant'].id, patient_id=env['patient1'].id, kind='procedure', code='REST_COMPOSITE', status='active')
+    async_db_session.add(item)
+    await async_db_session.commit()
+    svc = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    visit = await svc.start_session(env['patient1'].id, schemas.CareSessionCreate(work_item_ids=[item.id]))
+    steps = await svc.apply_template(env['patient1'].id, visit.id, schemas.CareSessionTemplateApply(template_code='REST_COMPOSITE', work_item_id=item.id))
+    await svc.update_step(env['patient1'].id, visit.id, steps[0].id, schemas.CareSessionStepUpdate(status='completed'))
+    original = deepcopy(visit.procedures[0].template_snapshot)
+    await ts.update_template(tpl.id, schemas.WorkflowTemplateUpdate(title='Clinic v2'))
+    await svc.apply_template(env['patient1'].id, visit.id, schemas.CareSessionTemplateApply(template_code='REST_COMPOSITE', work_item_id=item.id))
+    current = await svc.get_session(env['patient1'].id, visit.id)
+    assert current.procedures[0].template_snapshot == original
+
+
+@pytest.mark.asyncio
+async def test_template_api_respects_disabled_clinical_rollout(async_db_session, setup_env):
+    env = setup_env
+    await FeatureFlagService.set_tenant_override(async_db_session, env['tenant'].id, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, False)
+    from backend.routers.workflow_templates import list_workflow_templates
+    with pytest.raises(HTTPException) as error:
+        await list_workflow_templates(include_inactive=False, db=async_db_session, current_user=env['doctor1'])
+    assert error.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_dashboard_handles_persisted_sqlite_datetime(async_db_session, setup_env):
+    env = setup_env
+    req = models.NextVisitRequest(tenant_id=env['tenant'].id, patient_id=env['patient1'].id, reason='Dated follow-up', status='requested', preferred_time_window_start=datetime(2026, 10, 1, 10, 0))
+    async_db_session.add(req)
+    await async_db_session.commit()
+    svc = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    result = await svc.get_follow_up_dashboard()
+    assert result.counts.overdue == 1
+
+
+@pytest.mark.asyncio
+async def test_workspace_documentation_survives_finish_and_discard(async_db_session, setup_env):
+    env = setup_env
+    visit, item, proc = await seed_visit(async_db_session, env)
+    svc = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    await svc.save_draft(env['patient1'].id, schemas.CareSessionDraftSave(care_session_id=visit.id, draft_data={f'proc_notes_{item.id}': 'Clinical findings documented', f'proc_next_action_{item.id}': 'Review restoration', f'proc_custom_{item.id}_shade': 'A2'}))
+    await svc.finish_session(env['patient1'].id, visit.id, schemas.CareSessionFinish())
+    await svc.delete_draft(env['patient1'].id)
+    current = await svc.get_session(env['patient1'].id, visit.id)
+    assert current.procedures[0].procedure_notes == 'Clinical findings documented'
+    assert current.procedures[0].next_action == 'Review restoration'
+    assert 'A2' in str(svc.generate_session_summary(current))
+
+
+@pytest.mark.asyncio
+async def test_add_procedure_initializes_the_snapshotted_steps(async_db_session, setup_env):
+    env = setup_env
+    visit, _, _ = await seed_visit(async_db_session, env)
+    item = models.ClinicalWorkItem(tenant_id=env['tenant'].id, patient_id=env['patient1'].id, kind='procedure', code='SURG_EXTRACTION', status='active')
+    async_db_session.add(item)
+    await async_db_session.commit()
+    svc = CareSessionService(async_db_session, env['tenant'].id, env['doctor1'])
+    added = await svc.add_procedure_to_session(env['patient1'].id, visit.id, item.id)
+    assert added.template_snapshot['steps']
+    current = await svc.get_session(env['patient1'].id, visit.id)
+    assert [s for s in current.steps if s.work_item_id == item.id], 'Workspace has no apply-template action after adding a procedure'

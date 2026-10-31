@@ -23,6 +23,8 @@ from backend.schemas.workflow_template import (
     WorkflowTemplateRead,
     WorkflowTemplateUpdate,
 )
+from backend.services.feature_service import FeatureFlagService
+from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
 
 
 class WorkflowTemplateService:
@@ -30,6 +32,19 @@ class WorkflowTemplateService:
         self.db = db
         self.tenant_id = tenant_id
         self.current_user = current_user
+
+    async def is_native_writes_enabled(self) -> bool:
+        return await FeatureFlagService.is_feature_enabled(
+            self.db, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, self.tenant_id
+        )
+
+    async def ensure_native_writes_enabled(self) -> None:
+        """Fail-closed gate when clinical_vnext_native_writes is OFF (404)."""
+        if not await self.is_native_writes_enabled():
+            raise HTTPException(
+                status_code=404,
+                detail="Clinical native writes are disabled",
+            )
 
     async def list_templates(self, include_inactive: bool = False) -> List[Dict[str, Any]]:
         """
@@ -239,6 +254,9 @@ class WorkflowTemplateService:
         else:
             definition_dict = dict(current.get("definition") or {})
 
+        proc_code = payload.procedure_code or current.get("procedure_code") or code
+        definition_dict["procedure_code"] = proc_code
+
         new_template = models.WorkflowTemplate(
             tenant_id=self.tenant_id,
             template_code=code,
@@ -274,18 +292,31 @@ class WorkflowTemplateService:
             return None
         code = procedure_code.strip().upper()
 
-        # Check tenant DB first
         stmt = (
             select(models.WorkflowTemplate)
-            .where(
-                models.WorkflowTemplate.tenant_id == self.tenant_id,
-                models.WorkflowTemplate.template_code == code,
-                models.WorkflowTemplate.is_active.is_(True),
-            )
+            .where(models.WorkflowTemplate.tenant_id == self.tenant_id)
             .order_by(models.WorkflowTemplate.version.desc())
         )
-        t = (await self.db.execute(stmt)).scalars().first()
-        if t:
+        result = await self.db.execute(stmt)
+        tenant_templates = list(result.scalars().all())
+
+        tenant_latest: Dict[str, models.WorkflowTemplate] = {}
+        for t in tenant_templates:
+            if t.template_code not in tenant_latest:
+                tenant_latest[t.template_code] = t
+
+        matching = []
+        for t in tenant_latest.values():
+            proc_c = (t.definition.get("procedure_code") or t.template_code or "").strip().upper()
+            if proc_c == code or t.template_code == code:
+                priority = 1 if (t.definition.get("procedure_code") or "").strip().upper() == code else 2
+                matching.append((priority, t))
+
+        if matching:
+            matching.sort(key=lambda x: (x[0], -(x[1].id or 0)))
+            t = matching[0][1]
+            if not t.is_active:
+                return None
             return {
                 "template_code": t.template_code,
                 "version": t.version,

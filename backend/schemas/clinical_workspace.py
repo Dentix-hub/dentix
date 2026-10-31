@@ -88,6 +88,7 @@ class WorkspaceWorkItemSummary(BaseModel):
     lab_ready: bool = False
     shade: Optional[str] = None
     material: Optional[str] = None
+    version_id: Optional[int] = 1
 
 
 class ClinicalWorkspaceSnapshot(BaseModel):
