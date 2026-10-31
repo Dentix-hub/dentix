@@ -1,14 +1,11 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import {
-    Clock,
-    UserCheck,
     Ban,
     Calendar,
     ArrowRightLeft,
-    RotateCcw,
     AlertCircle,
     Loader2,
 } from 'lucide-react';
@@ -19,6 +16,7 @@ import {
     resumeNextVisitRequest,
     handoffNextVisitRequest,
 } from '@/api/patients';
+import { getDoctors } from '@/api/admin';
 
 /**
  * FollowUpManagementModal (Slice S25 / G11-M10..M13).
@@ -29,11 +27,24 @@ export default function FollowUpManagementModal({
     isOpen,
     onClose,
     request,
-    doctors = [],
+    doctors: doctorsProp = [],
     onSuccess,
 }) {
     const { t } = useTranslation();
     const queryClient = useQueryClient();
+
+    const doctorsQuery = useQuery({
+        queryKey: ['doctors', 'follow-up-modal'],
+        queryFn: async () => {
+            const res = await getDoctors();
+            const docs = res?.data?.doctors || res?.data || [];
+            return Array.isArray(docs) ? docs : [];
+        },
+        enabled: Boolean(isOpen && (!doctorsProp || doctorsProp.length === 0)),
+        staleTime: 5 * 60 * 1000,
+    });
+
+    const doctors = doctorsProp && doctorsProp.length > 0 ? doctorsProp : (doctorsQuery.data || []);
 
     const [activeAction, setActiveAction] = useState('postpone'); // 'postpone' | 'stop' | 'handoff' | 'resume'
     const [isLoading, setIsLoading] = useState(false);

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, render, screen, fireEvent } from '@testing-library/react';
 import { useCareSessionDraft } from '@/features/care-sessions/useCareSessionDraft';
+import FinishCareSessionSheet from '@/features/care-sessions/FinishCareSessionSheet';
 import * as patientsApi from '@/api/patients';
 
 vi.mock('@/api/patients', () => ({
@@ -125,5 +126,54 @@ describe('Slice S25 / G10-M17: Care Session Server Drafts Autosave Hook', () => 
         expect(patientsApi.deleteCareSessionDraft).toHaveBeenCalledWith(42);
         expect(result.current.draftData).toEqual({});
         expect(result.current.status).toBe('idle');
+    });
+});
+
+describe('FinishCareSessionSheet Draft Restoration & Autosave Integration (Review 2 Issue 1)', () => {
+    const mockSession = {
+        id: 10,
+        status: 'in_progress',
+        steps: [{ id: 1, title: 'Step 1', status: 'completed' }],
+        observations: [],
+    };
+
+    it('populates form from draftData and triggers onDraftChange on typing', () => {
+        const onDraftChange = vi.fn();
+        const initialDraft = {
+            notes: 'Recovered clinical progress notes',
+            requestNextVisit: true,
+            nextVisitReason: 'Tooth 46: Obturation',
+            nextVisitDuration: 45,
+            nextVisitNotes: 'Check root canal after 7 days',
+        };
+
+        render(
+            <FinishCareSessionSheet
+                isOpen={true}
+                onClose={vi.fn()}
+                session={mockSession}
+                onFinishSession={vi.fn()}
+                draftData={initialDraft}
+                onDraftChange={onDraftChange}
+            />
+        );
+
+        // 1. Recovered draft data populates the form inputs
+        const notesInput = screen.getByTestId('finish-session-notes-input');
+        expect(notesInput.value).toBe('Recovered clinical progress notes');
+
+        const reasonInput = screen.getByTestId('next-visit-reason-input');
+        expect(reasonInput.value).toBe('Tooth 46: Obturation');
+
+        const nextVisitNotesInput = screen.getByTestId('next-visit-notes-input');
+        expect(nextVisitNotesInput.value).toBe('Check root canal after 7 days');
+
+        // 2. Typing in notes triggers onDraftChange
+        fireEvent.change(notesInput, { target: { value: 'Updated clinical progress notes' } });
+        expect(onDraftChange).toHaveBeenCalledWith({ notes: 'Updated clinical progress notes' });
+
+        // 3. Typing in next visit reason triggers onDraftChange
+        fireEvent.change(reasonInput, { target: { value: 'Tooth 46: Final restoration' } });
+        expect(onDraftChange).toHaveBeenCalledWith({ nextVisitReason: 'Tooth 46: Final restoration' });
     });
 });

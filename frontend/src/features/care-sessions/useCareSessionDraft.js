@@ -9,8 +9,8 @@ const DEBOUNCE_DELAY_MS = 1500;
 
 /**
  * useCareSessionDraft Hook (Slice S25 / G10-M17).
- * Provides debounced chairside draft autosave, optimistic concurrency conflict detection,
- * offline fallback via localStorage, and draft discard on session finish.
+ * Provides debounced chairside draft autosave with server persistence,
+ * optimistic concurrency conflict detection, and draft discard on session finish.
  */
 export function useCareSessionDraft({
     patientId,
@@ -20,7 +20,7 @@ export function useCareSessionDraft({
 }) {
     const [draftData, setDraftData] = useState(initialData || {});
     const [versionId, setVersionId] = useState(1);
-    const [status, setStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error' | 'conflict' | 'offline_saved'
+    const [status, setStatus] = useState('idle'); // 'idle' | 'saving' | 'saved' | 'error' | 'conflict'
     const [lastSavedAt, setLastSavedAt] = useState(null);
     const [errorMessage, setErrorMessage] = useState(null);
     const [hasConflict, setHasConflict] = useState(false);
@@ -30,14 +30,12 @@ export function useCareSessionDraft({
     const latestDataRef = useRef(draftData);
     const isMountedRef = useRef(true);
 
-    const storageKey = `dentix_care_session_draft_${patientId}`;
-
     // Keep ref in sync
     useEffect(() => {
         latestDataRef.current = draftData;
     }, [draftData]);
 
-    // Initial draft load from server (or offline local storage)
+    // Initial draft load from server
     useEffect(() => {
         isMountedRef.current = true;
         if (!enabled || !patientId) return;
@@ -55,16 +53,9 @@ export function useCareSessionDraft({
                     setLastSavedAt(new Date(serverDraft.updated_at || Date.now()));
                 }
             } catch (err) {
-                // If server 404 or network error, check offline local storage
-                if (typeof window !== 'undefined') {
-                    try {
-                        const local = localStorage.getItem(storageKey);
-                        if (local && !isCancelled) {
-                            const parsed = JSON.parse(local);
-                            setDraftData(parsed.draft_data || parsed);
-                            setStatus('offline_saved');
-                        }
-                    } catch {}
+                // Draft load failed or no existing draft
+                if (!isCancelled) {
+                    setErrorMessage(err.response?.data?.detail || null);
                 }
             }
         }
@@ -78,7 +69,7 @@ export function useCareSessionDraft({
                 clearTimeout(debounceTimerRef.current);
             }
         };
-    }, [patientId, enabled, storageKey]);
+    }, [patientId, enabled]);
 
     // Core save function
     const saveToServer = useCallback(
@@ -88,14 +79,8 @@ export function useCareSessionDraft({
             // Check if browser is offline
             const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
             if (isOffline) {
-                try {
-                    localStorage.setItem(
-                        storageKey,
-                        JSON.stringify({ draft_data: dataToSave, updated_at: new Date().toISOString() })
-                    );
-                    setStatus('offline_saved');
-                    setLastSavedAt(new Date());
-                } catch {}
+                setStatus('error');
+                setErrorMessage('Network offline. Cannot sync draft.');
                 return;
             }
 
@@ -118,11 +103,6 @@ export function useCareSessionDraft({
                     setLastSavedAt(new Date());
                     setHasConflict(false);
                     setServerConflictDraft(null);
-
-                    // Clean offline local storage when server sync succeeds
-                    try {
-                        localStorage.removeItem(storageKey);
-                    } catch {}
                 }
             } catch (err) {
                 if (!isMountedRef.current) return;
@@ -133,21 +113,12 @@ export function useCareSessionDraft({
                     setServerConflictDraft(err.response?.data?.data || err.response?.data);
                     setStatus('conflict');
                 } else {
-                    // Save offline fallback on network or server error
-                    try {
-                        localStorage.setItem(
-                            storageKey,
-                            JSON.stringify({ draft_data: dataToSave, updated_at: new Date().toISOString() })
-                        );
-                        setStatus('offline_saved');
-                    } catch {
-                        setStatus('error');
-                    }
+                    setStatus('error');
                     setErrorMessage(err.response?.data?.detail || err.message || 'Draft autosave failed');
                 }
             }
         },
-        [patientId, careSessionId, versionId, enabled, storageKey]
+        [patientId, careSessionId, versionId, enabled]
     );
 
     // Update draft data with debounced autosave
@@ -203,11 +174,9 @@ export function useCareSessionDraft({
         }
         try {
             await deleteCareSessionDraft(patientId);
-        } catch {}
-
-        try {
-            localStorage.removeItem(storageKey);
-        } catch {}
+        } catch {
+            // Discard draft failure ignored
+        }
 
         if (isMountedRef.current) {
             setDraftData({});
@@ -216,7 +185,7 @@ export function useCareSessionDraft({
             setLastSavedAt(null);
             setHasConflict(false);
         }
-    }, [patientId, storageKey]);
+    }, [patientId]);
 
     return {
         draftData,

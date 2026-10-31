@@ -20,6 +20,7 @@ EVENT_IDS = {
     'resume_work_item_id': 'clinical_work_items', 'resume_from_session_id': 'care_sessions',
     'step_id': 'care_session_steps', 'observation_id': 'care_observations',
     'request_id': 'next_visit_requests', 'material_id': 'materials',
+    'original_observation_id': 'care_observations', 'replacement_observation_id': 'care_observations',
     'amends_session_id': 'care_sessions', 'superseded_by_id': 'care_observations',
     'reference_source_session_id': 'care_sessions', 'assigned_doctor_id': 'users',
     'stopped_by_user_id': 'users', 'postponed_by_user_id': 'users',

@@ -11,6 +11,8 @@ down_revision = "f3c4d5e6a7b8"
 branch_labels = None
 depends_on = None
 
+TENANT_TABLES = ("care_session_procedures", "care_session_drafts")
+
 
 def upgrade():
     bind = op.get_bind()
@@ -176,11 +178,24 @@ def upgrade():
                     EXECUTE FUNCTION dentix_assert_parent_tenant('{parent}', '{child_key}', '{str(allow_null).lower()}')'''
             )
 
+        # Install restore write gates for new tables
+        for table in new_tables:
+            op.execute(f'DROP TRIGGER IF EXISTS clinic_write_gate ON "{table}"')
+            op.execute(
+                f'CREATE TRIGGER clinic_write_gate BEFORE INSERT OR UPDATE OR DELETE ON "{table}" '
+                f'FOR EACH ROW EXECUTE FUNCTION dentix_clinic_write_gate()'
+            )
+
 
 def downgrade():
     bind = op.get_bind()
     inspector = sa.inspect(bind)
     existing_tables = set(inspector.get_table_names())
+    is_pg = bind.dialect.name == "postgresql"
+
+    if is_pg:
+        for table in ["care_session_procedures", "care_session_drafts"]:
+            op.execute(f'DROP TRIGGER IF EXISTS clinic_write_gate ON "{table}"')
 
     if "care_session_drafts" in existing_tables:
         op.drop_table("care_session_drafts")

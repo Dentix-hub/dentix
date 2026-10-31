@@ -802,19 +802,6 @@ class ClinicalCommandService:
         res = await self.db.execute(stmt)
         work_item = res.scalar_one_or_none()
         if not work_item or work_item.patient_id != patient_id:
-            stmt_legacy = (
-                select(models.ClinicalWorkItem)
-                .options(selectinload(models.ClinicalWorkItem.targets))
-                .where(
-                    models.ClinicalWorkItem.legacy_treatment_id == work_item_id,
-                    models.ClinicalWorkItem.tenant_id == self.tenant_id,
-                    models.ClinicalWorkItem.patient_id == patient_id,
-                )
-                .with_for_update()
-            )
-            work_item = (await self.db.execute(stmt_legacy)).scalar_one_or_none()
-
-        if not work_item or work_item.patient_id != patient_id:
             raise HTTPException(status_code=404, detail="Clinical work item not found")
 
         user = await self._get_active_current_user()
@@ -1033,13 +1020,10 @@ class ClinicalCommandService:
 
         user = await self._get_active_current_user()
         user_role = getattr(user, "role", "guest")
-        if not (
-            has_permission(user_role, Permission.TREATMENT_PLAN_WRITE)
-            or has_permission(user_role, Permission.CLINICAL_WRITE)
-        ):
+        if not has_permission(user_role, Permission.TREATMENT_PLAN_WRITE):
             raise HTTPException(
                 status_code=403,
-                detail="Permission denied. Required: treatment_plan:write or clinical:write for procedure status change",
+                detail="Permission denied. Required: treatment_plan:write for procedure status change",
             )
 
         key = self._validate_idempotency_key(idempotency_key or getattr(payload, "idempotency_key", None))
@@ -1093,19 +1077,6 @@ class ClinicalCommandService:
         )
         res = await self.db.execute(stmt)
         work_item = res.scalar_one_or_none()
-        if not work_item or work_item.patient_id != patient_id:
-            stmt_legacy = (
-                select(models.ClinicalWorkItem)
-                .options(selectinload(models.ClinicalWorkItem.targets))
-                .where(
-                    models.ClinicalWorkItem.legacy_treatment_id == work_item_id,
-                    models.ClinicalWorkItem.tenant_id == self.tenant_id,
-                    models.ClinicalWorkItem.patient_id == patient_id,
-                )
-                .with_for_update()
-            )
-            work_item = (await self.db.execute(stmt_legacy)).scalar_one_or_none()
-
         if not work_item or work_item.patient_id != patient_id:
             raise HTTPException(status_code=404, detail="Clinical work item not found")
 
@@ -1191,18 +1162,46 @@ class ClinicalCommandService:
                 )
 
         elif target_status == "completed" and old_status != "completed":
-            # Check outstanding steps
-            step_stmt = select(models.CareSessionStep).where(
-                models.CareSessionStep.tenant_id == self.tenant_id,
-                models.CareSessionStep.work_item_id == work_item.id,
-                models.CareSessionStep.status.notin_(["completed", "omitted", "skipped", "cancelled"]),
-            )
-            outstanding_steps = (await self.db.execute(step_stmt)).scalars().all()
-            if outstanding_steps and not (payload.override_reason or payload.reason):
-                raise HTTPException(
-                    status_code=422,
-                    detail=f"Procedure has {len(outstanding_steps)} outstanding workflow step(s). Confirming completion requires an override reason.",
+            # Check outstanding logical workflow steps across visits
+            step_stmt = (
+                select(models.CareSessionStep)
+                .where(
+                    models.CareSessionStep.tenant_id == self.tenant_id,
+                    models.CareSessionStep.work_item_id == work_item.id,
                 )
+                .order_by(
+                    models.CareSessionStep.care_session_id.asc(),
+                    models.CareSessionStep.step_order.asc(),
+                    models.CareSessionStep.id.asc(),
+                )
+            )
+            all_steps = (await self.db.execute(step_stmt)).scalars().all()
+            if all_steps:
+                logical_tasks = {}
+                for s in all_steps:
+                    key = (s.logical_step_code or s.step_code or s.title or f"step_{s.step_order}", s.occurrence_number or 1)
+                    if key not in logical_tasks:
+                        logical_tasks[key] = []
+                    logical_tasks[key].append(s)
+
+                outstanding_tasks = []
+                for key, task_occurrences in logical_tasks.items():
+                    # If any occurrence was completed, or the latest occurrence was omitted/skipped/cancelled,
+                    # the logical task is satisfied.
+                    is_completed = any(s.status == "completed" for s in task_occurrences)
+                    latest_status = task_occurrences[-1].status
+                    if not is_completed and latest_status not in ("omitted", "skipped", "cancelled"):
+                        outstanding_tasks.append((key, task_occurrences[-1]))
+
+                if outstanding_tasks and not (payload.override_reason or payload.reason):
+                    raise HTTPException(
+                        status_code=422,
+                        detail={
+                            "code": "OVERRIDE_REASON_REQUIRED",
+                            "message": f"Procedure has {len(outstanding_tasks)} outstanding workflow step(s). Confirming completion requires an override reason.",
+                            "outstanding_steps_count": len(outstanding_tasks),
+                        },
+                    )
 
         now = datetime.now(timezone.utc)
         work_item.status = target_status

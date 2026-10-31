@@ -96,7 +96,7 @@ async def update_patient_clinical_work_item_status(
     idempotency_key: Optional[str] = Header(None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(
-        require_permission(Permission.CLINICAL_WRITE, Permission.TREATMENT_PLAN_WRITE)
+        require_permission(Permission.TREATMENT_PLAN_WRITE)
     ),
 ):
     service = ClinicalCommandService(db, current_user.tenant_id, current_user)

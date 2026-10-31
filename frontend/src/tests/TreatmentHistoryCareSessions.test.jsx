@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TreatmentHistory from '@/features/patients/PatientTabs/TreatmentHistory';
+import { useAuthStore } from '@/store/auth.store';
 
 vi.mock('@/api/patients', () => ({
     getPatientCareSessions: vi.fn(),
@@ -149,5 +150,89 @@ describe('Slice S25 / Defects 4, 6, 7: TreatmentHistory with Real Care Sessions'
         expect(screen.getByTestId('care-sessions-timeline-view')).toBeInTheDocument();
         expect(screen.getByTestId('timeline-session-201')).toBeInTheDocument();
         expect(screen.getByText(/Visit Date: Oct 18, 2026/)).toBeInTheDocument();
+    });
+
+    it('does not guess work item IDs for legacy records without work_item_id (Issue 2)', () => {
+        const legacyHistory = [
+            {
+                id: 99,
+                // work_item_id is intentionally undefined/null
+                date: '2026-10-15T09:00:00Z',
+                tooth_number: 16,
+                diagnosis: 'Caries',
+                procedure: 'Composite Filling',
+                status: 'Done',
+            },
+        ];
+
+        renderWithClient(
+            <TreatmentHistory
+                history={legacyHistory}
+                patientId={1}
+                careSessions={[]}
+            />
+        );
+
+        // Does NOT render ProcedureStatusControl with guessed ID
+        expect(screen.queryByTestId('procedure-status-control')).not.toBeInTheDocument();
+        // Renders static badge
+        expect(screen.getByText('Done')).toBeInTheDocument();
+    });
+
+    it('opens follow-up management modal from session next-visit request (Issue 8)', () => {
+        renderWithClient(
+            <TreatmentHistory
+                history={mockHistory}
+                patientId={1}
+                careSessions={mockCareSessions}
+            />
+        );
+
+        // Expand session
+        fireEvent.click(screen.getByTestId('toggle-sessions-10'));
+
+        // Click manage button on follow up request
+        const manageBtn = screen.getByTestId('manage-follow-up-btn-501');
+        expect(manageBtn).toBeInTheDocument();
+        fireEvent.click(manageBtn);
+
+        // Follow up modal should open
+        expect(screen.getByTestId('follow-up-management-modal')).toBeInTheDocument();
+    });
+
+    it('hides clinical follow-up manage button for receptionists without CLINICAL_WRITE (Review 2 Issue 7)', () => {
+        useAuthStore.setState({ user: { id: 10, role: 'receptionist', permissions: [] } });
+
+        renderWithClient(
+            <TreatmentHistory
+                history={mockHistory}
+                patientId={1}
+                careSessions={mockCareSessions}
+            />
+        );
+
+        // Expand session
+        fireEvent.click(screen.getByTestId('toggle-sessions-10'));
+
+        // Receptionist must NOT see clinical manage button
+        expect(screen.queryByTestId('manage-follow-up-btn-501')).not.toBeInTheDocument();
+    });
+
+    it('shows clinical follow-up manage button for clinicians with CLINICAL_WRITE (Review 2 Issue 7)', () => {
+        useAuthStore.setState({ user: { id: 2, role: 'doctor', permissions: ['clinical:write'] } });
+
+        renderWithClient(
+            <TreatmentHistory
+                history={mockHistory}
+                patientId={1}
+                careSessions={mockCareSessions}
+            />
+        );
+
+        // Expand session
+        fireEvent.click(screen.getByTestId('toggle-sessions-10'));
+
+        // Clinician must see clinical manage button
+        expect(screen.getByTestId('manage-follow-up-btn-501')).toBeInTheDocument();
     });
 });

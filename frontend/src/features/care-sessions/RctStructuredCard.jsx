@@ -42,6 +42,8 @@ export default function RctStructuredCard({
     attachmentLinks = [],
     onCreateAttachmentLink = null,
     onDeleteAttachmentLink = null,
+    draftData = null,
+    onDraftChange = null,
     t = (k, f) => f || k,
 }) {
     const [selectedCanals, setSelectedCanals] = useState([
@@ -468,6 +470,8 @@ export default function RctStructuredCard({
                 session={session}
                 onFinishSession={onFinishSession}
                 isFinishing={isFinishingSession}
+                draftData={draftData}
+                onDraftChange={onDraftChange}
                 t={t}
             />
 
@@ -513,5 +517,7 @@ RctStructuredCard.propTypes = {
     attachmentLinks: PropTypes.array,
     onCreateAttachmentLink: PropTypes.func,
     onDeleteAttachmentLink: PropTypes.func,
+    draftData: PropTypes.object,
+    onDraftChange: PropTypes.func,
     t: PropTypes.func,
 };

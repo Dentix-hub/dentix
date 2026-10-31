@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import {
     CheckCircle,
@@ -27,9 +27,11 @@ export default function FinishCareSessionSheet({
     session,
     onFinishSession,
     isFinishing = false,
+    draftData = null,
+    onDraftChange = null,
     t = (k, f) => f || k,
 }) {
-    const [notes, setNotes] = useState('');
+    const [notes, setNotes] = useState(draftData?.notes ?? session?.notes ?? '');
 
     const steps = session?.steps || [];
     const observations = session?.observations || [];
@@ -64,11 +66,71 @@ export default function FinishCareSessionSheet({
 
     const defaultDuration = isRctSession ? 45 : 30;
 
-    const [requestNextVisit, setRequestNextVisit] = useState(false);
-    const [nextVisitReason, setNextVisitReason] = useState(defaultReason);
-    const [nextVisitDuration, setNextVisitDuration] = useState(defaultDuration);
-    const [nextVisitNotes, setNextVisitNotes] = useState('');
+    const [requestNextVisit, setRequestNextVisit] = useState(Boolean(draftData?.requestNextVisit));
+    const [nextVisitReason, setNextVisitReason] = useState(draftData?.nextVisitReason ?? defaultReason);
+    const [nextVisitDuration, setNextVisitDuration] = useState(draftData?.nextVisitDuration ?? defaultDuration);
+    const [nextVisitNotes, setNextVisitNotes] = useState(draftData?.nextVisitNotes ?? '');
     const [isLabHandoffOpen, setIsLabHandoffOpen] = useState(false);
+
+    // Sync from server draftData when recovered
+    useEffect(() => {
+        if (draftData) {
+            if (typeof draftData.notes === 'string') {
+                setNotes(draftData.notes);
+            }
+            if (typeof draftData.nextVisitNotes === 'string') {
+                setNextVisitNotes(draftData.nextVisitNotes);
+            }
+            if (typeof draftData.nextVisitReason === 'string') {
+                setNextVisitReason(draftData.nextVisitReason);
+            }
+            if (draftData.nextVisitDuration !== undefined) {
+                setNextVisitDuration(draftData.nextVisitDuration);
+            }
+            if (draftData.requestNextVisit !== undefined) {
+                setRequestNextVisit(Boolean(draftData.requestNextVisit));
+            }
+        }
+    }, [draftData]);
+
+    const handleNotesChange = (e) => {
+        const val = e.target.value;
+        setNotes(val);
+        if (onDraftChange) {
+            onDraftChange({ notes: val });
+        }
+    };
+
+    const handleNextVisitReasonChange = (e) => {
+        const val = e.target.value;
+        setNextVisitReason(val);
+        if (onDraftChange) {
+            onDraftChange({ nextVisitReason: val });
+        }
+    };
+
+    const handleNextVisitDurationChange = (dur) => {
+        setNextVisitDuration(dur);
+        if (onDraftChange) {
+            onDraftChange({ nextVisitDuration: dur });
+        }
+    };
+
+    const handleNextVisitNotesChange = (e) => {
+        const val = e.target.value;
+        setNextVisitNotes(val);
+        if (onDraftChange) {
+            onDraftChange({ nextVisitNotes: val });
+        }
+    };
+
+    const handleToggleRequestNextVisit = (e) => {
+        const val = e.target.checked;
+        setRequestNextVisit(val);
+        if (onDraftChange) {
+            onDraftChange({ requestNextVisit: val });
+        }
+    };
 
     const hasLabReadyStep = steps.some(
         (s) => (s.status === 'completed' || s.status === 'in_progress') && isLabReadyStep(s.step_code)
@@ -226,7 +288,7 @@ export default function FinishCareSessionSheet({
                         id="finish-session-notes"
                         rows={3}
                         value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
+                        onChange={handleNotesChange}
                         placeholder={t(
                             'care_session.final_notes_placeholder',
                             'Document patient tolerance, clinical observations, or instructions for the next visit...'
@@ -282,7 +344,7 @@ export default function FinishCareSessionSheet({
                             type="checkbox"
                             id="toggle-request-next-visit"
                             checked={requestNextVisit}
-                            onChange={(e) => setRequestNextVisit(e.target.checked)}
+                            onChange={handleToggleRequestNextVisit}
                             data-testid="request-next-visit-toggle"
                             className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900"
                         />
@@ -316,7 +378,7 @@ export default function FinishCareSessionSheet({
                                     type="text"
                                     id="next-visit-reason"
                                     value={nextVisitReason}
-                                    onChange={(e) => setNextVisitReason(e.target.value)}
+                                    onChange={handleNextVisitReasonChange}
                                     placeholder={t(
                                         'care_session.next_visit_reason_placeholder',
                                         'e.g. Tooth 46: Root Canal Treatment - Obturation'
@@ -336,7 +398,7 @@ export default function FinishCareSessionSheet({
                                         <button
                                             key={dur}
                                             type="button"
-                                            onClick={() => setNextVisitDuration(dur)}
+                                            onClick={() => handleNextVisitDurationChange(dur)}
                                             data-testid={`duration-chip-${dur}`}
                                             className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-colors ${
                                                 Number(nextVisitDuration) === dur
@@ -349,7 +411,7 @@ export default function FinishCareSessionSheet({
                                     ))}
                                     <select
                                         value={nextVisitDuration}
-                                        onChange={(e) => setNextVisitDuration(Number(e.target.value))}
+                                        onChange={(e) => handleNextVisitDurationChange(Number(e.target.value))}
                                         data-testid="next-visit-duration-select"
                                         className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                                     >
@@ -374,7 +436,7 @@ export default function FinishCareSessionSheet({
                                     type="text"
                                     id="next-visit-notes"
                                     value={nextVisitNotes}
-                                    onChange={(e) => setNextVisitNotes(e.target.value)}
+                                    onChange={handleNextVisitNotesChange}
                                     placeholder={t(
                                         'care_session.reception_instructions_placeholder',
                                         'e.g. Schedule after 7 days, check symptoms'
@@ -439,5 +501,7 @@ FinishCareSessionSheet.propTypes = {
     session: PropTypes.object,
     onFinishSession: PropTypes.func.isRequired,
     isFinishing: PropTypes.bool,
+    draftData: PropTypes.object,
+    onDraftChange: PropTypes.func,
     t: PropTypes.func,
 };

@@ -784,6 +784,7 @@ def _install_postgresql_rls(connection) -> None:
 RESTORE_GATE_NAMESPACE = 1146377304
 RESTORE_WRITE_GATE_TABLES = (
     "users", "appointments", "attachments", "batches", "care_observations",
+    "care_session_drafts", "care_session_procedures",
     "care_session_steps", "care_sessions", "clinical_attachment_links",
     "clinical_charges", "clinical_event_targets", "clinical_events",
     "clinical_projection_coverages", "clinical_treatment_plan_items",

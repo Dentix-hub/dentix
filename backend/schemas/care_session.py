@@ -13,6 +13,7 @@ class CareSessionCreate(BaseModel):
     notes: Optional[str] = None
     work_item_ids: Optional[List[int]] = Field(default_factory=list, description="Associated clinical work item IDs for this care session")
     resume_work_item_id: Optional[int] = Field(None, description="Optional work item ID to resume in this new session")
+    resume_work_item_ids: Optional[List[int]] = Field(default_factory=list, description="Optional list of work item IDs to resume in this new session")
     resume_from_session_id: Optional[int] = Field(None, description="Optional previous care session ID to carry forward steps and observations from")
     actual_visit_date: Optional[datetime] = Field(None, description="Actual visit date/time if distinct from recording time")
     is_historical: bool = Field(False, description="Flag indicating if this is documenting a past historical visit")

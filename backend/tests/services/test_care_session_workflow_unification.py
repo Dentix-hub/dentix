@@ -387,7 +387,12 @@ async def test_status_only_requires_override_reason_when_steps_outstanding(async
             schemas.ClinicalWorkItemStatusUpdate(status="completed"),
         )
     assert exc_info.value.status_code == 422
-    assert "outstanding workflow step" in exc_info.value.detail
+    detail = exc_info.value.detail
+    if isinstance(detail, dict):
+        assert detail.get("code") == "OVERRIDE_REASON_REQUIRED"
+        assert "outstanding workflow step" in detail.get("message", "")
+    else:
+        assert "outstanding workflow step" in str(detail)
 
     # Providing override reason succeeds
     res = await cmd_service.update_work_item_status(
@@ -459,7 +464,7 @@ async def test_defect_1_repetition_preservation_not_deduplicated_by_step_code(as
             step_code="irrigation",
             title="Initial NaOCl Irrigation",
             work_item_id=wi.id,
-            status="completed",
+            status="pending",
         ),
     )
     await care_service.add_step(
@@ -469,7 +474,7 @@ async def test_defect_1_repetition_preservation_not_deduplicated_by_step_code(as
             step_code="irrigation",
             title="Ultrasonic Activation & Final Rinse",
             work_item_id=wi.id,
-            status="completed",
+            status="pending",
         ),
     )
     await care_service.finish_session(
@@ -531,7 +536,7 @@ async def test_defect_2_procedure_scoped_step_copying_no_cross_assignment(async_
             step_code="access_cavity",
             title="Access Cavity",
             work_item_id=wi_rct.id,
-            status="completed",
+            status="pending",
         ),
     )
     await care_service.add_step(
@@ -541,7 +546,7 @@ async def test_defect_2_procedure_scoped_step_copying_no_cross_assignment(async_
             step_code="etch_bond",
             title="Etch & Bond",
             work_item_id=wi_fill.id,
-            status="completed",
+            status="pending",
         ),
     )
     await care_service.finish_session(
@@ -928,4 +933,644 @@ async def test_cross_tenant_isolation_fails_all_new_operations(async_db_session,
     with pytest.raises(HTTPException) as exc_info:
         await care_service_t2.get_draft(patient_id=env["patient"].id)
     assert exc_info.value.status_code in (403, 404)
+
+
+@pytest.mark.asyncio
+async def test_status_only_nurse_denied_completion_and_reopen(async_db_session, setup_test_env):
+    """
+    CRITICAL (Issue 1): Status-only shortcut strictly requires TREATMENT_PLAN_WRITE.
+    Nurses have CLINICAL_WRITE but not TREATMENT_PLAN_WRITE, and must be denied (403)
+    both completion and reopening.
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    tenant = env["tenant"]
+
+    # Create nurse user
+    nurse = models.User(
+        tenant_id=tenant.id,
+        username="nurse_test",
+        email="nurse@alpha.com",
+        hashed_password="hashed_pw_test",
+        role="nurse",
+        is_active=True,
+    )
+    async_db_session.add(nurse)
+    await async_db_session.commit()
+
+    # Create procedure with doctor
+    doc_command_service = ClinicalCommandService(async_db_session, tenant.id, current_user=env["doctor"])
+    proc = await doc_command_service.create_work_item(
+        patient.id,
+        schemas.ClinicalWorkItemCreate(
+            kind="procedure",
+            code="ENDO_RCT",
+            status="active",
+            targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="36")],
+        ),
+    )
+
+    nurse_command_service = ClinicalCommandService(
+        async_db_session, tenant.id, current_user=nurse
+    )
+
+    # 1. Nurse denied completing procedure
+    with pytest.raises(HTTPException) as exc_complete:
+        await nurse_command_service.update_work_item_status(
+            patient.id,
+            proc.id,
+            schemas.ClinicalWorkItemStatusUpdate(status="completed"),
+        )
+    assert exc_complete.value.status_code == 403
+    assert "treatment_plan:write" in exc_complete.value.detail
+
+    # Doctor completes procedure
+    await doc_command_service.update_work_item_status(
+        patient.id,
+        proc.id,
+        schemas.ClinicalWorkItemStatusUpdate(status="completed"),
+    )
+
+    # Reload procedure version
+    reloaded_proc = (await async_db_session.execute(
+        select(models.ClinicalWorkItem).where(models.ClinicalWorkItem.id == proc.id)
+    )).scalar_one()
+
+    # 2. Nurse denied reopening completed procedure
+    with pytest.raises(HTTPException) as exc_reopen:
+        await nurse_command_service.update_work_item_status(
+            patient.id,
+            proc.id,
+            schemas.ClinicalWorkItemStatusUpdate(
+                status="active",
+                intent="reopen_correction",
+                reason="Nurse attempt to reopen",
+                expected_version_id=reloaded_proc.version_id,
+            ),
+        )
+    assert exc_reopen.value.status_code == 403
+    assert "treatment_plan:write" in exc_reopen.value.detail
+
+
+@pytest.mark.asyncio
+async def test_list_sessions_eager_loads_relationships_without_missing_greenlet(async_db_session, setup_test_env):
+    """
+    HIGH (Issue 4): list_sessions() loads steps and their work_item targets so
+    generate_session_summary does not raise MissingGreenlet on a fresh request.
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    care_service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+    command_service = ClinicalCommandService(async_db_session, env["tenant"].id, env["doctor"])
+
+    # Create procedure
+    proc = await command_service.create_work_item(
+        patient.id,
+        schemas.ClinicalWorkItemCreate(
+            kind="procedure",
+            code="ENDO_RCT",
+            status="active",
+            targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="46")],
+        ),
+    )
+
+    # Create session, add steps and finish
+    session = await care_service.start_session(
+        patient.id,
+        schemas.CareSessionCreate(work_item_ids=[proc.id]),
+    )
+    await care_service.apply_template(
+        patient.id,
+        session.id,
+        schemas.CareSessionTemplateApply(
+            template_code="ENDO_RCT",
+            work_item_id=proc.id,
+        ),
+    )
+    await care_service.finish_session(
+        patient.id,
+        session.id,
+        schemas.CareSessionFinish(
+            notes="Visit completed smoothly",
+        ),
+    )
+
+    # Clear identity map to simulate fresh HTTP request with no cached objects
+    async_db_session.expunge_all()
+
+    # Query sessions via list_sessions on fresh identity map
+    sessions = await care_service.list_sessions(patient.id)
+    assert len(sessions) >= 1
+    completed_s = next(s for s in sessions if s.id == session.id)
+    assert completed_s.status == "completed"
+    assert hasattr(completed_s, "summary")
+    assert "ENDO_RCT" in completed_s.summary
+    assert "Tooth 46" in completed_s.summary
+
+
+@pytest.mark.asyncio
+async def test_continuation_does_not_resurrect_superseded_obs_or_duplicate_completed_steps(async_db_session, setup_test_env):
+    """
+    HIGH (Issue 6): Continuation carryover must only carry over active effective
+    observations (not superseded ones), and must prepare remaining work without
+    duplicating completed steps as new completed rows.
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    care_service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+    command_service = ClinicalCommandService(async_db_session, env["tenant"].id, env["doctor"])
+
+    proc = await command_service.create_work_item(
+        patient.id,
+        schemas.ClinicalWorkItemCreate(
+            kind="procedure",
+            code="ENDO_RCT",
+            status="active",
+            targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="16")],
+        ),
+    )
+
+    # Session 1: 2 steps (step 1 completed, step 2 pending), and an observation
+    s1 = await care_service.start_session(
+        patient.id,
+        schemas.CareSessionCreate(work_item_ids=[proc.id]),
+    )
+    await care_service.apply_template(
+        patient.id,
+        s1.id,
+        schemas.CareSessionTemplateApply(
+            template_code="ENDO_RCT",
+            work_item_id=proc.id,
+        ),
+    )
+    s1_steps = (await care_service.get_session(patient.id, s1.id)).steps
+    # Complete step 1, leave step 2 in_progress/pending
+    await care_service.update_step(
+        patient.id, s1.id, s1_steps[0].id,
+        schemas.CareSessionStepUpdate(status="completed"),
+    )
+
+    # Record canal observation
+    obs = await care_service.add_observation(
+        patient.id, s1.id,
+        schemas.CareObservationCreate(
+            work_item_id=proc.id,
+            observation_code="working_length",
+            tooth_key="16",
+            structured_value={"canal_id": "MB", "length_mm": 21.0},
+        ),
+    )
+    # Traceably amend the observation: length was corrected from 21.0 to 21.5
+    amended_obs = await care_service.amend_observation(
+        patient.id, obs.id,
+        schemas.CareObservationAmend(
+            reason="Corrected apex locator measurement",
+            structured_value={"canal_id": "MB", "length_mm": 21.5},
+        ),
+    )
+    assert amended_obs.id != obs.id
+    # Original observation is now superseded
+    orig_reloaded = (await async_db_session.execute(
+        select(models.CareObservation).where(models.CareObservation.id == obs.id)
+    )).scalar_one()
+    assert orig_reloaded.is_superseded is True
+
+    # Finish Session 1
+    await care_service.finish_session(
+        patient.id, s1.id,
+        schemas.CareSessionFinish(notes="First session done"),
+    )
+
+    # Session 2: Resumed from Session 1
+    s2 = await care_service.start_session(
+        patient.id,
+        schemas.CareSessionCreate(
+            work_item_ids=[proc.id],
+            resume_from_session_id=s1.id,
+        ),
+    )
+    s2_loaded = await care_service.get_session(patient.id, s2.id)
+
+    # 1. Steps: completed step from S1 must NOT be copied as a completed row
+    s2_step_codes = [st.step_code for st in s2_loaded.steps]
+    assert s1_steps[0].step_code not in s2_step_codes
+    assert all(st.status != "completed" for st in s2_loaded.steps)
+
+    # 2. Observations: superseded observation must NOT be carried over
+    carried_obs = s2_loaded.observations
+    assert len(carried_obs) == 1
+    assert carried_obs[0].is_superseded is False
+    assert carried_obs[0].structured_value["length_mm"] == 21.5
+    assert carried_obs[0].reference_source_session_id == s1.id
+
+
+@pytest.mark.asyncio
+async def test_follow_up_status_transitions_under_lock_and_patient_scoping(async_db_session, setup_test_env):
+    """
+    HIGH (Issue 9): Follow-up transitions enforce allowed transitions under lock.
+    Reopening a completed or scheduled request is rejected with 409 Conflict.
+    Patient ID in route must match request patient_id.
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    doctor = env["doctor"]
+    care_service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+
+    # Create NextVisitRequest in status 'requested'
+    nvr = models.NextVisitRequest(
+        tenant_id=env["tenant"].id,
+        patient_id=patient.id,
+        requested_by_user_id=doctor.id,
+        reason="Follow-up RCT check",
+        status="requested",
+    )
+    async_db_session.add(nvr)
+    await async_db_session.commit()
+    await async_db_session.refresh(nvr)
+
+    # 1. Stop request
+    stopped = await care_service.stop_next_visit_request(
+        nvr.id, reason="Patient travelling abroad", patient_id=patient.id
+    )
+    assert stopped.status == "stopped"
+    assert stopped.stopped_reason == "Patient travelling abroad"
+
+    # 2. Resume stopped request
+    resumed = await care_service.resume_next_visit_request(
+        nvr.id, reason="Patient returned", patient_id=patient.id
+    )
+    assert resumed.status == "requested"
+    assert resumed.stopped_at is None
+    assert resumed.stopped_reason is None
+
+    # 3. Postpone request
+    target_dt = datetime.now(timezone.utc) + timedelta(days=14)
+    postponed = await care_service.postpone_next_visit_request(
+        nvr.id, postponed_to_date=target_dt, reason="Doctor on leave", patient_id=patient.id
+    )
+    assert postponed.status == "postponed"
+    assert postponed.postponed_reason == "Doctor on leave"
+
+    # 4. Resume postponed request
+    resumed2 = await care_service.resume_next_visit_request(
+        nvr.id, reason="Doctor available earlier", patient_id=patient.id
+    )
+    assert resumed2.status == "requested"
+    assert resumed2.postponed_to_date is None
+    assert resumed2.postponed_reason is None
+
+    # 5. Mark as completed (resolved)
+    resumed2.status = "completed"
+    await async_db_session.commit()
+
+    # 6. Attempting to resume completed request must be rejected with 409 Conflict
+    with pytest.raises(HTTPException) as exc_conflict:
+        await care_service.resume_next_visit_request(nvr.id, patient_id=patient.id)
+    assert exc_conflict.value.status_code == 409
+    assert "already completed" in exc_conflict.value.detail
+
+    # 7. Attempting with mismatched patient_id must return 404
+    with pytest.raises(HTTPException) as exc_mismatch:
+        await care_service.resume_next_visit_request(nvr.id, patient_id=99999)
+    assert exc_mismatch.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_legacy_treatment_provenance_via_clinical_events(async_db_session, setup_test_env):
+    """
+    HIGH (Issue 2): get_treatments resolves real work_item_id and version_id
+    exclusively via ClinicalEvent provenance, removing numeric guessing.
+    """
+    from backend.crud.billing import get_treatments
+
+    env = setup_test_env
+    patient = env["patient"]
+    tenant = env["tenant"]
+    doctor = env["doctor"]
+    command_service = ClinicalCommandService(async_db_session, env["tenant"].id, env["doctor"])
+
+    # 1. Create native work item
+    wi = await command_service.create_work_item(
+        patient.id,
+        schemas.ClinicalWorkItemCreate(
+            kind="procedure",
+            code="REST_COMPOSITE",
+            status="active",
+            targets=[schemas.ClinicalTargetInput(target_kind="tooth", tooth_key="11")],
+        ),
+    )
+
+    # 2. Create legacy treatment
+    tx = models.Treatment(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        tooth_number=11,
+        diagnosis="Caries",
+        procedure="Composite Filling",
+        doctor_id=doctor.id,
+        cost=Decimal("500.00"),
+        status="In Progress",
+    )
+    async_db_session.add(tx)
+    await async_db_session.flush()
+
+    # 3. Create ClinicalEvent linking work_item to treatment
+    ev = models.ClinicalEvent(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        work_item_id=wi.id,
+        event_type="legacy_treatment_linked",
+        occurred_at=datetime.now(timezone.utc),
+        payload={"treatment_id": tx.id},
+    )
+    async_db_session.add(ev)
+    await async_db_session.commit()
+
+    # 4. Fetch treatments through get_treatments
+    treatments = await get_treatments(async_db_session, patient.id, tenant.id)
+    matching_tx = next(t for t in treatments if t.id == tx.id)
+
+    assert matching_tx.work_item_id == wi.id
+    assert matching_tx.work_item_version_id == wi.version_id
+
+
+def test_restore_embedded_references_handles_observation_amendments():
+    """
+    HIGH (Issue 10): Embedded refs remap original_observation_id and
+    replacement_observation_id to care_observations without ArchiveError.
+    """
+    from backend.services.tenant_archive_embedded_refs import remap_event_payload
+
+    mapping = {
+        "care_observations": {101: 201, 102: 202},
+        "care_sessions": {1: 10},
+    }
+    payload = {
+        "original_observation_id": 101,
+        "replacement_observation_id": 102,
+        "reason": "Apex locator recalibrated",
+    }
+    remapped = remap_event_payload(payload, mapping)
+    assert remapped["original_observation_id"] == 201
+    assert remapped["replacement_observation_id"] == 202
+    assert remapped["reason"] == "Apex locator recalibrated"
+
+
+@pytest.mark.asyncio
+async def test_draft_recovery_route_not_shadowed_by_session_id(async_db_session, setup_test_env):
+    """
+    HIGH (Issue 7): GET /api/v1/patients/{id}/care-sessions/draft is registered
+    before GET /{session_id} so 'draft' is not treated as an integer session ID.
+    """
+    from httpx import AsyncClient, ASGITransport
+    from backend.auth import create_access_token
+    from backend.main import app
+
+    env = setup_test_env
+    patient = env["patient"]
+    tenant = env["tenant"]
+    doctor = env["doctor"]
+
+    token = create_access_token(data={"sub": doctor.username, "tenant_id": tenant.id, "role": doctor.role})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+        # Save a draft via PUT
+        save_res = await client.put(
+            f"/api/v1/patients/{patient.id}/care-sessions/draft",
+            json={"draft_data": {"notes": "Draft chairside notes"}},
+            headers=headers,
+        )
+        assert save_res.status_code == 200
+
+        # Recover draft via GET /care-sessions/draft
+        get_res = await client.get(
+            f"/api/v1/patients/{patient.id}/care-sessions/draft",
+            headers=headers,
+        )
+        # Must be 200 OK and NOT 422 integer validation failure!
+        assert get_res.status_code == 200
+        data = get_res.json()["data"]
+        assert data["draft_data"]["notes"] == "Draft chairside notes"
+
+
+async def test_round2_issue2_procedure_progress_aggregates_across_visits(async_db_session, setup_test_env):
+    """
+    Review 2 Issue 2: Procedure progress aggregates logical steps across visits.
+    Completing 1 of 2 steps in V1, then resuming in V2 reports 1/2 progress (not 0/1).
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    tenant = env["tenant"]
+    doctor = env["doctor"]
+
+    care_service = CareSessionService(async_db_session, tenant.id, doctor)
+
+    # Create procedure with 2 steps
+    proc = models.ClinicalWorkItem(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        kind="procedure",
+        code="REST_COMPOSITE",
+        status="active",
+        created_by_user_id=doctor.id,
+    )
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    # Session 1: Add 2 steps
+    s1 = await care_service.start_session(patient.id, schemas.CareSessionCreate(notes="V1"))
+    st1 = await care_service.add_step(patient.id, s1.id, schemas.CareSessionStepCreate(
+        step_code="prep", title="Tooth Preparation", work_item_id=proc.id
+    ))
+    await care_service.add_step(patient.id, s1.id, schemas.CareSessionStepCreate(
+        step_code="fill", title="Composite Placement", work_item_id=proc.id
+    ))
+
+    # Complete step 1, leave step 2 pending
+    await care_service.update_step(patient.id, s1.id, st1.id, schemas.CareSessionStepUpdate(status="completed"))
+    await care_service.finish_session(patient.id, s1.id, schemas.CareSessionFinish(notes="V1 finish"))
+
+    # Resumed in Session 2
+    s2 = await care_service.start_session(patient.id, schemas.CareSessionCreate(
+        resume_work_item_id=proc.id, notes="V2"
+    ))
+    s2_steps = await care_service.list_steps(patient.id, s2.id)
+    # Step 2 carried over into V2 (row count = 1)
+    assert len(s2_steps) == 1
+
+    # Check resumable context: MUST report 1/2 completed steps (overall procedure progress)
+    ctx = await care_service.get_resumable_context(patient.id)
+    proc_item = next(it for it in ctx["items"] if it["work_item_id"] == proc.id)
+    assert proc_item["total_steps"] == 2
+    assert proc_item["completed_steps_count"] == 1
+    assert "1/2 steps completed" in proc_item["summary"]
+
+
+async def test_round2_issue3_completion_checks_effective_logical_task_state(async_db_session, setup_test_env):
+    """
+    Review 2 Issue 3: Completion checks effective logical task state instead of obsolete occurrences.
+    A pending step from V1 does not block completion after its continuation was completed in V2.
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    tenant = env["tenant"]
+    doctor = env["doctor"]
+
+    care_service = CareSessionService(async_db_session, tenant.id, doctor)
+    cmd_service = ClinicalCommandService(async_db_session, tenant.id, doctor)
+
+    proc = models.ClinicalWorkItem(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        kind="procedure",
+        code="REST_COMPOSITE",
+        status="active",
+        created_by_user_id=doctor.id,
+    )
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    # V1: 2 steps. Step 1 completed, Step 2 marked partial
+    s1 = await care_service.start_session(patient.id, schemas.CareSessionCreate(notes="V1"))
+    st1 = await care_service.add_step(patient.id, s1.id, schemas.CareSessionStepCreate(
+        step_code="prep", title="Tooth Preparation", work_item_id=proc.id
+    ))
+    st2 = await care_service.add_step(patient.id, s1.id, schemas.CareSessionStepCreate(
+        step_code="fill", title="Composite Placement", work_item_id=proc.id
+    ))
+    await care_service.update_step(patient.id, s1.id, st1.id, schemas.CareSessionStepUpdate(status="completed"))
+    await care_service.update_step(patient.id, s1.id, st2.id, schemas.CareSessionStepUpdate(status="partial"))
+    await care_service.finish_session(patient.id, s1.id, schemas.CareSessionFinish(notes="V1 finish"))
+
+    # V2: Step 2 carried over and completed
+    s2 = await care_service.start_session(patient.id, schemas.CareSessionCreate(
+        resume_work_item_id=proc.id, notes="V2"
+    ))
+    s2_steps = await care_service.list_steps(patient.id, s2.id)
+    assert len(s2_steps) == 1
+    await care_service.update_step(patient.id, s2.id, s2_steps[0].id, schemas.CareSessionStepUpdate(status="completed"))
+    await care_service.finish_session(patient.id, s2.id, schemas.CareSessionFinish(notes="V2 finish"))
+
+    # Attempt to mark procedure completed WITHOUT override reason:
+    # Historical partial row in V1 MUST NOT block completion because its continuation in V2 is completed!
+    res = await cmd_service.update_work_item_status(
+        patient.id, proc.id,
+        schemas.ClinicalWorkItemStatusUpdate(status="completed")
+    )
+    assert res.work_item.status == "completed"
+
+
+async def test_round2_issue4_corrected_measurements_excluded_from_resumable_context(async_db_session, setup_test_env):
+    """
+    Review 2 Issue 4: get_resumable_context and summary separate current measurements from amendment history.
+    Amended/superseded measurements never appear in current effective summary or observations.
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    tenant = env["tenant"]
+    doctor = env["doctor"]
+
+    care_service = CareSessionService(async_db_session, tenant.id, doctor)
+
+    proc = models.ClinicalWorkItem(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        created_by_user_id=doctor.id,
+    )
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    s1 = await care_service.start_session(patient.id, schemas.CareSessionCreate(notes="V1"))
+    st = await care_service.add_step(patient.id, s1.id, schemas.CareSessionStepCreate(
+        step_code="wl", title="Working Length", work_item_id=proc.id
+    ))
+    obs1 = await care_service.add_observation(patient.id, s1.id, schemas.CareObservationCreate(
+        step_id=st.id,
+        work_item_id=proc.id,
+        observation_code="working_length",
+        tooth_key="46",
+        canal_id="MB",
+        structured_value={"length_mm": 20.0},
+    ))
+
+    # Amend observation: replacement is 21.5mm
+    obs2 = await care_service.amend_observation(
+        patient.id, obs1.id,
+        schemas.CareObservationAmend(
+            reason="Corrected reading",
+            structured_value={"length_mm": 21.5},
+        ),
+    )
+    assert obs2.id != obs1.id
+
+    # Check resumable context: only the active (replacement) observation is returned
+    ctx = await care_service.get_resumable_context(patient.id)
+    proc_item = next(it for it in ctx["items"] if it["work_item_id"] == proc.id)
+    obs_list = proc_item["observations"]
+    assert len(obs_list) == 1
+    assert obs_list[0].id == obs2.id
+    assert obs_list[0].structured_value["length_mm"] == 21.5
+
+    # Check generate_session_summary: does not include superseded observation
+    s1_loaded = await care_service.get_session(patient.id, s1.id)
+    summary = care_service.generate_session_summary(s1_loaded)
+    assert "21.5mm" in summary
+    assert "20.0mm" not in summary
+
+
+async def test_round2_issue5_skipped_steps_not_carried_over(async_db_session, setup_test_env):
+    """
+    Review 2 Issue 5: Deliberately skipped steps are excluded from carryover into subsequent visits.
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    tenant = env["tenant"]
+    doctor = env["doctor"]
+
+    care_service = CareSessionService(async_db_session, tenant.id, doctor)
+
+    proc = models.ClinicalWorkItem(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        kind="procedure",
+        code="REST_COMPOSITE",
+        status="active",
+        created_by_user_id=doctor.id,
+    )
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    s1 = await care_service.start_session(patient.id, schemas.CareSessionCreate(notes="V1"))
+    st1 = await care_service.add_step(patient.id, s1.id, schemas.CareSessionStepCreate(
+        step_code="prep", title="Step 1", work_item_id=proc.id
+    ))
+    st2 = await care_service.add_step(patient.id, s1.id, schemas.CareSessionStepCreate(
+        step_code="skip_this", title="Step 2 Skipped", work_item_id=proc.id
+    ))
+    await care_service.add_step(patient.id, s1.id, schemas.CareSessionStepCreate(
+        step_code="fill", title="Step 3 Pending", work_item_id=proc.id
+    ))
+
+    # Mark st1 completed, st2 skipped, leave st3 pending
+    await care_service.update_step(patient.id, s1.id, st1.id, schemas.CareSessionStepUpdate(status="completed"))
+    await care_service.update_step(patient.id, s1.id, st2.id, schemas.CareSessionStepUpdate(status="skipped"))
+    await care_service.finish_session(patient.id, s1.id, schemas.CareSessionFinish(notes="V1 done"))
+
+    # Resume in Session 2
+    s2 = await care_service.start_session(patient.id, schemas.CareSessionCreate(
+        resume_work_item_id=proc.id, notes="V2"
+    ))
+    s2_steps = await care_service.list_steps(patient.id, s2.id)
+
+    # ONLY Step 3 must be carried over! Step 2 (skipped) must NOT be prepared again.
+    assert len(s2_steps) == 1
+    assert s2_steps[0].step_code == "fill"
+    assert s2_steps[0].title == "Step 3 Pending"
+
+
 

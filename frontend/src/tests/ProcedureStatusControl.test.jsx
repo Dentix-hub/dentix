@@ -168,4 +168,120 @@ describe('Slice S25 / Defect 7: ProcedureStatusControl', () => {
             );
         });
     });
+
+    it('opens override modal with backend structured error code OVERRIDE_REASON_REQUIRED', async () => {
+        patientsApi.updateClinicalWorkItemStatus.mockRejectedValueOnce({
+            response: {
+                status: 422,
+                data: {
+                    detail: {
+                        code: 'OVERRIDE_REASON_REQUIRED',
+                        message: 'Procedure has 2 outstanding workflow steps; requires an override reason to complete.',
+                        outstanding_steps_count: 2,
+                    },
+                },
+            },
+        });
+
+        renderWithClient(
+            <ProcedureStatusControl
+                patientId={1}
+                workItemId={101}
+                currentStatus="active"
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('status-toggle-btn'));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('complete-override-form')).toBeInTheDocument();
+        });
+    });
+
+    it('displays financial warnings when reopening invoiced procedure', async () => {
+        patientsApi.updateClinicalWorkItemStatus.mockResolvedValueOnce({
+            data: {
+                status: 'active',
+                version_id: 4,
+                warnings: ['Procedure was already invoiced in invoice #INV-1001. Charge was NOT voided and requires manual financial review.'],
+            },
+        });
+
+        renderWithClient(
+            <ProcedureStatusControl
+                patientId={1}
+                workItemId={101}
+                currentStatus="completed"
+                versionId={3}
+            />
+        );
+
+        // Click reopen
+        fireEvent.click(screen.getByTestId('status-toggle-btn'));
+        const reasonInput = screen.getByTestId('reopen-reason-input');
+        fireEvent.change(reasonInput, { target: { value: 'Correction required' } });
+        fireEvent.click(screen.getByTestId('confirm-reopen-btn'));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('status-warning-banner')).toBeInTheDocument();
+            expect(screen.getByText(/already invoiced in invoice #INV-1001/i)).toBeInTheDocument();
+        });
+    });
+
+    it('refreshes version from mutation response to avoid stale version errors', async () => {
+        // First mutation returns version_id: 5
+        patientsApi.updateClinicalWorkItemStatus.mockResolvedValueOnce({
+            data: { status: 'completed', version_id: 5 },
+        });
+
+        const { rerender } = renderWithClient(
+            <ProcedureStatusControl
+                patientId={1}
+                workItemId={101}
+                currentStatus="active"
+                versionId={2}
+            />
+        );
+
+        fireEvent.click(screen.getByTestId('status-toggle-btn'));
+
+        await waitFor(() => {
+            expect(patientsApi.updateClinicalWorkItemStatus).toHaveBeenCalledWith(
+                1,
+                101,
+                expect.objectContaining({ expected_version_id: 2 })
+            );
+        });
+
+        // Parent rerenders with updated status from query invalidation
+        rerender(
+            <QueryClientProvider client={queryClient}>
+                <ProcedureStatusControl
+                    patientId={1}
+                    workItemId={101}
+                    currentStatus="completed"
+                    versionId={5}
+                />
+            </QueryClientProvider>
+        );
+
+        // Now prepare second mutation (reopening) - it must use expected_version_id: 5
+        patientsApi.updateClinicalWorkItemStatus.mockResolvedValueOnce({
+            data: { status: 'active', version_id: 6 },
+        });
+
+        // Reopen dialog
+        fireEvent.click(screen.getByTestId('status-toggle-btn'));
+        const reasonInput = screen.getByTestId('reopen-reason-input');
+        fireEvent.change(reasonInput, { target: { value: 'Need more work' } });
+        fireEvent.click(screen.getByTestId('confirm-reopen-btn'));
+
+        await waitFor(() => {
+            expect(patientsApi.updateClinicalWorkItemStatus).toHaveBeenLastCalledWith(
+                1,
+                101,
+                expect.objectContaining({ expected_version_id: 5 })
+            );
+        });
+    });
 });

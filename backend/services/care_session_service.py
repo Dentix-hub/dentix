@@ -165,6 +165,10 @@ class CareSessionService:
         associated_wi_ids = list(getattr(data, "work_item_ids", []) or [])
         if data.resume_work_item_id is not None and data.resume_work_item_id not in associated_wi_ids:
             associated_wi_ids.append(data.resume_work_item_id)
+        resume_wi_ids = getattr(data, "resume_work_item_ids", []) or []
+        for r_id in resume_wi_ids:
+            if r_id not in associated_wi_ids:
+                associated_wi_ids.append(r_id)
 
         for wi_id in associated_wi_ids:
             await self._verify_work_item(patient_id, wi_id)
@@ -291,8 +295,13 @@ class CareSessionService:
                 )
                 prior_steps = (await self.db.execute(prior_steps_query)).scalars().all()
 
+                remaining_prior_steps = [
+                    s for s in prior_steps
+                    if s.status not in ("completed", "omitted", "skipped", "cancelled")
+                ]
+
                 new_order = 1
-                for p_step in prior_steps:
+                for p_step in remaining_prior_steps:
                     # Filter by associated procedures if specified
                     if associated_wi_ids and p_step.work_item_id and p_step.work_item_id not in associated_wi_ids:
                         continue
@@ -312,9 +321,9 @@ class CareSessionService:
                         is_repeat=p_step.is_repeat,
                         repeat_reason=p_step.repeat_reason,
                         title=p_step.title,
-                        status=p_step.status,
-                        started_at=p_step.started_at,
-                        completed_at=p_step.completed_at,
+                        status="pending" if p_step.status == "in_progress" else p_step.status,
+                        started_at=None,
+                        completed_at=None,
                         notes=f"[Resumed from Step #{p_step.step_order}] {p_step.notes or ''}".strip() if p_step.notes else None,
                     )
                     self.db.add(new_step)
@@ -326,6 +335,7 @@ class CareSessionService:
                         models.CareObservation.tenant_id == self.tenant_id,
                         models.CareObservation.patient_id == patient_id,
                         models.CareObservation.care_session_id.in_(source_session_ids),
+                        models.CareObservation.is_superseded == False,  # noqa: E712
                     )
                     .order_by(models.CareObservation.recorded_at.asc(), models.CareObservation.id.asc())
                 )
@@ -345,10 +355,11 @@ class CareSessionService:
                         observation_code=p_obs.observation_code,
                         tooth_key=p_obs.tooth_key,
                         structured_value=dict(p_obs.structured_value or {}),
-                        notes=f"[Carried over from Session {p_obs.care_session_id}] {p_obs.notes or ''}".strip() if p_obs.notes else None,
+                        notes=f"[Reference from Session {p_obs.reference_source_session_id or p_obs.care_session_id}] {p_obs.notes or ''}".strip() if p_obs.notes else None,
                         recorded_by_user_id=user.id if user else None,
-                        reference_source_session_id=p_obs.care_session_id,
-                        reference_source_date=p_obs.recorded_at or p_obs.created_at,
+                        is_superseded=False,
+                        reference_source_session_id=p_obs.reference_source_session_id or p_obs.care_session_id,
+                        reference_source_date=p_obs.reference_source_date or p_obs.recorded_at or p_obs.created_at,
                     )
                     self.db.add(carried_obs)
 
@@ -1030,6 +1041,7 @@ class CareSessionService:
         patient_id: int,
         session_id: int,
         step_id: Optional[int] = None,
+        include_superseded: bool = False,
     ) -> List[models.CareObservation]:
         """List observations of a care session with optional step filtering."""
         await self.ensure_native_writes_enabled()
@@ -1041,6 +1053,8 @@ class CareSessionService:
             models.CareObservation.patient_id == patient_id,
             models.CareObservation.care_session_id == session_id,
         )
+        if not include_superseded:
+            stmt = stmt.where(models.CareObservation.is_superseded == False)  # noqa: E712
         if step_id is not None:
             stmt = stmt.where(models.CareObservation.step_id == step_id)
 
@@ -1116,9 +1130,14 @@ class CareSessionService:
 
         stmt = (
             select(models.CareSession)
+            .execution_options(populate_existing=True)
             .options(
-                selectinload(models.CareSession.procedures),
-                selectinload(models.CareSession.steps),
+                selectinload(models.CareSession.procedures)
+                .selectinload(models.CareSessionProcedure.work_item)
+                .selectinload(models.ClinicalWorkItem.targets),
+                selectinload(models.CareSession.steps)
+                .selectinload(models.CareSessionStep.work_item)
+                .selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.observations),
                 selectinload(models.CareSession.next_visit_requests),
             )
@@ -1198,7 +1217,7 @@ class CareSessionService:
             parts.append(f"Steps: {step_summary}")
 
         # Observations summary (especially canal working lengths)
-        obs_list = session.observations or []
+        obs_list = [o for o in (session.observations or []) if not getattr(o, "is_superseded", False)]
         canal_obs = [
             o for o in obs_list
             if o.observation_code in ("working_length", "canal_measurement")
@@ -1319,7 +1338,7 @@ class CareSessionService:
                     [s for s in (wi.session_steps or []) if s.care_session_id == latest_session_id],
                     key=lambda s: s.step_order,
                 )
-                obs = [o for o in (wi.observations or []) if o.care_session_id == latest_session_id]
+                obs = [o for o in (wi.observations or []) if o.care_session_id == latest_session_id and not getattr(o, "is_superseded", False)]
                 if not obs and wi.observations and obs_session_ids:
                     obs_sess_stmt = (
                         select(models.CareSession.id)
@@ -1331,10 +1350,10 @@ class CareSessionService:
                         .limit(1)
                     )
                     latest_obs_sess_id = (await self.db.execute(obs_sess_stmt)).scalar_one_or_none()
-                    obs = [o for o in wi.observations if o.care_session_id == latest_obs_sess_id]
+                    obs = [o for o in wi.observations if o.care_session_id == latest_obs_sess_id and not getattr(o, "is_superseded", False)]
             else:
                 steps = sorted(wi.session_steps or [], key=lambda s: s.step_order)
-                obs = list(wi.observations or [])
+                obs = [o for o in (wi.observations or []) if not getattr(o, "is_superseded", False)]
 
             tooth_key = wi.targets[0].tooth_key if wi.targets else None
             surface_code = wi.targets[0].surface_code if wi.targets else None
@@ -1348,6 +1367,7 @@ class CareSessionService:
                         models.CareObservation.tenant_id == self.tenant_id,
                         models.CareObservation.patient_id == patient_id,
                         models.CareObservation.tooth_key == tooth_key,
+                        models.CareObservation.is_superseded == False,  # noqa: E712
                     )
                     .order_by(models.CareObservation.recorded_at.asc())
                 )
@@ -1360,7 +1380,22 @@ class CareSessionService:
                 continue
 
             completed_steps = [s for s in steps if s.status == "completed"]
-            remaining_steps = [s for s in steps if s.status != "completed"]
+            remaining_steps = [s for s in steps if s.status not in ("completed", "omitted", "skipped", "cancelled")]
+
+            # Group all steps for this work item across sessions by logical identity for overall procedure progress
+            all_wi_steps = list(wi.session_steps or [])
+            logical_steps_map = {}
+            for s in sorted(all_wi_steps, key=lambda x: (x.care_session_id or 0, x.step_order or 0, x.id or 0)):
+                key = (s.logical_step_code or s.step_code or s.title or f"step_{s.step_order}", s.occurrence_number or 1)
+                if key not in logical_steps_map:
+                    logical_steps_map[key] = []
+                logical_steps_map[key].append(s)
+
+            total_steps = len(logical_steps_map) if logical_steps_map else len(steps)
+            completed_steps_count = (
+                sum(1 for sl in logical_steps_map.values() if any(s.status == "completed" for s in sl))
+                if logical_steps_map else len(completed_steps)
+            )
 
             # Determine last session info
             last_session_id = latest_session_id
@@ -1383,8 +1418,16 @@ class CareSessionService:
                     last_session_at = sess.finished_at or sess.updated_at or sess.started_at
                     last_notes = sess.notes
 
-            next_step_title = remaining_steps[0].title if remaining_steps else None
-            summary_str = f"{wi.code} on Tooth {tooth_key or 'N/A'}: {len(completed_steps)}/{len(steps)} steps completed"
+            next_step_title = None
+            if remaining_steps:
+                next_step_title = remaining_steps[0].title
+            elif logical_steps_map:
+                for sl in logical_steps_map.values():
+                    if not any(s.status in ("completed", "omitted", "skipped", "cancelled") for s in sl):
+                        next_step_title = sl[-1].title
+                        break
+
+            summary_str = f"{wi.code} on Tooth {tooth_key or 'N/A'}: {completed_steps_count}/{total_steps} steps completed"
             if next_step_title:
                 summary_str += f". Next: {next_step_title}"
 
@@ -1395,8 +1438,8 @@ class CareSessionService:
                 "surface_code": surface_code,
                 "title": wi.code,
                 "status": wi.status,
-                "total_steps": len(steps),
-                "completed_steps_count": len(completed_steps),
+                "total_steps": total_steps,
+                "completed_steps_count": completed_steps_count,
                 "completed_steps": completed_steps,
                 "remaining_steps": remaining_steps,
                 "observations": obs,
@@ -1964,7 +2007,9 @@ class CareSessionService:
             setattr(req, "patient_phone", req.patient.phone)
         return req
 
-    async def _get_next_visit_request_row(self, request_id: int) -> models.NextVisitRequest:
+    async def _get_next_visit_request_row(
+        self, request_id: int, patient_id: Optional[int] = None, for_update: bool = False
+    ) -> models.NextVisitRequest:
         stmt = (
             select(models.NextVisitRequest)
             .options(selectinload(models.NextVisitRequest.patient))
@@ -1973,6 +2018,10 @@ class CareSessionService:
                 models.NextVisitRequest.tenant_id == self.tenant_id,
             )
         )
+        if patient_id is not None:
+            stmt = stmt.where(models.NextVisitRequest.patient_id == patient_id)
+        if for_update:
+            stmt = stmt.with_for_update()
         req = (await self.db.execute(stmt)).scalar_one_or_none()
         if not req:
             raise HTTPException(status_code=404, detail="Next-visit request not found")
@@ -1982,11 +2031,18 @@ class CareSessionService:
         self,
         request_id: int,
         reason: str,
+        patient_id: Optional[int] = None,
     ) -> models.NextVisitRequest:
         """Stop a pending next-visit reminder with an explicit reason (audited)."""
         await self.ensure_native_writes_enabled()
-        req = await self._get_next_visit_request_row(request_id)
+        req = await self._get_next_visit_request_row(request_id, patient_id=patient_id, for_update=True)
         await self._verify_patient(req.patient_id)
+
+        if req.status in ("completed", "scheduled"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot stop next-visit request: request is already {req.status}.",
+            )
 
         user = await self._get_active_current_user()
         now = datetime.now(timezone.utc)
@@ -2027,11 +2083,18 @@ class CareSessionService:
         request_id: int,
         postponed_to_date: datetime,
         reason: str,
+        patient_id: Optional[int] = None,
     ) -> models.NextVisitRequest:
         """Postpone a next-visit reminder with a reason and new target date (audited)."""
         await self.ensure_native_writes_enabled()
-        req = await self._get_next_visit_request_row(request_id)
+        req = await self._get_next_visit_request_row(request_id, patient_id=patient_id, for_update=True)
         await self._verify_patient(req.patient_id)
+
+        if req.status in ("completed", "scheduled"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot postpone next-visit request: request is already {req.status}.",
+            )
 
         user = await self._get_active_current_user()
         now = datetime.now(timezone.utc)
@@ -2073,11 +2136,24 @@ class CareSessionService:
         self,
         request_id: int,
         reason: Optional[str] = None,
+        patient_id: Optional[int] = None,
     ) -> models.NextVisitRequest:
         """Resume an active follow-up reminder that was previously stopped or postponed."""
         await self.ensure_native_writes_enabled()
-        req = await self._get_next_visit_request_row(request_id)
+        req = await self._get_next_visit_request_row(request_id, patient_id=patient_id, for_update=True)
         await self._verify_patient(req.patient_id)
+
+        # Transition validation under lock (Issue 9)
+        if req.status in ("completed", "scheduled"):
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot resume next-visit request: request is already {req.status} and cannot be reopened.",
+            )
+        if req.status not in ("stopped", "postponed"):
+            raise HTTPException(
+                status_code=422,
+                detail=f"Cannot resume next-visit request with status '{req.status}'. Only stopped or postponed requests can be resumed.",
+            )
 
         user = await self._get_active_current_user()
         now = datetime.now(timezone.utc)
@@ -2086,6 +2162,10 @@ class CareSessionService:
         req.stopped_at = None
         req.stopped_reason = None
         req.stopped_by_user_id = None
+        req.postponed_to_date = None
+        req.postponed_reason = None
+        req.postponed_by_user_id = None
+        # Appointment linkage is preserved
 
         resume_note = f"Resumed: {reason.strip()}" if reason and reason.strip() else "Resumed follow-up"
         req.notes = f"{req.notes} ({resume_note})" if req.notes else resume_note
@@ -2119,11 +2199,15 @@ class CareSessionService:
         handoff_to_user_id: int,
         reason: str,
         notes: Optional[str] = None,
+        patient_id: Optional[int] = None,
     ) -> models.NextVisitRequest:
         """Handoff follow-up responsibility to another doctor in tenant (audited)."""
         await self.ensure_native_writes_enabled()
-        req = await self._get_next_visit_request_row(request_id)
+        req = await self._get_next_visit_request_row(request_id, patient_id=patient_id, for_update=True)
         await self._verify_patient(req.patient_id)
+
+        if req.status == "completed":
+            raise HTTPException(status_code=409, detail="Cannot handoff completed next-visit request.")
 
         # Validate recipient doctor belongs to tenant
         recipient = (await self.db.execute(

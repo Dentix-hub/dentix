@@ -484,6 +484,7 @@ export default function Appointments() {
             <NextVisitQueue
                 requests={nextVisitRequests}
                 isLoading={nvrLoading}
+                doctors={doctors}
                 onSchedule={handleScheduleRequest}
                 onDismiss={handleDismissRequest}
             />

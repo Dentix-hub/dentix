@@ -174,7 +174,9 @@ def test_restore_gate_covers_each_archived_business_table():
     import importlib
     from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS
     migration = importlib.import_module('backend.alembic.versions.d42a71e9bc83_restore_transaction_gate')
-    assert set(ARCHIVE_COLUMNS) == set(migration.TENANT_TABLES) - {'users'} | {'price_list_items'}
+    unification = importlib.import_module('backend.alembic.versions.b1c2d3e4f5a6_care_session_workflow_unification')
+    covered_tables = (set(migration.TENANT_TABLES) | set(unification.TENANT_TABLES)) - {'users'} | {'price_list_items'}
+    assert set(ARCHIVE_COLUMNS) == covered_tables
 
 
 def test_serialized_references_are_rebound_and_unknown_values_fail_closed():

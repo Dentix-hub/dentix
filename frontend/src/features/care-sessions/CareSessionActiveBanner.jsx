@@ -12,6 +12,7 @@ export default function CareSessionActiveBanner({
     onOpenWorkflow,
     onOpenFinishSheet,
     attachmentLinks = [],
+    autosaveIndicator = null,
     t = (k, f) => f || k,
 }) {
     if (!session || session.status !== 'in_progress') {
@@ -80,6 +81,7 @@ export default function CareSessionActiveBanner({
                                 {formatStartTime(session.started_at)}
                             </span>
                         )}
+                        {autosaveIndicator}
                     </div>
                     <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-400">
                         <span>
@@ -159,5 +161,6 @@ CareSessionActiveBanner.propTypes = {
     onOpenWorkflow: PropTypes.func.isRequired,
     onOpenFinishSheet: PropTypes.func.isRequired,
     attachmentLinks: PropTypes.array,
+    autosaveIndicator: PropTypes.node,
     t: PropTypes.func,
 };

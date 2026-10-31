@@ -8,24 +8,23 @@ import {
     ChevronUp,
     Calendar,
     Activity,
-    Clock,
     CheckCircle2,
     FileText,
-    Ruler,
-    History as HistoryIcon,
-    AlertCircle,
-    User,
     CalendarClock,
+    Settings2,
 } from 'lucide-react';
 import { fdiToPalmer } from '@/utils/toothUtils';
 import { useTranslation } from 'react-i18next';
 import ProcedureStatusControl from '@/features/clinical-chart/components/ProcedureStatusControl';
+import FollowUpManagementModal from '@/features/care-sessions/FollowUpManagementModal';
 import { getPatientCareSessions } from '@/api/patients';
+import { getDoctors } from '@/api/admin';
+import { useAuthStore } from '@/store/auth.store';
 
 /**
  * Format date handling actual_visit_date or session_date (Fixes Defect 4).
  */
-export function formatCareSessionDate(session) {
+function formatCareSessionDate(session) {
     if (!session) return '--';
     const dateVal = session.actual_visit_date || session.session_date || session.started_at || session.date || session.created_at;
     if (!dateVal) return '--';
@@ -41,16 +40,15 @@ export function formatCareSessionDate(session) {
 }
 
 /**
- * Checks if a CareSession belongs to a specific Treatment row.
+ * Checks if a CareSession belongs to a specific Treatment row via verified work_item_id provenance.
  */
-export function isSessionMatchingTreatment(session, item) {
-    if (!session || !item) return false;
+function isSessionMatchingTreatment(session, item) {
+    if (!session || !item || !item.work_item_id) return false;
 
-    // 1. Check if care_session_procedures table links to work_item_id or treatment.id
-    const itemTargetId = item.work_item_id || item.id;
+    // 1. Check if care_session_procedures table links to work_item_id
     if (session.procedures && session.procedures.length > 0) {
         const matchesProc = session.procedures.some(
-            (p) => String(p.work_item_id) === String(itemTargetId) || String(p.work_item_id) === String(item.id)
+            (p) => String(p.work_item_id) === String(item.work_item_id)
         );
         if (matchesProc) return true;
     }
@@ -58,24 +56,17 @@ export function isSessionMatchingTreatment(session, item) {
     // 2. Check steps work_item_id
     if (session.steps && session.steps.length > 0) {
         const matchesStep = session.steps.some(
-            (s) => String(s.work_item_id) === String(itemTargetId) || String(s.work_item_id) === String(item.id)
+            (s) => String(s.work_item_id) === String(item.work_item_id)
         );
         if (matchesStep) return true;
     }
 
-    // 3. Check observations tooth_key / work_item_id
+    // 3. Check observations work_item_id
     if (session.observations && session.observations.length > 0) {
         const matchesObs = session.observations.some(
-            (o) =>
-                (o.work_item_id && (String(o.work_item_id) === String(itemTargetId) || String(o.work_item_id) === String(item.id))) ||
-                (item.tooth_number && String(o.tooth_key) === String(item.tooth_number))
+            (o) => String(o.work_item_id) === String(item.work_item_id)
         );
         if (matchesObs) return true;
-    }
-
-    // 4. Fallback match by tooth number if defined
-    if (item.tooth_number && session.tooth_key && String(session.tooth_key) === String(item.tooth_number)) {
-        return true;
     }
 
     return false;
@@ -92,6 +83,32 @@ const TreatmentHistory = ({
     const { t } = useTranslation();
     const [viewMode, setViewMode] = useState('procedures'); // 'procedures' | 'sessions'
     const [expandedRowIds, setExpandedRowIds] = useState(new Set());
+    const [managingFollowUpRequest, setManagingFollowUpRequest] = useState(null);
+
+    const user = useAuthStore((state) => state.user);
+    const role = (user?.role || '').toLowerCase();
+    const permissionsList = Array.isArray(user?.permissions)
+        ? user.permissions
+        : (typeof user?.permissions === 'string' ? JSON.parse(user?.permissions || '[]') : []);
+
+    const canManageClinicalFollowUp =
+        !user ||
+        ['admin', 'super_admin', 'doctor'].includes(role) ||
+        permissionsList.includes('clinical:write') ||
+        permissionsList.includes('clinical_write') ||
+        permissionsList.includes('CLINICAL_WRITE');
+
+    const doctorsQuery = useQuery({
+        queryKey: ['doctors', 'treatment-history'],
+        queryFn: async () => {
+            const res = await getDoctors();
+            const docs = res?.data?.doctors || res?.data || [];
+            return Array.isArray(docs) ? docs : [];
+        },
+        enabled: canManageClinicalFollowUp,
+        staleTime: 5 * 60 * 1000,
+    });
+    const doctors = doctorsQuery.data || [];
 
     // Fetch care sessions for patient (Defect 6 fix)
     const { data: fetchedSessions = [] } = useQuery({
@@ -208,10 +225,11 @@ const TreatmentHistory = ({
                                         </td>
                                         {/* Defect 7 Fix: ProcedureStatusControl replaces static badge */}
                                         <td className="p-3.5 whitespace-nowrap">
-                                            {patientId ? (
+                                            {patientId && item.work_item_id ? (
                                                 <ProcedureStatusControl
-                                                    patientId={patientId}
-                                                    workItemId={item.work_item_id || item.id}
+                                                    patientId={Number(patientId)}
+                                                    workItemId={item.work_item_id}
+                                                    versionId={item.work_item_version_id}
                                                     currentStatus={item.status}
                                                     compact
                                                 />
@@ -416,7 +434,19 @@ const TreatmentHistory = ({
                                                                                 >
                                                                                     <CalendarClock className="h-3.5 w-3.5 text-blue-600" />
                                                                                     <span>Follow-up: {nvr.reason} ({nvr.suggested_duration_minutes}m)</span>
-                                                                                    <span className="ms-auto rounded bg-blue-200/60 px-1.5 py-0.2 text-[10px] uppercase font-bold text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                                                                                    {canManageClinicalFollowUp && (
+                                                                                        <button
+                                                                                            type="button"
+                                                                                            onClick={() => setManagingFollowUpRequest({ ...nvr, patient_id: Number(patientId) })}
+                                                                                            data-testid={`manage-follow-up-btn-${nvr.id}`}
+                                                                                            className="ms-auto inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold text-blue-800 hover:bg-blue-200 dark:bg-blue-900/60 dark:text-blue-200"
+                                                                                            title={t('common.manage', 'Manage')}
+                                                                                        >
+                                                                                            <Settings2 className="h-3 w-3" />
+                                                                                            <span>{t('common.manage', 'Manage')}</span>
+                                                                                        </button>
+                                                                                    )}
+                                                                                    <span className="rounded bg-blue-200/60 px-1.5 py-0.2 text-[10px] uppercase font-bold text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                                                                                         {nvr.status}
                                                                                     </span>
                                                                                 </div>
@@ -599,6 +629,16 @@ const TreatmentHistory = ({
                 <div className="p-8 text-center text-slate-500 dark:text-slate-400">
                     {t('patientDetails.treatment_history.empty', 'No treatment or visit history recorded yet.')}
                 </div>
+            )}
+
+            {managingFollowUpRequest && (
+                <FollowUpManagementModal
+                    isOpen={Boolean(managingFollowUpRequest)}
+                    request={managingFollowUpRequest}
+                    doctors={doctors}
+                    onClose={() => setManagingFollowUpRequest(null)}
+                    onSuccess={() => setManagingFollowUpRequest(null)}
+                />
             )}
         </div>
     );
