@@ -67,7 +67,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
         }
     };
     return (
-        <div className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-500 bg-background`}>
+        <div dir={(i18n.resolvedLanguage || i18n.language)?.startsWith('ar') ? 'rtl' : 'ltr'} className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-500 bg-background`}>
             <div className={`w-full max-w-md p-8 rounded-2xl shadow-2xl border transition-all duration-300 bg-surface border-white/10 text-center`}>
                 <div className="flex justify-between items-start mb-6 w-full">
                     {/* Language Switcher */}
@@ -105,28 +105,34 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         <div className="relative group">
                             <input
                                 type="text"
+                                name="username"
+                                autoComplete="username"
+                                dir="auto"
                                 placeholder={t('auth.login.username')}
-                                className={`w-full p-4 rounded-2xl border outline-none transition-all text-right bg-input border-border text-text-primary focus:border-primary focus:ring-1 focus:ring-primary`}
+                                className={`w-full p-4 rounded-2xl border outline-none transition-all text-start bg-input border-border text-text-primary focus:border-primary focus:ring-1 focus:ring-primary`}
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 required
                             />
                         </div>
-                        <div className="relative group">
+                        <div className="flex items-center rounded-2xl border border-border bg-input text-text-primary transition-all focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
                             <input
                                 type={showPassword ? "text" : "password"}
+                                name="password"
+                                autoComplete="current-password"
+                                dir="auto"
                                 placeholder={t('auth.login.password')}
-                                className={`w-full p-4 ps-14 rounded-2xl border outline-none transition-all text-right bg-input border-border text-text-primary focus:border-primary focus:ring-1 focus:ring-primary`}
+                                className="min-w-0 flex-1 rounded-2xl border-0 bg-transparent p-4 text-start text-text-primary outline-none focus-visible:ring-0 [&::-ms-reveal]:hidden"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                             />
-                            <button type="button" aria-label={t(showPassword ? 'auth.hide_password' : 'auth.show_password')} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} className="absolute start-1 top-1/2 -translate-y-1/2 min-w-11 min-h-11 flex items-center justify-center rounded-lg focus-visible:ring-2 focus-visible:ring-primary">
+                            <button type="button" aria-label={t(showPassword ? 'auth.hide_password' : 'auth.show_password')} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} className="me-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-secondary hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary">
                                 {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                             </button>
                         </div>
                         <div className="flex items-center justify-between px-1">
-                            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />{t('auth.login.remember_me')}</label>
+                            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm"><input type="checkbox" name="remember_me" className="h-5 w-5 shrink-0 cursor-pointer accent-primary" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />{t('auth.login.remember_me')}</label>
                             <Link
                                 to="/forgot-password"
                                 className={`text-sm font-bold hover:underline text-primary`}
