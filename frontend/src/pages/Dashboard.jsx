@@ -1,4 +1,4 @@
-import { memo, useCallback, useMemo, useState } from 'react';
+import { lazy, memo, useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
     Users,
@@ -11,18 +11,7 @@ import {
     Clock
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import {
-    AreaChart,
-    Area,
-    XAxis,
-    YAxis,
-    Tooltip,
-    ResponsiveContainer,
-    PieChart,
-    Pie,
-    Cell,
-    LazyChart
-} from '@/components/charts/LazyChart';
+import { LazyChart } from '@/components/charts/LazyChart';
 import { motion } from '@/lib/motion';
 import { getTodayPayments, getTodayDebtors } from '@/api';
 import { useDashboardStats } from '@/hooks/useDashboard';
@@ -30,9 +19,11 @@ import { useAppointments } from '@/hooks/useAppointments';
 import { useAuth } from '@/auth/useAuth';
 import { Card, Button, Modal, PageHeader, toast, AdvancedTable } from '@/shared/ui';
 import DashboardQuickActions from '@/features/dashboard/DashboardQuickActions';
-import OnboardingChecklistWidget from '@/features/onboarding/components/OnboardingChecklistWidget';
 import PatientModal from '@/features/patients/modals/PatientModal.jsx';
 import { selectAppointmentsForBusinessDate } from '@/utils/dateTime';
+
+const RevenueChart = lazy(() => import('@/features/dashboard/DashboardCharts').then(module => ({ default: module.RevenueChart })));
+const StatusChart = lazy(() => import('@/features/dashboard/DashboardCharts').then(module => ({ default: module.StatusChart })));
 
 const GradientCard = memo(({ title, value, subtext, icon: Icon, gradient, onClick }) => (
     <button
@@ -185,8 +176,6 @@ export default function Dashboard() {
                 breadcrumbs={[{ label: t('sidebar.dashboard'), icon: Home }]}
             />
 
-            <OnboardingChecklistWidget />
-
             <DashboardQuickActions onAddPatient={() => setIsPatientModalOpen(true)} />
 
             <div className="stats-grid grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-6">
@@ -253,33 +242,9 @@ export default function Dashboard() {
                         <div className="h-[230px] min-w-0 w-full sm:h-[280px] lg:h-[320px]" style={{ direction: 'ltr' }}>
                             {loading ? (
                                 <div className="h-full w-full rounded-2xl bg-slate-100 animate-pulse dark:bg-slate-800/50 sm:rounded-3xl" />
-                            ) : stats.chartData.length > 0 ? (
+                            ) : stats.chartData.some(point => Number(point.revenue) !== 0) ? (
                                 <LazyChart>
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={stats.chartData} margin={{ top: 10, right: 8, left: -18, bottom: 0 }}>
-                                            <defs>
-                                                <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#0891B2" stopOpacity={0.3} />
-                                                    <stop offset="95%" stopColor="#0891B2" stopOpacity={0} />
-                                                </linearGradient>
-                                            </defs>
-                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 700 }} dy={8} minTickGap={18} />
-                                            <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 700 }} width={42} />
-                                            <Tooltip
-                                                contentStyle={{
-                                                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                                                    borderRadius: '14px',
-                                                    border: 'none',
-                                                    boxShadow: '0 12px 28px rgba(15, 23, 42, 0.16)',
-                                                    padding: '10px'
-                                                }}
-                                                itemStyle={{ color: '#1e293b', fontWeight: '800', fontSize: '12px' }}
-                                                formatter={(value) => [formatCurrency(value), t('dashboard.revenue')]}
-                                                cursor={{ stroke: '#0891B2', strokeWidth: 2, strokeDasharray: '6 6' }}
-                                            />
-                                            <Area type="monotone" dataKey="revenue" stroke="#0891B2" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" activeDot={{ r: 6, strokeWidth: 0, fill: '#0891B2' }} />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
+                                    <RevenueChart data={stats.chartData} formatCurrency={formatCurrency} revenueLabel={t('dashboard.revenue')} />
                                 </LazyChart>
                             ) : (
                                 <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-text-secondary">
@@ -297,16 +262,15 @@ export default function Dashboard() {
                                 <span className="break-words">{t('dashboard.status_distribution')}</span>
                             </h4>
                             <div className="h-[180px] min-w-0 w-full sm:h-[200px]" style={{ direction: 'ltr' }}>
-                                <LazyChart>
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <PieChart>
-                                            <Pie data={statusDistribution} innerRadius="50%" outerRadius="78%" paddingAngle={5} dataKey="value">
-                                                {statusDistribution.map(item => <Cell key={item.name} fill={item.fill} />)}
-                                            </Pie>
-                                            <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 18px rgba(15,23,42,.12)', fontSize: '12px' }} />
-                                        </PieChart>
-                                    </ResponsiveContainer>
-                                </LazyChart>
+                                {statusDistribution.length > 0 ? (
+                                    <LazyChart>
+                                        <StatusChart data={statusDistribution} />
+                                    </LazyChart>
+                                ) : (
+                                    <div className="flex h-full items-center justify-center text-sm text-text-secondary">
+                                        {t('dashboard.no_data')}
+                                    </div>
+                                )}
                             </div>
                         </Card>
 
