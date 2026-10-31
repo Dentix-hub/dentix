@@ -95,7 +95,9 @@
     "today": "اليوم",
     "hour": "ساعة",
     "minute": "دقيقة",
-    "search_min_chars": "اكتب حرفين على الأقل للبحث"
+    "search_min_chars": "اكتب حرفين على الأقل للبحث",
+    "manage": "إدارة",
+    "overwrite": "استبدال"
   },
   "static": {
     "not_found": {
@@ -527,7 +529,10 @@
         "In Progress": "جاري التنفيذ",
         "Pending": "معلق"
       },
-      "empty": "لا يوجد سجل تاريخي للعلاج"
+      "empty": "لا يوجد سجل تاريخي للعلاج",
+      "procedures_view": "الإجراءات",
+      "sessions_view": "الزيارات وجلسات الرعاية",
+      "care_sessions_count": "جلسات الرعاية ({{count}})"
     },
     "files": {
       "title": "ملفات الأشعة والمرفقات",
@@ -1121,6 +1126,30 @@
       "AMBIGUOUS_ATTACHMENT_TREATMENT_LINK": "تعذر ربط المرفق السريري بالعلاج بشكل دقيق.",
       "ATTACHMENT_TREATMENT_NOT_FOUND": "العلاج المرتبط بالمرفق السريري غير موجود.",
       "GENERIC_UNKNOWN_WARNING": "سجل سريري يحتاج إلى مراجعة وتدقيق."
+    },
+    "status": {
+      "click_to_reopen": "الإجراء مكتمل. اضغط لإعادة فتحه.",
+      "click_to_complete": "الإجراء قيد التنفيذ. اضغط لتحديده كمكتمل.",
+      "completed": "مكتمل",
+      "active": "قيد التنفيذ",
+      "reopen": "إعادة فتح",
+      "mark_done": "تحديد كمكتمل"
+    },
+    "reopen_modal": {
+      "title": "إعادة فتح الإجراء",
+      "warning_title": "تأكيد إعادة فتح الإجراء",
+      "notice": "ستعيد إعادة الفتح حالة الإجراء إلى قيد التنفيذ. ستُلغى تلقائيًا أي رسوم معلقة لم تصدر بها فاتورة. تبقى الرسوم المفوترة كما هي وتحتاج إلى مراجعة يدوية.",
+      "reason_label": "السبب الطبي لإعادة الفتح",
+      "reason_placeholder": "مثال: الحاجة إلى تحضير إضافي لقنوات الجذر",
+      "confirm_btn": "تأكيد إعادة الفتح"
+    },
+    "override_modal": {
+      "title": "تجاوز الخطوات غير المكتملة",
+      "warning_title": "توجد خطوات علاجية غير مكتملة",
+      "notice": "لهذا الإجراء خطوات علاجية غير مكتملة. يُرجى توثيق المبرر الطبي لإتمامه.",
+      "reason_label": "المبرر الطبي لتجاوز الخطوات",
+      "reason_placeholder": "مثال: السن دون أعراض، ورفض المريض استكمال تحضير القنوات، وتم التحقق سريريًا من الحشو.",
+      "confirm_btn": "إتمام الإجراء مع تجاوز الخطوات"
     }
   },
   "clinical_plans": {
@@ -3529,7 +3558,11 @@
     "suggested_duration_label": "المدة المقترحة",
     "uncompleted_notice": "خطوة/خطوات لا تزال معلقة. الإنهاء سيغلق الجلسة.",
     "view_workflow": "مسار علاج الجذور والقياسات",
-    "working_length_title": "طول العمل وقياسات القمة"
+    "working_length_title": "طول العمل وقياسات القمة",
+    "saving_draft": "جارٍ حفظ المسودة...",
+    "draft_saved": "حُفظت المسودة تلقائيًا",
+    "draft_conflict": "تعارض في المسودة",
+    "draft_error": "خطأ في المزامنة"
   },
   "dental_chart": {
     "primary_teeth": "الأسنان اللبنية",
@@ -3664,7 +3697,9 @@
     "resume_treatment": "استئناف العلاج",
     "canal_lengths": "القنوات المسجلة:",
     "last_visit": "آخر زيارة:",
-    "measurements_detail": "ملاحظات وقياسات القنوات العصبية:"
+    "measurements_detail": "ملاحظات وقياسات القنوات العصبية:",
+    "resumable_procedures": "الإجراءات القابلة للاستكمال ({{count}}):",
+    "resume_all": "استكمال الكل ({{count}})"
   },
   "lab_handoff": {
     "failed_load_labs": "تعذر تحميل قائمة معامل الأسنان.",
@@ -3716,5 +3751,25 @@
   "nav": {
     "home": "الرئيسية",
     "settings": "إدارة تفضيلات وإعدادات التطبيق"
+  },
+  "follow_up": {
+    "manage_title": "إدارة طلب المتابعة",
+    "action_postpone": "تأجيل",
+    "action_handoff": "إحالة",
+    "action_stop": "إيقاف",
+    "new_target_date": "موعد المتابعة الجديد",
+    "postpone_reason": "سبب التأجيل",
+    "postpone_placeholder": "مثال: طلب المريض التأجيل أو لديه سفر",
+    "target_doctor": "اختيار الطبيب المُحال إليه",
+    "choose_doctor": "-- اختر الطبيب --",
+    "handoff_reason": "السبب الطبي للإحالة",
+    "handoff_placeholder": "مثال: الحاجة إلى اختصاصي جراحة لاستئصال ذروة الجذر",
+    "handoff_instructions": "تعليمات للطبيب المُحال إليه (اختياري)",
+    "handoff_notes_placeholder": "مثال: الأشعة السابقة مرفقة، والمريض لديه حساسية من اللاتكس",
+    "stop_reason": "سبب إيقاف التذكيرات",
+    "stop_placeholder": "مثال: أُكمل العلاج في مكان آخر أو رفض المريض استكمال الرعاية",
+    "stop_confirm": "إيقاف التذكيرات",
+    "handoff_confirm": "إحالة المتابعة",
+    "postpone_confirm": "تأجيل الطلب"
   }
 }

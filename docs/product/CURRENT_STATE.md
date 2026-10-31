@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- PR #339 CI correction (2026-10-31): added 47 missing Arabic/English translation keys; completed draft/procedure cleanup ordering and tenant audit coverage; supplied historical clinical tables in migration fixtures while retaining every lifecycle/data-invariance assertion and checking the new single-head ancestry.
+- Verification: 149 targeted backend tests + 7 i18n tests PASS; backend Ruff and diff checks PASS. New regressions exercise patient/tenant cleanup with foreign keys enabled and ORM read/update/delete isolation for both workflow child tables.
+- Status: DONE for the reported failures; fresh GitHub CI pending. No workflow, applied migration, database schema, financial formula or unrelated local-work changes.
+
 - Care Sessions Workflow Unification (feat/care-session-workflow-unification, 2026-10-31): Reviewed implemented status, continuation, draft, correction and follow-up flows; fixed effective measurement identity, draft visit ownership, archive reference remapping and fresh-bootstrap tenant/RLS gaps. New additive migration c2d3e4f5a6b7 aligns indexes and repairs guards/policies; committed migrations unchanged.
 - Verification: 211 targeted backend PASS (0 skipped, including 8 live PostgreSQL cases); 74 frontend PASS; configured Ruff, ESLint, production build and diff guardrails PASS (zero new guarded violations). Fresh/upgrade drift checks and PostgreSQL repair/downgrade/re-upgrade PASS.
 - Delivery Status: Reviewed implementation DONE locally, GitHub delivery authorized; CI/staging acceptance pending. Overall initiative PARTIAL: generic workspace, template/custom-field editor, populated snapshots, historical entry/correction UI and follow-up dashboards remain INCOMPLETE. Gated under clinical_vnext_native_writes. Review: docs/reports/care-session-unification-delivery-review-2026-10-31.md.
