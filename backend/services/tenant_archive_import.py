@@ -15,7 +15,9 @@ from backend.services.tenant_archive import ArchiveError
 from backend.services.tenant_archive_embedded_refs import (
     learning_procedure_ids, remap_event_payload, remap_learning_data, remap_next_visit_note, remap_price_snapshot, remap_stock_reference, remap_treatment_note,
 )
-from backend.services.tenant_archive_registry import ARCHIVE_COLUMNS
+from backend.services.tenant_archive_registry import (
+    ARCHIVE_COLUMNS, CLINICAL_REFERENCE_COLUMNS, CLINICAL_REFERENCE_LIST_COLUMNS,
+)
 from backend.services.tenant_archive_history import deleted_treatment_contexts, historical_treatment_ids, inventory_treatment_history
 
 GATE_NAMESPACE = 1146377304
@@ -129,11 +131,8 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
                     later[key] = value
                     values[key] = None
                     continue
-                if name == 'care_observations' and key in {
-                    'superseded_by_id',
-                    'reference_source_session_id',
-                    'reference_source_observation_id',
-                }:
+                if (key in CLINICAL_REFERENCE_COLUMNS.get(name, {})
+                        or key in CLINICAL_REFERENCE_LIST_COLUMNS.get(name, {})):
                     later[key] = value
                     values[key] = None
                     continue
@@ -184,37 +183,26 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
             row.price_snapshot = remap_price_snapshot(later['price_snapshot'], mapping)
         elif name == 'next_visit_requests':
             row.notes = remap_next_visit_note(later['notes'], mapping)
-        elif name == 'care_observations':
-            if 'superseded_by_id' in later and later['superseded_by_id'] is not None:
-                old_id = later['superseded_by_id']
-                if old_id in mapping.get('care_observations', {}):
-                    row.superseded_by_id = mapping['care_observations'][old_id]
-                else:
+        for key, referenced in CLINICAL_REFERENCE_COLUMNS.get(name, {}).items():
+            if later.get(key) is not None:
+                try:
+                    setattr(row, key, mapping[referenced][later[key]])
+                except KeyError as exc:
                     raise ArchiveError(
-                        'تحتوي النسخة الاحتياطية على مرجع غير صالح (care_observations.superseded_by_id)',
-                        section='care_observations', field='superseded_by_id',
-                        referenced_section='care_observations', category='invalid_reference', counts=1,
-                    )
-            if 'reference_source_observation_id' in later and later['reference_source_observation_id'] is not None:
-                old_id = later['reference_source_observation_id']
-                if old_id in mapping.get('care_observations', {}):
-                    row.reference_source_observation_id = mapping['care_observations'][old_id]
-                else:
+                        f'تحتوي النسخة الاحتياطية على مرجع غير صالح ({name}.{key})',
+                        section=name, field=key, referenced_section=referenced,
+                        category='invalid_reference', counts=1,
+                    ) from exc
+        for key, referenced in CLINICAL_REFERENCE_LIST_COLUMNS.get(name, {}).items():
+            if later.get(key) is not None:
+                try:
+                    setattr(row, key, [mapping[referenced][value] for value in later[key]])
+                except KeyError as exc:
                     raise ArchiveError(
-                        'تحتوي النسخة الاحتياطية على مرجع غير صالح (care_observations.reference_source_observation_id)',
-                        section='care_observations', field='reference_source_observation_id',
-                        referenced_section='care_observations', category='invalid_reference', counts=1,
-                    )
-            if 'reference_source_session_id' in later and later['reference_source_session_id'] is not None:
-                old_id = later['reference_source_session_id']
-                if old_id in mapping.get('care_sessions', {}):
-                    row.reference_source_session_id = mapping['care_sessions'][old_id]
-                else:
-                    raise ArchiveError(
-                        'تحتوي النسخة الاحتياطية على مرجع غير صالح (care_observations.reference_source_session_id)',
-                        section='care_observations', field='reference_source_session_id',
-                        referenced_section='care_sessions', category='invalid_reference', counts=1,
-                    )
+                        f'تحتوي النسخة الاحتياطية على مرجع غير صالح ({name}.{key})',
+                        section=name, field=key, referenced_section=referenced,
+                        category='invalid_reference', counts=1,
+                    ) from exc
     # Only the financial staff attributes are business backup data. Never
     # restore login credentials, permission/role fields, sessions, or 2FA.
     financial_fields = ('commission_percent', 'fixed_salary', 'per_appointment_fee', 'hire_date')

@@ -55,6 +55,30 @@ ARCHIVE_COLUMNS = {
 STAFF_REFERENCE_SECTION = "staff_references"
 STAFF_REFERENCE_COLUMNS = frozenset({"id", "username", "full_name", "email", "commission_percent", "fixed_salary", "per_appointment_fee", "hire_date"})
 
+# Clinical references stored without SQL foreign keys still need the same
+# validation and ID remapping as declared foreign keys during recovery.
+CLINICAL_REFERENCE_COLUMNS = {
+    'care_sessions': {
+        'recorded_by_user_id': 'users',
+        'amends_session_id': 'care_sessions',
+    },
+    'care_observations': {
+        'superseded_by_id': 'care_observations',
+        'reference_source_observation_id': 'care_observations',
+        'reference_source_session_id': 'care_sessions',
+    },
+    'next_visit_requests': {
+        'assigned_doctor_id': 'users',
+        'stopped_by_user_id': 'users',
+        'postponed_by_user_id': 'users',
+        'handoff_by_user_id': 'users',
+        'handoff_to_user_id': 'users',
+    },
+}
+CLINICAL_REFERENCE_LIST_COLUMNS = {
+    'next_visit_requests': {'associated_work_item_ids': 'clinical_work_items'},
+}
+
 def validate_archive_sections(payload, *, tenant_id, require_complete=True):
     """Reject unrecognized sections, columns, ownership and duplicate row IDs.
 
@@ -139,13 +163,7 @@ def validate_archive_references(data, *, tenant_id, external_ids=None):
                         section=name, field=column.name, referenced_section=referenced,
                         category='invalid_reference', counts=invalid_ref_count,
                     )
-        explicit_refs = {
-            'care_observations': {
-                'superseded_by_id': 'care_observations',
-                'reference_source_observation_id': 'care_observations',
-                'reference_source_session_id': 'care_sessions',
-            }
-        }.get(name, {})
+        explicit_refs = CLINICAL_REFERENCE_COLUMNS.get(name, {})
         for col_name, referenced in explicit_refs.items():
             if col_name not in ARCHIVE_COLUMNS.get(name, ()):
                 continue
@@ -171,6 +189,26 @@ def validate_archive_references(data, *, tenant_id, external_ids=None):
                     section=name, field=col_name, referenced_section=referenced,
                     category='invalid_reference', counts=invalid_ref_count,
                 )
+        for column, referenced in CLINICAL_REFERENCE_LIST_COLUMNS.get(name, {}).items():
+            allowed = ids.get(referenced, set())
+            for row in rows:
+                values = row.get(column)
+                if values is None:
+                    continue
+                if not isinstance(values, list) or any(
+                    not isinstance(value, int) or isinstance(value, bool) for value in values
+                ):
+                    raise ArchiveError(
+                        f'نوع أو قيمة غير صالحة في النسخة الاحتياطية ({name}.{column})',
+                        section=name, field=column, referenced_section=referenced,
+                        category='invalid_reference_type', counts=1,
+                    )
+                if any(value not in allowed for value in values):
+                    raise ArchiveError(
+                        f'تحتوي النسخة الاحتياطية على مرجع غير صالح ({name}.{column})',
+                        section=name, field=column, referenced_section=referenced,
+                        category='invalid_reference', counts=1,
+                    )
 
 
 def _is_valid_scalar(kind, value):

@@ -630,7 +630,6 @@ async def test_round5_issue3_restore_remaps_care_observation_reference_columns_r
     from backend.services.care_session_service import CareSessionService
     from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
     from backend.services.feature_service import FeatureFlagService
-    from backend import schemas
 
     tenant_id = test_user.tenant_id
     flag = models.FeatureFlag(
@@ -720,6 +719,7 @@ async def test_round5_issue3_restore_remaps_care_observation_reference_columns_r
     restored_obs1 = obs_by_new_id[new_obs1_id]
     restored_obs2 = obs_by_new_id[new_obs2_id]
     restored_obs3 = obs_by_new_id[new_obs3_id]
+    assert restored_obs2.structured_value["length_mm"] == 21.0
 
     # Verification: superseded_by_id was remapped to new_obs2_id!
     assert restored_obs1.is_superseded is True

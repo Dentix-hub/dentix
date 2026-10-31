@@ -701,6 +701,50 @@ async def test_server_drafts_lifecycle_and_optimistic_concurrency(async_db_sessi
     assert await care_service.get_draft(env["patient"].id) is None
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("session_owner", ["other_patient", "other_tenant", "missing"])
+async def test_draft_cannot_link_an_unrelated_visit(async_db_session, setup_test_env, session_owner):
+    env = setup_test_env
+    service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+    if session_owner == "missing":
+        session_id = 99999999
+    else:
+        tenant_id = env["tenant"].id
+        if session_owner == "other_tenant":
+            tenant = models.Tenant(name="Synthetic unrelated draft tenant")
+            async_db_session.add(tenant)
+            await async_db_session.flush()
+            tenant_id = tenant.id
+        patient = models.Patient(tenant_id=tenant_id, name="Synthetic unrelated draft patient")
+        async_db_session.add(patient)
+        await async_db_session.flush()
+        visit = models.CareSession(tenant_id=tenant_id, patient_id=patient.id, status="completed")
+        async_db_session.add(visit)
+        await async_db_session.flush()
+        session_id = visit.id
+    with pytest.raises(HTTPException) as error:
+        await service.save_draft(env["patient"].id, schemas.CareSessionDraftSave(
+            care_session_id=session_id, draft_data={"notes": "Synthetic documentation"},
+        ))
+    assert error.value.status_code == 404
+    assert await service.get_draft(env["patient"].id) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status", ["in_progress", "completed"])
+async def test_draft_can_link_its_patients_visit(async_db_session, setup_test_env, status):
+    env = setup_test_env
+    visit = models.CareSession(tenant_id=env["tenant"].id, patient_id=env["patient"].id, status=status)
+    async_db_session.add(visit)
+    await async_db_session.flush()
+    service = CareSessionService(async_db_session, env["tenant"].id, env["doctor"])
+    draft = await service.save_draft(env["patient"].id, schemas.CareSessionDraftSave(
+        care_session_id=visit.id, draft_data={"notes": "Synthetic documentation"},
+    ))
+    assert draft.care_session_id == visit.id
+    assert draft.draft_payload["notes"] == "Synthetic documentation"
+
+
 # ---------------------------------------------------------------------------
 # 5. Observation Amendments (Section 2.7)
 # ---------------------------------------------------------------------------

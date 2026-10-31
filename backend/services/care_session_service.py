@@ -2399,6 +2399,8 @@ class CareSessionService:
         """Save autosaved documentation draft with optimistic concurrency."""
         await self.ensure_native_writes_enabled()
         await self._verify_patient(patient_id)
+        if payload.care_session_id is not None:
+            await self.get_session(patient_id, payload.care_session_id)
 
         user = await self._get_active_current_user()
         if not user:

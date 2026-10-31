@@ -2,9 +2,9 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
-- Care Sessions Workflow Unification (feat/care-session-workflow-unification, 2026-10-31): Effective observation projections now share one DTO builder; type, tooth, surface, root, canal, value and notes stay consistent while reference identity, provenance and stored clinical history remain intact.
-- Verification: 93 targeted backend tests PASS (8 new regression cases cover corrected/cleared targets across four read paths, nested data isolation and same-session historical exports); Ruff and diff checks PASS. Local delivery only.
-- Delivery Status: Projection correction DONE. Overall initiative remains PARTIAL: 5 original plan items remain incomplete (generic visit workspace, template/custom-field editor, populated snapshots, historical entry/correction UI, and follow-up dashboards). Gated under clinical_vnext_native_writes.
+- Care Sessions Workflow Unification (feat/care-session-workflow-unification, 2026-10-31): Reviewed implemented status, continuation, draft, correction and follow-up flows; fixed effective measurement identity, draft visit ownership, archive reference remapping and fresh-bootstrap tenant/RLS gaps. New additive migration c2d3e4f5a6b7 aligns indexes and repairs guards/policies; committed migrations unchanged.
+- Verification: 211 targeted backend PASS (0 skipped, including 8 live PostgreSQL cases); 74 frontend PASS; configured Ruff, ESLint, production build and diff guardrails PASS (zero new guarded violations). Fresh/upgrade drift checks and PostgreSQL repair/downgrade/re-upgrade PASS.
+- Delivery Status: Reviewed implementation DONE locally, GitHub delivery authorized; CI/staging acceptance pending. Overall initiative PARTIAL: generic workspace, template/custom-field editor, populated snapshots, historical entry/correction UI and follow-up dashboards remain INCOMPLETE. Gated under clinical_vnext_native_writes. Review: docs/reports/care-session-unification-delivery-review-2026-10-31.md.
 
 - Arabic UI polish (2026-10-30): password visibility and patient search controls occupy separate layout slots; remember-me has a larger pointer/keyboard target; quick-start checklist temporarily hidden on Dashboard.
 - Revenue/status charts now lazy-load as complete charts so Recharts recognizes series/axes; zero-revenue and empty status data display explicit messages. Existing efficiency, financial values and APIs retained.

@@ -78,6 +78,7 @@ CLINICAL_G1_TABLES: tuple[str, ...] = (
     "next_visit_requests",
     "clinical_attachment_links",
 )
+CARE_WORKFLOW_TABLES = ("care_session_procedures", "care_session_drafts")
 
 RLS_TABLES = (
     "users",
@@ -121,6 +122,7 @@ RLS_TABLES = (
     "domain_events",
     "push_subscriptions",
     *CLINICAL_G1_TABLES,
+    *CARE_WORKFLOW_TABLES,
     "clinical_projection_coverages",
     "clinical_charges",
     "user_onboarding_state",
@@ -149,6 +151,12 @@ CHILD_TENANT_RELATIONSHIPS = (
     ("care_sessions", "provider_user_id", "users", True),
     ("care_session_steps", "care_session_id", "care_sessions", False),
     ("care_session_steps", "work_item_id", "clinical_work_items", True),
+    # Care-session workflow tables need the same guards on a fresh bootstrap
+    # as on the Alembic upgrade path (b1c2d3e4f5a6).
+    ("care_session_procedures", "care_session_id", "care_sessions", False),
+    ("care_session_procedures", "work_item_id", "clinical_work_items", False),
+    ("care_session_drafts", "patient_id", "patients", False),
+    ("care_session_drafts", "care_session_id", "care_sessions", True),
     ("clinical_events", "patient_id", "patients", False),
     ("clinical_events", "work_item_id", "clinical_work_items", True),
     ("clinical_events", "care_session_id", "care_sessions", True),
@@ -1445,6 +1453,7 @@ def run_migration_health_check():
         ("stock_movements", "tenant_id"),
         ("subscription_renewal_requests", "tenant_id"),
         *((table, "tenant_id") for table in CLINICAL_G1_TABLES),
+        *((table, "tenant_id") for table in CARE_WORKFLOW_TABLES),
     ]
 
     missing: list[str] = []
@@ -1477,6 +1486,7 @@ def run_migration_health_check():
             "stock_movements",
             "subscription_renewal_requests",
             *CLINICAL_G1_TABLES,
+            *CARE_WORKFLOW_TABLES,
         }
         nullable = [
             table
