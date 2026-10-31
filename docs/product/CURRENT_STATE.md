@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- PR #339 security follow-up (2026-10-31): CI application tests passed (1706 backend, 1 existing skip); Safety blocked three urllib3 2.7.0 advisories. Updated only that locked dependency to 2.8.0, which fixes the reported proxy TLS and streaming issues: https://github.com/urllib3/urllib3/releases/tag/2.8.0.
+- Verification: frozen sync/lock check, unchanged Safety runner (0 reported; existing exceptions retained), 31 HTTP/OAuth/Drive/GeoIP/security tests, targeted Ruff and diff checks PASS. Proxy certificate-policy regression fails on 2.7.0 and passes on 2.8.0.
+- Optional uv pip check still reports the same two baseline findings on old/new environments (intentional ecdsa exclusion; platform-specific NVIDIA wheel). Status: DONE for the reported Safety blocker; fresh GitHub CI pending.
+
 - PR #339 CI correction (2026-10-31): added 47 missing Arabic/English translation keys; completed draft/procedure cleanup ordering and tenant audit coverage; supplied historical clinical tables in migration fixtures while retaining every lifecycle/data-invariance assertion and checking the new single-head ancestry.
 - Verification: 149 targeted backend tests + 7 i18n tests PASS; backend Ruff and diff checks PASS. New regressions exercise patient/tenant cleanup with foreign keys enabled and ORM read/update/delete isolation for both workflow child tables.
 - Status: DONE for the reported failures; fresh GitHub CI pending. No workflow, applied migration, database schema, financial formula or unrelated local-work changes.
