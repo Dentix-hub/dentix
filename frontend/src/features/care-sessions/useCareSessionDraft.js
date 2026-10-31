@@ -31,6 +31,9 @@ export function useCareSessionDraft({
     const isMountedRef = useRef(true);
     const activeContextRef = useRef({ patientId, careSessionId });
     const versionIdRef = useRef(versionId);
+    const generationTokenRef = useRef(0);
+    const hasUserEditedRef = useRef(false);
+    const saveToServerRef = useRef(null);
 
     // Track unmount lifecycle
     useEffect(() => {
@@ -52,7 +55,10 @@ export function useCareSessionDraft({
     // Reset local state synchronously when patient/session context changes and load server draft
     useEffect(() => {
         isMountedRef.current = true;
+        generationTokenRef.current += 1;
+        const currentToken = generationTokenRef.current;
         activeContextRef.current = { patientId, careSessionId };
+        hasUserEditedRef.current = false;
 
         // Cancel any pending debounced autosaves from prior context
         if (debounceTimerRef.current) {
@@ -83,6 +89,7 @@ export function useCareSessionDraft({
                 const res = await getCareSessionDraft(currentPatientId);
                 if (isCancelled || !isMountedRef.current) return;
                 if (
+                    generationTokenRef.current !== currentToken ||
                     activeContextRef.current?.patientId !== currentPatientId ||
                     activeContextRef.current?.careSessionId !== currentCareSessionId
                 ) {
@@ -91,25 +98,45 @@ export function useCareSessionDraft({
 
                 const serverDraft = res?.data?.data || res?.data;
                 if (serverDraft && serverDraft.draft_data) {
-                    setDraftData(serverDraft.draft_data);
-                    latestDataRef.current = serverDraft.draft_data;
                     const loadedVersion = serverDraft.version_id || 1;
                     setVersionId(loadedVersion);
                     versionIdRef.current = loadedVersion;
-                    setStatus('saved');
-                    setLastSavedAt(new Date(serverDraft.updated_at || Date.now()));
+
+                    if (hasUserEditedRef.current) {
+                        // User started typing before initial GET finished: preserve newly typed documentation
+                        setDraftData((prev) => {
+                            const merged = { ...serverDraft.draft_data, ...prev };
+                            latestDataRef.current = merged;
+                            if (debounceTimerRef.current) {
+                                clearTimeout(debounceTimerRef.current);
+                            }
+                            debounceTimerRef.current = setTimeout(() => {
+                                saveToServerRef.current?.(merged);
+                            }, DEBOUNCE_DELAY_MS);
+                            return merged;
+                        });
+                        setStatus('saving');
+                    } else {
+                        setDraftData(serverDraft.draft_data);
+                        latestDataRef.current = serverDraft.draft_data;
+                        setStatus('saved');
+                        setLastSavedAt(new Date(serverDraft.updated_at || Date.now()));
+                    }
                 }
             } catch (err) {
                 if (isCancelled || !isMountedRef.current) return;
                 if (
+                    generationTokenRef.current !== currentToken ||
                     activeContextRef.current?.patientId !== currentPatientId ||
                     activeContextRef.current?.careSessionId !== currentCareSessionId
                 ) {
                     return;
                 }
-                // If 404, no server draft exists for this patient - keep pristine reset state
+                // If 404, no server draft exists for this patient - keep clean state unless user typed
                 if (err.response?.status === 404) {
-                    setStatus('idle');
+                    if (!hasUserEditedRef.current) {
+                        setStatus('idle');
+                    }
                     setErrorMessage(null);
                 } else {
                     setErrorMessage(err.response?.data?.detail || null);
@@ -131,11 +158,13 @@ export function useCareSessionDraft({
     // Core save function
     const saveToServer = useCallback(
         async (dataToSave, forceOverwrite = false) => {
+            const targetToken = generationTokenRef.current;
             const targetPatientId = patientId;
             const targetCareSessionId = careSessionId;
 
             if (!targetPatientId || !enabled) return;
             if (
+                generationTokenRef.current !== targetToken ||
                 activeContextRef.current?.patientId !== targetPatientId ||
                 activeContextRef.current?.careSessionId !== targetCareSessionId
             ) {
@@ -165,6 +194,7 @@ export function useCareSessionDraft({
 
                 if (
                     isMountedRef.current &&
+                    generationTokenRef.current === targetToken &&
                     activeContextRef.current?.patientId === targetPatientId &&
                     activeContextRef.current?.careSessionId === targetCareSessionId
                 ) {
@@ -179,6 +209,7 @@ export function useCareSessionDraft({
             } catch (err) {
                 if (
                     !isMountedRef.current ||
+                    generationTokenRef.current !== targetToken ||
                     activeContextRef.current?.patientId !== targetPatientId ||
                     activeContextRef.current?.careSessionId !== targetCareSessionId
                 ) {
@@ -198,10 +229,12 @@ export function useCareSessionDraft({
         },
         [patientId, careSessionId, enabled]
     );
+    saveToServerRef.current = saveToServer;
 
     // Update draft data with debounced autosave
     const updateDraft = useCallback(
         (updater) => {
+            hasUserEditedRef.current = true;
             setDraftData((prev) => {
                 const next = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
                 latestDataRef.current = next;
@@ -247,22 +280,55 @@ export function useCareSessionDraft({
 
     // Discard draft (called on session finish or manual discard)
     const discardDraft = useCallback(async () => {
+        const discardToken = generationTokenRef.current;
+        const targetPatientId = patientId;
+
         if (debounceTimerRef.current) {
             clearTimeout(debounceTimerRef.current);
+            debounceTimerRef.current = null;
         }
+
+        // Immediately reset local state for this patient
+        if (
+            generationTokenRef.current === discardToken &&
+            activeContextRef.current?.patientId === targetPatientId
+        ) {
+            setDraftData({});
+            latestDataRef.current = {};
+            setVersionId(1);
+            versionIdRef.current = 1;
+            setStatus('idle');
+            setLastSavedAt(null);
+            setHasConflict(false);
+            setServerConflictDraft(null);
+            hasUserEditedRef.current = false;
+        }
+
         try {
-            await deleteCareSessionDraft(patientId);
+            await deleteCareSessionDraft(targetPatientId);
         } catch {
             // Discard draft failure ignored
         }
 
-        if (isMountedRef.current) {
-            setDraftData({});
-            setVersionId(1);
-            setStatus('idle');
-            setLastSavedAt(null);
-            setHasConflict(false);
+        // Guard against late deletion clearing Patient B's state:
+        // If user navigated away while deletion was pending, do NOT touch new context state
+        if (
+            !isMountedRef.current ||
+            generationTokenRef.current !== discardToken ||
+            activeContextRef.current?.patientId !== targetPatientId
+        ) {
+            return;
         }
+
+        setDraftData({});
+        latestDataRef.current = {};
+        setVersionId(1);
+        versionIdRef.current = 1;
+        setStatus('idle');
+        setLastSavedAt(null);
+        setHasConflict(false);
+        setServerConflictDraft(null);
+        hasUserEditedRef.current = false;
     }, [patientId]);
 
     return {

@@ -1713,5 +1713,91 @@ async def test_round3_issue3_correcting_source_measurement_updates_carried_refer
     assert s3_obs[0].reference_source_observation_id == amended.id
 
 
+async def test_round4_issue1_repeated_amendments_preserve_complete_clinical_history(async_db_session, setup_test_env):
+    """
+    Review 4 Issue 1: Repeated amendments preserve all historical values in the database
+    (e.g. 20 -> 21 -> 22) without bulk-rewriting historical payloads, while current views
+    and subsequent continuations resolve to 22.
+    """
+    env = setup_test_env
+    patient = env["patient"]
+    tenant = env["tenant"]
+    doctor = env["doctor"]
+
+    care_service = CareSessionService(async_db_session, tenant.id, doctor)
+
+    proc = models.ClinicalWorkItem(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        kind="procedure",
+        code="ENDO_RCT",
+        status="active",
+        created_by_user_id=doctor.id,
+    )
+    async_db_session.add(proc)
+    await async_db_session.flush()
+
+    # 1. Initial measurement 20
+    s1 = await care_service.start_session(patient.id, schemas.CareSessionCreate(work_item_ids=[proc.id], notes="Visit 1"))
+    obs1 = await care_service.add_observation(patient.id, s1.id, schemas.CareObservationCreate(
+        observation_code="working_length",
+        tooth_key="16",
+        canal_id="MB1",
+        structured_value={"canal_id": "MB1", "length_mm": 20.0},
+        work_item_id=proc.id,
+    ))
+
+    # 2. First amendment: 20 -> 21
+    obs2 = await care_service.amend_observation(
+        patient.id,
+        obs1.id,
+        schemas.CareObservationAmend(
+            structured_value={"canal_id": "MB1", "length_mm": 21.0},
+            reason="Initial calibration adjustment",
+        ),
+    )
+
+    # 3. Second amendment: 21 -> 22
+    obs3 = await care_service.amend_observation(
+        patient.id,
+        obs2.id,
+        schemas.CareObservationAmend(
+            structured_value={"canal_id": "MB1", "length_mm": 22.0},
+            reason="Electronic apex locator confirmed measurement",
+        ),
+    )
+
+    # Complete historical audit verification:
+    # All 3 records must preserve their distinct historical values (20.0, 21.0, 22.0)
+    all_obs = await care_service.list_observations(patient.id, s1.id, include_superseded=True)
+    assert len(all_obs) == 3
+    obs_by_id = {o.id: o for o in all_obs}
+    assert obs_by_id[obs1.id].structured_value["length_mm"] == 20.0
+    assert obs_by_id[obs1.id].is_superseded is True
+    assert obs_by_id[obs1.id].superseded_by_id == obs2.id
+
+    assert obs_by_id[obs2.id].structured_value["length_mm"] == 21.0
+    assert obs_by_id[obs2.id].is_superseded is True
+    assert obs_by_id[obs2.id].superseded_by_id == obs3.id
+
+    assert obs_by_id[obs3.id].structured_value["length_mm"] == 22.0
+    assert obs_by_id[obs3.id].is_superseded is False
+
+    # Current view verification:
+    # Default list_observations (include_superseded=False) shows only the effective 22.0
+    active_obs = await care_service.list_observations(patient.id, s1.id, include_superseded=False)
+    assert len(active_obs) == 1
+    assert active_obs[0].id == obs3.id
+    assert active_obs[0].structured_value["length_mm"] == 22.0
+
+    # Resumable context verification shows 22.0
+    resumable = await care_service.get_resumable_context(patient.id)
+    assert len(resumable["items"]) >= 1
+    item = next(it for it in resumable["items"] if it["work_item_id"] == proc.id)
+    assert len(item["observations"]) == 1
+    assert item["observations"][0].structured_value["length_mm"] == 22.0
+
+
+
 
 

@@ -2534,7 +2534,7 @@ class CareSessionService:
             amendment_reason=payload.reason,
             reference_source_session_id=orig.care_session_id,
             reference_source_date=orig.recorded_at or orig.created_at,
-            reference_source_observation_id=orig.reference_source_observation_id or orig.id,
+            reference_source_observation_id=orig.reference_source_observation_id,
         )
         self.db.add(new_obs)
         await self.db.flush()
@@ -2542,21 +2542,6 @@ class CareSessionService:
         orig.is_superseded = True
         orig.superseded_by_id = new_obs.id
         orig.amendment_reason = payload.reason
-
-        # Synchronize any existing carried references to preserve provenance and effective values
-        source_ids = [orig.id]
-        if orig.reference_source_observation_id:
-            source_ids.append(orig.reference_source_observation_id)
-        downstream_stmt = select(models.CareObservation).where(
-            models.CareObservation.tenant_id == self.tenant_id,
-            models.CareObservation.patient_id == patient_id,
-            models.CareObservation.reference_source_observation_id.in_(source_ids),
-        )
-        downstream_refs = (await self.db.execute(downstream_stmt)).scalars().all()
-        for ref in downstream_refs:
-            ref.reference_source_observation_id = new_obs.id
-            ref.reference_source_date = new_obs.recorded_at or now
-            ref.structured_value = dict(new_obs.structured_value or {})
 
         event = models.ClinicalEvent(
             tenant_id=self.tenant_id,

@@ -187,6 +187,91 @@ describe('Slice S25 / G10-M17: Care Session Server Drafts Autosave Hook', () => 
         );
         expect(callsForPatientB).toHaveLength(0);
     });
+
+    it('preserves newly typed documentation when late draft recovery completes (Review 4 Issue 2)', async () => {
+        let resolveServerDraft;
+        const delayedPromise = new Promise((resolve) => {
+            resolveServerDraft = resolve;
+        });
+        patientsApi.getCareSessionDraft.mockReturnValueOnce(delayedPromise);
+
+        // Mount hook - initial GET is now pending
+        const { result } = renderHook(() =>
+            useCareSessionDraft({ patientId: 42, careSessionId: 10 })
+        );
+
+        // Doctor immediately starts typing before server draft arrives
+        act(() => {
+            result.current.updateDraft({ notes: 'Doctor newly typed notes while loading' });
+        });
+        expect(result.current.draftData).toEqual({ notes: 'Doctor newly typed notes while loading' });
+
+        // Older server draft arrives late
+        await act(async () => {
+            resolveServerDraft({
+                data: {
+                    draft_data: { notes: 'Older server draft notes', requestNextVisit: true },
+                    version_id: 4,
+                },
+            });
+        });
+
+        // Doctor's newly typed notes must be preserved! Not overwritten by older server draft!
+        expect(result.current.draftData.notes).toBe('Doctor newly typed notes while loading');
+        expect(result.current.draftData.requestNextVisit).toBe(true);
+        expect(result.current.versionId).toBe(4);
+    });
+
+    it('prevents late discard for Patient A from clearing Patient B local draft (Review 4 Issue 3)', async () => {
+        let resolveDelete;
+        const deletePromise = new Promise((resolve) => {
+            resolveDelete = resolve;
+        });
+        patientsApi.deleteCareSessionDraft.mockReturnValueOnce(deletePromise);
+        patientsApi.getCareSessionDraft.mockImplementation((pid) => {
+            if (pid === 99) {
+                return Promise.resolve({
+                    data: {
+                        draft_data: { notes: "Patient B's valuable notes" },
+                        version_id: 2,
+                    },
+                });
+            }
+            return Promise.resolve({ data: null });
+        });
+
+        // 1. Mount with Patient A (42)
+        const { result, rerender } = renderHook(
+            ({ patientId }) => useCareSessionDraft({ patientId }),
+            { initialProps: { patientId: 42 } }
+        );
+
+        await act(async () => {});
+
+        // 2. Doctor discards Patient A's draft (DELETE is pending)
+        let discardPromise;
+        act(() => {
+            discardPromise = result.current.discardDraft();
+        });
+
+        // 3. While DELETE for 42 is in flight, user navigates to Patient B (99)
+        rerender({ patientId: 99 });
+
+        await act(async () => {});
+
+        // Patient B's draft is loaded
+        expect(result.current.draftData).toEqual({ notes: "Patient B's valuable notes" });
+
+        // 4. DELETE for Patient A finally resolves!
+        await act(async () => {
+            resolveDelete({});
+            await discardPromise;
+        });
+
+        // Patient B's local draft must NOT be cleared by Patient A's late discard response!
+        expect(result.current.draftData).toEqual({ notes: "Patient B's valuable notes" });
+        expect(result.current.versionId).toBe(2);
+    });
 });
 
 describe('FinishCareSessionSheet Draft Restoration & Autosave Integration (Review 2 Issue 1)', () => {
