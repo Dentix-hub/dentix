@@ -70,6 +70,8 @@ EXPECTED_TENANT_MODELS = {
     "ClinicalEvent",
     "ClinicalEventTarget",
     "CareSession",
+    "CareSessionDraft",
+    "CareSessionProcedure",
     "CareSessionStep",
     "CareObservation",
     "WorkflowTemplate",

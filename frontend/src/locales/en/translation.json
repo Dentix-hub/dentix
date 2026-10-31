@@ -95,7 +95,9 @@
     "today": "Today",
     "hour": "Hour",
     "minute": "Minute",
-    "search_min_chars": "Type at least 2 characters to search"
+    "search_min_chars": "Type at least 2 characters to search",
+    "manage": "Manage",
+    "overwrite": "Overwrite"
   },
   "static": {
     "not_found": {
@@ -527,7 +529,10 @@
         "Done": "Done",
         "In Progress": "In Progress",
         "Pending": "Pending"
-      }
+      },
+      "procedures_view": "Procedures",
+      "sessions_view": "Visits & Care Sessions",
+      "care_sessions_count": "Care Sessions ({{count}})"
     },
     "files": {
       "title": "X-Rays & Attachments",
@@ -1121,6 +1126,30 @@
       "AMBIGUOUS_ATTACHMENT_TREATMENT_LINK": "Ambiguous clinical attachment treatment linkage.",
       "ATTACHMENT_TREATMENT_NOT_FOUND": "Referenced treatment for attachment was not found.",
       "GENERIC_UNKNOWN_WARNING": "Clinical record requires review."
+    },
+    "status": {
+      "click_to_reopen": "Procedure completed. Click to reopen.",
+      "click_to_complete": "Procedure active. Click to mark complete.",
+      "completed": "Completed",
+      "active": "In Progress",
+      "reopen": "Reopen",
+      "mark_done": "Mark Done"
+    },
+    "reopen_modal": {
+      "title": "Reopen Procedure",
+      "warning_title": "Reopening Procedure Confirmation",
+      "notice": "Reopening will change status back to active. Any unbilled pending charges will be automatically voided. Invoiced charges remain untouched and require manual review.",
+      "reason_label": "Clinical Reason for Reopening",
+      "reason_placeholder": "e.g. Additional canal instrumentation required",
+      "confirm_btn": "Confirm Reopen"
+    },
+    "override_modal": {
+      "title": "Incomplete Steps Override",
+      "warning_title": "Outstanding Workflow Steps Detected",
+      "notice": "This procedure has uncompleted chairside steps. To finalize completion, please document the clinical justification.",
+      "reason_label": "Clinical Override Reason",
+      "reason_placeholder": "e.g. Tooth asymptomatic, patient declined further instrumentation, obturation verified clinically.",
+      "confirm_btn": "Mark Complete with Override"
     }
   },
   "clinical_plans": {
@@ -3549,7 +3578,11 @@
     "suggested_duration_label": "Suggested Duration",
     "uncompleted_notice": "step(s) remain pending. Finishing will close the session.",
     "view_workflow": "RCT Workflow & Measurements",
-    "working_length_title": "Working Length & Apex Measurements"
+    "working_length_title": "Working Length & Apex Measurements",
+    "saving_draft": "Saving draft...",
+    "draft_saved": "Draft autosaved",
+    "draft_conflict": "Draft conflict",
+    "draft_error": "Sync error"
   },
   "dental_chart": {
     "primary_teeth": "Primary teeth",
@@ -3664,7 +3697,9 @@
     "resume_treatment": "Resume Treatment",
     "canal_lengths": "Recorded Canals:",
     "last_visit": "Last visit:",
-    "measurements_detail": "Canal Observations & Measurements:"
+    "measurements_detail": "Canal Observations & Measurements:",
+    "resumable_procedures": "Resumable Procedures ({{count}}):",
+    "resume_all": "Resume All ({{count}})"
   },
   "lab_handoff": {
     "failed_load_labs": "Failed to load dental laboratories list.",
@@ -3716,5 +3751,25 @@
   "nav": {
     "home": "Home",
     "settings": "Manage application preferences"
+  },
+  "follow_up": {
+    "manage_title": "Manage Follow-up Request",
+    "action_postpone": "Postpone",
+    "action_handoff": "Handoff",
+    "action_stop": "Stop",
+    "new_target_date": "New Target Date",
+    "postpone_reason": "Reason for Postponing",
+    "postpone_placeholder": "e.g. Patient requested delay, traveling",
+    "target_doctor": "Select Target Doctor",
+    "choose_doctor": "-- Choose Doctor --",
+    "handoff_reason": "Clinical Reason for Handoff",
+    "handoff_placeholder": "e.g. Surgical specialist required for apicoectomy",
+    "handoff_instructions": "Instructions for Receiving Clinician (optional)",
+    "handoff_notes_placeholder": "e.g. Previous radiographs attached, patient has latex sensitivity",
+    "stop_reason": "Reason for Stopping Reminders",
+    "stop_placeholder": "e.g. Treatment completed elsewhere / Patient declined further care",
+    "stop_confirm": "Stop Reminders",
+    "handoff_confirm": "Handoff Follow-up",
+    "postpone_confirm": "Postpone Request"
   }
 }

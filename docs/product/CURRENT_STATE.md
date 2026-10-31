@@ -2,9 +2,9 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
-- Care Sessions Workflow Unification (feat/care-session-workflow-unification, 2026-10-31): Completed all 5 remaining original requirements: generic chairside visit workspace (multi-procedure, non-RCT & RCT isolation, steps, custom fields, autosave drafts), clinic template & custom-field editor with immutability/versioning, populated canonical templates for 6 procedure families, historical visit entry & observation amendment modals, and practice-wide follow-up dashboards with filtering and lifecycle actions.
-- Verification: 59 targeted backend test cases PASS (100% v2 coverage, 44 unification regressions, 5 new v2 suites); 10 targeted Vitest tests across 4 test suites PASS; frontend ESLint (0 errors/0 warnings), Vite production build, and backend Ruff PASS.
-- Delivery Status: COMPLETE locally across all 5 requirements; ready for Codex review and staging acceptance. Gated under clinical_vnext_native_writes.
+- Care Sessions Workflow Unification (feat/care-session-workflow-unification, 2026-10-31): Completed all 5 remaining original requirements: generic chairside visit workspace (multi-procedure, non-RCT & RCT isolation, steps, custom fields, autosave drafts), clinic template & custom-field editor with immutability/versioning, populated canonical templates for 6 procedure families, historical visit entry & observation amendment modals, and practice-wide follow-up dashboards with filtering and lifecycle actions. Resolved all 17 delivery review findings (F01-F17).
+- Verification: 226 targeted backend test cases PASS (including live PostgreSQL archive delivery integrity and RLS); 10 targeted Vitest tests across test suites PASS; frontend ESLint (0 errors, 0 warnings), Vite production build, design guardrails (0 new violations), and backend Ruff PASS.
+- Delivery Status: COMPLETE locally across all 5 requirements and review findings; gated under clinical_vnext_native_writes.
 
 - Arabic UI polish (2026-10-30): password visibility and patient search controls occupy separate layout slots; remember-me has a larger pointer/keyboard target; quick-start checklist temporarily hidden on Dashboard.
 - Revenue/status charts now lazy-load as complete charts so Recharts recognizes series/axes; zero-revenue and empty status data display explicit messages. Existing efficiency, financial values and APIs retained.

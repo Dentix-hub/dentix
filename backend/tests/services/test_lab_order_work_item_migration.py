@@ -442,7 +442,7 @@ async def test_cross_tenant_and_cross_patient_work_item_rejection(async_db_sessi
     assert "work item" in exc_info.value.detail.lower()
 
 
-def test_alembic_s27_migration_lifecycle_sqlite(monkeypatch):
+def test_alembic_s27_migration_lifecycle_sqlite(monkeypatch, legacy_clinical_schema):
     """Rehearse Alembic migration 3c4d5e6f7a8b upgrade and downgrade on SQLite."""
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_db:
         db_path = tmp_db.name
@@ -459,11 +459,11 @@ def test_alembic_s27_migration_lifecycle_sqlite(monkeypatch):
 
         # 1. Create base tables needed for lab_orders
         with engine.connect() as conn:
+            legacy_clinical_schema(conn)
             # Head also migrates users.email; keep the legacy prerequisite schema realistic.
             conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR NOT NULL)"))
             conn.execute(sa.text("CREATE UNIQUE INDEX ix_users_email ON users(email)"))
             conn.execute(sa.text("CREATE TABLE tenants (id INTEGER PRIMARY KEY, name VARCHAR, google_refresh_token VARCHAR)"))
-            conn.execute(sa.text("CREATE TABLE patients (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE laboratories (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE clinical_work_items (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE attachments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))

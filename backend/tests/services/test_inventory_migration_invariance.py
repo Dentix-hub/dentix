@@ -44,7 +44,7 @@ def _snapshot(conn):
     ]
 
 
-def test_g13_m10_legacy_usage_rows_are_invariant_across_s26_migration(monkeypatch):
+def test_g13_m10_legacy_usage_rows_are_invariant_across_s26_migration(monkeypatch, legacy_clinical_schema):
     """Legacy usages keep identical quantity/cost through upgrade, downgrade and re-upgrade."""
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_db:
         db_path = tmp_db.name
@@ -60,6 +60,7 @@ def test_g13_m10_legacy_usage_rows_are_invariant_across_s26_migration(monkeypatc
         config.set_main_option("sqlalchemy.url", sqlite_url)
 
         with engine.connect() as conn:
+            legacy_clinical_schema(conn)
             # Head also migrates users.email; keep the legacy prerequisite schema realistic.
             conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR NOT NULL)"))
             conn.execute(sa.text("CREATE UNIQUE INDEX ix_users_email ON users(email)"))
@@ -68,7 +69,6 @@ def test_g13_m10_legacy_usage_rows_are_invariant_across_s26_migration(monkeypatc
             conn.execute(sa.text("CREATE TABLE treatments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE materials (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE material_sessions (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
-            conn.execute(sa.text("CREATE TABLE care_sessions (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE clinical_work_items (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(
                 sa.text(

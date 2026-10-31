@@ -10,7 +10,7 @@ This module provides shared fixtures for all tests:
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from unittest.mock import MagicMock
@@ -56,6 +56,23 @@ def _noop_dashboard_precompute(monkeypatch, request):
 # ============================================
 # DATABASE FIXTURES
 # ============================================
+
+
+@pytest.fixture
+def legacy_clinical_schema():
+    """Supply pre-unification tables in minimal stamped migration databases.
+
+    These tables predate the stamped revisions. Leave all new columns, tables
+    and indexes to Alembic so tests still rehearse the entire path to head.
+    """
+    def create_tables(connection):
+        for table in ("patients", "care_sessions", "care_observations", "next_visit_requests"):
+            connection.execute(text(
+                f"CREATE TABLE IF NOT EXISTS {table} "
+                "(id INTEGER PRIMARY KEY, tenant_id INTEGER)"
+            ))
+
+    return create_tables
 
 
 @pytest.fixture(scope="session")
