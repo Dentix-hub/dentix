@@ -6,7 +6,7 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 - Revenue/status charts now lazy-load as complete charts so Recharts recognizes series/axes; zero-revenue and empty status data display explicit messages. Existing efficiency, financial values and APIs retained.
 - Date picker uses Arabic months/weekdays/periods, Saturday-first RTL calendar and LTR numeric time grids; desktop RTL dialog stays centered. ISO date/month/datetime output unchanged.
 - Verification: 44 targeted frontend + 5 existing server persistence/rotation/2FA tests PASS; 8 synthetic browser scenarios PASS (ar/en, 320/390/768/1440px, dark at 390px). Final lint/build/guardrails recorded in docs/reports/arabic-ui-polish-2026-10-30.md.
-- Status: DONE locally on fix/arabic-ui-polish; no push, PR, deployment, schema change or live clinic-data change.
+- Status: DONE locally on fix/arabic-ui-polish; GitHub delivery authorized 2026-10-31, staging acceptance pending. No deployment, schema change or live clinic-data change.
 
 - Image backup blocker diagnostics: clinic-admin/SYSTEM_CONFIG-only GET /settings/backup/image-operations reports bounded active job/outbox metadata and incomplete attachment counts, scoped to the authenticated tenant; private/no-store, no patient fields, remote IDs, payloads, raw errors or tokens.
 - Verification: 30 targeted diagnostics/archive/readiness/RBAC tests PASS; tenant contamination, role enforcement, read-only behavior, redaction and result bounds covered; Ruff/diff PASS. No queue edits, gate bypass, schema/config changes or deployment.

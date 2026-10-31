@@ -1,7 +1,7 @@
 <!-- CLASSIFICATION: ACTIVE -->
 # Arabic UI polish — local verification
 
-Status: DONE locally on `fix/arabic-ui-polish`, based on `origin/staging` at `126638e`. Remote delivery was not requested.
+Status: DONE locally on `fix/arabic-ui-polish`, based on `origin/staging` at `126638e`. GitHub delivery authorized on 2026-10-31; staging acceptance pending.
 
 Password visibility and patient-search icons now have separate flex layout slots, preventing overlap with either Arabic or Latin text. Search retains its searchbox semantics and search keyboard, using one explicit clear button without a browser-native duplicate. Remember-me has a 44px label target and a visible 20px checkbox; existing server persistence behavior is retained. Username/current-password autocomplete metadata is explicit; no credentials are stored in browser storage.
 
