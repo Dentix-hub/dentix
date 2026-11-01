@@ -19,7 +19,7 @@ import { format } from 'date-fns';
 import { ar } from 'date-fns/locale';
 
 import DentixBottomSheet from '@/shared/ui/DentixBottomSheet';
-import { toast } from '@/shared/ui';
+import { toast, Button } from '@/shared/ui';
 import logger from '@/utils/logger';
 import { getMaterials, getStockSummary } from '@/api/inventory';
 import { addTreatmentSession, getLaboratories, getPatientLabOrders, createLabPayment } from '@/api';
@@ -112,6 +112,7 @@ export default function QuickTreatmentSheet({
     onClose,
     onSave,
     onOpenDetails,
+    onOpenCareSessions,
     initialData,
     isEditing = false,
     isNativeWritesEnabled = false,
@@ -1851,14 +1852,19 @@ export default function QuickTreatmentSheet({
                     )}
 
                     {/* Sessions Section (D4, legacy path) */}
-                    {Boolean(isEditing && treatment.id) && (
+                    {isNativeWritesEnabled && isEditing && onOpenCareSessions && (
+                        <Button type="button" onClick={onOpenCareSessions} data-testid="open-unified-care-sessions">
+                            {t('care_session.open_unified_visits', 'Open visit workspace and history')}
+                        </Button>
+                    )}
+                    {Boolean(isEditing && treatment.id && (!isNativeWritesEnabled || sessions.length > 0)) && (
                         <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/40">
                             <div className="flex items-center justify-between">
                                 <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                                     <Clock size={16} className="text-blue-500" />
                                     <span>{t('quick_treatment_sheet.sessions_section_title', 'سجل الجلسات (Sessions)')}</span>
                                 </h4>
-                                {!isAddingSession && (
+                                {!isNativeWritesEnabled && !isAddingSession && (
                                     <button
                                         type="button"
                                         onClick={() => setIsAddingSession(true)}
@@ -1870,7 +1876,7 @@ export default function QuickTreatmentSheet({
                                 )}
                             </div>
 
-                            {isAddingSession && (
+                            {!isNativeWritesEnabled && isAddingSession && (
                                 <div className="space-y-3 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-3 dark:border-blue-900/60 dark:bg-blue-950/30">
                                     <textarea
                                         autoFocus
@@ -2053,6 +2059,7 @@ export default function QuickTreatmentSheet({
 }
 
 QuickTreatmentSheet.propTypes = {
+    onOpenCareSessions: PropTypes.func,
     isOpen: PropTypes.bool.isRequired,
     onClose: PropTypes.func.isRequired,
     onSave: PropTypes.func.isRequired,

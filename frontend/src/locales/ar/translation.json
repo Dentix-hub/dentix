@@ -3670,7 +3670,11 @@
     "preferred_follow_up_date": "تاريخ ووقت المتابعة المقترحان (اختياري)",
     "measurement_save_failed": "لم يُحفظ القياس. بياناتك ما زالت موجودة؛ حاول مرة أخرى.",
     "missing_required_field": "الحقل مطلوب: {{field}}",
-    "measurement_tooth_required": "حدد السن الخاص بالإجراء قبل تسجيل القياسات."
+    "measurement_tooth_required": "حدد السن الخاص بالإجراء قبل تسجيل القياسات.",
+    "observation_value_required": "أدخل قيمة القياس أو الملاحظة واختر الإجراء قبل الإضافة.",
+    "open_unified_visits": "فتح مساحة الزيارة وسجل الزيارات",
+    "past_visit_badge": "زيارة سابقة",
+    "step_completed": "مكتملة"
   },
   "dental_chart": {
     "primary_teeth": "الأسنان اللبنية",

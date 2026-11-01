@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import PropTypes from 'prop-types';
 import {
     Calendar,
@@ -25,8 +26,10 @@ export default function HistoricalCareSessionModal({
     doctors = [],
     currentUserId = null,
     onSuccess,
-    t = (k, f) => f || k,
+    t: customT,
 }) {
+    const { t: translate } = useTranslation();
+    const t = customT || translate;
     // Current local ISO date-time string truncated to minutes (YYYY-MM-DDTHH:MM)
     const nowIso = useMemo(() => {
         const d = new Date();
@@ -67,11 +70,18 @@ export default function HistoricalCareSessionModal({
     const [obsValue, setObsValue] = useState('');
     const [obsCanal, setObsCanal] = useState('');
     const [obsNotes, setObsNotes] = useState('');
+    const [observationError, setObservationError] = useState(null);
     const [entryWorkItemId, setEntryWorkItemId] = useState('');
     const selectedProcedures = patientWorkItems.filter((item) => selectedWorkItemIds.includes(item.id));
     const entryProcedureId = selectedWorkItemIds.includes(Number(entryWorkItemId))
         ? Number(entryWorkItemId)
         : selectedWorkItemIds[0];
+    const entryToothKey = useMemo(() => {
+        const procedure = patientWorkItems.find((item) => item.id === entryProcedureId);
+        const teeth = [...new Set((procedure?.targets || []).map((target) => target.tooth_key).filter(Boolean).map(String))];
+        return procedure?.tooth_number ? String(procedure.tooth_number) : teeth.length === 1 ? teeth[0] : '';
+    }, [entryProcedureId, patientWorkItems]);
+    useEffect(() => { setObsToothKey(entryToothKey); }, [entryProcedureId, entryToothKey]);
     const procedureLabel = (id) => {
         const item = patientWorkItems.find((candidate) => candidate.id === id);
         return item?.title || item?.code || `Procedure #${id}`;
@@ -111,14 +121,17 @@ export default function HistoricalCareSessionModal({
 
     const handleAddObservation = (e) => {
         e?.preventDefault();
-        if (!obsValue.trim() || !entryProcedureId) return;
+        if (!obsValue.trim() || !entryProcedureId) {
+            setObservationError(t('care_session.observation_value_required', 'Enter an observation value and select its procedure before adding it.'));
+            return;
+        }
         const isLength = obsCode === 'working_length';
         const numVal = isLength ? Number(obsValue) : undefined;
         if (isLength && (!Number.isFinite(numVal) || numVal <= 0)) {
-            setErrorMsg(t('care_session.invalid_length', 'Enter a positive numeric working length.'));
+            setObservationError(t('care_session.invalid_length', 'Enter a positive numeric working length.'));
             return;
         }
-        setErrorMsg(null);
+        setObservationError(null);
         const canal = obsCanal.trim() || null;
         setObservations((prev) => [
             ...prev,
@@ -240,7 +253,7 @@ export default function HistoricalCareSessionModal({
                                 {t('care_session.historical_entry_badge', 'Retrospective Documentation')}
                             </span>
                             <Badge variant="primary" size="xs">
-                                Historical
+                                {t('care_session.past_visit_badge', 'Past visit')}
                             </Badge>
                         </div>
                         <p className="text-xs text-text-secondary mt-1">
@@ -334,7 +347,7 @@ export default function HistoricalCareSessionModal({
                                         </div>
                                         {wi.targets?.[0]?.tooth_key && (
                                             <Badge variant="neutral" size="xs">
-                                                Tooth #{wi.targets[0].tooth_key}
+                                                {t('care_sessions.tooth', 'Tooth')} #{wi.targets[0].tooth_key}
                                             </Badge>
                                         )}
                                     </label>
@@ -376,7 +389,7 @@ export default function HistoricalCareSessionModal({
                                     className="flex items-center justify-between rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs"
                                 >
                                     <div className="flex items-center gap-2">
-                                        <Badge variant="success" size="xs">Completed</Badge>
+                                        <Badge variant="success" size="xs">{t('care_session.step_completed', 'Completed')}</Badge>
                                         <span className="font-semibold text-text-primary">{st.title}</span>
                                         <span className="text-text-secondary">{procedureLabel(st.work_item_id)}</span>
                                         {st.notes && <span className="text-text-secondary italic">({st.notes})</span>}
@@ -446,7 +459,7 @@ export default function HistoricalCareSessionModal({
                                     <div className="flex items-center gap-2 font-mono">
                                         <Badge variant="primary" size="xs">{ob.observation_code}</Badge>
                                         <span className="text-text-secondary">{procedureLabel(ob.work_item_id)}</span>
-                                        {ob.tooth_key && <span>Tooth #{ob.tooth_key}</span>}
+                                        {ob.tooth_key && <span>{t('care_sessions.tooth', 'Tooth')} #{ob.tooth_key}</span>}
                                         {ob.canal_id && <span>({ob.canal_id})</span>}
                                         <span className="font-bold text-text-primary">: {ob.value}</span>
                                         {ob.notes && <span className="text-text-secondary italic">({ob.notes})</span>}
@@ -512,6 +525,8 @@ export default function HistoricalCareSessionModal({
                         </Button>
                     </div>
                 </div>
+
+                {observationError && <p role="alert" className="text-sm text-danger">{observationError}</p>}
 
                 {/* Clinical Notes */}
                 <div className="space-y-1">
