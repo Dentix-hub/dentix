@@ -1,22 +1,27 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Edit2,
+    Edit3,
     Trash2,
     ChevronDown,
     ChevronUp,
     Calendar,
     Activity,
     CheckCircle2,
-    FileText,
     CalendarClock,
     Settings2,
+    History,
 } from 'lucide-react';
 import { fdiToPalmer } from '@/utils/toothUtils';
 import { useTranslation } from 'react-i18next';
 import ProcedureStatusControl from '@/features/clinical-chart/components/ProcedureStatusControl';
 import FollowUpManagementModal from '@/features/care-sessions/FollowUpManagementModal';
+import HistoricalCareSessionModal from '@/features/care-sessions/HistoricalCareSessionModal';
+import CareSessionAddendumModal from '@/features/care-sessions/CareSessionAddendumModal';
+import VisitDocumentation from '@/features/care-sessions/VisitDocumentation';
+import CareObservationAmendmentModal from '@/features/care-sessions/CareObservationAmendmentModal';
 import { getPatientCareSessions } from '@/api/patients';
 import { getDoctors } from '@/api/admin';
 import { useAuthStore } from '@/store/auth.store';
@@ -81,9 +86,13 @@ const TreatmentHistory = ({
     onAdd,
 }) => {
     const { t } = useTranslation();
+    const queryClient = useQueryClient();
     const [viewMode, setViewMode] = useState('procedures'); // 'procedures' | 'sessions'
     const [expandedRowIds, setExpandedRowIds] = useState(new Set());
     const [managingFollowUpRequest, setManagingFollowUpRequest] = useState(null);
+    const [isHistoricalModalOpen, setIsHistoricalModalOpen] = useState(false);
+    const [amendingObservation, setAmendingObservation] = useState(null); // { observation, sessionId }
+    const [amendingVisit, setAmendingVisit] = useState(null);
 
     const user = useAuthStore((state) => state.user);
     const role = (user?.role || '').toLowerCase();
@@ -92,7 +101,6 @@ const TreatmentHistory = ({
         : (typeof user?.permissions === 'string' ? JSON.parse(user?.permissions || '[]') : []);
 
     const canManageClinicalFollowUp =
-        !user ||
         ['admin', 'super_admin', 'doctor'].includes(role) ||
         permissionsList.includes('clinical:write') ||
         permissionsList.includes('clinical_write') ||
@@ -121,7 +129,26 @@ const TreatmentHistory = ({
         enabled: Boolean(patientId && !propCareSessions),
     });
 
-    const careSessions = propCareSessions || fetchedSessions;
+    const allSessions = propCareSessions || fetchedSessions;
+    const careSessions = allSessions.filter((session) => !session.amends_session_id);
+    const renderDocumentation = (session) => <VisitDocumentation session={session} addenda={allSessions.filter((entry) => entry.amends_session_id === session.id)} doctors={doctors} canAmend={canManageClinicalFollowUp} onAmend={setAmendingVisit} t={t} />;
+
+    const availableWorkItems = (history || [])
+        .filter((h) => Boolean(h.work_item_id))
+        .map((h) => ({
+            id: h.work_item_id,
+            code: h.procedure || h.procedure_code || 'PROC',
+            tooth_number: h.tooth_number,
+            display_label: `${h.procedure || 'Procedure'} ${h.tooth_number ? `(Tooth ${fdiToPalmer(h.tooth_number) || h.tooth_number})` : ''}`,
+        }));
+
+    const handleHistorySuccess = () => {
+        queryClient.invalidateQueries({ queryKey: ['patient', patientId, 'care-sessions'] });
+        setManagingFollowUpRequest(null);
+        setIsHistoricalModalOpen(false);
+        setAmendingObservation(null);
+        setAmendingVisit(null);
+    };
 
     const toggleRow = (itemId) => {
         setExpandedRowIds((prev) => {
@@ -177,6 +204,17 @@ const TreatmentHistory = ({
                 </div>
 
                 <div className="flex items-center gap-2">
+                    {canManageClinicalFollowUp && (
+                        <button
+                            type="button"
+                            data-testid="record-past-visit-btn"
+                            onClick={() => setIsHistoricalModalOpen(true)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                        >
+                            <History className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                            <span>{t('patientDetails.treatment_history.record_past_visit', '+ Record Past Visit')}</span>
+                        </button>
+                    )}
                     {onAdd && (
                         <button
                             type="button"
@@ -401,14 +439,32 @@ const TreatmentHistory = ({
                                                                                     return (
                                                                                         <span
                                                                                             key={obs.id}
-                                                                                            className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2 py-0.5 text-[11px] font-mono font-semibold text-slate-800 border border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
+                                                                                            data-testid={`obs-item-${obs.id}`}
+                                                                                            className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 px-2 py-0.5 text-[11px] font-mono font-semibold text-slate-800 border border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
                                                                                         >
                                                                                             <span className="text-indigo-600 dark:text-indigo-400">{canal}</span>
                                                                                             {len && <span>: {len}</span>}
+                                                                                            {!len && sv.value != null && <span>: {String(sv.value)}</span>}
+                                                                                            {obs.notes && <span className="font-sans font-normal">{obs.notes}</span>}
                                                                                             {maf && <span className="text-slate-500">({maf})</span>}
-                                                                                            {obs.is_superseded && (
-                                                                                                <span className="text-[9px] text-amber-600 font-bold">[Amended]</span>
-                                                                                            )}
+                                                                                            {obs.is_superseded ? (
+                                                                                                <span
+                                                                                                    className="rounded bg-amber-100 px-1 py-0.2 text-[9px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                                                                                    title={obs.amendment_reason ? `Amended: ${obs.amendment_reason}` : 'Amended'}
+                                                                                                >
+                                                                                                    [Amended]
+                                                                                                </span>
+                                                                                            ) : canManageClinicalFollowUp ? (
+                                                                                                <button
+                                                                                                    type="button"
+                                                                                                    data-testid={`amend-obs-btn-${obs.id}`}
+                                                                                                    onClick={() => setAmendingObservation({ observation: obs, sessionId: session.id })}
+                                                                                                    className="ms-0.5 rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-indigo-600 dark:hover:bg-slate-600"
+                                                                                                    title="Amend observation"
+                                                                                                >
+                                                                                                    <Edit3 className="h-3 w-3" />
+                                                                                                </button>
+                                                                                            ) : null}
                                                                                         </span>
                                                                                     );
                                                                                 })}
@@ -417,12 +473,7 @@ const TreatmentHistory = ({
                                                                     )}
 
                                                                     {/* Session Notes */}
-                                                                    {session.notes && (
-                                                                        <div className="mt-2 flex items-start gap-1 text-[11px] text-slate-600 dark:text-slate-300 italic">
-                                                                            <FileText className="h-3 w-3 mt-0.5 shrink-0 text-slate-400" />
-                                                                            <span>{session.notes}</span>
-                                                                        </div>
-                                                                    )}
+                                                                    {renderDocumentation(session)}
 
                                                                     {/* Next Visit Requests */}
                                                                     {session.next_visit_requests && session.next_visit_requests.length > 0 && (
@@ -578,14 +629,32 @@ const TreatmentHistory = ({
                                             return (
                                                 <span
                                                     key={obs.id}
-                                                    className="inline-flex items-center gap-1 rounded-md bg-slate-50 px-2.5 py-1 text-xs font-mono font-semibold text-slate-800 border border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
+                                                    data-testid={`obs-timeline-item-${obs.id}`}
+                                                    className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 px-2.5 py-1 text-xs font-mono font-semibold text-slate-800 border border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
                                                 >
                                                     <span className="text-indigo-600 dark:text-indigo-400">{canal}</span>
                                                     {len && <span>: {len}</span>}
+                                                    {!len && sv.value != null && <span>: {String(sv.value)}</span>}
+                                                    {obs.notes && <span className="font-sans font-normal">{obs.notes}</span>}
                                                     {maf && <span className="text-slate-500">({maf})</span>}
-                                                    {obs.is_superseded && (
-                                                        <span className="text-[10px] text-amber-600 font-bold">[Amended]</span>
-                                                    )}
+                                                    {obs.is_superseded ? (
+                                                        <span
+                                                            className="rounded bg-amber-100 px-1 py-0.2 text-[10px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
+                                                            title={obs.amendment_reason ? `Amended: ${obs.amendment_reason}` : 'Amended'}
+                                                        >
+                                                            [Amended]
+                                                        </span>
+                                                    ) : canManageClinicalFollowUp ? (
+                                                        <button
+                                                            type="button"
+                                                            data-testid={`amend-timeline-obs-btn-${obs.id}`}
+                                                            onClick={() => setAmendingObservation({ observation: obs, sessionId: session.id })}
+                                                            className="ms-0.5 rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-indigo-600 dark:hover:bg-slate-600"
+                                                            title="Amend observation"
+                                                        >
+                                                            <Edit3 className="h-3 w-3" />
+                                                        </button>
+                                                    ) : null}
                                                 </span>
                                             );
                                         })}
@@ -594,12 +663,7 @@ const TreatmentHistory = ({
                             )}
 
                             {/* Notes */}
-                            {session.notes && (
-                                <div className="mt-2 flex items-start gap-1.5 text-xs text-slate-600 dark:text-slate-300 italic bg-slate-50 p-2 rounded-lg dark:bg-slate-900/50">
-                                    <FileText className="h-3.5 w-3.5 mt-0.5 shrink-0 text-slate-400" />
-                                    <span>{session.notes}</span>
-                                </div>
-                            )}
+                            {renderDocumentation(session)}
 
                             {/* Next Visit Requests */}
                             {session.next_visit_requests && session.next_visit_requests.length > 0 && (
@@ -637,7 +701,32 @@ const TreatmentHistory = ({
                     request={managingFollowUpRequest}
                     doctors={doctors}
                     onClose={() => setManagingFollowUpRequest(null)}
-                    onSuccess={() => setManagingFollowUpRequest(null)}
+                    onSuccess={handleHistorySuccess}
+                />
+            )}
+
+            {isHistoricalModalOpen && (
+                <HistoricalCareSessionModal
+                    isOpen={isHistoricalModalOpen}
+                    onClose={() => setIsHistoricalModalOpen(false)}
+                    patientId={patientId}
+                    patientWorkItems={availableWorkItems}
+                    doctors={doctors}
+                    currentUserId={user?.id}
+                    onSuccess={handleHistorySuccess}
+                />
+            )}
+
+            {amendingVisit && <CareSessionAddendumModal patientId={patientId} session={amendingVisit} onClose={() => setAmendingVisit(null)} onSuccess={handleHistorySuccess} t={t} />}
+
+            {amendingObservation && (
+                <CareObservationAmendmentModal
+                    isOpen={Boolean(amendingObservation)}
+                    onClose={() => setAmendingObservation(null)}
+                    patientId={patientId}
+                    sessionId={amendingObservation.sessionId}
+                    observation={amendingObservation.observation}
+                    onSuccess={handleHistorySuccess}
                 />
             )}
         </div>

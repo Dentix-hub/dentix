@@ -13,7 +13,7 @@ from sqlalchemy import Date, DateTime, Numeric, delete, select, text
 from backend import models
 from backend.services.tenant_archive import ArchiveError
 from backend.services.tenant_archive_embedded_refs import (
-    learning_procedure_ids, remap_event_payload, remap_learning_data, remap_next_visit_note, remap_price_snapshot, remap_stock_reference, remap_treatment_note,
+    learning_procedure_ids, remap_draft_payload, remap_event_payload, remap_learning_data, remap_next_visit_note, remap_price_snapshot, remap_stock_reference, remap_treatment_note,
 )
 from backend.services.tenant_archive_registry import (
     ARCHIVE_COLUMNS, CLINICAL_REFERENCE_COLUMNS, CLINICAL_REFERENCE_LIST_COLUMNS,
@@ -131,6 +131,10 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
                     later[key] = value
                     values[key] = None
                     continue
+                if name == 'care_session_drafts' and key == 'draft_payload':
+                    later[key] = value
+                    values[key] = {}
+                    continue
                 if (key in CLINICAL_REFERENCE_COLUMNS.get(name, {})
                         or key in CLINICAL_REFERENCE_LIST_COLUMNS.get(name, {})):
                     later[key] = value
@@ -183,6 +187,8 @@ async def replace_clinic_business_data(db, *, tenant_id, data, staff_mapping, ex
             row.price_snapshot = remap_price_snapshot(later['price_snapshot'], mapping)
         elif name == 'next_visit_requests':
             row.notes = remap_next_visit_note(later['notes'], mapping)
+        elif name == 'care_session_drafts':
+            row.draft_payload = remap_draft_payload(later['draft_payload'], mapping)
         for key, referenced in CLINICAL_REFERENCE_COLUMNS.get(name, {}).items():
             if later.get(key) is not None:
                 try:

@@ -13,6 +13,7 @@ describe('Slice S25 / Defects 4, 6, 7: TreatmentHistory with Real Care Sessions'
     let queryClient;
 
     beforeEach(() => {
+        useAuthStore.setState({ user: { id: 1, role: 'doctor', permissions: ['clinical:write'] } });
         queryClient = new QueryClient({
             defaultOptions: { queries: { retry: false } },
         });

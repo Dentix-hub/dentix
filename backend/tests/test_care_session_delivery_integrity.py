@@ -218,3 +218,43 @@ def test_archive_rejects_invalid_follow_up_procedure_ids(value, category):
         validate_archive_references(data, tenant_id=7)
     assert error.value.category == category
     assert error.value.field == "associated_work_item_ids"
+
+
+@pytest.mark.asyncio
+async def test_restored_generic_workspace_draft_uses_regenerated_procedure_ids(care_pg):
+    db, tenants, users, patients, visits, items = care_pg
+    tenant, doctor, patient, visit, item = tenants[0], users[0], patients[0], visits[0], items[0]
+    old_item_id = item.id
+    old_keys = {
+        f"proc_notes_{item.id}": "Clinical note",
+        f"proc_next_action_{item.id}": "Review",
+        f"proc_custom_{item.id}_shade": "A2",
+    }
+    draft = models.CareSessionDraft(
+        tenant_id=tenant.id,
+        patient_id=patient.id,
+        care_session_id=visit.id,
+        author_user_id=doctor.id,
+        draft_payload=old_keys,
+    )
+    db.add(draft)
+    await db.flush()
+    old_draft_id = draft.id
+    payload = await export_clinic_archive_data(db, tenant.id, validate_restore=False)
+    data, _ = await validate_archive_compatibility(db, payload, tenant_id=tenant.id, external_ids={})
+    _, mapping = await replace_clinic_business_data(
+        db, tenant_id=tenant.id, data=data, staff_mapping={doctor.id: doctor.id}
+    )
+    new_item_id = mapping["clinical_work_items"][old_item_id]
+    assert new_item_id != old_item_id
+    restored = (
+        await db.execute(
+            select(models.CareSessionDraft).where(
+                models.CareSessionDraft.tenant_id == tenant.id,
+                models.CareSessionDraft.id == mapping["care_session_drafts"][old_draft_id],
+            )
+        )
+    ).scalar_one()
+    assert restored.draft_payload[f"proc_notes_{new_item_id}"] == "Clinical note"
+    assert restored.draft_payload[f"proc_custom_{new_item_id}_shade"] == "A2"
+    assert not set(restored.draft_payload).intersection(old_keys)

@@ -1,6 +1,8 @@
 <!-- CLASSIFICATION: ACTIVE -->
 # Care-session workflow: delivery review, 2026-10-31
 
+Historical review of the earlier partial delivery. Current requirement accounting and verification are maintained in [the scope-closure review](care-session-plan-completion-2026-11-01.md).
+
 Branch: `feat/care-session-workflow-unification`, based on staging `0036704`.
 Delivery scope: the implemented workflow and its regression fixes. The overall original initiative is **PARTIAL**.
 CI and manual staging acceptance remain pending; this is not a production promotion review.

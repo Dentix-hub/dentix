@@ -62,6 +62,7 @@ import {
     DateTimePicker
 } from '@/shared/ui';
 import WeeklyCalendar from '@/shared/ui/WeeklyCalendar';
+import FollowUpDashboard from '@/features/appointments/FollowUpDashboard';
 import { useAuth } from '@/auth/useAuth';
 import { useTenantStore } from '@/store/tenant.store';
 
@@ -89,7 +90,11 @@ export default function Appointments() {
     // Command palette links use ?action=new or ?id=<patientId>
     const openNewAction = searchParams.get('action') === 'new';
     const commandPalettePatientId = preselectPatientId || searchParams.get('id');
-    const [viewMode, setViewMode] = useState(getInitialViewMode);
+    const [viewMode, setViewMode] = useState(() => {
+        const paramView = searchParams.get('view');
+        if (paramView === 'follow-ups' || paramView === 'followup') return 'follow-ups';
+        return getInitialViewMode();
+    });
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null });
     const [activeRequestId, setActiveRequestId] = useState(null);
@@ -460,6 +465,7 @@ export default function Appointments() {
                             <ViewButton active={viewMode === 'calendar'} onClick={() => setViewMode('calendar')} title={t('appointments.view.calendar')} icon={Calendar} />
                             <ViewButton active={viewMode === 'list'} onClick={() => setViewMode('list')} title={t('appointments.view.list')} icon={ListIcon} />
                             <ViewButton active={viewMode === 'board'} onClick={() => setViewMode('board')} title={t('appointments.view.board')} icon={LayoutGrid} />
+                            <ViewButton active={viewMode === 'follow-ups'} onClick={() => setViewMode('follow-ups')} title={t('appointments.view.follow_ups', 'Follow-Ups')} icon={CalendarClock} />
                         </div>
                         <Button onClick={() => setIsModalOpen(true)} className="min-h-11 justify-center">
                             <Plus size={20} className="me-2" aria-hidden="true" />
@@ -489,7 +495,9 @@ export default function Appointments() {
                 onDismiss={handleDismissRequest}
             />
 
-            {loading ? (
+            {viewMode === 'follow-ups' ? (
+                <FollowUpDashboard onSchedule={handleScheduleRequest} />
+            ) : loading ? (
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3 md:gap-6">
                     <SkeletonBox className="h-72 w-full rounded-3xl md:h-96" />
                     <SkeletonBox className="h-72 w-full rounded-3xl md:h-96" />

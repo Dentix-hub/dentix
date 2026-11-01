@@ -244,6 +244,34 @@ def _validate_section_rows(rows, validator_fn, section_name):
         )
 
 
+DRAFT_PROC_KEY_REGEX = re.compile(r'^(proc_(?:notes|next_action|custom))_(\d+)(.*)$')
+
+
+def remap_draft_payload(payload, mapping, *, section='care_session_drafts', field='draft_payload'):
+    if payload is None:
+        return None
+    if not isinstance(payload, dict):
+        raise ArchiveError(
+            f'بيانات المسودة غير صالحة ({section}.{field})',
+            section=section, field=field, category='invalid_payload_type',
+        )
+    remapped = {}
+    wi_map = mapping.get('clinical_work_items', {})
+    for k, v in payload.items():
+        m = DRAFT_PROC_KEY_REGEX.match(k)
+        if m:
+            prefix, old_id_str, suffix = m.group(1), m.group(2), m.group(3)
+            old_id = int(old_id_str)
+            if old_id in wi_map:
+                new_id = wi_map[old_id]
+                remapped[f"{prefix}_{new_id}{suffix}"] = v
+            else:
+                remapped[k] = v
+        else:
+            remapped[k] = v
+    return remapped
+
+
 def validate_embedded_references(data, *, tenant_id, external_ids=None):
     """Fail before deletion if any known serialized reference is unresolved."""
     mapping = {name: {row['id']: row['id'] for row in rows} for name, rows in data.items()}
@@ -255,6 +283,11 @@ def validate_embedded_references(data, *, tenant_id, external_ids=None):
     contexts = deleted_treatment_contexts(data)
     historical = {value: value for value in historical_treatment_ids(contexts) | inventory_treatment_history(data)}
 
+    _validate_section_rows(
+        data.get('care_session_drafts', []),
+        lambda row: remap_draft_payload(row.get('draft_payload'), mapping),
+        'care_session_drafts',
+    )
     _validate_section_rows(
         data.get('clinical_events', []),
         lambda row: remap_event_payload(

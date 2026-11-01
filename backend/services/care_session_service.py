@@ -17,7 +17,8 @@ Enforces:
 """
 
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+import re
 from typing import Any, List, Optional, Tuple
 from fastapi import HTTPException
 from sqlalchemy import func, inspect, select, text
@@ -27,12 +28,16 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
 from backend import models, schemas
+from backend.core.permissions import DOCTOR_ROLES
 from backend.clinical.workflow_templates import get_latest_template
+from backend.clinical.step_identity import historical_step_identity
 from backend.models.clinical_core import FDI_TOOTH_KEYS
 from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
 from backend.services.feature_service import FeatureFlagService
 from backend.services.patient_access_service import ensure_patient_visible
+from backend.services.tenant_time_service import get_tenant_timezone
 from backend.utils.audit_logger import log_admin_action
+from backend.utils.tenant_time import tenant_day_utc_bounds_naive
 
 ALLOWED_SESSION_TRANSITIONS = {
     "in_progress": {"paused", "completed", "cancelled"},
@@ -206,8 +211,24 @@ class CareSessionService:
         if is_historical:
             if not actual_visit_date:
                 raise HTTPException(status_code=422, detail="Historical care session requires actual_visit_date")
+            if actual_visit_date.tzinfo is None:
+                actual_visit_date = actual_visit_date.replace(tzinfo=timezone.utc)
             if actual_visit_date > now:
                 raise HTTPException(status_code=422, detail="Historical visit date cannot be in the future")
+
+        provider_user_id = user.id if user else None
+        if data.provider_user_id is not None:
+            if not is_historical and data.provider_user_id != provider_user_id:
+                raise HTTPException(status_code=422, detail="A different treating clinician can only be recorded for a past visit")
+            provider = (await self.db.execute(select(models.User).where(
+                models.User.id == data.provider_user_id,
+                models.User.tenant_id == self.tenant_id,
+                models.User.is_active.is_(True),
+                models.User.role.in_(DOCTOR_ROLES),
+            ))).scalar_one_or_none()
+            if provider is None:
+                raise HTTPException(status_code=404, detail="Treating clinician not found")
+            provider_user_id = provider.id
 
         # Acquire concurrency lock for patient care sessions (R05)
         await self._acquire_advisory_lock(f"care_session:{patient_id}")
@@ -237,7 +258,7 @@ class CareSessionService:
             tenant_id=self.tenant_id,
             patient_id=patient_id,
             appointment_id=data.appointment_id,
-            provider_user_id=user.id if user else None,
+            provider_user_id=provider_user_id,
             status=session_status,
             started_at=session_started,
             finished_at=session_finished,
@@ -258,12 +279,21 @@ class CareSessionService:
                 detail="Concurrent care session conflict",
             ) from exc
 
-        # Create CareSessionProcedure rows for all associated procedures
+        # Create CareSessionProcedure rows for all associated procedures with populated template snapshot
+        from backend.services.workflow_template_service import WorkflowTemplateService
+        tpl_service = WorkflowTemplateService(self.db, self.tenant_id, self.current_user)
         for wi_id in associated_wi_ids:
+            wi = await self.db.get(models.ClinicalWorkItem, wi_id)
+            tpl_dict = None
+            proc_code = getattr(wi, "code", None)
+            if proc_code:
+                tpl_dict = await tpl_service.get_active_template_for_procedure(proc_code)
             session_proc = models.CareSessionProcedure(
                 tenant_id=self.tenant_id,
                 care_session_id=session.id,
                 work_item_id=wi_id,
+                template_snapshot=tpl_dict,
+                template_version=tpl_dict.get("version") if tpl_dict else None,
                 created_at=now,
             )
             self.db.add(session_proc)
@@ -417,6 +447,136 @@ class CareSessionService:
                     detail="Concurrent care session conflict during step carryover",
                 ) from exc
 
+        # F15, R3-01, R3-02: Persist historical steps and observations with stable clinical identities
+        if is_historical:
+            step_order = 1
+            assigned_occurrences: dict[Tuple[Optional[int], str], int] = {}
+            for raw_s in (getattr(data, "historical_steps", None) or []):
+                s = raw_s if isinstance(raw_s, dict) else raw_s.model_dump()
+                raw_code = str(s.get("step_code") or "").strip()
+                title = str(s.get("title") or raw_code or f"step_{step_order}").strip()
+                wi_id = s.get("work_item_id") or (associated_wi_ids[0] if associated_wi_ids else None)
+                if wi_id is not None:
+                    await self._verify_work_item(patient_id, wi_id)
+
+                # R3-02: Derive stable semantic identifiers rather than collapsing distinct activities by positional indices
+                is_positional = bool(re.match(r"^step_\d+$", raw_code, re.IGNORECASE))
+                logical_hint = (s.get("logical_step_code") or "").strip()
+                if logical_hint:
+                    logical_code = logical_hint
+                elif raw_code and not is_positional:
+                    logical_code = raw_code
+                else:
+                    logical_code = historical_step_identity(title)
+
+                step_code = raw_code if raw_code and not is_positional else logical_code
+
+                # Resolve occurrence number with continuity
+                occ_key = (wi_id, logical_code)
+                occ_num = s.get("occurrence_number")
+                if occ_num is None or occ_num <= 0:
+                    if occ_key not in assigned_occurrences:
+                        if wi_id is not None:
+                            occ_stmt = select(func.coalesce(func.max(models.CareSessionStep.occurrence_number), 0)).where(
+                                models.CareSessionStep.tenant_id == self.tenant_id,
+                                models.CareSessionStep.work_item_id == wi_id,
+                                func.coalesce(models.CareSessionStep.logical_step_code, models.CareSessionStep.step_code) == logical_code,
+                            )
+                            max_db_occ = (await self.db.execute(occ_stmt)).scalar_one()
+                            assigned_occurrences[occ_key] = max_db_occ
+                        else:
+                            assigned_occurrences[occ_key] = 0
+
+                    assigned_occurrences[occ_key] += 1
+                    occ_num = assigned_occurrences[occ_key]
+                    is_rep = occ_num > 1
+                else:
+                    is_rep = occ_num > 1
+                    assigned_occurrences[occ_key] = max(assigned_occurrences.get(occ_key, 0), occ_num)
+
+                h_step = models.CareSessionStep(
+                    tenant_id=self.tenant_id,
+                    care_session_id=session.id,
+                    work_item_id=wi_id,
+                    step_order=s.get("step_order") or step_order,
+                    step_code=step_code,
+                    logical_step_code=logical_code,
+                    occurrence_number=occ_num,
+                    is_repeat=is_rep,
+                    title=title,
+                    status=s.get("status", "completed"),
+                    notes=s.get("notes"),
+                    started_at=actual_visit_date,
+                    completed_at=actual_visit_date,
+                    created_at=now,
+                )
+                self.db.add(h_step)
+                step_order += 1
+
+            for raw_obs in (getattr(data, "historical_observations", None) or []):
+                obs = raw_obs if isinstance(raw_obs, dict) else raw_obs.model_dump()
+                obs_code = str(obs.get("observation_code") or "measurement").strip()
+                wi_id = obs.get("work_item_id") or (associated_wi_ids[0] if associated_wi_ids else None)
+                if wi_id is not None:
+                    await self._verify_work_item(patient_id, wi_id)
+
+                tooth_key = obs.get("tooth_key")
+                if tooth_key is not None:
+                    if tooth_key not in FDI_TOOTH_KEYS:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"Invalid tooth key '{tooth_key}'. Must be valid FDI notation (11-48, 51-85).",
+                        )
+
+                # Canonical structured value normalization (R3-01)
+                structured_val = dict(obs.get("structured_value") or {})
+                surface_code = obs.get("surface_code") or structured_val.get("surface_code")
+                root_id = obs.get("root_id") or structured_val.get("root_id")
+                canal_id = obs.get("canal_id") or structured_val.get("canal_id")
+
+                if surface_code:
+                    structured_val["surface_code"] = surface_code
+                if root_id:
+                    structured_val["root_id"] = root_id
+                if canal_id:
+                    structured_val["canal_id"] = canal_id
+
+                # Normalize numeric length_mm for working length observations
+                if obs_code == "working_length":
+                    if "length_mm" not in structured_val or structured_val.get("length_mm") is None:
+                        val = obs.get("value") or structured_val.get("value")
+                        if val is not None:
+                            try:
+                                structured_val["length_mm"] = float(val)
+                            except (ValueError, TypeError):
+                                pass
+
+                h_obs = models.CareObservation(
+                    tenant_id=self.tenant_id,
+                    patient_id=patient_id,
+                    care_session_id=session.id,
+                    work_item_id=wi_id,
+                    observation_code=obs_code,
+                    tooth_key=tooth_key,
+                    structured_value=structured_val,
+                    notes=obs.get("notes"),
+                    recorded_by_user_id=user.id if user else None,
+                    is_superseded=False,
+                    recorded_at=now,
+                    created_at=now,
+                )
+                self.db.add(h_obs)
+
+            try:
+                await self.db.flush()
+            except (IntegrityError, StaleDataError) as exc:
+                await self.db.rollback()
+                await self._get_active_current_user()
+                raise HTTPException(
+                    status_code=409,
+                    detail="Concurrent care session conflict during historical data entry",
+                ) from exc
+
         # Audit event
         event_payload = {
             "session_id": session.id,
@@ -456,6 +616,36 @@ class CareSessionService:
 
         return await self.get_session(patient_id, session.id)
 
+    async def add_session_addendum(
+        self, patient_id: int, session_id: int, data: schemas.CareSessionAddendumCreate
+    ) -> models.CareSession:
+        """Append a dated correction without rewriting the finalized visit or its procedures."""
+        await self.ensure_native_writes_enabled()
+        original = await self.get_session(patient_id, session_id)
+        if original.status != "completed" or original.amends_session_id is not None:
+            raise HTTPException(status_code=409, detail="Addenda must reference an original completed visit")
+        user = await self._get_active_current_user()
+        if not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        now = datetime.now(timezone.utc)
+        addendum = models.CareSession(
+            tenant_id=self.tenant_id, patient_id=patient_id,
+            provider_user_id=original.provider_user_id,
+            recorded_by_user_id=user.id, status="completed", is_historical=True,
+            started_at=now, finished_at=now, created_at=now,
+            actual_visit_date=original.actual_visit_date or original.started_at or original.created_at,
+            amends_session_id=original.id, amendment_reason=data.reason, notes=data.notes,
+        )
+        self.db.add(addendum)
+        await self.db.flush()
+        self.db.add(models.ClinicalEvent(
+            tenant_id=self.tenant_id, patient_id=patient_id, care_session_id=addendum.id,
+            event_type="care_session_addendum_recorded", occurred_at=now, actor_user_id=user.id,
+            payload={"amends_session_id": original.id, "reason": data.reason}, notes=data.notes,
+        ))
+        await self.db.commit()
+        return await self.get_session(patient_id, addendum.id)
+
     async def finish_session(
         self, patient_id: int, session_id: int, data: schemas.CareSessionFinish
     ) -> models.CareSession:
@@ -483,6 +673,104 @@ class CareSessionService:
                 session.notes = f"{session.notes}\n{data.notes}"
             else:
                 session.notes = data.notes
+
+        # F03, F10, R2-03, R2-05: Durable persistence of procedure documentation and strict typed validation
+        draft_stmt = select(models.CareSessionDraft).where(
+            models.CareSessionDraft.tenant_id == self.tenant_id,
+            models.CareSessionDraft.patient_id == patient_id,
+            models.CareSessionDraft.care_session_id == session.id,
+            models.CareSessionDraft.author_user_id == user.id,
+        )
+        draft = (await self.db.execute(draft_stmt)).scalars().first()
+        draft_data = draft.draft_payload if draft and isinstance(draft.draft_payload, dict) else {}
+
+        for proc in (session.procedures or []):
+            wi_id = proc.work_item_id
+            proc_note_key = f"proc_notes_{wi_id}"
+            if proc_note_key in draft_data and draft_data[proc_note_key]:
+                proc.procedure_notes = str(draft_data[proc_note_key]).strip()
+
+            proc_na_key = f"proc_next_action_{wi_id}"
+            if proc_na_key in draft_data and draft_data[proc_na_key]:
+                proc.next_action = str(draft_data[proc_na_key]).strip()
+
+            custom_prefix = f"proc_custom_{wi_id}_"
+            custom_values = {}
+            for k, v in draft_data.items():
+                if k.startswith(custom_prefix):
+                    field_id = k[len(custom_prefix):]
+                    custom_values[field_id] = v
+
+            snapshot = proc.template_snapshot or {}
+            custom_fields_def = snapshot.get("custom_fields") or []
+            known_field_ids = {f.get("field_id") for f in custom_fields_def if f.get("field_id")}
+
+            # Validate unknown custom field identifiers when template snapshot defines fields
+            if known_field_ids:
+                for fid in custom_values:
+                    if fid not in known_field_ids:
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"Unknown custom field '{fid}' for procedure #{wi_id}",
+                        )
+
+            for field_def in custom_fields_def:
+                fid = field_def.get("field_id")
+                flabel = field_def.get("label", fid)
+                is_req = field_def.get("is_required", False)
+                ftype = field_def.get("field_type")
+                val = custom_values.get(fid)
+
+                if is_req:
+                    if val is None or (isinstance(val, str) and not val.strip()):
+                        raise HTTPException(
+                            status_code=422,
+                            detail=f"Required custom field '{flabel}' ({fid}) is missing for procedure #{wi_id}",
+                        )
+
+                # Validate typed values when present
+                if val is not None and not (isinstance(val, str) and not val.strip()):
+                    if ftype == "number":
+                        try:
+                            float(str(val).strip())
+                        except (ValueError, TypeError):
+                            raise HTTPException(
+                                status_code=422,
+                                detail=f"Custom field '{flabel}' ({fid}) must be a valid number",
+                            )
+                    elif ftype == "choice":
+                        choices = field_def.get("choices") or []
+                        if choices:
+                            str_choices = [str(c).strip() for c in choices]
+                            if str(val).strip() not in str_choices:
+                                raise HTTPException(
+                                    status_code=422,
+                                    detail=f"Custom field '{flabel}' ({fid}) has invalid choice '{val}'. Allowed: {choices}",
+                                )
+                    elif ftype == "date":
+                        val_str = str(val).strip()
+                        try:
+                            datetime.fromisoformat(val_str.replace("Z", "+00:00"))
+                        except ValueError:
+                            try:
+                                from datetime import date
+                                date.fromisoformat(val_str)
+                            except ValueError:
+                                raise HTTPException(
+                                    status_code=422,
+                                    detail=f"Custom field '{flabel}' ({fid}) must be a valid date (YYYY-MM-DD)",
+                                )
+                    elif ftype == "boolean":
+                        if not isinstance(val, bool) and str(val).lower() not in ("true", "false", "1", "0", "yes", "no"):
+                            raise HTTPException(
+                                status_code=422,
+                                detail=f"Custom field '{flabel}' ({fid}) must be a boolean",
+                            )
+
+            if custom_values:
+                updated_snapshot = dict(proc.template_snapshot or {})
+                updated_snapshot["custom_field_values"] = custom_values
+                proc.template_snapshot = updated_snapshot
 
         try:
             await self.db.flush()
@@ -898,13 +1186,42 @@ class CareSessionService:
         if data.work_item_id is not None:
             await self._verify_work_item(patient_id, data.work_item_id)
 
-        try:
-            template = get_latest_template(data.template_code)
-        except Exception as exc:
+        from backend.services.workflow_template_service import WorkflowTemplateService
+        tpl_service = WorkflowTemplateService(self.db, self.tenant_id, self.current_user)
+        if await tpl_service.is_template_deactivated(data.template_code):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Workflow template '{data.template_code}' is deactivated for this clinic",
+            )
+        tpl_dict = await tpl_service.get_active_template_for_procedure(data.template_code)
+        if not tpl_dict:
             raise HTTPException(
                 status_code=404,
                 detail=f"Workflow template '{data.template_code}' not found",
-            ) from exc
+            )
+
+        # Associate template snapshot with the procedure in this care session
+        if data.work_item_id is not None:
+            csp_stmt = select(models.CareSessionProcedure).where(
+                models.CareSessionProcedure.tenant_id == self.tenant_id,
+                models.CareSessionProcedure.care_session_id == session_id,
+                models.CareSessionProcedure.work_item_id == data.work_item_id,
+            )
+            csp = (await self.db.execute(csp_stmt)).scalar_one_or_none()
+            if not csp:
+                csp = models.CareSessionProcedure(
+                    tenant_id=self.tenant_id,
+                    care_session_id=session_id,
+                    work_item_id=data.work_item_id,
+                    created_at=datetime.now(timezone.utc),
+                )
+                self.db.add(csp)
+            if csp.template_snapshot is None:
+                csp.template_snapshot = tpl_dict
+                csp.template_version = tpl_dict.get("version")
+            else:
+                # F06: Retain frozen recorded snapshot
+                tpl_dict = csp.template_snapshot
 
         # Find current max step_order
         stmt = select(func.coalesce(func.max(models.CareSessionStep.step_order), 0)).where(
@@ -915,8 +1232,13 @@ class CareSessionService:
 
         created_steps: List[models.CareSessionStep] = []
         now = datetime.now(timezone.utc)
-        for tpl_step in template.steps:
-            tpl_code = tpl_step.step_code.strip()
+        raw_steps = tpl_dict.get("steps") or []
+        for tpl_step in raw_steps:
+            tpl_code = (tpl_step.get("step_code") if isinstance(tpl_step, dict) else tpl_step.step_code).strip()
+            tpl_title = (tpl_step.get("title") if isinstance(tpl_step, dict) else tpl_step.title).strip()
+            tpl_order = tpl_step.get("step_order") if isinstance(tpl_step, dict) else tpl_step.step_order
+            tpl_desc = (tpl_step.get("description") if isinstance(tpl_step, dict) else tpl_step.description) or None
+
             occ_num = 1
             is_rep = False
             if data.work_item_id is not None:
@@ -934,15 +1256,15 @@ class CareSessionService:
                 tenant_id=self.tenant_id,
                 care_session_id=session_id,
                 work_item_id=data.work_item_id,
-                step_order=base_order + tpl_step.step_order,
+                step_order=base_order + tpl_order,
                 step_code=tpl_code,
                 logical_step_code=tpl_code,
                 occurrence_number=occ_num,
                 template_step_id=tpl_code,
                 is_repeat=is_rep,
-                title=tpl_step.title.strip(),
+                title=tpl_title,
                 status="pending",
-                notes=tpl_step.description or None,
+                notes=tpl_desc,
             )
             self.db.add(step)
             created_steps.append(step)
@@ -1004,6 +1326,193 @@ class CareSessionService:
         )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
+
+    # -----------------------------------------------------------------------
+    # Multi-Procedure Workspace Operations (Requirement 1 & 3)
+    # -----------------------------------------------------------------------
+
+    async def add_procedure_to_session(
+        self, patient_id: int, session_id: int, work_item_id: int
+    ) -> models.CareSessionProcedure:
+        """
+        Associate an existing active procedure (work item) with an active care session.
+        Resolves the procedure's active workflow template and populates template_snapshot.
+        """
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+        await self._verify_work_item(patient_id, work_item_id)
+
+        session = await self.get_session(patient_id, session_id)
+        if session.status != "in_progress":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot add procedure to session with status '{session.status}'. Session must be in_progress.",
+            )
+
+        # Check if already associated
+        stmt = select(models.CareSessionProcedure).where(
+            models.CareSessionProcedure.tenant_id == self.tenant_id,
+            models.CareSessionProcedure.care_session_id == session_id,
+            models.CareSessionProcedure.work_item_id == work_item_id,
+        )
+        existing = (await self.db.execute(stmt)).scalar_one_or_none()
+        if existing:
+            return existing
+
+        from backend.services.workflow_template_service import WorkflowTemplateService
+        tpl_service = WorkflowTemplateService(self.db, self.tenant_id, self.current_user)
+        wi = await self.db.get(models.ClinicalWorkItem, work_item_id)
+        tpl_dict = None
+        proc_code = getattr(wi, "code", None)
+        if proc_code:
+            tpl_dict = await tpl_service.get_active_template_for_procedure(proc_code)
+
+        session_proc = models.CareSessionProcedure(
+            tenant_id=self.tenant_id,
+            care_session_id=session_id,
+            work_item_id=work_item_id,
+            template_snapshot=tpl_dict,
+            template_version=tpl_dict.get("version") if tpl_dict else None,
+            created_at=datetime.now(timezone.utc),
+        )
+        self.db.add(session_proc)
+
+        # F09: Initialize steps from snapshotted template for added procedure
+        now = datetime.now(timezone.utc)
+        if tpl_dict and tpl_dict.get("steps"):
+            stmt_order = select(func.coalesce(func.max(models.CareSessionStep.step_order), 0)).where(
+                models.CareSessionStep.tenant_id == self.tenant_id,
+                models.CareSessionStep.care_session_id == session_id,
+            )
+            base_order = (await self.db.execute(stmt_order)).scalar_one()
+            for idx, s in enumerate(tpl_dict["steps"]):
+                step_code = (s.get("step_code") if isinstance(s, dict) else s.step_code).strip()
+                step_title = (s.get("title") if isinstance(s, dict) else s.title).strip()
+                step_desc = (s.get("description") if isinstance(s, dict) else s.description) or None
+                step_row = models.CareSessionStep(
+                    tenant_id=self.tenant_id,
+                    care_session_id=session_id,
+                    work_item_id=work_item_id,
+                    step_code=step_code,
+                    logical_step_code=step_code,
+                    occurrence_number=1,
+                    is_repeat=False,
+                    title=step_title,
+                    notes=step_desc,
+                    status="pending",
+                    step_order=base_order + idx + 1,
+                    created_at=now,
+                )
+                self.db.add(step_row)
+
+        await self.db.commit()
+        stmt = (
+            select(models.CareSessionProcedure)
+            .options(selectinload(models.CareSessionProcedure.work_item))
+            .where(models.CareSessionProcedure.id == session_proc.id)
+        )
+        return (await self.db.execute(stmt)).scalar_one()
+
+    async def remove_procedure_from_session(
+        self, patient_id: int, session_id: int, work_item_id: int
+    ) -> bool:
+        """
+        Remove a procedure selected accidentally from the current visit before work is documented.
+        Enforces Decision §2.2: does NOT delete the underlying procedure or its clinical history.
+        Rejects removal if any steps or observations have already been recorded/completed in this visit.
+        """
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+
+        session = await self.get_session(patient_id, session_id)
+        if session.status != "in_progress":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot modify procedures for session with status '{session.status}'.",
+            )
+
+        # Check if any step has been started or completed
+        steps_stmt = select(models.CareSessionStep).where(
+            models.CareSessionStep.tenant_id == self.tenant_id,
+            models.CareSessionStep.care_session_id == session_id,
+            models.CareSessionStep.work_item_id == work_item_id,
+        )
+        steps = list((await self.db.execute(steps_stmt)).scalars().all())
+        completed_or_in_progress = [s for s in steps if s.status in ("completed", "in_progress", "partial")]
+        if completed_or_in_progress:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot remove procedure with documented clinical work in this visit. Finish or cancel steps instead.",
+            )
+
+        # Check if observations exist
+        obs_stmt = select(models.CareObservation).where(
+            models.CareObservation.tenant_id == self.tenant_id,
+            models.CareObservation.care_session_id == session_id,
+            models.CareObservation.work_item_id == work_item_id,
+        )
+        obs_count = len(list((await self.db.execute(obs_stmt)).scalars().all()))
+        if obs_count > 0:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot remove procedure with recorded observations in this visit.",
+            )
+
+        # Delete pending steps
+        for s in steps:
+            await self.db.delete(s)
+
+        # Delete CareSessionProcedure
+        csp_stmt = select(models.CareSessionProcedure).where(
+            models.CareSessionProcedure.tenant_id == self.tenant_id,
+            models.CareSessionProcedure.care_session_id == session_id,
+            models.CareSessionProcedure.work_item_id == work_item_id,
+        )
+        csp = (await self.db.execute(csp_stmt)).scalar_one_or_none()
+        if csp:
+            await self.db.delete(csp)
+
+        await self.db.commit()
+        return True
+
+    async def update_session_procedure(
+        self, patient_id: int, session_id: int, work_item_id: int, data: schemas.CareSessionProcedureUpdate
+    ) -> models.CareSessionProcedure:
+        """Update procedure-specific notes and next action within this visit."""
+        await self.ensure_native_writes_enabled()
+        await self._verify_patient(patient_id)
+        await self._verify_work_item(patient_id, work_item_id)
+
+        session = await self.get_session(patient_id, session_id)
+        if session.status != "in_progress":
+            raise HTTPException(
+                status_code=400,
+                detail=f"Cannot update procedure on session with status '{session.status}'. Must be in_progress.",
+            )
+
+        stmt = select(models.CareSessionProcedure).where(
+            models.CareSessionProcedure.tenant_id == self.tenant_id,
+            models.CareSessionProcedure.care_session_id == session_id,
+            models.CareSessionProcedure.work_item_id == work_item_id,
+        )
+        csp = (await self.db.execute(stmt)).scalar_one_or_none()
+        if not csp:
+            raise HTTPException(status_code=404, detail="Care session procedure association not found")
+
+        if data.procedure_notes is not None:
+            csp.procedure_notes = data.procedure_notes.strip() if data.procedure_notes else None
+        if data.next_action is not None:
+            csp.next_action = data.next_action.strip() if data.next_action else None
+        if data.next_action_reason_omitted is not None:
+            csp.next_action_reason_omitted = data.next_action_reason_omitted.strip() if data.next_action_reason_omitted else None
+
+        await self.db.commit()
+        stmt = (
+            select(models.CareSessionProcedure)
+            .options(selectinload(models.CareSessionProcedure.work_item))
+            .where(models.CareSessionProcedure.id == csp.id)
+        )
+        return (await self.db.execute(stmt)).scalar_one()
 
     # -----------------------------------------------------------------------
     # Observation Operations (Slice S19 / G10-M07, G10-M15)
@@ -1186,7 +1695,7 @@ class CareSessionService:
         )
         if eager_load:
             stmt = stmt.execution_options(populate_existing=True).options(
-                selectinload(models.CareSession.procedures),
+                selectinload(models.CareSession.procedures).selectinload(models.CareSessionProcedure.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.steps).selectinload(models.CareSessionStep.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.observations),
                 selectinload(models.CareSession.next_visit_requests),
@@ -1211,7 +1720,7 @@ class CareSessionService:
             select(models.CareSession)
             .execution_options(populate_existing=True)
             .options(
-                selectinload(models.CareSession.procedures),
+                selectinload(models.CareSession.procedures).selectinload(models.CareSessionProcedure.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.steps).selectinload(models.CareSessionStep.work_item).selectinload(models.ClinicalWorkItem.targets),
                 selectinload(models.CareSession.observations),
                 selectinload(models.CareSession.next_visit_requests),
@@ -1362,6 +1871,20 @@ class CareSessionService:
             cleaned_notes = session.notes.strip()
             if cleaned_notes and not cleaned_notes.startswith("[CARE SESSION SUMMARY]"):
                 parts.append(f"Notes: {cleaned_notes}")
+
+        # Procedure notes, next actions, and custom fields (F03)
+        for proc in (session.procedures or []):
+            proc_parts = []
+            if proc.procedure_notes:
+                proc_parts.append(proc.procedure_notes)
+            if proc.next_action:
+                proc_parts.append(f"Next: {proc.next_action}")
+            snapshot = proc.template_snapshot or {}
+            cf_values = snapshot.get("custom_field_values") or {}
+            for fid, fval in cf_values.items():
+                proc_parts.append(f"{fid.title()}: {fval}")
+            if proc_parts:
+                parts.append(" | ".join(proc_parts))
 
         return " | ".join(parts)
 
@@ -1908,6 +2431,12 @@ class CareSessionService:
         Scoped by tenant, ordered by preferred window or creation time.
         """
         await self.ensure_native_writes_enabled()
+        from backend.services.patient_access_service import visible_patient_ids_query
+
+        user = await self._get_active_current_user()
+        if not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        visible_ids = await visible_patient_ids_query(self.db, user)
 
         stmt = (
             select(models.NextVisitRequest)
@@ -1916,7 +2445,10 @@ class CareSessionService:
                 selectinload(models.NextVisitRequest.care_session),
                 selectinload(models.NextVisitRequest.work_item),
             )
-            .where(models.NextVisitRequest.tenant_id == self.tenant_id)
+            .where(
+                models.NextVisitRequest.tenant_id == self.tenant_id,
+                models.NextVisitRequest.patient_id.in_(visible_ids),
+            )
         )
         if status and status.lower() != "all":
             stmt = stmt.where(models.NextVisitRequest.status == status)
@@ -1939,6 +2471,173 @@ class CareSessionService:
                 setattr(r, "patient_name", r.patient.name)
                 setattr(r, "patient_phone", r.patient.phone)
         return requests
+
+    async def get_follow_up_dashboard(
+        self,
+        status: Optional[str] = None,
+        doctor_id: Optional[int] = None,
+        due_category: Optional[str] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+        procedure_code: Optional[str] = None,
+        search: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 50,
+        calendar_date_from: Optional[date] = None,
+        calendar_date_to: Optional[date] = None,
+    ) -> schemas.FollowUpDashboardResponse:
+        """
+        Dashboard query engine for clinic-wide follow-ups and next-visit requests.
+        Enforces tenant isolation, patient visibility, and explicit overdue/upcoming semantics.
+        """
+        await self.ensure_native_writes_enabled()
+
+        user = await self._get_active_current_user()
+        if not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+
+        # F01: Enforce doctor visibility scope so hidden patients are never leaked
+        from backend.services.patient_access_service import visible_patient_ids_query
+        visible_ids_subq = await visible_patient_ids_query(self.db, user)
+
+        def _normalize_dt(dt: Optional[datetime]) -> Optional[datetime]:
+            if dt is None:
+                return None
+            if dt.tzinfo is None:
+                return dt.replace(tzinfo=timezone.utc)
+            return dt.astimezone(timezone.utc)
+
+        now = datetime.now(timezone.utc)
+        norm_now = _normalize_dt(now)
+        norm_date_from = _normalize_dt(date_from)
+        norm_date_to = _normalize_dt(date_to)
+
+        calendar_range = calendar_date_from is not None or calendar_date_to is not None
+        if calendar_range:
+            if date_from is not None or date_to is not None:
+                raise HTTPException(status_code=422, detail="Use calendar dates or exact datetime filters, not both")
+            if calendar_date_from and calendar_date_to and calendar_date_from > calendar_date_to:
+                raise HTTPException(status_code=422, detail="Calendar start date must not follow the end date")
+            tz_name = await get_tenant_timezone(self.db, self.tenant_id)
+            if calendar_date_from:
+                start, _ = tenant_day_utc_bounds_naive(tz_name, local_date=calendar_date_from)
+                norm_date_from = start.replace(tzinfo=timezone.utc)
+            if calendar_date_to:
+                _, end = tenant_day_utc_bounds_naive(tz_name, local_date=calendar_date_to)
+                norm_date_to = end.replace(tzinfo=timezone.utc)
+
+        base_stmt = (
+            select(models.NextVisitRequest)
+            .options(
+                selectinload(models.NextVisitRequest.patient),
+                selectinload(models.NextVisitRequest.care_session),
+                selectinload(models.NextVisitRequest.work_item),
+                selectinload(models.NextVisitRequest.assigned_doctor),
+            )
+            .where(
+                models.NextVisitRequest.tenant_id == self.tenant_id,
+                models.NextVisitRequest.patient_id.in_(visible_ids_subq),
+            )
+        )
+
+        all_requests = list((await self.db.execute(base_stmt)).scalars().all())
+
+        counts = schemas.FollowUpDashboardCounts()
+        enriched_list = []
+
+        for req in all_requests:
+            target_date = req.postponed_to_date or req.preferred_time_window_start or req.preferred_time_window_end
+            norm_target_date = _normalize_dt(target_date)
+
+            if req.status == "scheduled":
+                cat = "scheduled"
+            elif req.status == "stopped":
+                cat = "stopped"
+            elif req.status == "completed":
+                cat = "completed"
+            elif req.status == "cancelled":
+                cat = "cancelled"
+            elif norm_target_date is not None:
+                if norm_target_date < norm_now:
+                    cat = "overdue"
+                else:
+                    cat = "upcoming"
+            else:
+                cat = "unscheduled"
+
+            counts.total += 1
+            if req.status == "requested":
+                counts.requested += 1
+            if cat == "overdue":
+                counts.overdue += 1
+            elif cat == "upcoming":
+                counts.upcoming += 1
+            elif cat == "unscheduled":
+                counts.unscheduled += 1
+            if req.status == "postponed":
+                counts.postponed += 1
+            elif req.status == "stopped":
+                counts.stopped += 1
+            elif req.status == "scheduled":
+                counts.scheduled += 1
+
+            if req.patient:
+                setattr(req, "patient_name", req.patient.name)
+                setattr(req, "patient_phone", req.patient.phone)
+            if req.assigned_doctor:
+                doc_name = req.assigned_doctor.full_name or req.assigned_doctor.username or f"Dr. #{req.assigned_doctor.id}"
+                setattr(req, "assigned_doctor_name", doc_name)
+            if req.work_item:
+                setattr(req, "procedure_name", getattr(req.work_item, "code", None))
+            setattr(req, "due_category", cat)
+
+            # Filtering
+            if status and status.lower() != "all" and req.status != status:
+                continue
+            if doctor_id is not None and req.assigned_doctor_id != doctor_id:
+                continue
+            if due_category and due_category.lower() != "all" and cat != due_category:
+                continue
+            if norm_date_from and norm_target_date and norm_target_date < norm_date_from:
+                continue
+            if norm_date_to and norm_target_date:
+                # Calendar end is next local midnight (exclusive). Legacy
+                # datetime filters remain exact, inclusive instant bounds.
+                after_end = norm_target_date >= norm_date_to if calendar_range else norm_target_date > norm_date_to
+                if after_end:
+                    continue
+            if procedure_code and procedure_code.lower() != "all":
+                proc_name = getattr(req, "procedure_name", None) or (req.work_item.code if req.work_item else None)
+                if not proc_name or proc_name.strip().upper() != procedure_code.strip().upper():
+                    continue
+            if search:
+                s_lower = search.strip().lower()
+                p_name = (req.patient.name if req.patient else "").lower()
+                p_phone = (req.patient.phone if req.patient else "").lower()
+                r_reason = (req.reason or "").lower()
+                r_notes = (req.notes or "").lower()
+                if not (s_lower in p_name or s_lower in p_phone or s_lower in r_reason or s_lower in r_notes):
+                    continue
+
+            enriched_list.append(req)
+
+        def sort_key(r):
+            cat_order = {"overdue": 0, "upcoming": 1, "unscheduled": 2, "postponed": 3, "scheduled": 4, "stopped": 5, "completed": 6}
+            cat = getattr(r, "due_category", "unscheduled")
+            t_date = _normalize_dt(r.postponed_to_date or r.preferred_time_window_start or r.created_at)
+            return (cat_order.get(cat, 9), t_date or norm_now)
+
+        sorted_items = sorted(enriched_list, key=sort_key)
+        total_filtered = len(sorted_items)
+        paged_items = sorted_items[skip : skip + limit]
+
+        reads = [schemas.NextVisitRequestRead.model_validate(item) for item in paged_items]
+
+        return schemas.FollowUpDashboardResponse(
+            counts=counts,
+            items=reads,
+            total_count=total_filtered,
+        )
 
     async def schedule_next_visit_request(
         self,
@@ -2573,6 +3272,7 @@ class CareSessionService:
         patient_id: int,
         observation_id: int,
         payload: schemas.CareObservationAmend,
+        *, session_id: Optional[int] = None,
     ) -> models.CareObservation:
         """
         Amend a chairside observation / measurement.
@@ -2590,6 +3290,8 @@ class CareSessionService:
             models.CareObservation.tenant_id == self.tenant_id,
             models.CareObservation.patient_id == patient_id,
         ).with_for_update()
+        if session_id is not None:
+            stmt = stmt.where(models.CareObservation.care_session_id == session_id)
         orig = (await self.db.execute(stmt)).scalar_one_or_none()
         if not orig:
             raise HTTPException(status_code=404, detail="Observation not found")
@@ -2597,15 +3299,19 @@ class CareSessionService:
         if orig.is_superseded:
             raise HTTPException(status_code=409, detail="Observation has already been superseded by a prior amendment")
 
+        if payload.tooth_key and payload.tooth_key not in FDI_TOOTH_KEYS:
+            raise HTTPException(status_code=422, detail="Invalid FDI tooth key")
+
         merged_sv = dict(orig.structured_value or {})
         if payload.structured_value is not None:
             merged_sv.update(payload.structured_value)
-        if payload.surface_code:
-            merged_sv["surface_code"] = payload.surface_code
-        if payload.root_id:
-            merged_sv["root_id"] = payload.root_id
-        if payload.canal_id:
-            merged_sv["canal_id"] = payload.canal_id
+        for target_key in ("surface_code", "root_id", "canal_id"):
+            if target_key in payload.model_fields_set:
+                target_value = getattr(payload, target_key)
+                if target_value:
+                    merged_sv[target_key] = target_value
+                else:
+                    merged_sv.pop(target_key, None)
 
         new_obs = models.CareObservation(
             tenant_id=self.tenant_id,
@@ -2614,7 +3320,7 @@ class CareSessionService:
             step_id=orig.step_id,
             work_item_id=orig.work_item_id,
             observation_code=payload.observation_code or orig.observation_code,
-            tooth_key=payload.tooth_key or orig.tooth_key,
+            tooth_key=(payload.tooth_key or None) if "tooth_key" in payload.model_fields_set else orig.tooth_key,
             structured_value=merged_sv,
             notes=f"[Amendment] {payload.reason}: {payload.notes or ''}".strip(),
             recorded_by_user_id=user.id if user else None,

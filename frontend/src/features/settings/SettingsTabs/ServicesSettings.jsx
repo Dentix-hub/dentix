@@ -1,14 +1,16 @@
 import { useState } from 'react';
-import { List, Banknote, Shield } from 'lucide-react';
+import { List, Banknote, Shield, GitBranch } from 'lucide-react';
 import ProceduresSettings from './ProceduresSettings';
 import PriceLists from '@/pages/admin/PriceLists';
 import InsuranceProviders from '@/pages/admin/InsuranceProviders';
+import WorkflowTemplateList from '@/features/templates/WorkflowTemplateList';
 import { useTranslation } from 'react-i18next';
 export default function ServicesSettings({ setMessage }) {
     const { t } = useTranslation();
     const [activeSubTab, setActiveSubTab] = useState('procedures');
     const subTabs = [
         { id: 'procedures', label: t('settings.services.tabs.procedures'), icon: List },
+        { id: 'templates', label: t('settings.services.tabs.templates', 'Workflow Templates'), icon: GitBranch },
         { id: 'price-lists', label: t('settings.services.tabs.price_lists'), icon: Banknote },
         { id: 'insurance', label: t('settings.services.tabs.insurance'), icon: Shield },
     ];
@@ -22,6 +24,7 @@ export default function ServicesSettings({ setMessage }) {
                     return (
                         <button
                             key={tab.id}
+                            data-testid={`settings-subtab-${tab.id}`}
                             onClick={() => setActiveSubTab(tab.id)}
                             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${isActive
                                 ? 'bg-white dark:bg-slate-800 text-indigo-600 shadow-sm border border-slate-200 dark:border-slate-700'
@@ -38,6 +41,9 @@ export default function ServicesSettings({ setMessage }) {
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
                 {activeSubTab === 'procedures' && (
                     <ProceduresSettings setMessage={setMessage} />
+                )}
+                {activeSubTab === 'templates' && (
+                    <WorkflowTemplateList />
                 )}
                 {activeSubTab === 'price-lists' && (
                     <PriceLists />

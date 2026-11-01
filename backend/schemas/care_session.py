@@ -4,12 +4,55 @@ Defines request/response models for chairside CareSession lifecycle, steps, and 
 """
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from typing import Any, Dict, List, Optional, Union
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+
+class HistoricalStepCreate(BaseModel):
+    step_order: Optional[int] = Field(None, description="Display order of step in historical visit")
+    step_code: Optional[str] = Field(None, max_length=64, description="Step identifier")
+    logical_step_code: Optional[str] = Field(None, max_length=64, description="Procedure-wide semantic logical step identity")
+    occurrence_number: Optional[int] = Field(None, ge=1, description="Occurrence number for repeated steps")
+    title: str = Field(..., min_length=1, max_length=255, description="Clinical step title or description")
+    status: Optional[str] = Field("completed", description="Status of step: completed, in_progress, etc.")
+    notes: Optional[str] = Field(None, description="Clinical notes for this step")
+    work_item_id: Optional[int] = Field(None, description="Associated work item ID")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @model_validator(mode="before")
+    @classmethod
+    def retain_legacy_code_label(cls, value: Any) -> Any:
+        # Older historical callers used an explicit step code as the label.
+        if isinstance(value, dict) and value.get("title") is None and isinstance(value.get("step_code"), str):
+            return {**value, "title": value["step_code"]}
+        return value
+
+    @field_validator("title")
+    @classmethod
+    def validate_title(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Historical step title cannot be blank")
+        return value
+
+
+class HistoricalObservationCreate(BaseModel):
+    observation_code: str = Field(default="measurement", min_length=1, max_length=64, description="Observation / measurement key")
+    work_item_id: Optional[int] = Field(None, description="Optional clinical work item ID")
+    tooth_key: Optional[str] = Field(None, description="Target tooth key in FDI notation (11-48, 51-85)")
+    surface_code: Optional[str] = Field(None, description="Target tooth surface (M, O, D, B, L, etc.)")
+    root_id: Optional[str] = Field(None, description="Root identifier (e.g. MB, ML, D, P)")
+    canal_id: Optional[str] = Field(None, description="Canal identifier (e.g. MB1, MB2)")
+    structured_value: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Structured measurement data")
+    notes: Optional[str] = Field(None, description="Free-text clinical notes")
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class CareSessionCreate(BaseModel):
     appointment_id: Optional[int] = None
+    provider_user_id: Optional[int] = Field(None, description="Treating clinician for retrospective documentation")
     notes: Optional[str] = None
     work_item_ids: Optional[List[int]] = Field(default_factory=list, description="Associated clinical work item IDs for this care session")
     resume_work_item_id: Optional[int] = Field(None, description="Optional work item ID to resume in this new session")
@@ -17,6 +60,12 @@ class CareSessionCreate(BaseModel):
     resume_from_session_id: Optional[int] = Field(None, description="Optional previous care session ID to carry forward steps and observations from")
     actual_visit_date: Optional[datetime] = Field(None, description="Actual visit date/time if distinct from recording time")
     is_historical: bool = Field(False, description="Flag indicating if this is documenting a past historical visit")
+    historical_steps: Optional[List[HistoricalStepCreate]] = Field(
+        default_factory=list, description="Optional steps performed during historical visit"
+    )
+    historical_observations: Optional[List[Union[HistoricalObservationCreate, Dict[str, Any]]]] = Field(
+        default_factory=list, description="Optional measurements/observations recorded during historical visit"
+    )
 
     model_config = ConfigDict(extra="forbid")
 
@@ -27,12 +76,40 @@ class CareSessionProcedureRead(BaseModel):
     care_session_id: int
     work_item_id: int
     notes: Optional[str] = None
+    procedure_notes: Optional[str] = None
+    next_action: Optional[str] = None
+    next_action_reason_omitted: Optional[str] = None
     template_code: Optional[str] = None
     template_version: Optional[int] = None
     template_snapshot: Optional[Dict[str, Any]] = None
+    work_item_version_id: Optional[int] = None
+    work_item_status: Optional[str] = None
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CareSessionAddendumCreate(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=500)
+    notes: str = Field(..., min_length=1, max_length=20000)
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("reason", "notes")
+    @classmethod
+    def reject_blank_addendum(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Addendum text and reason cannot be blank")
+        return value
+
+
+class CareSessionProcedureUpdate(BaseModel):
+    procedure_notes: Optional[str] = Field(None, description="Notes specific to this procedure in the visit")
+    next_action: Optional[str] = Field(None, description="Next planned clinical action for this procedure")
+    next_action_reason_omitted: Optional[str] = Field(None, description="Reason if next action is omitted")
+
+    model_config = ConfigDict(extra="forbid")
 
 
 
@@ -122,6 +199,9 @@ class NextVisitRequestRead(BaseModel):
     patient_name: Optional[str] = None
     patient_phone: Optional[str] = None
     fulfilled_appointment_id: Optional[int] = None
+    assigned_doctor_name: Optional[str] = None
+    procedure_name: Optional[str] = None
+    due_category: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -161,6 +241,23 @@ class NextVisitRequestScheduleResult(BaseModel):
     status: str = "scheduled"
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class FollowUpDashboardCounts(BaseModel):
+    total: int = 0
+    requested: int = 0
+    overdue: int = 0
+    upcoming: int = 0
+    unscheduled: int = 0
+    postponed: int = 0
+    stopped: int = 0
+    scheduled: int = 0
+
+
+class FollowUpDashboardResponse(BaseModel):
+    counts: FollowUpDashboardCounts
+    items: List[NextVisitRequestRead]
+    total_count: int
 
 
 class NextVisitSuggestionRead(BaseModel):
@@ -366,6 +463,14 @@ class CareObservationAmend(BaseModel):
     notes: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("reason")
+    @classmethod
+    def reject_blank_reason(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Amendment reason cannot be blank")
+        return value
 
 
 class CareSessionDraftSave(BaseModel):

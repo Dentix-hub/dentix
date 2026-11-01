@@ -4,6 +4,7 @@ Provides reception triage queue and conversion of chairside follow-up requests i
 Enforces G11-M08: NEVER auto-books an appointment without explicit front-desk confirmation.
 """
 
+from datetime import date, datetime
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -49,6 +50,47 @@ async def list_reception_queue(
     return success_response(
         data=[schemas.NextVisitRequestRead.model_validate(r) for r in requests],
         message="Next-visit requests queue retrieved successfully",
+    )
+
+
+@router.get(
+    "/dashboard",
+    response_model=StandardResponse[schemas.FollowUpDashboardResponse],
+    summary="Get follow-up dashboard metrics and requests",
+    description="Retrieve clinic-wide follow-up requests with metrics, overdue/upcoming classification, and search/filters.",
+)
+async def get_follow_up_dashboard(
+    status: Optional[str] = Query(None, description="Filter by status: requested, scheduled, postponed, stopped, completed, or all"),
+    doctor_id: Optional[int] = Query(None, description="Filter by responsible doctor"),
+    due_category: Optional[str] = Query(None, description="Filter by due classification: overdue, upcoming, unscheduled, all"),
+    date_from: Optional[datetime] = Query(None, description="Filter by target date from"),
+    date_to: Optional[datetime] = Query(None, description="Filter by target date to"),
+    calendar_date_from: Optional[date] = Query(None, description="First clinic-local calendar date, inclusive"),
+    calendar_date_to: Optional[date] = Query(None, description="Last clinic-local calendar date, inclusive"),
+    procedure_code: Optional[str] = Query(None, description="Filter by procedure code"),
+    search: Optional[str] = Query(None, description="Search by patient name, phone, or request notes"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.APPOINTMENT_READ)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    dashboard_data = await service.get_follow_up_dashboard(
+        status=status,
+        doctor_id=doctor_id,
+        due_category=due_category,
+        date_from=date_from,
+        date_to=date_to,
+        calendar_date_from=calendar_date_from,
+        calendar_date_to=calendar_date_to,
+        procedure_code=procedure_code,
+        search=search,
+        skip=skip,
+        limit=limit,
+    )
+    return success_response(
+        data=dashboard_data,
+        message="Follow-up dashboard data retrieved successfully",
     )
 
 

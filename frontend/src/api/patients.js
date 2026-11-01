@@ -1,5 +1,14 @@
 import { api } from './apiClient';
 
+export const getCareSessionMaterialSuggestions = (patientId, workItemId) =>
+    api.get(`/api/v1/patients/${patientId}/clinical-work-items/${workItemId}/material-suggestions`);
+export const getCareSessionMaterialCost = (patientId, workItemId) =>
+    api.get(`/api/v1/patients/${patientId}/clinical-work-items/${workItemId}/material-cost`);
+export const recordCareSessionMaterials = (patientId, sessionId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/material-usages`, data);
+export const addCareSessionAddendum = (patientId, sessionId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/addenda`, data);
+
 export const searchPatients = (query) => api.get('/api/v1/patients/search', { params: { q: query } });
 export const getPatients = () => api.get('/api/v1/patients');
 export const getPatientDirectory = ({ q = '', cursor = null, limit = 30, scope = 'all' } = {}) =>
@@ -157,5 +166,14 @@ export const resumeNextVisitRequest = (patientId, requestId) =>
     api.post(`/api/v1/patients/${patientId}/next-visit-requests/${requestId}/resume`);
 export const handoffNextVisitRequest = (patientId, requestId, data) =>
     api.post(`/api/v1/patients/${patientId}/next-visit-requests/${requestId}/handoff`, data);
+
+// Multi-Procedure Care Session Management
+export const addCareSessionProcedure = (patientId, sessionId, workItemId, data = {}) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/procedures/${workItemId}`, data);
+export const removeCareSessionProcedure = (patientId, sessionId, workItemId) =>
+    api.delete(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/procedures/${workItemId}`);
+export const updateCareSessionProcedure = (patientId, sessionId, workItemId, data) =>
+    api.patch(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/procedures/${workItemId}`, data);
+
 
 

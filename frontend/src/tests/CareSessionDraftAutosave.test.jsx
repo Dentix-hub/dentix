@@ -43,6 +43,23 @@ describe('Slice S25 / G10-M17: Care Session Server Drafts Autosave Hook', () => 
         expect(result.current.status).toBe('saved');
     });
 
+    it('rejects an explicit finish flush while offline and retains the documentation', async () => {
+        patientsApi.getCareSessionDraft.mockResolvedValueOnce({ data: null });
+        const { result } = renderHook(() => useCareSessionDraft({ patientId: 42, careSessionId: 10 }));
+        await act(async () => {});
+        act(() => result.current.updateDraft({ notes: 'Keep while offline' }));
+        const online = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false);
+        try {
+            await act(async () => {
+                await expect(result.current.saveNow()).rejects.toThrow('Network offline');
+            });
+            expect(patientsApi.saveCareSessionDraft).not.toHaveBeenCalled();
+            expect(result.current.draftData.notes).toBe('Keep while offline');
+        } finally {
+            online.mockRestore();
+        }
+    });
+
     it('debounces autosave when draft data is updated', async () => {
         patientsApi.getCareSessionDraft.mockResolvedValueOnce({ data: null });
         patientsApi.saveCareSessionDraft.mockResolvedValueOnce({
