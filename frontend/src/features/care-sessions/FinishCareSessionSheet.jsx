@@ -277,6 +277,7 @@ export default function FinishCareSessionSheet({
                                         <span className="font-bold">{obs.canal_id || 'Canal'}:</span>
                                         <span>{val.length_mm ?? obs.length_mm} mm</span>
                                         {val.maf && <span className="text-[10px] opacity-75">({val.maf})</span>}
+                                        {val.taper != null && <span>{t('care_session.maf_taper', 'Master file taper')}: {val.taper}</span>}
                                     </span>
                                 );
                             })}

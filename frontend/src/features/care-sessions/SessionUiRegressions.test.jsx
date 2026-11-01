@@ -12,11 +12,17 @@ it('uses Arabic labels, prefills the selected tooth, and explains an empty measu
     render(<I18nextProvider i18n={i18n}><HistoricalCareSessionModal isOpen onClose={vi.fn()} patientId={1} patientWorkItems={[{ id: 10, code: 'ENDO_RCT', targets: [{ tooth_key: '46' }] }, { id: 20, code: 'ENDO_RCT', tooth_number: '36' }]} /></I18nextProvider>);
     expect(screen.getByText('تسجيل زيارة سابقة')).toBeInTheDocument();
     expect(screen.getByTestId('input-historical-obs-tooth')).toHaveValue('46');
+    fireEvent.click(screen.getByTestId('canal-chip-MB'));
+    expect(screen.getByText(ar.care_session.maf_taper)).toBeInTheDocument();
+    expect(within(screen.getByTestId('canal-target-selector')).getByText(ar.care_session.roots.mesial, { selector: 'span' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('select-ref-MB')).getByRole('option', { name: ar.care_session.reference_points.mb_cusp })).toHaveValue('MB cusp');
+    fireEvent.change(screen.getByTestId('select-historical-obs-code'), { target: { value: 'measurement' } });
     fireEvent.click(screen.getByTestId('btn-add-historical-obs'));
     expect(screen.getByText(ar.care_session.observation_value_required)).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('checkbox-proc-20').querySelector('input'));
     fireEvent.change(screen.getByTestId('historical-entry-procedure'), { target: { value: '20' } });
     expect(screen.getByTestId('input-historical-obs-tooth')).toHaveValue('36');
+    fireEvent.change(screen.getByTestId('select-historical-obs-code'), { target: { value: 'measurement' } });
     fireEvent.change(screen.getByTestId('input-historical-obs-value'), { target: { value: 'A2' } });
     fireEvent.click(screen.getByTestId('btn-add-historical-obs'));
     expect(screen.getByTestId('historical-obs-item-0')).toHaveTextContent('A2');

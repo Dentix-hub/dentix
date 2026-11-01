@@ -478,6 +478,11 @@ async def get_tenant_features(
     tenant_features = res_features.scalars().all()
 
     feature_keys = set(f.feature_key for f in tenant_features)
+    # Include global rollout as well as tenant overrides, matching clinical APIs.
+    native_key = "clinical_vnext_native_writes"
+    feature_keys.discard(native_key)
+    if await FeatureFlagService.is_feature_enabled(db, native_key, tenant_id):
+        feature_keys.add(native_key)
     if is_clinical_treatment_plans_enabled() or await FeatureFlagService.is_feature_enabled(
         db, "clinical_treatment_plans", tenant_id
     ):

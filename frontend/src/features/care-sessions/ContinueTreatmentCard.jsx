@@ -216,7 +216,7 @@ export default function ContinueTreatmentCard({
                         const sv = obs.structured_value || {};
                         const canalName = obs.canal_id || sv.canal_id || obs.root_id || sv.root_id || `Canal ${idx + 1}`;
                         const len = sv.length_mm != null ? `${sv.length_mm}mm` : null;
-                        const maf = sv.maf ? `MAF #${sv.maf}` : null;
+                        const maf = sv.maf ? `MAF #${String(sv.maf).replace(/^#/, '')}` : null;
                         return (
                             <span
                                 key={obs.id || idx}
@@ -225,6 +225,7 @@ export default function ContinueTreatmentCard({
                                 <span className="text-amber-700 dark:text-amber-400">{canalName}</span>
                                 {len && <span>: {len}</span>}
                                 {maf && <span className="text-slate-600 dark:text-slate-300">({maf})</span>}
+                                {sv.taper != null && <span>{t('care_session.maf_taper', 'Master file taper')}: {sv.taper}</span>}
                             </span>
                         );
                     })}
@@ -267,7 +268,8 @@ export default function ContinueTreatmentCard({
                                             {sv.length_mm != null && <span>Length: {sv.length_mm} mm</span>}
                                             {sv.reference_point && <span className="ml-1 text-slate-600">({sv.reference_point})</span>}
                                         </div>
-                                        {sv.maf && <div className="text-slate-600 dark:text-slate-300">MAF: #{sv.maf}</div>}
+                                        {sv.maf && <div className="text-slate-600 dark:text-slate-300">MAF: {sv.maf}</div>}
+                                        {sv.taper != null && <div>{t('care_session.maf_taper', 'Master file taper')}: {sv.taper}</div>}
                                     </div>
                                 );
                             })}

@@ -435,7 +435,7 @@ const TreatmentHistory = ({
                                                                                     const sv = obs.structured_value || {};
                                                                                     const canal = obs.canal_id || sv.canal_id || obs.root_id || sv.root_id || 'Measurement';
                                                                                     const len = sv.length_mm != null ? `${sv.length_mm}mm` : null;
-                                                                                    const maf = sv.maf ? `MAF #${sv.maf}` : null;
+                                                                                    const maf = sv.maf ? `MAF #${String(sv.maf).replace(/^#/, '')}` : null;
                                                                                     return (
                                                                                         <span
                                                                                             key={obs.id}
@@ -447,6 +447,7 @@ const TreatmentHistory = ({
                                                                                             {!len && sv.value != null && <span>: {String(sv.value)}</span>}
                                                                                             {obs.notes && <span className="font-sans font-normal">{obs.notes}</span>}
                                                                                             {maf && <span className="text-slate-500">({maf})</span>}
+                                                                                            {sv.taper != null && <span>{t('care_session.maf_taper', 'Master file taper')}: {sv.taper}</span>}
                                                                                             {obs.is_superseded ? (
                                                                                                 <span
                                                                                                     className="rounded bg-amber-100 px-1 py-0.2 text-[9px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
@@ -625,7 +626,7 @@ const TreatmentHistory = ({
                                             const sv = obs.structured_value || {};
                                             const canal = obs.canal_id || sv.canal_id || obs.root_id || sv.root_id || 'Obs';
                                             const len = sv.length_mm != null ? `${sv.length_mm}mm` : null;
-                                            const maf = sv.maf ? `MAF #${sv.maf}` : null;
+                                            const maf = sv.maf ? `MAF #${String(sv.maf).replace(/^#/, '')}` : null;
                                             return (
                                                 <span
                                                     key={obs.id}
@@ -637,6 +638,7 @@ const TreatmentHistory = ({
                                                     {!len && sv.value != null && <span>: {String(sv.value)}</span>}
                                                     {obs.notes && <span className="font-sans font-normal">{obs.notes}</span>}
                                                     {maf && <span className="text-slate-500">({maf})</span>}
+                                                    {sv.taper != null && <span>{t('care_session.maf_taper', 'Master file taper')}: {sv.taper}</span>}
                                                     {obs.is_superseded ? (
                                                         <span
                                                             className="rounded bg-amber-100 px-1 py-0.2 text-[10px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"

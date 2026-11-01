@@ -22,6 +22,28 @@ describe('HistoricalCareSessionModal', () => {
         vi.clearAllMocks();
     });
 
+    it('records independent lengths, master file sizes and tapers for multiple canals', async () => {
+        patientsApi.startCareSession.mockResolvedValue({ data: { id: 80 } });
+        render(<HistoricalCareSessionModal isOpen patientId={5} currentUserId={1} onClose={vi.fn()} patientWorkItems={[{ id: 101, code: 'ENDO_RCT', tooth_number: '46' }]} />);
+        expect(screen.getByTestId('select-historical-obs-code')).toHaveValue('working_length');
+        fireEvent.click(screen.getByTestId('canal-chip-MB'));
+        fireEvent.click(screen.getByTestId('canal-chip-ML'));
+        for (const [canal, length, size, taper] of [['MB', '20', '#25', '0.04'], ['ML', '21', '#30', '0.06']]) {
+            fireEvent.change(screen.getByTestId(`input-length-${canal}`), { target: { value: length } });
+            fireEvent.change(screen.getByTestId(`select-maf-${canal}`), { target: { value: size } });
+            fireEvent.change(screen.getByTestId(`input-taper-${canal}`), { target: { value: taper } });
+            fireEvent.click(screen.getByTestId(`btn-save-measurement-${canal}`));
+            await waitFor(() => expect(screen.getByTestId(`btn-save-measurement-${canal}`)).not.toBeDisabled());
+        }
+        expect(patientsApi.startCareSession).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByTestId('btn-submit-historical-session'));
+        await waitFor(() => expect(patientsApi.startCareSession).toHaveBeenCalledTimes(1));
+        expect(patientsApi.startCareSession.mock.lastCall[1].historical_observations).toEqual([
+            expect.objectContaining({ work_item_id: 101, tooth_key: '46', canal_id: 'MB', structured_value: expect.objectContaining({ length_mm: 20, maf: '#25', taper: 0.04 }) }),
+            expect.objectContaining({ work_item_id: 101, tooth_key: '46', canal_id: 'ML', structured_value: expect.objectContaining({ length_mm: 21, maf: '#30', taper: 0.06 }) }),
+        ]);
+    });
+
     it('renders historical visit modal fields and selects procedures', () => {
         render(
             <HistoricalCareSessionModal
@@ -127,10 +149,10 @@ describe('HistoricalCareSessionModal', () => {
 
         // Add an observation with canal identity
         fireEvent.change(screen.getByTestId('input-historical-obs-tooth'), { target: { value: '46' } });
-        fireEvent.change(screen.getByTestId('input-historical-obs-canal'), { target: { value: 'MB' } });
-        fireEvent.change(screen.getByTestId('input-historical-obs-value'), { target: { value: '20' } });
         fireEvent.change(screen.getByTestId('select-historical-obs-code'), { target: { value: 'working_length' } });
-        fireEvent.click(screen.getByTestId('btn-add-historical-obs'));
+        fireEvent.click(screen.getByTestId('canal-chip-MB'));
+        fireEvent.change(screen.getByTestId('input-length-MB'), { target: { value: '20' } });
+        fireEvent.click(screen.getByTestId('btn-save-measurement-MB'));
 
         expect(screen.getByTestId('historical-obs-item-0')).toBeInTheDocument();
 

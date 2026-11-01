@@ -441,6 +441,7 @@ export default function PatientDetails() {
                         length_mm: lengthMm != null ? Number(lengthMm) : undefined,
                         reference_point: refPoint,
                         maf: maf,
+                        ...(obsData.taper != null ? { taper: obsData.taper } : {}),
                     },
                     notes: obsData.notes,
                 },

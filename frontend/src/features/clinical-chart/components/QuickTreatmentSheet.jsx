@@ -22,7 +22,7 @@ import DentixBottomSheet from '@/shared/ui/DentixBottomSheet';
 import { toast, Button } from '@/shared/ui';
 import logger from '@/utils/logger';
 import { getMaterials, getStockSummary } from '@/api/inventory';
-import { addTreatmentSession, getLaboratories, getPatientLabOrders, createLabPayment } from '@/api';
+import { getLaboratories, getPatientLabOrders, createLabPayment } from '@/api';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
 import { EnhancedMaterialConsumption } from '@/features/inventory/components/EnhancedMaterialConsumption';
 import MaterialConsumptionPanel from '@/features/inventory/MaterialConsumptionPanel';
@@ -180,15 +180,6 @@ export default function QuickTreatmentSheet({
     const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
     const [paymentError, setPaymentError] = useState('');
 
-    // Sessions section state (legacy path D4)
-    const [isAddingSession, setIsAddingSession] = useState(false);
-    const [isAddingSessionLoading, setIsAddingSessionLoading] = useState(false);
-    const [newSessionData, setNewSessionData] = useState({
-        notes: '',
-        next_session_date: '',
-        status: 'completed',
-    });
-
     const handleSaveErrorRef = useRef(null);
 
     const safeProcedures = useMemo(
@@ -314,8 +305,6 @@ export default function QuickTreatmentSheet({
         setLinkError(null);
         setIsManualProcedure(false);
         setShowAdvanced(false);
-        setIsAddingSession(false);
-        setNewSessionData({ notes: '', next_session_date: '', status: 'completed' });
         setLabData({
             laboratory_id: initialData?.lab_choice === 'in_clinic' ? 'in_clinic' : '',
             shade: '',
@@ -593,37 +582,6 @@ export default function QuickTreatmentSheet({
         }
     };
     handleSaveErrorRef.current = handleSaveError;
-
-    // Sessions handler (legacy D4)
-    const handleSaveSession = async () => {
-        if (!newSessionData.notes || !treatment.id) return;
-        setIsAddingSessionLoading(true);
-        try {
-            const res = await addTreatmentSession(treatment.id, {
-                ...newSessionData,
-                treatment_id: treatment.id,
-                tenant_id: treatment.tenant_id,
-            });
-            const createdSession = res?.data || {
-                ...newSessionData,
-                id: Date.now(),
-                created_at: new Date().toISOString(),
-            };
-            setTreatment((prev) => ({
-                ...prev,
-                treatment_sessions: [...(prev.treatment_sessions || []), createdSession],
-            }));
-            queryClient?.invalidateQueries({ queryKey: ['patient-details', treatment.patient_id] });
-            setIsAddingSession(false);
-            setNewSessionData({ notes: '', next_session_date: '', status: 'completed' });
-            toast.success(t('quick_treatment_sheet.session_saved', 'تم حفظ الجلسة بنجاح'));
-        } catch (err) {
-            logger.error('Failed to add session', err);
-            toast.error(err?.response?.data?.detail || 'فشل حفظ الجلسة');
-        } finally {
-            setIsAddingSessionLoading(false);
-        }
-    };
 
     const handleRecordLabPayment = async (e) => {
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
@@ -1857,67 +1815,14 @@ export default function QuickTreatmentSheet({
                             {t('care_session.open_unified_visits', 'Open visit workspace and history')}
                         </Button>
                     )}
-                    {Boolean(isEditing && treatment.id && (!isNativeWritesEnabled || sessions.length > 0)) && (
+                    {Boolean(isEditing && treatment.id && sessions.length > 0) && (
                         <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 dark:border-slate-800 dark:bg-slate-900/40">
                             <div className="flex items-center justify-between">
                                 <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                                     <Clock size={16} className="text-blue-500" />
-                                    <span>{t('quick_treatment_sheet.sessions_section_title', 'سجل الجلسات (Sessions)')}</span>
+                                    <span>{t('care_session.legacy_history_readonly', 'Previous session records (read-only)')}</span>
                                 </h4>
-                                {!isNativeWritesEnabled && !isAddingSession && (
-                                    <button
-                                        type="button"
-                                        onClick={() => setIsAddingSession(true)}
-                                        className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-600 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300"
-                                    >
-                                        <Plus size={12} />
-                                        <span>{t('quick_treatment_sheet.add_session', 'إضافة جلسة')}</span>
-                                    </button>
-                                )}
                             </div>
-
-                            {!isNativeWritesEnabled && isAddingSession && (
-                                <div className="space-y-3 rounded-xl border-2 border-dashed border-blue-200 bg-blue-50/40 p-3 dark:border-blue-900/60 dark:bg-blue-950/30">
-                                    <textarea
-                                        autoFocus
-                                        value={newSessionData.notes}
-                                        onChange={(e) => setNewSessionData((prev) => ({ ...prev, notes: e.target.value }))}
-                                        placeholder={t('quick_treatment_sheet.session_notes_placeholder', 'ماذا تم في هذه الجلسة؟')}
-                                        className="w-full rounded-lg border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white min-h-[60px]"
-                                    />
-                                    <div className="flex flex-wrap items-end justify-between gap-2">
-                                        <div className="min-w-[160px] flex-1">
-                                            <label htmlFor="quick-treatment-next-session" className="mb-1 block text-[10px] font-bold text-slate-500 dark:text-slate-400">
-                                                {t('quick_treatment_sheet.next_session_date', 'موعد الجلسة القادمة (اختياري)')}
-                                            </label>
-                                            <input
-                                                id="quick-treatment-next-session"
-                                                type="date"
-                                                value={newSessionData.next_session_date}
-                                                onChange={(e) => setNewSessionData((prev) => ({ ...prev, next_session_date: e.target.value }))}
-                                                className="w-full rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-900 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-                                            />
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() => setIsAddingSession(false)}
-                                                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                                            >
-                                                {t('quick_treatment_sheet.cancel_button', 'إلغاء')}
-                                            </button>
-                                            <button
-                                                type="button"
-                                                onClick={handleSaveSession}
-                                                disabled={!newSessionData.notes || isAddingSessionLoading}
-                                                className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-blue-700 disabled:opacity-50"
-                                            >
-                                                {isAddingSessionLoading ? t('quick_treatment_sheet.saving_button', 'جاري الحفظ...') : t('quick_treatment_sheet.save_session', 'حفظ الجلسة')}
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
 
                             <div className="space-y-2">
                                 {sessions.length === 0 ? (

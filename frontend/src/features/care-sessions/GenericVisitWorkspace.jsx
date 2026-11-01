@@ -256,6 +256,7 @@ export default function GenericVisitWorkspace({
                     length_mm: lengthVal,
                     reference_point: measurement.reference_point,
                     maf: measurement.maf,
+                    ...(measurement.taper != null ? { taper: measurement.taper } : {}),
                 },
                 length_mm: lengthVal,
                 reference_point: measurement.reference_point,
