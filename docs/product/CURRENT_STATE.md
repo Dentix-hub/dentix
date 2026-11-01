@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Care-session staging UI fixes (2026-11-01): historical modal uses active Arabic translations, fills the selected procedure’s tooth and validates empty measurement adds; native treatment editing opens unified visits while preserving old session records read-only.
+- Inspector display deduplicates verified native/legacy/projection identities without merging independent same-code procedures or comparing unrelated numeric IDs. No stored procedures, sessions or schema changed.
+- Verification: 99 relevant UI/adapter/workflow/i18n tests PASS; final locale/regression checks and frontend quality gates recorded in docs/reports/care-session-staging-ui-fixes-2026-11-01.md. Status: DONE for the five reported UI defects; CI/staging acceptance pending.
+
 - PR #339 TOTP boundary follow-up (2026-10-31): reproduced the original PostgreSQL 401 by advancing the OTP clock across a 30-second boundary; pinned only PyOTP's test clock on both sides and added expired/wrong-code rejection with no auth cookies. Real verification, application policy, JWT/database clocks and existing assertions remain intact.
 - Verification: 14 restricted-role PostgreSQL auth/session/cross-tenant checks + 32 auth/RBAC unit tests PASS; 1 unchanged TestClient refresh skip (request.client.host unavailable), covered by real PostgreSQL refresh checks. Targeted Ruff/diff PASS. Status: DONE for this failure; fresh GitHub CI pending.
 - PR #339 security follow-up (2026-10-31): CI application tests passed (1706 backend, 1 existing skip); Safety blocked three urllib3 2.7.0 advisories. Updated only that locked dependency to 2.8.0, which fixes the reported proxy TLS and streaming issues: https://github.com/urllib3/urllib3/releases/tag/2.8.0.

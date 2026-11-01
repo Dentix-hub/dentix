@@ -1106,6 +1106,29 @@ export default function PatientDetails() {
                 }}
                 onSave={handleSaveTreatment}
                 onRefetch={refetchClinicalData}
+                onOpenCareSessions={async () => {
+                    setIsTreatmentSheetOpen(false);
+                    const item = (workspaceSnapshot?.work_items || []).find((candidate) => candidate.id === newTreatment.work_item_id);
+                    if (!item) {
+                        setActiveTab('history');
+                        return;
+                    }
+                    if (activeCareSession) {
+                        if (!(activeCareSession.procedures || []).some((procedure) => procedure.work_item_id === item.id)) {
+                            try {
+                                const { addCareSessionProcedure } = await import('@/api/patients');
+                                await addCareSessionProcedure(id, activeCareSession.id, item.id);
+                                await refetchActiveSession();
+                            } catch (error) {
+                                toast.error(error?.response?.data?.detail || t('care_session.start_error'));
+                                return;
+                            }
+                        }
+                        setIsRctWorkflowOpen(true);
+                    } else {
+                        await handleResumeTreatment({ workItemId: item.id, procedureCode: item.code });
+                    }
+                }}
                 initialData={newTreatment}
                 isEditing={Boolean(editingTreatmentId)}
                 isNativeWritesEnabled={isNativeWritesEnabled}

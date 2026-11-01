@@ -714,6 +714,7 @@ const TreatmentHistory = ({
                     doctors={doctors}
                     currentUserId={user?.id}
                     onSuccess={handleHistorySuccess}
+                    t={t}
                 />
             )}
 

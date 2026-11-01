@@ -3690,7 +3690,11 @@
     "preferred_follow_up_date": "Preferred follow-up date and time (optional)",
     "measurement_save_failed": "Measurement was not saved. Your entries are kept; please try again.",
     "missing_required_field": "Required field missing: {{field}}",
-    "measurement_tooth_required": "Select a tooth for this procedure before recording measurements."
+    "measurement_tooth_required": "Select a tooth for this procedure before recording measurements.",
+    "observation_value_required": "Enter an observation value and select its procedure before adding it.",
+    "open_unified_visits": "Open visit workspace and history",
+    "past_visit_badge": "Past visit",
+    "step_completed": "Completed"
   },
   "dental_chart": {
     "primary_teeth": "Primary teeth",
