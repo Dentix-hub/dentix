@@ -10,7 +10,6 @@ import {
     Calendar,
     Activity,
     CheckCircle2,
-    FileText,
     CalendarClock,
     Settings2,
     History,
@@ -20,6 +19,8 @@ import { useTranslation } from 'react-i18next';
 import ProcedureStatusControl from '@/features/clinical-chart/components/ProcedureStatusControl';
 import FollowUpManagementModal from '@/features/care-sessions/FollowUpManagementModal';
 import HistoricalCareSessionModal from '@/features/care-sessions/HistoricalCareSessionModal';
+import CareSessionAddendumModal from '@/features/care-sessions/CareSessionAddendumModal';
+import VisitDocumentation from '@/features/care-sessions/VisitDocumentation';
 import CareObservationAmendmentModal from '@/features/care-sessions/CareObservationAmendmentModal';
 import { getPatientCareSessions } from '@/api/patients';
 import { getDoctors } from '@/api/admin';
@@ -91,6 +92,7 @@ const TreatmentHistory = ({
     const [managingFollowUpRequest, setManagingFollowUpRequest] = useState(null);
     const [isHistoricalModalOpen, setIsHistoricalModalOpen] = useState(false);
     const [amendingObservation, setAmendingObservation] = useState(null); // { observation, sessionId }
+    const [amendingVisit, setAmendingVisit] = useState(null);
 
     const user = useAuthStore((state) => state.user);
     const role = (user?.role || '').toLowerCase();
@@ -99,7 +101,6 @@ const TreatmentHistory = ({
         : (typeof user?.permissions === 'string' ? JSON.parse(user?.permissions || '[]') : []);
 
     const canManageClinicalFollowUp =
-        !user ||
         ['admin', 'super_admin', 'doctor'].includes(role) ||
         permissionsList.includes('clinical:write') ||
         permissionsList.includes('clinical_write') ||
@@ -128,7 +129,9 @@ const TreatmentHistory = ({
         enabled: Boolean(patientId && !propCareSessions),
     });
 
-    const careSessions = propCareSessions || fetchedSessions;
+    const allSessions = propCareSessions || fetchedSessions;
+    const careSessions = allSessions.filter((session) => !session.amends_session_id);
+    const renderDocumentation = (session) => <VisitDocumentation session={session} addenda={allSessions.filter((entry) => entry.amends_session_id === session.id)} doctors={doctors} canAmend={canManageClinicalFollowUp} onAmend={setAmendingVisit} t={t} />;
 
     const availableWorkItems = (history || [])
         .filter((h) => Boolean(h.work_item_id))
@@ -144,6 +147,7 @@ const TreatmentHistory = ({
         setManagingFollowUpRequest(null);
         setIsHistoricalModalOpen(false);
         setAmendingObservation(null);
+        setAmendingVisit(null);
     };
 
     const toggleRow = (itemId) => {
@@ -440,6 +444,8 @@ const TreatmentHistory = ({
                                                                                         >
                                                                                             <span className="text-indigo-600 dark:text-indigo-400">{canal}</span>
                                                                                             {len && <span>: {len}</span>}
+                                                                                            {!len && sv.value != null && <span>: {String(sv.value)}</span>}
+                                                                                            {obs.notes && <span className="font-sans font-normal">{obs.notes}</span>}
                                                                                             {maf && <span className="text-slate-500">({maf})</span>}
                                                                                             {obs.is_superseded ? (
                                                                                                 <span
@@ -467,12 +473,7 @@ const TreatmentHistory = ({
                                                                     )}
 
                                                                     {/* Session Notes */}
-                                                                    {session.notes && (
-                                                                        <div className="mt-2 flex items-start gap-1 text-[11px] text-slate-600 dark:text-slate-300 italic">
-                                                                            <FileText className="h-3 w-3 mt-0.5 shrink-0 text-slate-400" />
-                                                                            <span>{session.notes}</span>
-                                                                        </div>
-                                                                    )}
+                                                                    {renderDocumentation(session)}
 
                                                                     {/* Next Visit Requests */}
                                                                     {session.next_visit_requests && session.next_visit_requests.length > 0 && (
@@ -633,6 +634,8 @@ const TreatmentHistory = ({
                                                 >
                                                     <span className="text-indigo-600 dark:text-indigo-400">{canal}</span>
                                                     {len && <span>: {len}</span>}
+                                                    {!len && sv.value != null && <span>: {String(sv.value)}</span>}
+                                                    {obs.notes && <span className="font-sans font-normal">{obs.notes}</span>}
                                                     {maf && <span className="text-slate-500">({maf})</span>}
                                                     {obs.is_superseded ? (
                                                         <span
@@ -660,12 +663,7 @@ const TreatmentHistory = ({
                             )}
 
                             {/* Notes */}
-                            {session.notes && (
-                                <div className="mt-2 flex items-start gap-1.5 text-xs text-slate-600 dark:text-slate-300 italic bg-slate-50 p-2 rounded-lg dark:bg-slate-900/50">
-                                    <FileText className="h-3.5 w-3.5 mt-0.5 shrink-0 text-slate-400" />
-                                    <span>{session.notes}</span>
-                                </div>
-                            )}
+                            {renderDocumentation(session)}
 
                             {/* Next Visit Requests */}
                             {session.next_visit_requests && session.next_visit_requests.length > 0 && (
@@ -718,6 +716,8 @@ const TreatmentHistory = ({
                     onSuccess={handleHistorySuccess}
                 />
             )}
+
+            {amendingVisit && <CareSessionAddendumModal patientId={patientId} session={amendingVisit} onClose={() => setAmendingVisit(null)} onSuccess={handleHistorySuccess} t={t} />}
 
             {amendingObservation && (
                 <CareObservationAmendmentModal

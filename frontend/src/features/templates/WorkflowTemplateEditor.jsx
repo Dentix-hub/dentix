@@ -78,10 +78,7 @@ export default function WorkflowTemplateEditor({
         newSteps[index] = newSteps[targetIndex];
         newSteps[targetIndex] = temp;
         // Re-assign step_order 1..N
-        newSteps.forEach((s, idx) => {
-            s.step_order = idx + 1;
-        });
-        setSteps(newSteps);
+        setSteps(newSteps.map((step, idx) => ({ ...step, step_order: idx + 1 })));
     };
 
     const handleStepChange = (index, field, value) => {
@@ -95,7 +92,7 @@ export default function WorkflowTemplateEditor({
         setSteps([
             ...steps,
             {
-                step_code: `step_${nextOrder}`,
+                step_code: `step_${crypto.randomUUID().replaceAll('-', '')}`,
                 step_order: nextOrder,
                 title: `Step ${nextOrder}`,
                 description: '',
@@ -111,10 +108,7 @@ export default function WorkflowTemplateEditor({
             return;
         }
         const newSteps = steps.filter((_, idx) => idx !== index);
-        newSteps.forEach((s, idx) => {
-            s.step_order = idx + 1;
-        });
-        setSteps(newSteps);
+        setSteps(newSteps.map((step, idx) => ({ ...step, step_order: idx + 1 })));
     };
 
     // Custom fields helpers
@@ -123,7 +117,7 @@ export default function WorkflowTemplateEditor({
         setCustomFields([
             ...customFields,
             {
-                field_id: `custom_field_${count}`,
+                field_id: `field_${crypto.randomUUID().replaceAll('-', '')}`,
                 field_type: 'text',
                 label: `Specification ${count}`,
                 description: '',

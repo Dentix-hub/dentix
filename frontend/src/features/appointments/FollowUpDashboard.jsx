@@ -21,10 +21,20 @@ import { Button, SkeletonBox } from '@/shared/ui';
 import { getFollowUpDashboard } from '@/api/appointments';
 import { getDoctors } from '@/api/admin';
 import FollowUpManagementModal from '@/features/care-sessions/FollowUpManagementModal';
+import { useAuthStore } from '@/store/auth.store';
 
 export default function FollowUpDashboard({ onSchedule }) {
     const { t } = useTranslation();
     const queryClient = useQueryClient();
+    const user = useAuthStore((state) => state.user);
+    const role = String(user?.role || '').toLowerCase();
+    let permissions = user?.permissions || [];
+    if (typeof permissions === 'string') {
+        try { permissions = JSON.parse(permissions); } catch { permissions = []; }
+    }
+    const hasPermission = (permission) => Array.isArray(permissions) && permissions.includes(permission);
+    const canManage = ['admin', 'super_admin', 'doctor', 'nurse'].includes(role) || hasPermission('clinical:write');
+    const canSchedule = ['admin', 'super_admin', 'doctor', 'receptionist', 'manager'].includes(role) || hasPermission('appointment:create');
 
     // Filters state
     const [search, setSearch] = useState('');
@@ -145,6 +155,11 @@ export default function FollowUpDashboard({ onSchedule }) {
                         {t('follow_up.upcoming', 'Upcoming')}
                     </span>
                 );
+            case 'scheduled':
+            case 'completed':
+            case 'cancelled':
+            case 'stopped':
+                return getStatusBadge(cat);
             case 'unscheduled':
             default:
                 return (
@@ -361,6 +376,7 @@ export default function FollowUpDashboard({ onSchedule }) {
                             <option value="postponed">Postponed</option>
                             <option value="stopped">Stopped</option>
                             <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
                         </select>
                     </div>
 
@@ -580,7 +596,7 @@ export default function FollowUpDashboard({ onSchedule }) {
                                         <td className="p-3.5 whitespace-nowrap text-end">
                                             <div className="flex items-center justify-end gap-2">
                                                 {/* Schedule Button */}
-                                                {req.status === 'requested' && (
+                                                {canSchedule && onSchedule && req.status === 'requested' && (
                                                     <Button
                                                         variant="primary"
                                                         size="xs"
@@ -594,7 +610,7 @@ export default function FollowUpDashboard({ onSchedule }) {
                                                 )}
 
                                                 {/* Manage Actions Modal */}
-                                                <Button
+                                                {canManage && <Button
                                                     variant="ghost"
                                                     size="xs"
                                                     data-testid={`manage-request-btn-${req.id}`}
@@ -604,7 +620,7 @@ export default function FollowUpDashboard({ onSchedule }) {
                                                 >
                                                     <Settings2 className="h-3.5 w-3.5 me-1" />
                                                     <span>{t('common.manage', 'Manage')}</span>
-                                                </Button>
+                                                </Button>}
                                             </div>
                                         </td>
                                     </tr>
@@ -648,7 +664,7 @@ export default function FollowUpDashboard({ onSchedule }) {
             </div>
 
             {/* Follow-Up Management Modal */}
-            {managingRequest && (
+            {canManage && managingRequest && (
                 <FollowUpManagementModal
                     isOpen={Boolean(managingRequest)}
                     request={managingRequest}

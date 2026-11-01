@@ -17,6 +17,8 @@ export default function WorkingLengthEntryTable({
 }) {
     // Local draft states for each canal: { [canalId]: { length_mm, reference_point, maf, notes } }
     const [drafts, setDrafts] = useState({});
+    const [savingCanal, setSavingCanal] = useState(null);
+    const [saveError, setSaveError] = useState(false);
 
     const getDraft = (canalId, defaultRef) => {
         return (
@@ -47,31 +49,38 @@ export default function WorkingLengthEntryTable({
         });
     };
 
-    const handleSave = (canal) => {
+    const handleSave = async (canal) => {
+        if (savingCanal) return;
         const draft = getDraft(canal.canalId);
         const lengthNum = Number.parseFloat(draft.length_mm);
         if (Number.isNaN(lengthNum) || lengthNum <= 0) {
             return;
         }
 
-        onSaveMeasurement({
-            canal_id: canal.canalId,
-            root_id: canal.rootId,
-            tooth_key: String(toothKey),
-            length_mm: lengthNum,
-            reference_point: draft.reference_point,
-            maf: draft.maf,
-            notes: draft.notes?.trim() || null,
-        });
+        setSavingCanal(canal.canalId);
+        setSaveError(false);
+        try {
+            const result = await onSaveMeasurement({
+                canal_id: canal.canalId,
+                root_id: canal.rootId,
+                tooth_key: String(toothKey),
+                length_mm: lengthNum,
+                reference_point: draft.reference_point,
+                maf: draft.maf,
+                notes: draft.notes?.trim() || null,
+            });
+            if (result === false) return;
 
-        // Clear notes & length in draft, keep ref point and MAF
-        setDrafts((prev) => ({
-            ...prev,
-            [canal.canalId]: {
-                ...prev[canal.canalId],
-                notes: '',
-            },
-        }));
+            // Clear only notes after a confirmed save; retain measurement settings.
+            setDrafts((prev) => ({
+                ...prev,
+                [canal.canalId]: { ...prev[canal.canalId], notes: '' },
+            }));
+        } catch {
+            setSaveError(true);
+        } finally {
+            setSavingCanal(null);
+        }
     };
 
     if (selectedCanals.length === 0) {
@@ -90,6 +99,7 @@ export default function WorkingLengthEntryTable({
             data-testid="working-length-table"
             className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
         >
+            {saveError && <p role="alert" className="text-xs text-danger">{t('care_session.measurement_save_failed', 'Measurement was not saved. Your entries are kept; please try again.')}</p>}
             <div className="flex items-center justify-between border-b border-slate-100 pb-2.5 dark:border-slate-800">
                 <div className="flex items-center gap-2">
                     <Ruler className="h-4 w-4 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
@@ -220,7 +230,7 @@ export default function WorkingLengthEntryTable({
                                     <button
                                         type="button"
                                         onClick={() => handleSave(canal)}
-                                        disabled={!draft.length_mm || isLoading}
+                                        disabled={!draft.length_mm || isLoading || savingCanal !== null}
                                         data-testid={`btn-save-measurement-${canal.canalId}`}
                                         className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
                                     >

@@ -680,12 +680,30 @@ async def amend_care_observation(
     current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     service = CareSessionService(db, current_user.tenant_id, current_user)
-    new_obs = await service.amend_observation(patient_id, observation_id, payload)
+    new_obs = await service.amend_observation(patient_id, observation_id, payload, session_id=session_id)
     return success_response(
         data=schemas.CareObservationRead.model_validate(new_obs),
         message="Observation amended successfully",
     )
 
+
+
+@router.post(
+    "/{patient_id}/care-sessions/{session_id}/addenda",
+    response_model=StandardResponse[schemas.CareSessionRead],
+    status_code=status.HTTP_201_CREATED,
+    summary="Append a traceable correction to completed visit notes",
+)
+async def add_care_session_addendum(
+    patient_id: int,
+    session_id: int,
+    payload: schemas.CareSessionAddendumCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    result = await service.add_session_addendum(patient_id, session_id, payload)
+    return success_response(data=schemas.CareSessionRead.model_validate(result), message="Visit addendum recorded")
 
 
 # ---------------------------------------------------------------------------

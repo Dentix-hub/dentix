@@ -52,10 +52,13 @@ export default function FinishCareSessionSheet({
         '';
 
     const firstRemainingStep = pendingSteps[0] || partialSteps[0];
+    const associatedIds = [...new Set((session?.procedures || []).map((procedure) => procedure.work_item_id))];
+    const primaryWorkItemId = firstRemainingStep?.work_item_id || associatedIds[0] || null;
+    const procedureName = session?.procedures?.find((procedure) => procedure.work_item_id === primaryWorkItemId)?.template_snapshot?.title || firstRemainingStep?.work_item?.code || 'Dental care';
     const defaultReason = firstRemainingStep
         ? (extractedTooth
-            ? `Tooth ${extractedTooth}: Root Canal Treatment - ${firstRemainingStep.title}`
-            : `Root Canal Treatment - ${firstRemainingStep.title}`)
+            ? `Tooth ${extractedTooth}: ${procedureName} - ${firstRemainingStep.title}`
+            : `${procedureName} - ${firstRemainingStep.title}`)
         : (extractedTooth
             ? `Follow-up: Tooth ${extractedTooth}`
             : 'Dental Follow-up Visit');
@@ -71,6 +74,7 @@ export default function FinishCareSessionSheet({
     const [nextVisitDuration, setNextVisitDuration] = useState(draftData?.nextVisitDuration ?? defaultDuration);
     const [nextVisitNotes, setNextVisitNotes] = useState(draftData?.nextVisitNotes ?? '');
     const [isLabHandoffOpen, setIsLabHandoffOpen] = useState(false);
+    const [nextVisitDate, setNextVisitDate] = useState(draftData?.nextVisitDate || '');
 
     // Sync from server draftData when recovered
     useEffect(() => {
@@ -90,6 +94,7 @@ export default function FinishCareSessionSheet({
             if (draftData.requestNextVisit !== undefined) {
                 setRequestNextVisit(Boolean(draftData.requestNextVisit));
             }
+            if (typeof draftData.nextVisitDate === 'string') setNextVisitDate(draftData.nextVisitDate);
         }
     }, [draftData]);
 
@@ -146,12 +151,16 @@ export default function FinishCareSessionSheet({
         if (requestNextVisit && nextVisitReason.trim()) {
             payload.next_visit_request = {
                 care_session_id: session.id,
+                work_item_id: primaryWorkItemId,
+                associated_work_item_ids: associatedIds,
                 reason: nextVisitReason.trim(),
                 suggested_duration_minutes: Number(nextVisitDuration) || 30,
                 notes: nextVisitNotes.trim() || undefined,
             };
+            if (nextVisitDate) payload.next_visit_request.preferred_time_window_start = new Date(nextVisitDate).toISOString();
         }
-        await onFinishSession(payload);
+        const result = await onFinishSession(payload);
+        if (result === false) return;
         setNotes('');
         onClose();
     };
@@ -387,6 +396,14 @@ export default function FinishCareSessionSheet({
                                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                                 />
                             </div>
+
+                            <label className="block space-y-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                <span>{t('care_session.preferred_follow_up_date', 'Preferred follow-up date and time (optional)')}</span>
+                                <input type="datetime-local" data-testid="next-visit-date-input" value={nextVisitDate} onChange={(event) => {
+                                    setNextVisitDate(event.target.value);
+                                    onDraftChange?.({ nextVisitDate: event.target.value });
+                                }} className="w-full rounded-lg border border-border bg-surface p-2" />
+                            </label>
 
                             {/* Suggested Duration (G11-M07) */}
                             <div className="space-y-1">

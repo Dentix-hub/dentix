@@ -42,6 +42,16 @@ describe('CareObservationAmendmentModal', () => {
         expect(screen.getByTestId('amend-maf-input')).toHaveValue('25');
     });
 
+    it('sends a corrected canal target while retaining the original display', async () => {
+        patientsApi.amendCareObservation.mockResolvedValue({ data: { id: 43 } });
+        render(<CareObservationAmendmentModal isOpen patientId={1} sessionId={10} observation={mockObs} onClose={vi.fn()} onSuccess={vi.fn()} />);
+        fireEvent.change(screen.getByLabelText('Corrected Canal'), { target: { value: 'MB2' } });
+        fireEvent.change(screen.getByTestId('amend-reason-input'), { target: { value: 'Correct canal identification' } });
+        fireEvent.click(screen.getByTestId('confirm-amendment-button'));
+        await waitFor(() => expect(patientsApi.amendCareObservation).toHaveBeenCalledWith(1, 10, 42, expect.objectContaining({ canal_id: 'MB2', tooth_key: '16' })));
+        expect(mockObs.canal_id).toBe('MB1');
+    });
+
     it('requires a mandatory amendment reason to submit', async () => {
         const mockOnSuccess = vi.fn();
         const mockOnClose = vi.fn();

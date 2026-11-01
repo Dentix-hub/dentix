@@ -176,7 +176,7 @@ export function useCareSessionDraft({
             if (isOffline) {
                 setStatus('error');
                 setErrorMessage('Network offline. Cannot sync draft.');
-                return;
+                throw new Error('Network offline. Cannot sync draft.');
             }
 
             setStatus('saving');

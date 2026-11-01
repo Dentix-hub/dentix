@@ -447,8 +447,10 @@ export default function PatientDetails() {
             });
             await refetchActiveSession();
             toast.success(t('care_session.length_saved', `Saved ${obsData.canal_id} length: ${lengthMm} mm`));
+            return true;
         } catch (err) {
             toast.error(err?.response?.data?.detail || 'Failed to record measurement');
+            return false;
         }
     }, [id, activeCareSession?.id, recordCareObservationMutation, refetchActiveSession, t]);
 
@@ -470,8 +472,10 @@ export default function PatientDetails() {
             setIsRctWorkflowOpen(false);
             setIsFinishSheetOpen(false);
             toast.success(t('care_session.finished_success', 'Care session completed successfully'));
+            return true;
         } catch (err) {
             toast.error(err?.response?.data?.detail || err?.message || 'Failed to finish care session');
+            return false;
         }
     }, [id, activeCareSession?.id, finishCareSessionMutation, discardCareSessionDraft, flushCareSessionDraft, refetchActiveSession, refetchResumableSession, refetchWorkspace, t]);
 

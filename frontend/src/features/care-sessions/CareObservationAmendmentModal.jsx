@@ -28,9 +28,8 @@ export default function CareObservationAmendmentModal({
     const isCanalLength = useMemo(() => {
         if (!observation) return false;
         return (
-            observation.observation_code === 'canal_length' ||
-            sv.length_mm != null ||
-            Boolean(observation.canal_id)
+            ['canal_length', 'working_length'].includes(observation.observation_code) ||
+            sv.length_mm != null
         );
     }, [observation, sv]);
 
@@ -42,6 +41,7 @@ export default function CareObservationAmendmentModal({
     const [reason, setReason] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState(null);
+    const [target, setTarget] = useState({});
 
     useEffect(() => {
         if (observation) {
@@ -49,9 +49,8 @@ export default function CareObservationAmendmentModal({
             setLengthMm(curSv.length_mm != null ? String(curSv.length_mm) : '');
             setMaf(curSv.maf != null ? String(curSv.maf) : '');
             const isCanal =
-                observation.observation_code === 'canal_length' ||
-                curSv.length_mm != null ||
-                Boolean(observation.canal_id);
+                ['canal_length', 'working_length'].includes(observation.observation_code) ||
+                curSv.length_mm != null;
             if (isCanal) {
                 setGeneralValue('');
             } else if (typeof curSv.value === 'string') {
@@ -64,6 +63,7 @@ export default function CareObservationAmendmentModal({
             setAdditionalNotes('');
             setReason('');
             setErrorMsg(null);
+            setTarget(Object.fromEntries(['tooth_key', 'root_id', 'canal_id', 'surface_code'].map((key) => [key, observation[key] || curSv[key] || ''])));
         }
     }, [observation]);
 
@@ -110,6 +110,11 @@ export default function CareObservationAmendmentModal({
 
         const newStructuredValue = { ...sv };
         if (isCanalLength) {
+            if (!Number.isFinite(Number(lengthMm)) || Number(lengthMm) <= 0) {
+                setErrorMsg(t('care_session.invalid_length', 'Enter a positive numeric working length.'));
+                setIsSubmitting(false);
+                return;
+            }
             if (lengthMm !== '') {
                 newStructuredValue.length_mm = parseFloat(lengthMm);
             }
@@ -123,10 +128,10 @@ export default function CareObservationAmendmentModal({
         const payload = {
             reason: trimmedReason,
             observation_code: observation.observation_code,
-            tooth_key: observation.tooth_key || null,
-            canal_id: observation.canal_id || sv.canal_id || null,
-            root_id: observation.root_id || sv.root_id || null,
-            surface_code: observation.surface_code || sv.surface_code || null,
+            tooth_key: target.tooth_key || null,
+            canal_id: target.canal_id || null,
+            root_id: target.root_id || null,
+            surface_code: target.surface_code || null,
             structured_value: newStructuredValue,
             notes: additionalNotes.trim() || null,
         };
@@ -207,6 +212,11 @@ export default function CareObservationAmendmentModal({
                     <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
                         Corrected Clinical Value
                     </h4>
+                    <div className="grid grid-cols-2 gap-2">
+                        {Object.entries({ tooth_key: 'Tooth', root_id: 'Root', canal_id: 'Canal', surface_code: 'Surface' }).map(([key, label]) => <label key={key} className="text-xs">
+                            {label}<input aria-label={`Corrected ${label}`} value={target[key] || ''} onChange={(event) => setTarget((previous) => ({ ...previous, [key]: event.target.value }))} className="mt-1 w-full rounded-lg border border-border bg-surface p-2" />
+                        </label>)}
+                    </div>
 
                     {isCanalLength ? (
                         <div className="grid grid-cols-2 gap-3">

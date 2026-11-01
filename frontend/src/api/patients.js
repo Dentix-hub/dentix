@@ -1,5 +1,14 @@
 import { api } from './apiClient';
 
+export const getCareSessionMaterialSuggestions = (patientId, workItemId) =>
+    api.get(`/api/v1/patients/${patientId}/clinical-work-items/${workItemId}/material-suggestions`);
+export const getCareSessionMaterialCost = (patientId, workItemId) =>
+    api.get(`/api/v1/patients/${patientId}/clinical-work-items/${workItemId}/material-cost`);
+export const recordCareSessionMaterials = (patientId, sessionId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/material-usages`, data);
+export const addCareSessionAddendum = (patientId, sessionId, data) =>
+    api.post(`/api/v1/patients/${patientId}/care-sessions/${sessionId}/addenda`, data);
+
 export const searchPatients = (query) => api.get('/api/v1/patients/search', { params: { q: query } });
 export const getPatients = () => api.get('/api/v1/patients');
 export const getPatientDirectory = ({ q = '', cursor = null, limit = 30, scope = 'all' } = {}) =>

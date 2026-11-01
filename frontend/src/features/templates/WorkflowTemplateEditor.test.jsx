@@ -38,6 +38,27 @@ describe('WorkflowTemplateEditor', () => {
         });
     });
 
+    it('keeps identities distinct after deleting and adding steps and fields', async () => {
+        const definition = { steps: [1, 2, 3].map((number) => ({ step_code: `step_${number}`, step_order: number, title: `Stage ${number}` })), custom_fields: [1, 2, 3].map((number) => ({ field_id: `custom_field_${number}`, field_type: 'text', label: `Field ${number}` })) };
+        const original = JSON.parse(JSON.stringify(definition));
+        workflowTemplatesApi.updateWorkflowTemplate.mockResolvedValue({ data: { id: 2 } });
+        render(<WorkflowTemplateEditor template={{ id: 1, template_code: 'REST_COMPOSITE', title: 'Restorative', definition }} onCancel={vi.fn()} onSaveSuccess={vi.fn()} />);
+        fireEvent.click(screen.getByTestId('btn-remove-step-1'));
+        fireEvent.click(screen.getByTestId('btn-add-step'));
+        const generatedStep = screen.getByTestId('step-code-2').value;
+        expect(['step_1', 'step_2', 'step_3']).not.toContain(generatedStep);
+        fireEvent.click(screen.getByTestId('tab-custom-fields'));
+        fireEvent.click(screen.getByTestId('btn-remove-field-1'));
+        fireEvent.click(screen.getByTestId('btn-add-field'));
+        expect(['custom_field_1', 'custom_field_2', 'custom_field_3']).not.toContain(screen.getByTestId('field-id-2').value);
+        fireEvent.click(screen.getByTestId('btn-save-template'));
+        await waitFor(() => expect(workflowTemplatesApi.updateWorkflowTemplate).toHaveBeenCalledTimes(1));
+        const saved = workflowTemplatesApi.updateWorkflowTemplate.mock.lastCall[1].definition;
+        expect(new Set(saved.steps.map((step) => step.step_code)).size).toBe(3);
+        expect(new Set(saved.custom_fields.map((field) => field.field_id)).size).toBe(3);
+        expect(definition).toEqual(original);
+    });
+
     it('allows adding custom fields and saving template', async () => {
         const mockOnSuccess = vi.fn();
         workflowTemplatesApi.createWorkflowTemplate.mockResolvedValueOnce({ data: { id: 1 } });

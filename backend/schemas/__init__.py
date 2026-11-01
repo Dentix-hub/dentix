@@ -117,6 +117,7 @@ from .procedure_chart_style import (
 # Care Sessions (Slices S18 & S19)
 from .care_session import (
     CareSessionCreate,
+    CareSessionAddendumCreate,
     CareSessionFinish,
     CareSessionTransition,
     CareSessionUpdate,

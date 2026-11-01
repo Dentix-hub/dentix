@@ -5,6 +5,7 @@ import { MemoryRouter } from 'react-router-dom';
 import FollowUpDashboard from './FollowUpDashboard';
 import * as appointmentsApi from '@/api/appointments';
 import * as adminApi from '@/api/admin';
+import { useAuthStore } from '@/store/auth.store';
 
 vi.mock('@/api/appointments', () => ({
     getFollowUpDashboard: vi.fn(),
@@ -66,6 +67,7 @@ describe('FollowUpDashboard', () => {
 
     beforeEach(() => {
         vi.clearAllMocks();
+        useAuthStore.setState({ user: { id: 1, role: 'doctor' } });
         queryClient = new QueryClient({
             defaultOptions: {
                 queries: { retry: false },
@@ -179,6 +181,26 @@ describe('FollowUpDashboard', () => {
                 expect.objectContaining({ skip: 20, limit: 20 })
             );
         });
+    });
+
+    it('keeps reception scheduling available while hiding clinical management', async () => {
+        useAuthStore.setState({ user: { id: 5, role: 'receptionist' } });
+        const schedule = vi.fn();
+        renderComponent({ onSchedule: schedule });
+        fireEvent.click(await screen.findByTestId('schedule-btn-11'));
+        expect(schedule).toHaveBeenCalledWith(expect.objectContaining({ id: 11 }));
+        expect(screen.queryByTestId('manage-request-btn-11')).not.toBeInTheDocument();
+    });
+
+    it('allows a clinician to manage follow-ups and hides actions without authentication', async () => {
+        const view = renderComponent({ onSchedule: vi.fn() });
+        expect(await screen.findByTestId('manage-request-btn-11')).toBeInTheDocument();
+        view.unmount();
+        useAuthStore.setState({ user: null });
+        renderComponent({ onSchedule: vi.fn() });
+        await screen.findByText('Amira Hassan');
+        expect(screen.queryByTestId('manage-request-btn-11')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('schedule-btn-11')).not.toBeInTheDocument();
     });
 
     it('sends the selected final calendar day without inventing a UTC end boundary', async () => {

@@ -67,8 +67,22 @@ export default function HistoricalCareSessionModal({
     const [obsValue, setObsValue] = useState('');
     const [obsCanal, setObsCanal] = useState('');
     const [obsNotes, setObsNotes] = useState('');
+    const [entryWorkItemId, setEntryWorkItemId] = useState('');
+    const selectedProcedures = patientWorkItems.filter((item) => selectedWorkItemIds.includes(item.id));
+    const entryProcedureId = selectedWorkItemIds.includes(Number(entryWorkItemId))
+        ? Number(entryWorkItemId)
+        : selectedWorkItemIds[0];
+    const procedureLabel = (id) => {
+        const item = patientWorkItems.find((candidate) => candidate.id === id);
+        return item?.title || item?.code || `Procedure #${id}`;
+    };
 
     const toggleWorkItem = (id) => {
+        if (selectedWorkItemIds.includes(id) && (steps.some((s) => s.work_item_id === id) || observations.some((o) => o.work_item_id === id))) {
+            setErrorMsg(t('care_session.remove_documentation_first', 'Remove this procedure’s steps and observations before deselecting it.'));
+            return;
+        }
+        setErrorMsg(null);
         setSelectedWorkItemIds((prev) =>
             prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
         );
@@ -76,7 +90,7 @@ export default function HistoricalCareSessionModal({
 
     const handleAddStep = (e) => {
         e?.preventDefault();
-        if (!newStepTitle.trim()) return;
+        if (!newStepTitle.trim() || !entryProcedureId) return;
         const title = newStepTitle.trim();
         setSteps((prev) => [
             ...prev,
@@ -84,7 +98,7 @@ export default function HistoricalCareSessionModal({
                 title,
                 notes: newStepNotes.trim() || null,
                 status: 'completed',
-                work_item_id: selectedWorkItemIds[0] || null,
+                work_item_id: entryProcedureId,
             },
         ]);
         setNewStepTitle('');
@@ -97,9 +111,14 @@ export default function HistoricalCareSessionModal({
 
     const handleAddObservation = (e) => {
         e?.preventDefault();
-        if (!obsValue.trim()) return;
+        if (!obsValue.trim() || !entryProcedureId) return;
         const isLength = obsCode === 'working_length';
-        const numVal = isLength ? Number.parseFloat(obsValue) : undefined;
+        const numVal = isLength ? Number(obsValue) : undefined;
+        if (isLength && (!Number.isFinite(numVal) || numVal <= 0)) {
+            setErrorMsg(t('care_session.invalid_length', 'Enter a positive numeric working length.'));
+            return;
+        }
+        setErrorMsg(null);
         const canal = obsCanal.trim() || null;
         setObservations((prev) => [
             ...prev,
@@ -119,7 +138,7 @@ export default function HistoricalCareSessionModal({
                           ...(canal ? { canal_id: canal } : {}),
                       },
                 notes: obsNotes.trim() || null,
-                work_item_id: selectedWorkItemIds[0] || null,
+                work_item_id: entryProcedureId,
             },
         ]);
         setObsValue('');
@@ -325,6 +344,18 @@ export default function HistoricalCareSessionModal({
                     )}
                 </div>
 
+                <label className="block space-y-1 text-xs font-bold text-text-primary">
+                    <span>{t('care_session.document_procedure', 'Procedure for new steps and observations')}</span>
+                    <select
+                        value={entryProcedureId || ''}
+                        onChange={(e) => setEntryWorkItemId(e.target.value)}
+                        data-testid="historical-entry-procedure"
+                        className="w-full rounded-xl border border-border bg-surface p-2"
+                    >
+                        {selectedProcedures.map((item) => <option key={item.id} value={item.id}>{procedureLabel(item.id)}</option>)}
+                    </select>
+                </label>
+
                 {/* Delivered Steps Section */}
                 <div className="space-y-2 rounded-xl border border-border bg-surface/50 p-3">
                     <div className="flex items-center justify-between">
@@ -347,6 +378,7 @@ export default function HistoricalCareSessionModal({
                                     <div className="flex items-center gap-2">
                                         <Badge variant="success" size="xs">Completed</Badge>
                                         <span className="font-semibold text-text-primary">{st.title}</span>
+                                        <span className="text-text-secondary">{procedureLabel(st.work_item_id)}</span>
                                         {st.notes && <span className="text-text-secondary italic">({st.notes})</span>}
                                     </div>
                                     <button
@@ -413,6 +445,7 @@ export default function HistoricalCareSessionModal({
                                 >
                                     <div className="flex items-center gap-2 font-mono">
                                         <Badge variant="primary" size="xs">{ob.observation_code}</Badge>
+                                        <span className="text-text-secondary">{procedureLabel(ob.work_item_id)}</span>
                                         {ob.tooth_key && <span>Tooth #{ob.tooth_key}</span>}
                                         {ob.canal_id && <span>({ob.canal_id})</span>}
                                         <span className="font-bold text-text-primary">: {ob.value}</span>

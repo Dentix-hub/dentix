@@ -52,6 +52,7 @@ class HistoricalObservationCreate(BaseModel):
 
 class CareSessionCreate(BaseModel):
     appointment_id: Optional[int] = None
+    provider_user_id: Optional[int] = Field(None, description="Treating clinician for retrospective documentation")
     notes: Optional[str] = None
     work_item_ids: Optional[List[int]] = Field(default_factory=list, description="Associated clinical work item IDs for this care session")
     resume_work_item_id: Optional[int] = Field(None, description="Optional work item ID to resume in this new session")
@@ -86,6 +87,21 @@ class CareSessionProcedureRead(BaseModel):
     created_at: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CareSessionAddendumCreate(BaseModel):
+    reason: str = Field(..., min_length=1, max_length=500)
+    notes: str = Field(..., min_length=1, max_length=20000)
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("reason", "notes")
+    @classmethod
+    def reject_blank_addendum(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Addendum text and reason cannot be blank")
+        return value
 
 
 class CareSessionProcedureUpdate(BaseModel):
@@ -447,6 +463,14 @@ class CareObservationAmend(BaseModel):
     notes: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("reason")
+    @classmethod
+    def reject_blank_reason(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Amendment reason cannot be blank")
+        return value
 
 
 class CareSessionDraftSave(BaseModel):

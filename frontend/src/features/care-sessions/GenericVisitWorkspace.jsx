@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import { useQuery } from '@tanstack/react-query';
 import {
     Activity,
     CheckCircle2,
@@ -17,15 +18,21 @@ import {
     FileText,
     Layers,
     Sliders,
+    Camera,
 } from 'lucide-react';
 import { Button, Badge, DentixDialog } from '@/shared/ui';
 import ProcedureStatusControl from '@/features/clinical-chart/components/ProcedureStatusControl';
 import WorkingLengthEntryTable from './WorkingLengthEntryTable';
 import CanalTargetSelector from './CanalTargetSelector';
+import CareSessionMaterialsModal from './CareSessionMaterialsModal';
+import CareSessionImagesModal from './CareSessionImagesModal';
+import LabHandoffSheet from './LabHandoffSheet';
+import VisitDocumentation from './VisitDocumentation';
 import {
     addCareSessionProcedure,
     removeCareSessionProcedure,
     addCareSessionStep,
+    getPatientCareSessions,
 } from '@/api/patients';
 
 /**
@@ -61,7 +68,7 @@ export default function GenericVisitWorkspace({
     const availableWorkItems = useMemo(() => {
         const associatedIds = new Set(sessionProcedures.map((p) => p.work_item_id));
         return (patientWorkItems || []).filter(
-            (wi) => !associatedIds.has(wi.id) && wi.status !== 'cancelled'
+            (wi) => wi.kind === 'procedure' && !associatedIds.has(wi.id) && !['cancelled', 'entered_in_error'].includes(wi.status)
         );
     }, [sessionProcedures, patientWorkItems]);
 
@@ -72,6 +79,21 @@ export default function GenericVisitWorkspace({
         }
         return null;
     });
+    const [resource, setResource] = useState(null);
+    const previousVisits = useQuery({
+        queryKey: ['patient', session?.patient_id, 'care-sessions'],
+        queryFn: async () => {
+            const response = await getPatientCareSessions(session.patient_id);
+            return response?.data?.data || response?.data || [];
+        },
+        enabled: Boolean(isOpen && session?.patient_id),
+    });
+    const previousVisit = (previousVisits.data || [])
+        .filter((visit) => visit.id !== session?.id && !visit.amends_session_id && visit.status !== 'cancelled' && (
+            visit.procedures?.some((procedure) => procedure.work_item_id === selectedWorkItemId) ||
+            visit.steps?.some((step) => step.work_item_id === selectedWorkItemId)
+        ))
+        .sort((left, right) => new Date(right.actual_visit_date || right.started_at || right.created_at) - new Date(left.actual_visit_date || left.started_at || left.created_at))[0];
 
     useEffect(() => {
         if (sessionProcedures.length > 0) {
@@ -182,7 +204,7 @@ export default function GenericVisitWorkspace({
     // Tooth key for the selected procedure
     const procedureToothKey = useMemo(() => {
         const canalTarget = selectedWorkItem?.targets?.find((t) => t.target_kind === 'canal' || t.tooth_key);
-        return String(canalTarget?.tooth_key || selectedWorkItem?.tooth_number || '46');
+        return String(canalTarget?.tooth_key || selectedWorkItem?.tooth_number || '');
     }, [selectedWorkItem]);
 
     // Initial canal targets from selected procedure work item
@@ -218,9 +240,13 @@ export default function GenericVisitWorkspace({
     };
 
     const handleSaveMeasurement = (measurement) => {
+        if (!procedureToothKey) {
+            setValidationError(t('care_session.measurement_tooth_required', 'Select a tooth for this procedure before recording measurements.'));
+            return false;
+        }
         if (onSaveObservation) {
             const lengthVal = measurement.length_mm != null ? Number(measurement.length_mm) : undefined;
-            onSaveObservation({
+            return onSaveObservation({
                 observation_code: 'working_length',
                 work_item_id: selectedWorkItemId,
                 tooth_key: String(procedureToothKey || measurement.tooth_key),
@@ -251,7 +277,7 @@ export default function GenericVisitWorkspace({
                     const key = `proc_custom_${proc.work_item_id}_${f.field_id}`;
                     const val = draftData?.[key] ?? proc.template_snapshot?.custom_field_values?.[f.field_id];
                     if (val === undefined || val === null || String(val).trim() === '') {
-                        setValidationError(t('care_session.missing_required_field', `Required field missing: ${f.label}`));
+                        setValidationError(t('care_session.missing_required_field', 'Required field missing: {{field}}', { field: f.label }));
                         return;
                     }
                 }
@@ -493,7 +519,7 @@ export default function GenericVisitWorkspace({
                 )}
 
                 {/* ---------------- Procedures Navigation Strip ---------------- */}
-                <div className="flex items-center justify-between border-b border-border bg-surface px-4 py-2 sm:px-6">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2 sm:px-6">
                     <div className="flex items-center gap-2 overflow-x-auto py-1">
                         <span className="text-xs font-bold text-text-secondary uppercase tracking-wider me-1">
                             {t('care_session.procedures_label', 'Procedures in Visit')}:
@@ -535,7 +561,7 @@ export default function GenericVisitWorkspace({
                                         versionId={sp.work_item_version_id || wi?.version_id || 1}
                                         procedureCode={wi?.code || ''}
                                         procedureTitle={wi?.title || wi?.code || ''}
-                                        onSuccess={() => refetchSession && refetchSession()}
+                                        onStatusChanged={() => refetchSession && refetchSession()}
                                         t={t}
                                     />
 
@@ -601,12 +627,12 @@ export default function GenericVisitWorkspace({
                     </div>
 
                     {/* Context actions */}
-                    <div className="flex items-center gap-2">
-                        {onOpenMaterialsModal && (
+                    <div className="flex flex-wrap items-center gap-2">
+                        {selectedWorkItem && (
                             <Button
                                 variant="outline"
                                 size="xs"
-                                onClick={onOpenMaterialsModal}
+                                onClick={() => onOpenMaterialsModal ? onOpenMaterialsModal(selectedWorkItem) : setResource('materials')}
                                 data-testid="workspace-materials-btn"
                                 className="gap-1 text-xs"
                             >
@@ -614,11 +640,11 @@ export default function GenericVisitWorkspace({
                                 <span>{t('care_session.materials_btn', 'Materials')}</span>
                             </Button>
                         )}
-                        {onOpenLabHandoff && (
+                        {selectedWorkItem && (
                             <Button
                                 variant="outline"
                                 size="xs"
-                                onClick={onOpenLabHandoff}
+                                onClick={() => onOpenLabHandoff ? onOpenLabHandoff(selectedWorkItem) : setResource('lab')}
                                 data-testid="workspace-lab-btn"
                                 className="gap-1 text-xs"
                             >
@@ -626,6 +652,9 @@ export default function GenericVisitWorkspace({
                                 <span>{t('care_session.lab_handoff_btn', 'Lab Work')}</span>
                             </Button>
                         )}
+                        {selectedWorkItem && <Button variant="outline" size="xs" onClick={() => setResource('images')} data-testid="workspace-images-btn" className="gap-1 text-xs">
+                            <Camera className="h-3.5 w-3.5" />{t('care_session.images_tab', 'Images & X-Rays')}
+                        </Button>}
                     </div>
                 </div>
 
@@ -660,7 +689,7 @@ export default function GenericVisitWorkspace({
                     </div>
 
                     {/* 1. Previous Visit Context Card (Requirement 1 & 4) */}
-                    {carriedObservations.length > 0 && (
+                    {(previousVisit || carriedObservations.length > 0) && (
                         <section
                             data-testid="workspace-previous-context"
                             aria-label="Previous Visit Context"
@@ -670,6 +699,7 @@ export default function GenericVisitWorkspace({
                                 <RotateCcw className="h-4 w-4" />
                                 <span>{t('care_session.previous_visit_context', 'Previous Visit Context & Carried Measurements')}</span>
                             </div>
+                            {previousVisit && <VisitDocumentation session={{ ...previousVisit, procedures: (previousVisit.procedures || []).filter((procedure) => procedure.work_item_id === selectedWorkItemId) }} addenda={(previousVisits.data || []).filter((visit) => visit.amends_session_id === previousVisit.id)} t={t} />}
                             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                 {carriedObservations.map((obs) => (
                                     <div
@@ -1010,6 +1040,7 @@ export default function GenericVisitWorkspace({
                                 t={t}
                             />
                             <WorkingLengthEntryTable
+                                key={`${session.id}-${selectedWorkItemId}`}
                                 toothKey={procedureToothKey}
                                 selectedCanals={selectedCanals}
                                 recordedObservations={procedureObservations}
@@ -1057,6 +1088,9 @@ export default function GenericVisitWorkspace({
                     </section>
                 </main>
             </div>
+            {selectedWorkItem && resource === 'materials' && <CareSessionMaterialsModal key={`${session.id}-${selectedWorkItemId}`} patientId={session.patient_id} sessionId={session.id} workItemId={selectedWorkItemId} onClose={() => setResource(null)} t={t} />}
+            {selectedWorkItem && resource === 'images' && <CareSessionImagesModal key={`${session.id}-${selectedWorkItemId}`} patientId={session.patient_id} session={session} workItem={selectedWorkItem} onClose={() => setResource(null)} t={t} />}
+            {selectedWorkItem && resource === 'lab' && <LabHandoffSheet isOpen patientId={session.patient_id} patientName={patient?.name || ''} workItem={selectedWorkItem} onClose={() => setResource(null)} t={t} />}
         </DentixDialog>
     );
 }

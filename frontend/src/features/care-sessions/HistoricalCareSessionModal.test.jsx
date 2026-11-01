@@ -40,6 +40,27 @@ describe('HistoricalCareSessionModal', () => {
         expect(screen.getByText(/Surgical Extraction \(Tooth 38\)/i)).toBeInTheDocument();
     });
 
+    it('assigns each historical step and measurement to the selected procedure', async () => {
+        patientsApi.startCareSession.mockResolvedValue({ data: { id: 99 } });
+        render(<HistoricalCareSessionModal isOpen onClose={vi.fn()} patientId={5} patientWorkItems={mockWorkItems} currentUserId={1} />);
+        fireEvent.click(screen.getByTestId('checkbox-proc-102').querySelector('input'));
+        fireEvent.change(screen.getByTestId('input-historical-step-title'), { target: { value: 'Composite shade selection' } });
+        fireEvent.click(screen.getByTestId('btn-add-historical-step'));
+        fireEvent.change(screen.getByTestId('historical-entry-procedure'), { target: { value: '102' } });
+        fireEvent.change(screen.getByTestId('input-historical-step-title'), { target: { value: 'Socket inspection' } });
+        fireEvent.click(screen.getByTestId('btn-add-historical-step'));
+        fireEvent.change(screen.getByTestId('input-historical-obs-value'), { target: { value: 'Healing well' } });
+        fireEvent.click(screen.getByTestId('btn-add-historical-obs'));
+        fireEvent.click(screen.getByTestId('checkbox-proc-102').querySelector('input'));
+        expect(screen.getByText(/Remove this procedure’s steps and observations/)).toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('btn-submit-historical-session'));
+        await waitFor(() => expect(patientsApi.startCareSession).toHaveBeenCalledTimes(1));
+        const body = patientsApi.startCareSession.mock.lastCall[1];
+        expect(body.work_item_ids).toEqual([101, 102]);
+        expect(body.historical_steps.map((step) => step.work_item_id)).toEqual([101, 102]);
+        expect(body.historical_observations[0]).toMatchObject({ work_item_id: 102, structured_value: { value: 'Healing well' } });
+    });
+
     it('validates against future visit dates and submits legitimate historical visit', async () => {
         const mockOnSuccess = vi.fn();
         const mockOnClose = vi.fn();

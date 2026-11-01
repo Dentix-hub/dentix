@@ -24,6 +24,8 @@ vi.mock('@/auth/useAuth', () => ({
     }),
 }));
 
+vi.mock('@/api/patients', async (original) => ({ ...await original(), getPatientCareSessions: vi.fn().mockResolvedValue({ data: [] }) }));
+
 vi.mock('@/shared/context/ProceduresContext', () => ({
     useProcedures: () => ({ procedures: [] }),
 }));
@@ -192,6 +194,29 @@ describe('PatientDetails Care Session Integration', () => {
             work_item_id: 101,
             structured_value: { length_mm: 21.5 },
         });
+    });
+
+    it('keeps the finish sheet and typed notes when draft flushing fails', async () => {
+        renderActivePatient();
+        mockFlush.mockRejectedValueOnce(new Error('Network unavailable'));
+        fireEvent.click(await screen.findByTestId('btn-banner-finish-session'));
+        fireEvent.change(screen.getByTestId('finish-session-notes-input'), { target: { value: 'Keep these clinical notes' } });
+        fireEvent.click(screen.getByTestId('confirm-finish-session-button'));
+        await waitFor(() => expect(mockFlush).toHaveBeenCalledTimes(1));
+        expect(mockFinish).not.toHaveBeenCalled();
+        expect(mockDiscard).not.toHaveBeenCalled();
+        expect(screen.getByTestId('finish-session-notes-input')).toHaveValue('Keep these clinical notes');
+    });
+
+    it('keeps measurement notes available to retry after the server rejects a save', async () => {
+        renderActivePatient();
+        mockRecord.mockRejectedValueOnce(new Error('Network unavailable'));
+        fireEvent.click(await screen.findByTestId('btn-open-active-workflow'));
+        fireEvent.change(screen.getByTestId('input-length-MB'), { target: { value: '21.5' } });
+        fireEvent.change(screen.getByTestId('input-notes-MB'), { target: { value: 'Calcified canal' } });
+        fireEvent.click(screen.getByTestId('btn-save-measurement-MB'));
+        await waitFor(() => expect(mockRecord).toHaveBeenCalledTimes(1));
+        expect(screen.getByTestId('input-notes-MB')).toHaveValue('Calcified canal');
     });
 
     it('flushes unsaved documentation before requesting finalization and draft deletion', async () => {

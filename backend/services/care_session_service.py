@@ -28,6 +28,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.orm.exc import StaleDataError
 
 from backend import models, schemas
+from backend.core.permissions import DOCTOR_ROLES
 from backend.clinical.workflow_templates import get_latest_template
 from backend.clinical.step_identity import historical_step_identity
 from backend.models.clinical_core import FDI_TOOTH_KEYS
@@ -210,8 +211,24 @@ class CareSessionService:
         if is_historical:
             if not actual_visit_date:
                 raise HTTPException(status_code=422, detail="Historical care session requires actual_visit_date")
+            if actual_visit_date.tzinfo is None:
+                actual_visit_date = actual_visit_date.replace(tzinfo=timezone.utc)
             if actual_visit_date > now:
                 raise HTTPException(status_code=422, detail="Historical visit date cannot be in the future")
+
+        provider_user_id = user.id if user else None
+        if data.provider_user_id is not None:
+            if not is_historical and data.provider_user_id != provider_user_id:
+                raise HTTPException(status_code=422, detail="A different treating clinician can only be recorded for a past visit")
+            provider = (await self.db.execute(select(models.User).where(
+                models.User.id == data.provider_user_id,
+                models.User.tenant_id == self.tenant_id,
+                models.User.is_active.is_(True),
+                models.User.role.in_(DOCTOR_ROLES),
+            ))).scalar_one_or_none()
+            if provider is None:
+                raise HTTPException(status_code=404, detail="Treating clinician not found")
+            provider_user_id = provider.id
 
         # Acquire concurrency lock for patient care sessions (R05)
         await self._acquire_advisory_lock(f"care_session:{patient_id}")
@@ -241,7 +258,7 @@ class CareSessionService:
             tenant_id=self.tenant_id,
             patient_id=patient_id,
             appointment_id=data.appointment_id,
-            provider_user_id=user.id if user else None,
+            provider_user_id=provider_user_id,
             status=session_status,
             started_at=session_started,
             finished_at=session_finished,
@@ -598,6 +615,36 @@ class CareSessionService:
             ) from exc
 
         return await self.get_session(patient_id, session.id)
+
+    async def add_session_addendum(
+        self, patient_id: int, session_id: int, data: schemas.CareSessionAddendumCreate
+    ) -> models.CareSession:
+        """Append a dated correction without rewriting the finalized visit or its procedures."""
+        await self.ensure_native_writes_enabled()
+        original = await self.get_session(patient_id, session_id)
+        if original.status != "completed" or original.amends_session_id is not None:
+            raise HTTPException(status_code=409, detail="Addenda must reference an original completed visit")
+        user = await self._get_active_current_user()
+        if not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        now = datetime.now(timezone.utc)
+        addendum = models.CareSession(
+            tenant_id=self.tenant_id, patient_id=patient_id,
+            provider_user_id=original.provider_user_id,
+            recorded_by_user_id=user.id, status="completed", is_historical=True,
+            started_at=now, finished_at=now, created_at=now,
+            actual_visit_date=original.actual_visit_date or original.started_at or original.created_at,
+            amends_session_id=original.id, amendment_reason=data.reason, notes=data.notes,
+        )
+        self.db.add(addendum)
+        await self.db.flush()
+        self.db.add(models.ClinicalEvent(
+            tenant_id=self.tenant_id, patient_id=patient_id, care_session_id=addendum.id,
+            event_type="care_session_addendum_recorded", occurred_at=now, actor_user_id=user.id,
+            payload={"amends_session_id": original.id, "reason": data.reason}, notes=data.notes,
+        ))
+        await self.db.commit()
+        return await self.get_session(patient_id, addendum.id)
 
     async def finish_session(
         self, patient_id: int, session_id: int, data: schemas.CareSessionFinish
@@ -2384,6 +2431,12 @@ class CareSessionService:
         Scoped by tenant, ordered by preferred window or creation time.
         """
         await self.ensure_native_writes_enabled()
+        from backend.services.patient_access_service import visible_patient_ids_query
+
+        user = await self._get_active_current_user()
+        if not user:
+            raise HTTPException(status_code=401, detail="Authentication required")
+        visible_ids = await visible_patient_ids_query(self.db, user)
 
         stmt = (
             select(models.NextVisitRequest)
@@ -2392,7 +2445,10 @@ class CareSessionService:
                 selectinload(models.NextVisitRequest.care_session),
                 selectinload(models.NextVisitRequest.work_item),
             )
-            .where(models.NextVisitRequest.tenant_id == self.tenant_id)
+            .where(
+                models.NextVisitRequest.tenant_id == self.tenant_id,
+                models.NextVisitRequest.patient_id.in_(visible_ids),
+            )
         )
         if status and status.lower() != "all":
             stmt = stmt.where(models.NextVisitRequest.status == status)
@@ -2499,6 +2555,8 @@ class CareSessionService:
                 cat = "stopped"
             elif req.status == "completed":
                 cat = "completed"
+            elif req.status == "cancelled":
+                cat = "cancelled"
             elif norm_target_date is not None:
                 if norm_target_date < norm_now:
                     cat = "overdue"
@@ -3214,6 +3272,7 @@ class CareSessionService:
         patient_id: int,
         observation_id: int,
         payload: schemas.CareObservationAmend,
+        *, session_id: Optional[int] = None,
     ) -> models.CareObservation:
         """
         Amend a chairside observation / measurement.
@@ -3231,6 +3290,8 @@ class CareSessionService:
             models.CareObservation.tenant_id == self.tenant_id,
             models.CareObservation.patient_id == patient_id,
         ).with_for_update()
+        if session_id is not None:
+            stmt = stmt.where(models.CareObservation.care_session_id == session_id)
         orig = (await self.db.execute(stmt)).scalar_one_or_none()
         if not orig:
             raise HTTPException(status_code=404, detail="Observation not found")
@@ -3238,15 +3299,19 @@ class CareSessionService:
         if orig.is_superseded:
             raise HTTPException(status_code=409, detail="Observation has already been superseded by a prior amendment")
 
+        if payload.tooth_key and payload.tooth_key not in FDI_TOOTH_KEYS:
+            raise HTTPException(status_code=422, detail="Invalid FDI tooth key")
+
         merged_sv = dict(orig.structured_value or {})
         if payload.structured_value is not None:
             merged_sv.update(payload.structured_value)
-        if payload.surface_code:
-            merged_sv["surface_code"] = payload.surface_code
-        if payload.root_id:
-            merged_sv["root_id"] = payload.root_id
-        if payload.canal_id:
-            merged_sv["canal_id"] = payload.canal_id
+        for target_key in ("surface_code", "root_id", "canal_id"):
+            if target_key in payload.model_fields_set:
+                target_value = getattr(payload, target_key)
+                if target_value:
+                    merged_sv[target_key] = target_value
+                else:
+                    merged_sv.pop(target_key, None)
 
         new_obs = models.CareObservation(
             tenant_id=self.tenant_id,
@@ -3255,7 +3320,7 @@ class CareSessionService:
             step_id=orig.step_id,
             work_item_id=orig.work_item_id,
             observation_code=payload.observation_code or orig.observation_code,
-            tooth_key=payload.tooth_key or orig.tooth_key,
+            tooth_key=(payload.tooth_key or None) if "tooth_key" in payload.model_fields_set else orig.tooth_key,
             structured_value=merged_sv,
             notes=f"[Amendment] {payload.reason}: {payload.notes or ''}".strip(),
             recorded_by_user_id=user.id if user else None,
