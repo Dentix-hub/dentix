@@ -399,7 +399,7 @@ describe('QuickTreatmentSheet Unified Specification (D1–D4 & F1–F10)', () =>
         }));
     });
 
-    it('13. renders sessions list in edit mode and allows recording legacy sessions (D4)', async () => {
+    it('13. preserves legacy session history read-only and prevents old session creation', async () => {
         renderSheet({
             isEditing: true,
             initialData: {
@@ -411,22 +411,12 @@ describe('QuickTreatmentSheet Unified Specification (D1–D4 & F1–F10)', () =>
             },
         });
 
-        expect(await screen.findByText('سجل الجلسات (Sessions)')).toBeInTheDocument();
+        expect(await screen.findByText('Previous session records (read-only)')).toBeInTheDocument();
         expect(screen.getByText('First visit prep')).toBeInTheDocument();
 
-        // Add new session
-        fireEvent.click(screen.getByRole('button', { name: 'إضافة جلسة' }));
-        const notesInput = screen.getByPlaceholderText('ماذا تم في هذه الجلسة؟');
-        fireEvent.change(notesInput, { target: { value: 'Second visit try-in' } });
-
-        fireEvent.click(screen.getByRole('button', { name: 'حفظ الجلسة' }));
-
-        await waitFor(() => {
-            expect(addTreatmentSession).toHaveBeenCalledWith(99, expect.objectContaining({
-                notes: 'Second visit try-in',
-                treatment_id: 99,
-            }));
-        });
+        expect(screen.queryByRole('button', { name: 'إضافة جلسة' })).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('ماذا تم في هذه الجلسة؟')).not.toBeInTheDocument();
+        expect(addTreatmentSession).not.toHaveBeenCalled();
     });
 
     it('14. reopening sheet in edit mode for prosthetic treatment without linked lab order displays lab section for retry', async () => {

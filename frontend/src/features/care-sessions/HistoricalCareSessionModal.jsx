@@ -11,6 +11,9 @@ import {
 } from 'lucide-react';
 import { Button, Modal, Badge } from '@/shared/ui';
 import { startCareSession } from '@/api/patients';
+import CanalTargetSelector from './CanalTargetSelector';
+import WorkingLengthEntryTable from './WorkingLengthEntryTable';
+import { suggestProcedureChartTemplate } from '@/features/clinical-chart/domain/procedureChartAppearance';
 
 /**
  * Historical Care Session Entry Modal (Requirement 4).
@@ -71,6 +74,7 @@ export default function HistoricalCareSessionModal({
     const [obsCanal, setObsCanal] = useState('');
     const [obsNotes, setObsNotes] = useState('');
     const [observationError, setObservationError] = useState(null);
+    const [selectedCanals, setSelectedCanals] = useState([]);
     const [entryWorkItemId, setEntryWorkItemId] = useState('');
     const selectedProcedures = patientWorkItems.filter((item) => selectedWorkItemIds.includes(item.id));
     const entryProcedureId = selectedWorkItemIds.includes(Number(entryWorkItemId))
@@ -82,6 +86,29 @@ export default function HistoricalCareSessionModal({
         return procedure?.tooth_number ? String(procedure.tooth_number) : teeth.length === 1 ? teeth[0] : '';
     }, [entryProcedureId, patientWorkItems]);
     useEffect(() => { setObsToothKey(entryToothKey); }, [entryProcedureId, entryToothKey]);
+    const entryCode = patientWorkItems.find((item) => item.id === entryProcedureId)?.code || '';
+    const isEndo = entryCode === 'ENDO_RCT' || suggestProcedureChartTemplate(entryCode)?.template === 'ENDO_RCT';
+    useEffect(() => { setObsCode(isEndo ? 'working_length' : 'measurement'); }, [entryProcedureId, isEndo]);
+    useEffect(() => { setSelectedCanals([]); }, [entryProcedureId, obsToothKey]);
+    const toggleCanal = (canal) => setSelectedCanals((previous) =>
+        previous.some((item) => item.canalId === canal.canalId && item.rootId === canal.rootId)
+            ? previous.filter((item) => item.canalId !== canal.canalId || item.rootId !== canal.rootId)
+            : [...previous, canal]
+    );
+    const addCanalMeasurement = (measurement) => {
+        if (!entryProcedureId || !obsToothKey) return false;
+        setObservations((previous) => [...previous, {
+            observation_code: 'working_length', work_item_id: entryProcedureId,
+            tooth_key: obsToothKey, canal_id: measurement.canal_id,
+            value: String(measurement.length_mm), notes: measurement.notes,
+            structured_value: {
+                length_mm: measurement.length_mm, canal_id: measurement.canal_id,
+                root_id: measurement.root_id, reference_point: measurement.reference_point,
+                maf: measurement.maf, ...(measurement.taper != null ? { taper: measurement.taper } : {}),
+            },
+        }]);
+        return true;
+    };
     const procedureLabel = (id) => {
         const item = patientWorkItems.find((candidate) => candidate.id === id);
         return item?.title || item?.code || `Procedure #${id}`;
@@ -462,6 +489,8 @@ export default function HistoricalCareSessionModal({
                                         {ob.tooth_key && <span>{t('care_sessions.tooth', 'Tooth')} #{ob.tooth_key}</span>}
                                         {ob.canal_id && <span>({ob.canal_id})</span>}
                                         <span className="font-bold text-text-primary">: {ob.value}</span>
+                                        {ob.structured_value?.maf && <span>MAF {ob.structured_value.maf}</span>}
+                                        {ob.structured_value?.taper != null && <span>{t('care_session.maf_taper', 'Master file taper')}: {ob.structured_value.taper}</span>}
                                         {ob.notes && <span className="text-text-secondary italic">({ob.notes})</span>}
                                     </div>
                                     <button
@@ -497,7 +526,7 @@ export default function HistoricalCareSessionModal({
                             <option value="shade">{t('care_session.obs_shade', 'Shade')}</option>
                             <option value="vitality">{t('care_session.obs_vitality', 'Vitality')}</option>
                         </select>
-                        <input
+                        {obsCode !== 'working_length' && <><input
                             type="text"
                             value={obsValue}
                             onChange={(e) => setObsValue(e.target.value)}
@@ -522,8 +551,25 @@ export default function HistoricalCareSessionModal({
                             className="col-span-2 sm:col-span-2 text-xs"
                         >
                             + {t('common.add', 'Add')}
-                        </Button>
+                        </Button></>}
                     </div>
+                    {obsCode === 'working_length' && obsToothKey && (
+                        <div key={`${entryProcedureId}-${obsToothKey}`} className="space-y-3">
+                            <CanalTargetSelector
+                                toothKey={obsToothKey}
+                                selectedCanals={selectedCanals}
+                                onToggleCanal={toggleCanal}
+                                t={t}
+                            />
+                            <WorkingLengthEntryTable
+                                toothKey={obsToothKey}
+                                selectedCanals={selectedCanals}
+                                recordedObservations={observations.filter((observation) => observation.work_item_id === entryProcedureId)}
+                                onSaveMeasurement={addCanalMeasurement}
+                                t={t}
+                            />
+                        </div>
+                    )}
                 </div>
 
                 {observationError && <p role="alert" className="text-sm text-danger">{observationError}</p>}

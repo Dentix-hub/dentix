@@ -3674,7 +3674,32 @@
     "observation_value_required": "أدخل قيمة القياس أو الملاحظة واختر الإجراء قبل الإضافة.",
     "open_unified_visits": "فتح مساحة الزيارة وسجل الزيارات",
     "past_visit_badge": "زيارة سابقة",
-    "step_completed": "مكتملة"
+    "step_completed": "مكتملة",
+    "maf_taper": "تيبر الماستر فايل",
+    "invalid_taper": "أدخل تيبر رقميًا أكبر من صفر.",
+    "legacy_history_readonly": "سجلات جلسات سابقة (للقراءة فقط)",
+    "canal_label": "القناة",
+    "recorded_label": "مسجل",
+    "prior_readings": "القياسات السابقة",
+    "roots": {
+      "single": "جذر مفرد",
+      "mesial": "أنسي (M)",
+      "distal": "بعيد (D)",
+      "mesiobuccal": "أنسي شدقي (MB)",
+      "distobuccal": "بعيد شدقي (DB)",
+      "palatal": "حنكي (P)",
+      "buccal": "شدقي (B)"
+    },
+    "reference_points": {
+      "mb_cusp": "الحدبة الأنسية الشدقية (MB)",
+      "ml_cusp": "الحدبة الأنسية اللسانية (ML)",
+      "db_cusp": "الحدبة البعيدة الشدقية (DB)",
+      "dl_cusp": "الحدبة البعيدة اللسانية (DL)",
+      "buccal_cusp": "الحدبة الشدقية",
+      "palatal_cusp": "الحدبة الحنكية",
+      "incisal_edge": "الحافة القاطعة",
+      "cingulum": "الحدبة اللسانية"
+    }
   },
   "dental_chart": {
     "primary_teeth": "الأسنان اللبنية",

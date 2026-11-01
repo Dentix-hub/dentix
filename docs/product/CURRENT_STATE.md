@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Care-session follow-up (2026-11-01): feature discovery now resolves the effective native global rollout/tenant override; treatment editing no longer offers legacy session creation, and preserves existing records read-only.
+- Historical/current RCT entry supports multiple preset/custom canals with independent length, MAF size and numeric taper; taper survives continuation and reasoned corrections. Arabic canal/root/reference labels added; no schema or stored-history rewrite.
+- Verification: 73 backend + 100 UI tests PASS; Arabic browser smoke PASS at 390/1280px; lint/build/Ruff/guardrails PASS. Status: DONE locally; GitHub delivery authorized, staging acceptance pending. Evidence: docs/reports/care-session-rollout-canals-taper-2026-11-01.md.
+
 - Care-session staging UI fixes (2026-11-01): historical modal uses active Arabic translations, fills the selected procedure’s tooth and validates empty measurement adds; native treatment editing opens unified visits while preserving old session records read-only.
 - Inspector display deduplicates verified native/legacy/projection identities without merging independent same-code procedures or comparing unrelated numeric IDs. No stored procedures, sessions or schema changed.
 - Verification: 99 relevant UI/adapter/workflow/i18n tests PASS; final locale/regression checks and frontend quality gates recorded in docs/reports/care-session-staging-ui-fixes-2026-11-01.md. Status: DONE for the five reported UI defects; CI/staging acceptance pending.

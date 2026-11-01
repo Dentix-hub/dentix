@@ -52,6 +52,19 @@ describe('CareObservationAmendmentModal', () => {
         expect(mockObs.canal_id).toBe('MB1');
     });
 
+    it.each([
+        { length_mm: 20, maf: '#25', taper: 0.04 },
+        { length_mm: 20, maf: '#25 / .04' },
+    ])('corrects taper without retaining a conflicting combined legacy file value', async (structured_value) => {
+        patientsApi.amendCareObservation.mockResolvedValue({ data: { id: 43 } });
+        render(<CareObservationAmendmentModal isOpen patientId={1} sessionId={10} observation={{ ...mockObs, structured_value }} onClose={vi.fn()} onSuccess={vi.fn()} />);
+        expect(screen.getByTestId('amend-taper-input')).toHaveValue(0.04);
+        fireEvent.change(screen.getByTestId('amend-taper-input'), { target: { value: '0.06' } });
+        fireEvent.change(screen.getByTestId('amend-reason-input'), { target: { value: 'Correct file specification' } });
+        fireEvent.click(screen.getByTestId('confirm-amendment-button'));
+        await waitFor(() => expect(patientsApi.amendCareObservation).toHaveBeenCalledWith(1, 10, 42, expect.objectContaining({ structured_value: expect.objectContaining({ maf: '#25', taper: 0.06 }) })));
+    });
+
     it('requires a mandatory amendment reason to submit', async () => {
         const mockOnSuccess = vi.fn();
         const mockOnClose = vi.fn();

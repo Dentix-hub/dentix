@@ -36,6 +36,7 @@ export default function CareObservationAmendmentModal({
     // Initial state derived from existing observation
     const [lengthMm, setLengthMm] = useState('');
     const [maf, setMaf] = useState('');
+    const [taper, setTaper] = useState('');
     const [generalValue, setGeneralValue] = useState('');
     const [additionalNotes, setAdditionalNotes] = useState('');
     const [reason, setReason] = useState('');
@@ -47,7 +48,9 @@ export default function CareObservationAmendmentModal({
         if (observation) {
             const curSv = observation.structured_value || {};
             setLengthMm(curSv.length_mm != null ? String(curSv.length_mm) : '');
-            setMaf(curSv.maf != null ? String(curSv.maf) : '');
+            const legacyFile = /^#?(\d+)\s*\/\s*(0?\.\d+)$/.exec(String(curSv.maf || '').trim());
+            setMaf(legacyFile ? `#${legacyFile[1]}` : curSv.maf != null ? String(curSv.maf) : '');
+            setTaper(curSv.taper != null ? String(curSv.taper) : legacyFile ? String(Number(legacyFile[2])) : '');
             const isCanal =
                 ['canal_length', 'working_length'].includes(observation.observation_code) ||
                 curSv.length_mm != null;
@@ -71,7 +74,8 @@ export default function CareObservationAmendmentModal({
         if (!observation) return '';
         const parts = [];
         if (sv.length_mm != null) parts.push(`Length: ${sv.length_mm} mm`);
-        if (sv.maf != null) parts.push(`MAF: #${sv.maf}`);
+        if (sv.maf != null) parts.push(`MAF: #${String(sv.maf).replace(/^#/, '')}`);
+        if (sv.taper != null) parts.push(`Taper: ${sv.taper}`);
         if (sv.value != null) parts.push(`Value: ${sv.value}`);
         if (parts.length === 0 && observation.notes) parts.push(observation.notes);
         if (parts.length === 0) return JSON.stringify(sv);
@@ -120,6 +124,14 @@ export default function CareObservationAmendmentModal({
             }
             if (maf !== '') {
                 newStructuredValue.maf = maf;
+            }
+            if (taper !== '') {
+                if (!Number.isFinite(Number(taper)) || Number(taper) <= 0) {
+                    setErrorMsg(t('care_session.invalid_taper', 'Enter a positive numeric taper.'));
+                    setIsSubmitting(false);
+                    return;
+                }
+                newStructuredValue.taper = Number(taper);
             }
         } else if (generalValue.trim()) {
             newStructuredValue.value = generalValue.trim();
@@ -268,6 +280,20 @@ export default function CareObservationAmendmentModal({
                         </div>
                     )}
 
+                    {isCanalLength && (
+                        <label className="block text-xs font-bold">
+                            {t('care_session.maf_taper', 'Master file taper')}
+                            <input
+                                type="number"
+                                min="0"
+                                step="any"
+                                data-testid="amend-taper-input"
+                                value={taper}
+                                onChange={(e) => setTaper(e.target.value)}
+                                className="mt-1 w-full rounded-lg border border-border bg-surface p-2"
+                            />
+                        </label>
+                    )}
                     {/* Mandatory Reason */}
                     <div>
                         <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">

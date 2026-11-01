@@ -1859,6 +1859,8 @@ class CareSessionService:
                 extras = []
                 if maf:
                     extras.append(f"MAF {maf}")
+                if sv.get("taper") is not None:
+                    extras.append(f"taper {sv['taper']}")
                 if ref:
                     extras.append(f"ref {ref}")
                 if extras:

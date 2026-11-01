@@ -3694,7 +3694,32 @@
     "observation_value_required": "Enter an observation value and select its procedure before adding it.",
     "open_unified_visits": "Open visit workspace and history",
     "past_visit_badge": "Past visit",
-    "step_completed": "Completed"
+    "step_completed": "Completed",
+    "maf_taper": "Master file taper",
+    "invalid_taper": "Enter a positive numeric taper.",
+    "legacy_history_readonly": "Previous session records (read-only)",
+    "canal_label": "Canal",
+    "recorded_label": "Recorded",
+    "prior_readings": "Prior readings",
+    "roots": {
+      "single": "Single Root",
+      "mesial": "Mesial (M)",
+      "distal": "Distal (D)",
+      "mesiobuccal": "Mesiobuccal (MB)",
+      "distobuccal": "Distobuccal (DB)",
+      "palatal": "Palatal (P)",
+      "buccal": "Buccal (B)"
+    },
+    "reference_points": {
+      "mb_cusp": "MB cusp",
+      "ml_cusp": "ML cusp",
+      "db_cusp": "DB cusp",
+      "dl_cusp": "DL cusp",
+      "buccal_cusp": "Buccal cusp",
+      "palatal_cusp": "Palatal cusp",
+      "incisal_edge": "Incisal edge",
+      "cingulum": "Cingulum"
+    }
   },
   "dental_chart": {
     "primary_teeth": "Primary teeth",

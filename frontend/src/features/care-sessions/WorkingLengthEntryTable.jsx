@@ -3,6 +3,8 @@ import PropTypes from 'prop-types';
 import { Ruler, Save, CheckCircle2, History } from 'lucide-react';
 import { REFERENCE_POINTS, MAF_SIZES } from './canalAnatomy';
 
+const FILE_SIZES = [...new Set(MAF_SIZES.map((size) => size.split(' / ')[0]))];
+
 /**
  * Working Length Structured Entry (Slice S20 / G10-M10).
  * Structured recording of root canal lengths, reference points, and MAF sizes chairside.
@@ -15,7 +17,7 @@ export default function WorkingLengthEntryTable({
     isLoading = false,
     t = (k, f) => f || k,
 }) {
-    // Local draft states for each canal: { [canalId]: { length_mm, reference_point, maf, notes } }
+    // Keep each canal's length, file size, taper and notes independent.
     const [drafts, setDrafts] = useState({});
     const [savingCanal, setSavingCanal] = useState(null);
     const [saveError, setSaveError] = useState(false);
@@ -25,7 +27,8 @@ export default function WorkingLengthEntryTable({
             drafts[canalId] || {
                 length_mm: '',
                 reference_point: defaultRef || REFERENCE_POINTS[0],
-                maf: MAF_SIZES[1], // default #25 / .04
+                maf: MAF_SIZES[1].split(' / ')[0],
+                taper: '',
                 notes: '',
             }
         );
@@ -36,7 +39,8 @@ export default function WorkingLengthEntryTable({
             const current = prev[canalId] || {
                 length_mm: '',
                 reference_point: defaultRef || REFERENCE_POINTS[0],
-                maf: MAF_SIZES[1],
+                maf: MAF_SIZES[1].split(' / ')[0],
+                taper: '',
                 notes: '',
             };
             return {
@@ -53,7 +57,9 @@ export default function WorkingLengthEntryTable({
         if (savingCanal) return;
         const draft = getDraft(canal.canalId);
         const lengthNum = Number.parseFloat(draft.length_mm);
-        if (Number.isNaN(lengthNum) || lengthNum <= 0) {
+        const invalidTaper = draft.taper !== '' && (!Number.isFinite(Number(draft.taper)) || Number(draft.taper) <= 0);
+        if (!Number.isFinite(lengthNum) || lengthNum <= 0 || invalidTaper) {
+            setSaveError(true);
             return;
         }
 
@@ -67,6 +73,7 @@ export default function WorkingLengthEntryTable({
                 length_mm: lengthNum,
                 reference_point: draft.reference_point,
                 maf: draft.maf,
+                ...(draft.taper !== '' ? { taper: Number(draft.taper) } : {}),
                 notes: draft.notes?.trim() || null,
             });
             if (result === false) return;
@@ -108,7 +115,7 @@ export default function WorkingLengthEntryTable({
                     </h4>
                 </div>
                 <span className="text-xs text-slate-500 dark:text-slate-400">
-                    Tooth {toothKey}
+                    {t('care_sessions.tooth', 'Tooth')} {toothKey}
                 </span>
             </div>
 
@@ -133,10 +140,10 @@ export default function WorkingLengthEntryTable({
                             <div className="flex flex-wrap items-center justify-between gap-2 pb-2">
                                 <div className="flex items-center gap-2">
                                     <span className="rounded-md bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-                                        Canal {canal.canalId}
+                                        {t('care_session.canal_label', 'Canal')} {canal.canalId}
                                     </span>
                                     <span className="text-xs text-slate-500 dark:text-slate-400">
-                                        ({canal.rootId})
+                                        ({t(`care_session.roots.${canal.rootId}`, canal.rootId)})
                                     </span>
                                 </div>
 
@@ -147,14 +154,15 @@ export default function WorkingLengthEntryTable({
                                     >
                                         <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
                                         <span>
-                                            Recorded: {latestObs.structured_value?.length_mm ?? latestObs.length_mm} mm
+                                            {t('care_session.recorded_label', 'Recorded')}: {latestObs.structured_value?.length_mm ?? latestObs.length_mm} mm
                                             ({latestObs.structured_value?.reference_point || latestObs.reference_point || 'Cusp'} / {latestObs.structured_value?.maf || latestObs.maf || 'MAF'})
+                                            {latestObs.structured_value?.taper != null && <span> · {t('care_session.maf_taper', 'Master file taper')}: {latestObs.structured_value.taper}</span>}
                                         </span>
                                     </div>
                                 )}
                             </div>
 
-                            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-4">
+                            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
                                 <div>
                                     <label
                                         htmlFor={`length-${canal.canalId}`}
@@ -172,7 +180,7 @@ export default function WorkingLengthEntryTable({
                                         onChange={(e) =>
                                             handleUpdateField(canal.canalId, 'length_mm', e.target.value)
                                         }
-                                        placeholder="e.g. 21.5"
+                                        placeholder="21.5"
                                         data-testid={`input-length-${canal.canalId}`}
                                         className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                                     />
@@ -196,7 +204,7 @@ export default function WorkingLengthEntryTable({
                                     >
                                         {REFERENCE_POINTS.map((rp) => (
                                             <option key={rp} value={rp}>
-                                                {rp}
+                                                {t(`care_session.reference_points.${rp.toLowerCase().replaceAll(' ', '_')}`, rp)}
                                             </option>
                                         ))}
                                     </select>
@@ -218,7 +226,7 @@ export default function WorkingLengthEntryTable({
                                         data-testid={`select-maf-${canal.canalId}`}
                                         className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                                     >
-                                        {MAF_SIZES.map((size) => (
+                                        {FILE_SIZES.map((size) => (
                                             <option key={size} value={size}>
                                                 {size}
                                             </option>
@@ -226,6 +234,22 @@ export default function WorkingLengthEntryTable({
                                     </select>
                                 </div>
 
+                                <div>
+                                    <label htmlFor={`taper-${canal.canalId}`} className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400">
+                                        {t('care_session.maf_taper', 'Master file taper')}
+                                    </label>
+                                    <input
+                                        id={`taper-${canal.canalId}`}
+                                        data-testid={`input-taper-${canal.canalId}`}
+                                        type="number"
+                                        min="0"
+                                        step="any"
+                                        placeholder="0.04"
+                                        value={draft.taper}
+                                        onChange={(e) => handleUpdateField(canal.canalId, 'taper', e.target.value)}
+                                        className="mt-1 min-h-10 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs dark:border-slate-700 dark:bg-slate-900"
+                                    />
+                                </div>
                                 <div className="flex items-end">
                                     <button
                                         type="button"
@@ -258,7 +282,7 @@ export default function WorkingLengthEntryTable({
                             {canalObservations.length > 1 && (
                                 <div className="mt-2 flex items-center gap-2 border-t border-slate-200/60 pt-1.5 text-[11px] text-slate-500 dark:border-slate-800 dark:text-slate-400">
                                     <History className="h-3 w-3" aria-hidden="true" />
-                                    <span>Prior readings:</span>
+                                    <span>{t('care_session.prior_readings', 'Prior readings')}:</span>
                                     {canalObservations.slice(0, -1).map((obs, idx) => (
                                         <span key={obs.id || idx} className="rounded bg-slate-200/70 px-1.5 py-0.5 dark:bg-slate-700">
                                             {obs.structured_value?.length_mm || obs.length_mm} mm
