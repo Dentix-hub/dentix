@@ -148,6 +148,7 @@ describe('GenericVisitWorkspace and TreatmentHistory regressions', () => {
     it('does not guess a native procedure ID from a legacy treatment row', () => {
         wrap(
             <TreatmentHistory
+                nativeWritesEnabled
                 patientId={1}
                 history={[{ id: 77, procedure: 'Extraction', status: 'Done', date: '2026-10-01', tooth_number: '46' }]}
                 careSessions={[]}

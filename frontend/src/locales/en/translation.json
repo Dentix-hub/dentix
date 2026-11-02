@@ -3744,6 +3744,9 @@
     "cancelled_label": "Cancelled",
     "taper_presets": "Taper presets",
     "custom_taper": "Custom",
+    "native_writes_unavailable": "Session recording is not enabled for this clinic. Ask the system administrator to enable clinical sessions, then check again.",
+    "entries_kept_open": "Your entries are kept in this form while it stays open.",
+    "recheck_availability": "Check again",
     "record_failed": "Could not record the session. Your entries are kept; please try again.",
     "measurement_type_help": "General measurement records a value or note. Working Length records canal length in mm with file size, taper and reference point."
   },

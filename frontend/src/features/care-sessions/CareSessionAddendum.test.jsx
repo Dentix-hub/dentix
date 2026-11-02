@@ -13,7 +13,7 @@ it('shows original visit documentation and its corrections together without coun
     useAuthStore.setState({ user: { id: 10, role: 'doctor' } });
     const session = { id: 77, status: 'completed', notes: 'Original narrative', created_at: '2026-10-01T10:00:00Z', recorded_by_user_id: 10, observations: [{ id: 5, structured_value: { value: 'A2' }, observation_code: 'shade' }], procedures: [{ id: 2, work_item_id: 101, procedure_notes: 'Restoration', template_snapshot: { custom_fields: [{ field_id: 'shade', label: 'Shade' }], custom_field_values: { shade: 'A2' } } }] };
     const addendum = { id: 78, amends_session_id: 77, status: 'completed', notes: 'Prior correction', amendment_reason: 'Radiograph review', created_at: '2026-10-02T10:00:00Z', recorded_by_user_id: 10 };
-    render(<QueryClientProvider client={new QueryClient()}><TreatmentHistory patientId={123} careSessions={[session, addendum]} history={[]} /></QueryClientProvider>);
+    render(<QueryClientProvider client={new QueryClient()}><TreatmentHistory nativeWritesEnabled patientId={123} careSessions={[session, addendum]} history={[]} /></QueryClientProvider>);
     fireEvent.click(screen.getByTestId('view-sessions-tab'));
     expect(screen.getByTestId('view-sessions-tab')).toHaveTextContent('(1)');
     expect(screen.getByText('Original narrative')).toBeInTheDocument();

@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import delete
+from sqlalchemy import delete, func, select
 
 from backend import models, schemas
 from backend.auth import create_access_token
@@ -23,6 +23,7 @@ async def test_feature_discovery_matches_native_api_in_both_directions(
 ):
     env = setup_env
     user, tenant = env["doctor1"], env["tenant"]
+    _, item, _ = await seed_visit(async_db_session, env, status="completed")
     await async_db_session.execute(
         delete(models.TenantFeature).where(
             models.TenantFeature.tenant_id == tenant.id,
@@ -48,6 +49,33 @@ async def test_feature_discovery_matches_native_api_in_both_directions(
         )
         assert response.status_code == 200
         assert "clinical_vnext_native_writes" not in response.json()["data"]["features"]
+        payload = {
+            "is_historical": True,
+            "actual_visit_date": "2026-10-01T10:00:00Z",
+            "work_item_ids": [item.id],
+            "notes": "Clinical documentation",
+        }
+        count_stmt = select(func.count(models.CareSession.id)).where(
+            models.CareSession.tenant_id == tenant.id,
+            models.CareSession.patient_id == env["patient1"].id,
+        )
+        before_count = await async_db_session.scalar(count_stmt)
+        response = await client.post(
+            f"/api/v1/patients/{env['patient1'].id}/care-sessions",
+            headers={"Authorization": f"Bearer {token}"},
+            json=payload,
+        )
+        assert response.status_code == 404, response.text
+        assert response.json()["detail"] == "Clinical native writes are disabled"
+        assert await async_db_session.scalar(count_stmt) == before_count
+        await set_native_writes_flag(async_db_session, tenant.id, True)
+        response = await client.post(
+            f"/api/v1/patients/{env['patient1'].id}/care-sessions",
+            headers={"Authorization": f"Bearer {token}"},
+            json=payload,
+        )
+        assert response.status_code == 201, response.text
+        assert await async_db_session.scalar(count_stmt) == before_count + 1
 
 
 @pytest.mark.asyncio

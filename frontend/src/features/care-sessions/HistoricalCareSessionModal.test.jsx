@@ -22,6 +22,29 @@ describe('HistoricalCareSessionModal', () => {
         vi.clearAllMocks();
     });
 
+    it('keeps documentation and requires verified activation after the server disables native writes', async () => {
+        patientsApi.startCareSession.mockRejectedValueOnce({ response: { status: 404, data: { detail: 'Clinical native writes are disabled' } } });
+        const recheck = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+        const close = vi.fn();
+        render(<HistoricalCareSessionModal isOpen patientId={5} onClose={close} patientWorkItems={mockWorkItems} onRecheckNativeWrites={recheck} />);
+        fireEvent.change(screen.getByTestId('input-historical-notes'), { target: { value: 'Retain clinical notes' } });
+        fireEvent.click(screen.getByTestId('btn-submit-historical-session'));
+        expect(await screen.findByTestId('native-session-unavailable')).toHaveTextContent('system administrator');
+        expect(screen.queryByText('Clinical native writes are disabled')).not.toBeInTheDocument();
+        expect(screen.getByTestId('btn-submit-historical-session')).toBeDisabled();
+        expect(screen.getByTestId('input-historical-notes')).toHaveValue('Retain clinical notes');
+        expect(close).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByTestId('recheck-native-session'));
+        await waitFor(() => expect(recheck).toHaveBeenCalledTimes(1));
+        expect(screen.getByTestId('btn-submit-historical-session')).toBeDisabled();
+        fireEvent.click(screen.getByTestId('recheck-native-session'));
+        await waitFor(() => expect(screen.getByTestId('btn-submit-historical-session')).toBeEnabled());
+        patientsApi.startCareSession.mockResolvedValueOnce({ data: { id: 82 } });
+        fireEvent.click(screen.getByTestId('btn-submit-historical-session'));
+        await waitFor(() => expect(close).toHaveBeenCalledTimes(1));
+        expect(patientsApi.startCareSession.mock.lastCall[1].notes).toBe('Retain clinical notes');
+    });
+
     it('includes typed canal measurements when recording the visit directly', async () => {
         patientsApi.startCareSession.mockResolvedValue({ data: { id: 80 } });
         render(<HistoricalCareSessionModal isOpen patientId={5} onClose={vi.fn()} patientWorkItems={[{ id: 101, code: 'ENDO_RCT', tooth_number: '46' }]} />);

@@ -22,6 +22,8 @@ export default function HistoricalCareSessionModal({
     patientWorkItems = [],
     doctors = [],
     currentUserId = null,
+    nativeWritesEnabled = true,
+    onRecheckNativeWrites,
     onSuccess,
     t: customT,
 }) {
@@ -54,6 +56,19 @@ export default function HistoricalCareSessionModal({
     const [notes, setNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState(null);
+    const [nativeWritesRejected, setNativeWritesRejected] = useState(false);
+    const [isCheckingAvailability, setIsCheckingAvailability] = useState(false);
+    const recordingUnavailable = !nativeWritesEnabled || nativeWritesRejected;
+    const recheckAvailability = async () => {
+        setIsCheckingAvailability(true);
+        try {
+            setNativeWritesRejected((await onRecheckNativeWrites()) !== true);
+        } catch {
+            setNativeWritesRejected(true);
+        } finally {
+            setIsCheckingAvailability(false);
+        }
+    };
     const measurementEditorRef = useRef(null);
     const submittingRef = useRef(false);
 
@@ -238,7 +253,7 @@ export default function HistoricalCareSessionModal({
 
     const handleSubmit = async (e) => {
         e?.preventDefault();
-        if (submittingRef.current) return;
+        if (submittingRef.current || recordingUnavailable) return;
         const err = validate();
         if (err) {
             setErrorMsg(err);
@@ -334,6 +349,10 @@ export default function HistoricalCareSessionModal({
             onClose();
         } catch (err) {
             const detail = err?.response?.data?.detail;
+            if (err?.response?.status === 404 && detail === 'Clinical native writes are disabled') {
+                setNativeWritesRejected(true);
+                return;
+            }
             setErrorMsg(
                 Array.isArray(detail)
                     ? detail
@@ -712,6 +731,17 @@ export default function HistoricalCareSessionModal({
                     />
                 </div>
 
+                {recordingUnavailable && (
+                    <div role="alert" data-testid="native-session-unavailable" className="space-y-2 rounded-control border border-warning/20 bg-warning/10 p-3 text-sm text-text-primary">
+                        <p>{t('care_session.native_writes_unavailable', 'Session recording is not enabled for this clinic. Ask the system administrator to enable clinical sessions, then check again.')}</p>
+                        <p>{t('care_session.entries_kept_open', 'Your entries are kept in this form while it stays open.')}</p>
+                        {onRecheckNativeWrites && (
+                            <Button type="button" variant="outline" size="sm" onClick={recheckAvailability} disabled={isCheckingAvailability} data-testid="recheck-native-session">
+                                {t('care_session.recheck_availability', 'Check again')}
+                            </Button>
+                        )}
+                    </div>
+                )}
                 {errorMsg && (
                     <div
                         role="alert"
@@ -737,7 +767,7 @@ export default function HistoricalCareSessionModal({
                         variant="primary"
                         size="sm"
                         type="submit"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || recordingUnavailable}
                         data-testid="btn-submit-historical-session"
                         className="gap-1.5 font-bold"
                     >
@@ -761,6 +791,8 @@ HistoricalCareSessionModal.propTypes = {
     patientWorkItems: PropTypes.array,
     doctors: PropTypes.array,
     currentUserId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    nativeWritesEnabled: PropTypes.bool,
+    onRecheckNativeWrites: PropTypes.func,
     onSuccess: PropTypes.func,
     t: PropTypes.func,
 };

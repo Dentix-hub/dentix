@@ -81,6 +81,8 @@ const TreatmentHistory = ({
     history = [],
     patientId,
     careSessions: propCareSessions,
+    nativeWritesEnabled = false,
+    onRecheckNativeWrites,
     onEdit,
     onDelete,
     onAdd,
@@ -100,11 +102,12 @@ const TreatmentHistory = ({
         ? user.permissions
         : (typeof user?.permissions === 'string' ? JSON.parse(user?.permissions || '[]') : []);
 
-    const canManageClinicalFollowUp =
+    const hasClinicalWritePermission =
         ['admin', 'super_admin', 'doctor'].includes(role) ||
         permissionsList.includes('clinical:write') ||
         permissionsList.includes('clinical_write') ||
         permissionsList.includes('CLINICAL_WRITE');
+    const canManageClinicalFollowUp = hasClinicalWritePermission && nativeWritesEnabled;
 
     const doctorsQuery = useQuery({
         queryKey: ['doctors', 'treatment-history'],
@@ -126,7 +129,7 @@ const TreatmentHistory = ({
             const res = await getPatientCareSessions(patientId);
             return res?.data?.data || res?.data || [];
         },
-        enabled: Boolean(patientId && !propCareSessions),
+        enabled: Boolean(patientId && !propCareSessions && nativeWritesEnabled),
     });
 
     const allSessions = propCareSessions || fetchedSessions;
@@ -211,12 +214,14 @@ const TreatmentHistory = ({
                 </div>
 
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                    {canManageClinicalFollowUp && (
+                    {hasClinicalWritePermission && (
                         <button
                             type="button"
                             data-testid="record-past-visit-btn"
+                            disabled={!nativeWritesEnabled}
+                            aria-describedby={!nativeWritesEnabled ? 'native-session-unavailable' : undefined}
                             onClick={() => setIsHistoricalModalOpen(true)}
-                            className="inline-flex min-h-11 items-center gap-1.5 rounded-control border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                            className="inline-flex min-h-11 items-center gap-1.5 rounded-control border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
                             <History className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                             <span>{t('patientDetails.treatment_history.record_past_visit', '+ Record Session')}</span>
@@ -232,6 +237,16 @@ const TreatmentHistory = ({
                         </button>
                     )}
                 </div>
+                {hasClinicalWritePermission && !nativeWritesEnabled && !isHistoricalModalOpen && (
+                    <div id="native-session-unavailable" data-testid="native-session-unavailable" role="status" className="space-y-2 text-sm text-text-secondary">
+                        <p>{t('care_session.native_writes_unavailable', 'Session recording is not enabled for this clinic. Ask the system administrator to enable clinical sessions, then check again.')}</p>
+                        {onRecheckNativeWrites && (
+                            <button type="button" onClick={onRecheckNativeWrites} className="min-h-11 font-bold text-primary">
+                                {t('care_session.recheck_availability', 'Check again')}
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
 
             {/* PROCEDURES VIEW */}
@@ -651,6 +666,8 @@ const TreatmentHistory = ({
                     patientWorkItems={availableWorkItems}
                     doctors={doctors}
                     currentUserId={user?.id}
+                    nativeWritesEnabled={nativeWritesEnabled}
+                    onRecheckNativeWrites={onRecheckNativeWrites}
                     onSuccess={handleHistorySuccess}
                     t={t}
                 />
@@ -676,6 +693,8 @@ TreatmentHistory.propTypes = {
     history: PropTypes.arrayOf(PropTypes.object),
     patientId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     careSessions: PropTypes.arrayOf(PropTypes.object),
+    nativeWritesEnabled: PropTypes.bool,
+    onRecheckNativeWrites: PropTypes.func,
     onEdit: PropTypes.func,
     onDelete: PropTypes.func,
     onAdd: PropTypes.func,

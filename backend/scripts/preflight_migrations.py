@@ -907,6 +907,14 @@ def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
     with engine.begin() as connection:
         _install_postgresql_rls(connection)
         _install_postgresql_restore_write_gates(connection)
+        # Fresh metadata baselines are stamped at head, so release-policy
+        # data migrations do not run here. Seed the same global default while
+        # preserving decisions made before an interrupted bootstrap resumes.
+        connection.execute(text("""
+            INSERT INTO feature_flags (key, description, is_global_enabled, rollout_percentage)
+            VALUES ('clinical_vnext_native_writes', 'Unified clinical session recording', true, 100)
+            ON CONFLICT (key) DO NOTHING
+        """))
 
     # The model baseline is current by definition. Historical revisions are
     # legacy deltas for pre-existing schemas and cannot safely be replayed from

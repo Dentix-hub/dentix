@@ -2,6 +2,11 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- General session release (2026-11-02): owner clarified availability for all clinics. New data-only revision d3e4f5a6b7c8 enables the global native-session flag at 100% and activates existing overrides once; fresh bootstrap seeds the same default. Future clinics inherit it automatically; later deliberate administrative stops remain effective.
+- Verification: 81 targeted backend tests PASS, zero failures/skips, including real PostgreSQL activation/bootstrap/clinical guards, migration lineage, API discovery/save agreement and RBAC; Ruff/diff PASS. Prior UI availability correction retains its recorded 42 UI passes and lint/build/guardrails evidence; no frontend changes in this follow-up.
+- Status: DONE implementation/local verification; PR #346 delivery and CI/staging acceptance pending. No live deployment/config mutation or clinical/financial record rewrite. Evidence and staging path: docs/reports/care-session-global-release-2026-11-02.md.
+- PR #346 CI follow-up: reproduced all 3 SQLite migration failures (missing pre-existing feature tables); shared legacy fixture now supplies them. All 19 relevant lifecycle/invariance/link/lineage tests, targeted Ruff and diff checks PASS; production rollout/data and original assertions unchanged. Fresh CI pending.
+
 - Session recording follow-up (2026-11-02): direct submit collects valid pending canal/general entries and steps; localized validation/API errors stay beside the footer, and unavailable treating-provider IDs are not sent implicitly.
 - Record Session labels replace Record Past Visit titles/actions; observation choices explain Measurement vs Working Length bilingually. Taper presets 0.02/0.04/0.06 and manual values share the existing numeric observation contract.
 - Verification: 88 UI passes in the subsystem run plus 7 unchanged isolated i18n passes (overlap; concurrent scan timeout documented), 2 backend persistence/rollout tests and 8 synthetic browser scenarios PASS; lint/build/guardrails/diff PASS. Status: DONE locally; GitHub delivery authorized, staging acceptance pending. Evidence: docs/reports/care-session-record-submit-2026-11-02.md.
