@@ -41,3 +41,9 @@ For every actionable finding, provide:
 - **Severity**: `CRITICAL` | `HIGH` | `MEDIUM` | `LOW` | `NOTE`
 - **Impact**: Clear explanation of the defect or security implication.
 - **Remediation**: Concrete, code-level suggestion for resolution.
+
+## Two-Axis Reporting
+Used only for the Final Plan Review and PRs the owner escalates. Report two separate sections; never merge or re-rank across them:
+- **Spec**: requirements missing or partial; behavior not asked for (scope creep); requirements implemented wrongly. Cite the relevant requirement by file/line when available; otherwise quote its identifiable wording. Never invent line references.
+- **Standards**: breaches of PROJECT_STANDARDS.md, AGENTS.md invariants or ADRs. Cite file and rule.
+End with one line: finding count per axis and the worst issue within each axis. Existing severity levels and priority sequence apply inside each axis. Do not delegate reviews. If delegation is explicitly authorized later, prohibit delegates from invoking code-review or spawning further agents.
