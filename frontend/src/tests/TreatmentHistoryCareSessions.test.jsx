@@ -24,6 +24,14 @@ describe('Slice S25 / Defects 4, 6, 7: TreatmentHistory with Real Care Sessions'
         return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
     };
 
+    it('prevents recording when native writes are disabled even for a doctor', () => {
+        renderWithClient(<TreatmentHistory patientId={1} careSessions={[]} nativeWritesEnabled={false} />);
+        expect(screen.getByTestId('record-past-visit-btn')).toBeDisabled();
+        expect(screen.getByTestId('native-session-unavailable')).toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('record-past-visit-btn'));
+        expect(screen.queryByTestId('historical-care-session-form')).not.toBeInTheDocument();
+    });
+
     const mockHistory = [
         {
             id: 10,
@@ -79,6 +87,7 @@ describe('Slice S25 / Defects 4, 6, 7: TreatmentHistory with Real Care Sessions'
     it('renders treatments table with ProcedureStatusControl (Defect 7)', () => {
         renderWithClient(
             <TreatmentHistory
+                nativeWritesEnabled
                 history={mockHistory}
                 patientId={1}
                 careSessions={mockCareSessions}
@@ -97,6 +106,7 @@ describe('Slice S25 / Defects 4, 6, 7: TreatmentHistory with Real Care Sessions'
     it('exposes expandable real care session history under procedure row (Defect 6)', () => {
         renderWithClient(
             <TreatmentHistory
+                nativeWritesEnabled
                 history={mockHistory}
                 patientId={1}
                 careSessions={mockCareSessions}
@@ -137,6 +147,7 @@ describe('Slice S25 / Defects 4, 6, 7: TreatmentHistory with Real Care Sessions'
     it('switches to unified visits timeline view', () => {
         renderWithClient(
             <TreatmentHistory
+                nativeWritesEnabled
                 history={mockHistory}
                 patientId={1}
                 careSessions={mockCareSessions}
@@ -168,6 +179,7 @@ describe('Slice S25 / Defects 4, 6, 7: TreatmentHistory with Real Care Sessions'
 
         renderWithClient(
             <TreatmentHistory
+                nativeWritesEnabled
                 history={legacyHistory}
                 patientId={1}
                 careSessions={[]}
@@ -183,6 +195,7 @@ describe('Slice S25 / Defects 4, 6, 7: TreatmentHistory with Real Care Sessions'
     it('opens follow-up management modal from session next-visit request (Issue 8)', () => {
         renderWithClient(
             <TreatmentHistory
+                nativeWritesEnabled
                 history={mockHistory}
                 patientId={1}
                 careSessions={mockCareSessions}
@@ -206,6 +219,7 @@ describe('Slice S25 / Defects 4, 6, 7: TreatmentHistory with Real Care Sessions'
 
         renderWithClient(
             <TreatmentHistory
+                nativeWritesEnabled
                 history={mockHistory}
                 patientId={1}
                 careSessions={mockCareSessions}
@@ -224,6 +238,7 @@ describe('Slice S25 / Defects 4, 6, 7: TreatmentHistory with Real Care Sessions'
 
         renderWithClient(
             <TreatmentHistory
+                nativeWritesEnabled
                 history={mockHistory}
                 patientId={1}
                 careSessions={mockCareSessions}

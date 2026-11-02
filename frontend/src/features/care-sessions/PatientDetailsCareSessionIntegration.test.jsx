@@ -1,8 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import PatientDetails from '@/pages/PatientDetails';
+import { useAuthStore } from '@/store/auth.store';
 
 const {
     mockRecord, mockFinish, mockFlush, mockDiscard,
@@ -10,12 +11,14 @@ const {
     mockApplyTemplate,
     mockUseResumableCareSession,
     mockUseActiveCareSession,
+    mockUseTenantFeatures,
 } = vi.hoisted(() => ({
     mockRecord: vi.fn(), mockFinish: vi.fn(), mockFlush: vi.fn(), mockDiscard: vi.fn(),
     mockStartSession: vi.fn(),
     mockApplyTemplate: vi.fn(),
     mockUseResumableCareSession: vi.fn(),
     mockUseActiveCareSession: vi.fn(() => ({ data: null, isLoading: false, refetch: vi.fn() })),
+    mockUseTenantFeatures: vi.fn(),
 }));
 
 vi.mock('@/auth/useAuth', () => ({
@@ -113,10 +116,7 @@ vi.mock('@/hooks/usePatientDetails', () => ({
     }),
     useCreatePayment: () => ({ mutate: vi.fn() }),
     useDeletePayment: () => ({ mutate: vi.fn() }),
-    useTenantFeatures: () => ({
-        data: ['clinical_vnext_native_writes'],
-        isLoading: false,
-    }),
+    useTenantFeatures: (...args) => mockUseTenantFeatures(...args),
     usePatientClinicalPlans: () => ({ data: [], isLoading: false }),
     useActiveCareSession: (...args) => mockUseActiveCareSession(...args),
     useResumableCareSession: (...args) => mockUseResumableCareSession(...args),
@@ -184,6 +184,21 @@ function renderActivePatient() {
 }
 
 describe('PatientDetails Care Session Integration', () => {
+    beforeEach(() => {
+        Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
+        useAuthStore.setState({ user: { id: 1, role: 'doctor', permissions: ['clinical:write'] } });
+        mockUseTenantFeatures.mockReturnValue({ data: ['clinical_vnext_native_writes'], refetch: vi.fn(), isLoading: false });
+    });
+
+    it.each([false, true])('passes effective native availability (%s) to the history recording entry point', async (enabled) => {
+        mockUseTenantFeatures.mockReturnValue({ data: enabled ? ['clinical_vnext_native_writes'] : [], refetch: vi.fn(), isLoading: false });
+        renderActivePatient();
+        fireEvent.click(screen.getByRole('tab', { name: /patients.tabs.history/ }));
+        const record = await screen.findByTestId('record-past-visit-btn');
+        if (enabled) expect(record).toBeEnabled();
+        else expect(record).toBeDisabled();
+    });
+
     it('persists the selected procedure and measured length through real workspace and patient handler', async () => {
         renderActivePatient();
         fireEvent.click(await screen.findByTestId('btn-open-active-workflow'));

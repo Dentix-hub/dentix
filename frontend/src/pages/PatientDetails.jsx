@@ -166,7 +166,7 @@ export default function PatientDetails() {
         refetch: refetchWorkspace,
     } = usePatientClinicalWorkspace(id, { enabled: activeTab === 'chart' || isToothSelectModalOpen });
 
-    const { data: tenantFeatures = [] } = useTenantFeatures();
+    const { data: tenantFeatures = [], refetch: refetchTenantFeatures } = useTenantFeatures();
     const isTreatmentPlansEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_treatment_plans');
     const isNativeWritesEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_vnext_native_writes');
 
@@ -1055,6 +1055,11 @@ export default function PatientDetails() {
                             <TreatmentHistory
                                 history={history}
                                 patientId={id}
+                                nativeWritesEnabled={isNativeWritesEnabled}
+                                onRecheckNativeWrites={async () => {
+                                    const result = await refetchTenantFeatures();
+                                    return !result.isError && Array.isArray(result.data) && result.data.includes('clinical_vnext_native_writes');
+                                }}
                                 onAdd={openManualTreatment}
                                 onEdit={handleEditTreatment}
                                 onDelete={handleDeleteTreatment}

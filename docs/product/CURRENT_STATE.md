@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Session availability incident (2026-11-02): confirmed `Clinical native writes are disabled` is the server's effective clinic rollout gate; history had exposed recording from role alone. Patient history now receives availability, with localized guidance, read-only recheck and retention of open-form entries after a late rejection.
+- Verification: 42 targeted UI/i18n tests and 2 authenticated API/persistence tests PASS; ESLint, Ruff, production/PWA build, PR-diff guardrails and whitespace PASS. No server gate, clinic configuration or stored data changed.
+- Status: PARTIAL for staging recording; UI fix complete, but affected clinic identity/administrative runtime access and successful deployed save remain unverified. Evidence and targeted administrator activation path: docs/reports/care-session-native-availability-2026-11-02.md.
+
 - Session recording follow-up (2026-11-02): direct submit collects valid pending canal/general entries and steps; localized validation/API errors stay beside the footer, and unavailable treating-provider IDs are not sent implicitly.
 - Record Session labels replace Record Past Visit titles/actions; observation choices explain Measurement vs Working Length bilingually. Taper presets 0.02/0.04/0.06 and manual values share the existing numeric observation contract.
 - Verification: 88 UI passes in the subsystem run plus 7 unchanged isolated i18n passes (overlap; concurrent scan timeout documented), 2 backend persistence/rollout tests and 8 synthetic browser scenarios PASS; lint/build/guardrails/diff PASS. Status: DONE locally; GitHub delivery authorized, staging acceptance pending. Evidence: docs/reports/care-session-record-submit-2026-11-02.md.
