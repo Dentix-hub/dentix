@@ -60,12 +60,17 @@ def _noop_dashboard_precompute(monkeypatch, request):
 
 @pytest.fixture
 def legacy_clinical_schema():
-    """Supply pre-unification tables in minimal stamped migration databases.
+    """Supply existing clinical and feature tables in stamped migration DBs.
 
     These tables predate the stamped revisions. Leave all new columns, tables
     and indexes to Alembic so tests still rehearse the entire path to head.
     """
     def create_tables(connection):
+        # Feature configuration predates the revisions stamped by these
+        # partial legacy fixtures. Head's release migration requires both
+        # tables; leave flag data and all new schema changes to Alembic.
+        for table in (models.FeatureFlag.__table__, models.TenantFeature.__table__):
+            table.create(connection, checkfirst=True)
         for table in ("patients", "care_sessions", "care_observations", "next_visit_requests"):
             connection.execute(text(
                 f"CREATE TABLE IF NOT EXISTS {table} "

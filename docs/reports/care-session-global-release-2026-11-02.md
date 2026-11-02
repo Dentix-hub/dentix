@@ -37,6 +37,24 @@ The new activation regression failed before implementation both for missing and 
 
 Targeted Ruff and `git diff --check` passed. Existing dependency deprecation warnings remain. No frontend code changed in this follow-up; the prior commit's 42 UI/i18n tests, ESLint, production/PWA build and guardrails remain recorded in the availability report, without claiming a redundant rerun here.
 
+## PR #346 CI fixture follow-up
+
+The [Backend Tests + Security run](https://github.com/Dentix-hub/dentix/actions/runs/41501311139/job/125469343081) reported three failures, 1,761 passes and one existing refresh-token TestClient skip; coverage reached 80.05%. All three failures were `no such table: feature_flags` in the inventory/session-link lifecycle, inventory legacy-row invariance and lab/work-item lifecycle tests. They stamp historical revisions on partial SQLite databases and then upgrade to current head without supplying their pre-existing feature configuration tables.
+
+The same three tests reproduced the exact failure locally before the fix. The shared `legacy_clinical_schema` fixture now supplies both existing feature tables, without seeding flag data or replacing any new schema/data migration. The session-mode test uses that shared prerequisite instead of creating the tables twice. Production code, rollout migration, CI configuration and original assertions remain unchanged.
+
+```text
+PYTHONPATH=. .venv/bin/pytest backend/tests/services/test_inventory_care_session_migration.py backend/tests/services/test_inventory_migration_invariance.py backend/tests/services/test_lab_order_work_item_migration.py backend/tests/test_session_mode_migration.py backend/tests/test_migrations_lineage.py -o addopts='' -q --tb=short --show-capture=no
+19 passed, zero failures/skips; exit 0
+
+.venv/bin/ruff check --config ruff.toml backend/tests/conftest.py backend/tests/test_session_mode_migration.py
+All checks passed; exit 0
+git diff --check
+exit 0
+```
+
+Fresh GitHub CI and deployed acceptance remain pending; the prior failed CI run is not reported as green.
+
 ## Staging acceptance (under 15 minutes)
 
 1. Apply the normal staging deployment/preflight as the migration owner. Verify head `d3e4f5a6b7c8` and native global state enabled/100%.
