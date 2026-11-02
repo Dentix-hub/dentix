@@ -2,6 +2,9 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- AI Hero adoption (2026-11-02): install 13 pinned skills and workflow rules; no installed skill executed.
+- Verification: upstream file comparison, dependencies, name collisions and applicable pre-commit hooks PASS; three upstream example glossary links unresolved. Invocation restriction enforcement unverified; CI and owner review pending.
+
 - Care-session follow-up (2026-11-01): feature discovery now resolves the effective native global rollout/tenant override; treatment editing no longer offers legacy session creation, and preserves existing records read-only.
 - Historical/current RCT entry supports multiple preset/custom canals with independent length, MAF size and numeric taper; taper survives continuation and reasoned corrections. Arabic canal/root/reference labels added; no schema or stored-history rewrite.
 - Verification: 73 backend + 100 UI tests PASS; Arabic browser smoke PASS at 390/1280px; lint/build/Ruff/guardrails PASS. Status: DONE locally; GitHub delivery authorized, staging acceptance pending. Evidence: docs/reports/care-session-rollout-canals-taper-2026-11-01.md.

@@ -1,6 +1,6 @@
 ---
 name: dentix-testing-verification
-description: Select the minimum sufficient verification gate for a DENTIX change. Activate when deciding what tests to run, not to duplicate testing across layers.
+description: Select the minimum sufficient verification gate for a DENTIX change. Activate when deciding what tests to run, not to duplicate testing across layers. Also activate when fixing a bug.
 ---
 
 # DENTIX Verification Policy
@@ -35,3 +35,19 @@ It does NOT create a separate testing workflow. It selects the gate.
 **Failure**: Include failing command, relevant error, classification (new / pre-existing baseline), and next action.
 
 HIGH_RISK or final reports may include additional evidence where useful.
+
+## Test Quality
+- Expected values come from an independent source (spec, brief, or worked example), not from the code under test.
+- Test through the public interface; mock only external boundaries.
+- Finance, ledger and commission tests include at least one hand-worked case with the arithmetic shown in the test.
+
+## Bug-Fix Verification
+Applies when a reported bug's root cause is not established by existing evidence.
+1. Before hypothesizing, run one command that fails specifically on the reported symptom. Record sanitized output. If reproduction is impossible, stop and report attempted approaches and missing prerequisites.
+2. Minimise the repro. Rank up to five plausible, falsifiable hypotheses and present them to the owner; unattended execution may continue only within existing authorization.
+3. Change one variable at a time. Tag temporary logs `[DEBUG-<id>]` and remove them (grep) before the PR.
+4. Write and run a failing regression test BEFORE the fix, using the narrowest stable public interface (service entry point, API route, or UI behavior) that reproduces the reported bug. If no suitable interface can reproduce it, document the limitation.
+5. Use real PostgreSQL for bugs involving RLS, tenant isolation, concurrency or database-level finance behavior; SQLite results do not count. Pure calculation bugs may use unit tests.
+6. For finance, auth or clinical fixes, add a test that existing records and permissions on the affected path behave as before (e.g. historical entries unchanged, unauthorized roles still rejected).
+7. Repro artifacts, logs and PR text contain no real patient data or secrets: use synthetic data and `<REDACTED>`.
+8. State the confirmed root cause in the PR description.
