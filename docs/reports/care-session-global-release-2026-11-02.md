@@ -1,6 +1,8 @@
 <!-- CLASSIFICATION: ACTIVE -->
 # Unified sessions: general availability
 
+Startup recovery follow-up: a deployed table-owning NOBYPASSRLS login cannot run the global data migration under forced RLS. See [preflight credential selection and real-role verification](session-release-preflight-rls-recovery-2026-11-02.md). The release migration remains unchanged; live recovery is pending deployment of that correction.
+
 Status: DONE for implementation and local verification. Remote CI, merge, deployment and deployed acceptance remain pending. The owner clarified that session recording is a general feature for every clinic; a manual opt-in for the affected clinic is not the intended product policy.
 
 ## Result

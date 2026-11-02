@@ -962,6 +962,100 @@ def _same_db_candidate_urls(reference_url: str) -> list[tuple[str, str]]:
     return candidates
 
 
+def _release_migration_access(db_url: str, *, needs_ddl: bool) -> bool:
+    """Probe an existing login's access without granting it any new rights."""
+    probe_engine = create_engine(db_url, connect_args={"connect_timeout": 5})
+    try:
+        with probe_engine.connect() as conn:
+            bypass = conn.execute(text(
+                "SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user"
+            )).scalar()
+            if not bypass:
+                return False
+            for table, privilege in (
+                ("feature_flags", "SELECT"), ("feature_flags", "INSERT"),
+                ("feature_flags", "UPDATE"), ("tenant_features", "SELECT"),
+                ("tenant_features", "UPDATE"), ("alembic_version", "SELECT"),
+                ("alembic_version", "UPDATE"),
+            ):
+                if not conn.execute(text(
+                    "SELECT has_table_privilege(current_user, :table, :privilege)"
+                ), {"table": table, "privilege": privilege}).scalar():
+                    return False
+            sequence = conn.execute(text(
+                "SELECT pg_get_serial_sequence('feature_flags', 'id')"
+            )).scalar()
+            if sequence and not conn.execute(text(
+                "SELECT has_sequence_privilege(current_user, :sequence, 'USAGE, UPDATE')"
+            ), {"sequence": sequence}).scalar():
+                return False
+            if needs_ddl:
+                return bool(conn.execute(text("""
+                    SELECT bool_and(pg_has_role(current_user, tableowner, 'USAGE'))
+                    FROM pg_tables WHERE schemaname = current_schema()
+                """)).scalar())
+            return True
+    except Exception:
+        # Candidate URLs can contain credentials; report only the env name
+        # in the caller, never connection exceptions/URLs from this probe.
+        return False
+    finally:
+        probe_engine.dispose()
+
+
+def _rls_release_migration_url(engine, config, db_url: str) -> tuple[str, bool]:
+    """Choose a physically separate privileged login for global release data.
+
+    Ownership alone cannot update FORCE-RLS tables. The deployed release
+    migration is immutable; select credentials able to execute it instead of
+    disabling RLS or granting BYPASSRLS/membership to the application login.
+    """
+    from alembic.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+
+    if engine.name != "postgresql":
+        return db_url, False
+    scripts = ScriptDirectory.from_config(config)
+    with engine.begin() as conn:
+        try:
+            with conn.begin_nested():
+                current = MigrationContext.configure(conn).get_current_heads()
+        except Exception:
+            # A supported NOINHERIT migration login may need its existing
+            # owner membership just to read Alembic bookkeeping. Use that
+            # role only in this read transaction; do not grant new rights.
+            owner = (_probe_postgresql_candidate(db_url) or {}).get("set_role_target")
+            if not owner:
+                raise
+            conn.execute(text(f"SET LOCAL ROLE {_quote_ident(str(owner))}"))
+            current = MigrationContext.configure(conn).get_current_heads()
+    pending = {rev.revision for rev in scripts.iterate_revisions(scripts.get_heads(), current)}
+    release_data_revisions = {"d3e4f5a6b7c8"}
+    if not pending.intersection(release_data_revisions):
+        return db_url, False
+    data_only = pending.issubset(release_data_revisions)
+    if _release_migration_access(db_url, needs_ddl=not data_only):
+        os.environ.pop("DENTIX_MIGRATION_SET_ROLE", None)
+        return db_url, data_only
+    if not (os.getenv("MIGRATION_DATABASE_URL") or os.getenv("OWNER_DATABASE_URL")):
+        for source, candidate in _same_db_candidate_urls(db_url):
+            if candidate != db_url and _release_migration_access(candidate, needs_ddl=not data_only):
+                logger.info(
+                    "[PREFLIGHT] Selecting %s for pending global release: verified "
+                    "BYPASSRLS and required privileges; runtime login remains unchanged.",
+                    source,
+                )
+                os.environ.pop("DENTIX_MIGRATION_SET_ROLE", None)
+                return candidate, data_only
+    raise RuntimeError(
+        "Pending global session release requires an existing BYPASSRLS migration "
+        "login with feature_flags INSERT/SELECT/UPDATE, tenant_features and "
+        "alembic_version SELECT/UPDATE, and feature flag sequence access. Configure "
+        "MIGRATION_DATABASE_URL/OWNER_DATABASE_URL or a same-database privileged "
+        "SYSTEM_DATABASE_URL. Application RLS and roles were not changed."
+    )
+
+
 def _prepare_postgresql_migration_privileges(engine, migration_url: str) -> None:
     """Ensure the migration role has cross-role privileges and table ownership before DDL."""
     if engine.name != "postgresql":
@@ -1243,7 +1337,13 @@ def run_alembic_upgrade():
                 return False
 
             logger.info("[PREFLIGHT] Existing versioned schema detected; running alembic upgrade head ...")
-            if engine.name == "postgresql":
+            release_url, release_data_only = _rls_release_migration_url(engine, alembic_cfg, db_url)
+            if release_url != db_url:
+                engine.dispose()
+                db_url = release_url
+                engine = create_engine(db_url)
+                alembic_cfg = _alembic_config(db_url)
+            if engine.name == "postgresql" and not release_data_only:
                 _prepare_postgresql_migration_privileges(engine, db_url)
 
             if not _is_alembic_at_head(engine, alembic_cfg):

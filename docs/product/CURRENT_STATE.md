@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Global-session startup recovery (2026-11-02): supplied log exposed FORCE-RLS rejection under a table-owning runtime login. Pending release data now uses a verified configured same-database administrative login; explicit migration URLs retain precedence. No applied migration/RLS/role/schema changes.
+- Verification: 42 targeted tests PASS with zero failures/skips, including real restricted-owner/system-login scenarios, refusal/rollback cases, cross-clinic denial, existing bootstrap/NOINHERIT repair and RBAC; Ruff/diff PASS.
+- Status: DONE implementation/local verification; CI, deployment and live startup recovery pending. Evidence and operator configuration/acceptance path: docs/reports/session-release-preflight-rls-recovery-2026-11-02.md.
+
 - General session release (2026-11-02): owner clarified availability for all clinics. New data-only revision d3e4f5a6b7c8 enables the global native-session flag at 100% and activates existing overrides once; fresh bootstrap seeds the same default. Future clinics inherit it automatically; later deliberate administrative stops remain effective.
 - Verification: 81 targeted backend tests PASS, zero failures/skips, including real PostgreSQL activation/bootstrap/clinical guards, migration lineage, API discovery/save agreement and RBAC; Ruff/diff PASS. Prior UI availability correction retains its recorded 42 UI passes and lint/build/guardrails evidence; no frontend changes in this follow-up.
 - Status: DONE implementation/local verification; PR #346 delivery and CI/staging acceptance pending. No live deployment/config mutation or clinical/financial record rewrite. Evidence and staging path: docs/reports/care-session-global-release-2026-11-02.md.
