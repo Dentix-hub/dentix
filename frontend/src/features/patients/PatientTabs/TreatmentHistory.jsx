@@ -1,9 +1,9 @@
+import ObservationSummary from '@/features/care-sessions/ObservationSummary';
 import { useState } from 'react';
 import PropTypes from 'prop-types';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Edit2,
-    Edit3,
     Trash2,
     ChevronDown,
     ChevronUp,
@@ -162,24 +162,31 @@ const TreatmentHistory = ({
         });
     };
 
+    const sessionStatusLabel = (status) => ({
+        completed: t('care_session.step_completed', 'Completed'),
+        in_progress: t('care_session.status_in_progress', 'Active Visit'),
+        paused: t('care_sessions.status_paused', 'Paused Session'),
+        cancelled: t('care_session.cancelled_label', 'Cancelled'),
+    })[status] || status;
+
     return (
         <div
             data-testid="treatment-history-container"
             className="bg-white rounded-2xl border border-slate-100 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300 dark:bg-slate-900 dark:border-slate-800"
         >
             {/* Header with View Mode Switcher and Add Manual */}
-            <div className="p-4 border-b border-slate-50 flex flex-wrap justify-between items-center gap-3 bg-slate-50/50 dark:bg-slate-800/40 dark:border-slate-800">
-                <div className="flex items-center gap-3">
+            <div className="grid min-w-0 gap-3 border-b border-slate-50 p-3 sm:p-4 bg-slate-50/50 dark:bg-slate-800/40 dark:border-slate-800">
+                <div className="flex min-w-0 flex-wrap items-center gap-3">
                     <h3 className="font-bold text-slate-700 dark:text-slate-200">
                         {t('patientDetails.treatment_history.title', 'Treatment & Visit History')}
                     </h3>
                     {careSessions.length > 0 && (
-                        <div className="flex items-center rounded-lg border border-slate-200 bg-white p-0.5 text-xs font-semibold dark:border-slate-700 dark:bg-slate-800">
+                        <div className="grid w-full min-w-0 grid-cols-2 rounded-control border border-slate-200 bg-white p-1 sm:w-auto text-xs font-semibold dark:border-slate-700 dark:bg-slate-800">
                             <button
                                 type="button"
                                 data-testid="view-procedures-tab"
                                 onClick={() => setViewMode('procedures')}
-                                className={`rounded-md px-2.5 py-1 transition-colors ${
+                                className={`min-h-10 rounded-control px-2 py-2 text-center transition-colors ${
                                     viewMode === 'procedures'
                                         ? 'bg-primary text-white shadow-xs'
                                         : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
@@ -191,7 +198,7 @@ const TreatmentHistory = ({
                                 type="button"
                                 data-testid="view-sessions-tab"
                                 onClick={() => setViewMode('sessions')}
-                                className={`rounded-md px-2.5 py-1 transition-colors ${
+                                className={`min-h-10 rounded-control px-2 py-2 text-center transition-colors ${
                                     viewMode === 'sessions'
                                         ? 'bg-primary text-white shadow-xs'
                                         : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
@@ -203,13 +210,13 @@ const TreatmentHistory = ({
                     )}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
                     {canManageClinicalFollowUp && (
                         <button
                             type="button"
                             data-testid="record-past-visit-btn"
                             onClick={() => setIsHistoricalModalOpen(true)}
-                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                            className="inline-flex min-h-11 items-center gap-1.5 rounded-control border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
                             <History className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                             <span>{t('patientDetails.treatment_history.record_past_visit', '+ Record Past Visit')}</span>
@@ -219,7 +226,7 @@ const TreatmentHistory = ({
                         <button
                             type="button"
                             onClick={onAdd}
-                            className="text-primary text-sm font-bold hover:underline"
+                            className="inline-flex min-h-11 items-center justify-center rounded-control border border-border px-3 py-2 text-sm font-bold text-primary hover:bg-primary/5"
                         >
                             {t('patientDetails.treatment_history.add_manual', '+ Add Procedure')}
                         </button>
@@ -229,9 +236,9 @@ const TreatmentHistory = ({
 
             {/* PROCEDURES VIEW */}
             {viewMode === 'procedures' && (
-                <div className="overflow-x-auto">
-                    <table className="w-full text-right align-middle" data-testid="treatments-table">
-                        <thead className="bg-slate-50 text-slate-600 text-xs font-bold uppercase tracking-wider dark:bg-slate-800/60 dark:text-slate-400">
+                <div className="min-w-0 p-3 sm:overflow-x-auto sm:p-0">
+                    <table className="block w-full text-start align-middle sm:table" data-testid="treatments-table">
+                        <thead className="hidden bg-slate-50 text-xs font-bold text-slate-600 sm:table-header-group dark:bg-slate-800/60 dark:text-slate-400">
                             <tr>
                                 <th className="p-3.5 whitespace-nowrap">{t('patientDetails.treatment_history.date', 'Date')}</th>
                                 <th className="p-3.5 whitespace-nowrap">{t('patientDetails.treatment_history.tooth', 'Tooth')}</th>
@@ -242,27 +249,32 @@ const TreatmentHistory = ({
                                 <th className="p-3.5 whitespace-nowrap">{t('patientDetails.treatment_history.actions', 'Actions')}</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        <tbody className="block space-y-3 sm:table-row-group sm:space-y-0 sm:divide-y sm:divide-border">
                             {history.map((item) => {
                                 const matchedSessions = careSessions.filter((s) => isSessionMatchingTreatment(s, item));
                                 const isExpanded = expandedRowIds.has(item.id);
 
                                 return (
-                                    <tr key={item.id} className="hover:bg-slate-50/70 transition-colors dark:hover:bg-slate-800/40">
-                                        <td className="p-3.5 whitespace-nowrap text-xs text-slate-600 dark:text-slate-300">
+                                    <tr key={item.id} className="grid min-w-0 grid-cols-2 gap-3 rounded-card border border-border bg-surface p-3 transition-colors sm:table-row sm:border-0 sm:p-0 sm:hover:bg-surface-subtle">
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.date', 'Date')}</span>
                                             {item.date ? new Date(item.date).toLocaleDateString() : '--'}
                                         </td>
-                                        <td className="p-3.5 font-mono text-xs font-bold text-slate-700 whitespace-nowrap dark:text-slate-200">
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.tooth', 'Tooth')}</span>
                                             {fdiToPalmer(item.tooth_number) || (item.tooth_number ? `T${item.tooth_number}` : '-')}
                                         </td>
-                                        <td className="p-3.5 font-bold text-xs text-slate-800 whitespace-nowrap dark:text-slate-200">
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3 col-span-2">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.diagnosis', 'Diagnosis')}</span>
                                             {item.diagnosis || '-'}
                                         </td>
-                                        <td className="p-3.5 text-xs font-semibold text-slate-900 whitespace-nowrap dark:text-slate-100">
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3 col-span-2 order-first font-bold sm:order-none">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.treatment', 'Procedure')}</span>
                                             {item.procedure}
                                         </td>
                                         {/* Defect 7 Fix: ProcedureStatusControl replaces static badge */}
-                                        <td className="p-3.5 whitespace-nowrap">
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.status', 'Status')}</span>
                                             {patientId && item.work_item_id ? (
                                                 <ProcedureStatusControl
                                                     patientId={Number(patientId)}
@@ -288,7 +300,8 @@ const TreatmentHistory = ({
                                             )}
                                         </td>
                                         {/* Details & Expandable Actual Care Sessions (Defect 6 Fix) */}
-                                        <td className="p-3.5 text-xs text-slate-700 dark:text-slate-300">
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3 col-span-2">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.details', 'Details & Sessions')}</span>
                                             {item.canal_count && (
                                                 <div className="font-bold mb-1 text-blue-700 dark:text-blue-400">
                                                     {t('patientDetails.treatment_history.canal_count', 'Canals:')} {item.canal_count}
@@ -373,9 +386,9 @@ const TreatmentHistory = ({
                                                                     className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-xs dark:border-slate-700 dark:bg-slate-800"
                                                                 >
                                                                     <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1 border-b border-slate-100 dark:border-slate-700/60">
-                                                                        <div className="flex items-center gap-2">
+                                                                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                                                                             <span className="font-bold text-indigo-950 dark:text-indigo-300">
-                                                                                Session #{session.id}
+                                                                                {t('care_session.session_label', 'Session')} <bdi dir="ltr">#{session.id}</bdi>
                                                                             </span>
                                                                             <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
                                                                                 <Calendar className="h-3 w-3" />
@@ -383,7 +396,7 @@ const TreatmentHistory = ({
                                                                             </span>
                                                                             {session.is_historical && (
                                                                                 <span className="rounded bg-slate-100 px-1.5 py-0.2 text-[10px] font-semibold text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                                                                                    Historical
+                                                                                    {t('care_session.past_visit_badge', 'Past visit')}
                                                                                 </span>
                                                                             )}
                                                                         </div>
@@ -396,7 +409,7 @@ const TreatmentHistory = ({
                                                                                     : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
                                                                             }`}
                                                                         >
-                                                                            {session.status}
+                                                                            {sessionStatusLabel(session.status)}
                                                                         </span>
                                                                     </div>
 
@@ -404,7 +417,7 @@ const TreatmentHistory = ({
                                                                     {session.steps && session.steps.length > 0 && (
                                                                         <div className="mt-2 space-y-1">
                                                                             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                                                                Steps ({(session.steps || []).filter((s) => s.status === 'completed').length}/{(session.steps || []).length}):
+                                                                                {t('care_session.steps_tab', 'Workflow Steps')} ({(session.steps || []).filter((s) => s.status === 'completed').length}/{(session.steps || []).length}):
                                                                             </span>
                                                                             <div className="flex flex-wrap gap-1">
                                                                                 {session.steps.map((step) => (
@@ -424,54 +437,15 @@ const TreatmentHistory = ({
                                                                         </div>
                                                                     )}
 
-                                                                    {/* Recorded Observations (e.g. canal lengths) */}
-                                                                    {session.observations && session.observations.length > 0 && (
-                                                                        <div className="mt-2 space-y-1">
-                                                                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                                                                Recorded Measurements:
-                                                                            </span>
-                                                                            <div className="flex flex-wrap gap-1.5">
-                                                                                {session.observations.map((obs) => {
-                                                                                    const sv = obs.structured_value || {};
-                                                                                    const canal = obs.canal_id || sv.canal_id || obs.root_id || sv.root_id || 'Measurement';
-                                                                                    const len = sv.length_mm != null ? `${sv.length_mm}mm` : null;
-                                                                                    const maf = sv.maf ? `MAF #${String(sv.maf).replace(/^#/, '')}` : null;
-                                                                                    return (
-                                                                                        <span
-                                                                                            key={obs.id}
-                                                                                            data-testid={`obs-item-${obs.id}`}
-                                                                                            className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 px-2 py-0.5 text-[11px] font-mono font-semibold text-slate-800 border border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
-                                                                                        >
-                                                                                            <span className="text-indigo-600 dark:text-indigo-400">{canal}</span>
-                                                                                            {len && <span>: {len}</span>}
-                                                                                            {!len && sv.value != null && <span>: {String(sv.value)}</span>}
-                                                                                            {obs.notes && <span className="font-sans font-normal">{obs.notes}</span>}
-                                                                                            {maf && <span className="text-slate-500">({maf})</span>}
-                                                                                            {sv.taper != null && <span>{t('care_session.maf_taper', 'Master file taper')}: {sv.taper}</span>}
-                                                                                            {obs.is_superseded ? (
-                                                                                                <span
-                                                                                                    className="rounded bg-amber-100 px-1 py-0.2 text-[9px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                                                                                                    title={obs.amendment_reason ? `Amended: ${obs.amendment_reason}` : 'Amended'}
-                                                                                                >
-                                                                                                    [Amended]
-                                                                                                </span>
-                                                                                            ) : canManageClinicalFollowUp ? (
-                                                                                                <button
-                                                                                                    type="button"
-                                                                                                    data-testid={`amend-obs-btn-${obs.id}`}
-                                                                                                    onClick={() => setAmendingObservation({ observation: obs, sessionId: session.id })}
-                                                                                                    className="ms-0.5 rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-indigo-600 dark:hover:bg-slate-600"
-                                                                                                    title="Amend observation"
-                                                                                                >
-                                                                                                    <Edit3 className="h-3 w-3" />
-                                                                                                </button>
-                                                                                            ) : null}
-                                                                                        </span>
-                                                                                    );
-                                                                                })}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
+                                                                    <div className="mt-3 min-w-0">
+                                                                        <ObservationSummary
+                                                                            observations={session.observations || []}
+                                                                            t={t}
+                                                                            testIdPrefix="obs-item"
+                                                                            actionIdPrefix="amend-obs-btn"
+                                                                            onAmend={canManageClinicalFollowUp ? (observation) => setAmendingObservation({ observation, sessionId: session.id }) : undefined}
+                                                                        />
+                                                                    </div>
 
                                                                     {/* Session Notes */}
                                                                     {renderDocumentation(session)}
@@ -512,13 +486,14 @@ const TreatmentHistory = ({
                                                 </div>
                                             )}
                                         </td>
-                                        <td className="p-3.5 whitespace-nowrap">
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.actions', 'Actions')}</span>
                                             <div className="flex gap-1.5">
                                                 {onEdit && (
                                                     <button
                                                         type="button"
                                                         onClick={() => onEdit(item)}
-                                                        className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg dark:hover:bg-slate-800"
+                                                        className="inline-flex min-h-10 min-w-10 items-center justify-center text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg dark:hover:bg-slate-800"
                                                         title={t('common.edit', 'Edit')}
                                                     >
                                                         <Edit2 size={15} />
@@ -528,7 +503,7 @@ const TreatmentHistory = ({
                                                     <button
                                                         type="button"
                                                         onClick={() => onDelete(item.id)}
-                                                        className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg dark:hover:bg-slate-800"
+                                                        className="inline-flex min-h-10 min-w-10 items-center justify-center text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg dark:hover:bg-slate-800"
                                                         title={t('common.delete', 'Delete')}
                                                     >
                                                         <Trash2 size={15} />
@@ -554,13 +529,13 @@ const TreatmentHistory = ({
                             className="rounded-xl border border-slate-200 bg-white p-3.5 shadow-xs dark:border-slate-700 dark:bg-slate-800"
                         >
                             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5 dark:border-slate-700">
-                                <div className="flex items-center gap-2">
+                                <div className="flex min-w-0 flex-wrap items-center gap-2">
                                     <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white font-bold text-xs">
                                         #{session.id}
                                     </div>
                                     <div>
                                         <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                                            Care Session #{session.id}
+                                            Care {t('care_session.session_label', 'Session')} <bdi dir="ltr">#{session.id}</bdi>
                                             {session.appointment_id && (
                                                 <span className="ms-2 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
                                                     Appt #{session.appointment_id}
@@ -587,7 +562,7 @@ const TreatmentHistory = ({
                                             : 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300'
                                     }`}
                                 >
-                                    {session.status}
+                                    {sessionStatusLabel(session.status)}
                                 </span>
                             </div>
 
@@ -595,7 +570,7 @@ const TreatmentHistory = ({
                             {session.steps && session.steps.length > 0 && (
                                 <div className="mt-2.5 space-y-1">
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                        Workflow Steps ({(session.steps || []).filter((s) => s.status === 'completed').length}/{(session.steps || []).length}):
+                                        Workflow {t('care_session.steps_tab', 'Workflow Steps')} ({(session.steps || []).filter((s) => s.status === 'completed').length}/{(session.steps || []).length}):
                                     </span>
                                     <div className="flex flex-wrap gap-1.5">
                                         {session.steps.map((st) => (
@@ -615,54 +590,15 @@ const TreatmentHistory = ({
                                 </div>
                             )}
 
-                            {/* Observations */}
-                            {session.observations && session.observations.length > 0 && (
-                                <div className="mt-2.5 space-y-1">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                        Chairside Observations & Measurements:
-                                    </span>
-                                    <div className="flex flex-wrap gap-1.5">
-                                        {session.observations.map((obs) => {
-                                            const sv = obs.structured_value || {};
-                                            const canal = obs.canal_id || sv.canal_id || obs.root_id || sv.root_id || 'Obs';
-                                            const len = sv.length_mm != null ? `${sv.length_mm}mm` : null;
-                                            const maf = sv.maf ? `MAF #${String(sv.maf).replace(/^#/, '')}` : null;
-                                            return (
-                                                <span
-                                                    key={obs.id}
-                                                    data-testid={`obs-timeline-item-${obs.id}`}
-                                                    className="inline-flex items-center gap-1.5 rounded-md bg-slate-50 px-2.5 py-1 text-xs font-mono font-semibold text-slate-800 border border-slate-200 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-200"
-                                                >
-                                                    <span className="text-indigo-600 dark:text-indigo-400">{canal}</span>
-                                                    {len && <span>: {len}</span>}
-                                                    {!len && sv.value != null && <span>: {String(sv.value)}</span>}
-                                                    {obs.notes && <span className="font-sans font-normal">{obs.notes}</span>}
-                                                    {maf && <span className="text-slate-500">({maf})</span>}
-                                                    {sv.taper != null && <span>{t('care_session.maf_taper', 'Master file taper')}: {sv.taper}</span>}
-                                                    {obs.is_superseded ? (
-                                                        <span
-                                                            className="rounded bg-amber-100 px-1 py-0.2 text-[10px] font-bold text-amber-800 dark:bg-amber-950/60 dark:text-amber-300"
-                                                            title={obs.amendment_reason ? `Amended: ${obs.amendment_reason}` : 'Amended'}
-                                                        >
-                                                            [Amended]
-                                                        </span>
-                                                    ) : canManageClinicalFollowUp ? (
-                                                        <button
-                                                            type="button"
-                                                            data-testid={`amend-timeline-obs-btn-${obs.id}`}
-                                                            onClick={() => setAmendingObservation({ observation: obs, sessionId: session.id })}
-                                                            className="ms-0.5 rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-indigo-600 dark:hover:bg-slate-600"
-                                                            title="Amend observation"
-                                                        >
-                                                            <Edit3 className="h-3 w-3" />
-                                                        </button>
-                                                    ) : null}
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
+                            <div className="mt-3 min-w-0">
+                                <ObservationSummary
+                                    observations={session.observations || []}
+                                    t={t}
+                                    testIdPrefix="obs-timeline-item"
+                                    actionIdPrefix="amend-timeline-obs-btn"
+                                    onAmend={canManageClinicalFollowUp ? (observation) => setAmendingObservation({ observation, sessionId: session.id }) : undefined}
+                                />
+                            </div>
 
                             {/* Notes */}
                             {renderDocumentation(session)}

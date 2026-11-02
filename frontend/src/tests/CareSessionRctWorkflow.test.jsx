@@ -162,7 +162,7 @@ describe('Slice S20: Chairside RCT Structured UI & Canal Targeting', () => {
             fireEvent.change(notesInput, { target: { value: 'Definite apical stop' } });
 
             // Click save
-            const saveBtn = screen.getByTestId('btn-save-measurement-MB');
+            const saveBtn = screen.getByTestId('save-canal-measurements');
             fireEvent.click(saveBtn);
 
             expect(onSave).toHaveBeenCalledWith({
@@ -174,7 +174,7 @@ describe('Slice S20: Chairside RCT Structured UI & Canal Targeting', () => {
                 maf: '#25',
                 taper: 0.04,
                 notes: 'Definite apical stop',
-            });
+            }, { batch: true });
         });
 
         it('renders previously recorded canal measurements badge', () => {
@@ -200,9 +200,12 @@ describe('Slice S20: Chairside RCT Structured UI & Canal Targeting', () => {
                 />
             );
 
-            expect(screen.getByTestId('latest-measurement-MB')).toBeInTheDocument();
-            expect(screen.getByTestId('latest-measurement-MB')).toHaveTextContent('21.5 mm');
-            expect(screen.getByTestId('latest-measurement-MB')).toHaveTextContent('MB cusp');
+            const saved = screen.getByTestId('observation-101');
+            expect(saved).toHaveTextContent('MB');
+            expect(saved).toHaveTextContent('21.5');
+            expect(saved).toHaveTextContent('#25');
+            expect(saved).toHaveTextContent('0.04');
+            expect(saved).toHaveTextContent('MB cusp');
         });
     });
 

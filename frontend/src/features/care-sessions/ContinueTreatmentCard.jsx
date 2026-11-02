@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import PropTypes from 'prop-types';
+import ObservationSummary from './ObservationSummary';
 import { Play, RotateCcw, ChevronDown, ChevronUp, Clock, Activity, FileText, Layers } from 'lucide-react';
 
 /**
@@ -102,7 +103,7 @@ export default function ContinueTreatmentCard({
                                             : 'bg-white/80 text-amber-900 hover:bg-white dark:bg-slate-800 dark:text-amber-200'
                                     }`}
                                 >
-                                    {item.tooth_key && <span>Tooth {item.tooth_key}:</span>}
+                                    {item.tooth_key && <span>{t('care_sessions.tooth', 'Tooth')} <bdi>{item.tooth_key}</bdi>:</span>}
                                     <span>{item.procedure_code === 'ENDO_RCT' ? 'RCT' : item.procedure_code}</span>
                                     <span className="rounded bg-black/10 px-1 py-0.2 text-[10px] font-semibold dark:bg-white/10">
                                         {item.completed_steps_count || 0}/{item.total_steps || 0}
@@ -125,7 +126,7 @@ export default function ContinueTreatmentCard({
             )}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-2.5">
+                <div className="flex min-w-0 items-start gap-2.5">
                     <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-500 text-white shadow-sm dark:bg-amber-600">
                         {isPaused ? <Clock className="h-4 w-4" /> : <Activity className="h-4 w-4" />}
                     </div>
@@ -139,7 +140,7 @@ export default function ContinueTreatmentCard({
                                     {t('care_sessions.tooth', 'Tooth')} {toothKey}
                                 </span>
                             )}
-                            <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                            <h4 className="break-words text-sm font-bold text-slate-900 dark:text-white">
                                 {procedureCode === 'ENDO_RCT'
                                     ? t('care_sessions.rct_title', 'Root Canal Treatment (RCT)')
                                     : procedureCode}
@@ -172,14 +173,14 @@ export default function ContinueTreatmentCard({
                     </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto">
+                <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
                     {canalMeasurements.length > 0 && (
                         <button
                             type="button"
                             onClick={() => setIsExpanded(!isExpanded)}
                             className="inline-flex items-center gap-1 rounded-lg border border-amber-300 bg-white/80 px-2.5 py-1.5 text-xs font-semibold text-amber-800 transition-colors hover:bg-white dark:border-amber-700 dark:bg-slate-800 dark:text-amber-200"
                         >
-                            <span>{t('care_sessions.canals', 'Canals')} ({canalMeasurements.length})</span>
+                            <span>{t('care_session.visit_details', 'Visit details')}</span>
                             {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                         </button>
                     )}
@@ -206,29 +207,9 @@ export default function ContinueTreatmentCard({
                 </div>
             </div>
 
-            {/* Quick canal working length preview pill strip */}
             {canalMeasurements.length > 0 && (
-                <div data-testid="canal-measurements-preview" className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-amber-200/80 pt-2 text-xs dark:border-amber-800/50">
-                    <span className="font-semibold text-amber-900 dark:text-amber-200">
-                        {t('care_sessions.canal_lengths', 'Recorded Canals:')}
-                    </span>
-                    {canalMeasurements.map((obs, idx) => {
-                        const sv = obs.structured_value || {};
-                        const canalName = obs.canal_id || sv.canal_id || obs.root_id || sv.root_id || `Canal ${idx + 1}`;
-                        const len = sv.length_mm != null ? `${sv.length_mm}mm` : null;
-                        const maf = sv.maf ? `MAF #${String(sv.maf).replace(/^#/, '')}` : null;
-                        return (
-                            <span
-                                key={obs.id || idx}
-                                className="inline-flex items-center gap-1 rounded-md bg-white/90 px-2 py-0.5 font-mono text-xs font-semibold text-slate-800 shadow-xs dark:bg-slate-800 dark:text-slate-200"
-                            >
-                                <span className="text-amber-700 dark:text-amber-400">{canalName}</span>
-                                {len && <span>: {len}</span>}
-                                {maf && <span className="text-slate-600 dark:text-slate-300">({maf})</span>}
-                                {sv.taper != null && <span>{t('care_session.maf_taper', 'Master file taper')}: {sv.taper}</span>}
-                            </span>
-                        );
-                    })}
+                <div data-testid="canal-measurements-preview" className="mt-3 min-w-0">
+                    <ObservationSummary observations={canalMeasurements} t={t} />
                 </div>
             )}
 
@@ -249,32 +230,7 @@ export default function ContinueTreatmentCard({
                             <p className="italic">{lastNotes}</p>
                         </div>
                     )}
-                    <div className="space-y-1">
-                        <div className="font-semibold text-slate-800 dark:text-slate-200">
-                            {t('care_sessions.measurements_detail', 'Canal Observations & Measurements:')}
-                        </div>
-                        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2 md:grid-cols-3">
-                            {canalMeasurements.map((m, idx) => {
-                                const sv = m.structured_value || {};
-                                return (
-                                    <div
-                                        key={m.id || idx}
-                                        className="rounded-md border border-slate-200 bg-white p-2 dark:border-slate-700 dark:bg-slate-800"
-                                    >
-                                        <div className="font-bold text-amber-700 dark:text-amber-400">
-                                            {m.canal_id || sv.canal_id || m.root_id || sv.root_id || `Canal ${idx + 1}`}
-                                        </div>
-                                        <div className="text-slate-600 dark:text-slate-300">
-                                            {sv.length_mm != null && <span>Length: {sv.length_mm} mm</span>}
-                                            {sv.reference_point && <span className="ml-1 text-slate-600">({sv.reference_point})</span>}
-                                        </div>
-                                        {sv.maf && <div className="text-slate-600 dark:text-slate-300">MAF: {sv.maf}</div>}
-                                        {sv.taper != null && <div>{t('care_session.maf_taper', 'Master file taper')}: {sv.taper}</div>}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
+
                 </div>
             )}
         </section>

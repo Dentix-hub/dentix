@@ -189,7 +189,7 @@ describe('PatientDetails Care Session Integration', () => {
         fireEvent.click(await screen.findByTestId('btn-open-active-workflow'));
         fireEvent.change(await screen.findByTestId('input-length-MB'), { target: { value: '21.5' } });
         fireEvent.change(screen.getByTestId('input-taper-MB'), { target: { value: '0.06' } });
-        fireEvent.click(screen.getByTestId('btn-save-measurement-MB'));
+        fireEvent.click(screen.getByTestId('save-canal-measurements'));
         await waitFor(() => expect(mockRecord).toHaveBeenCalledTimes(1));
         expect(mockRecord.mock.calls[0][0].data).toMatchObject({
             work_item_id: 101,
@@ -215,7 +215,7 @@ describe('PatientDetails Care Session Integration', () => {
         fireEvent.click(await screen.findByTestId('btn-open-active-workflow'));
         fireEvent.change(screen.getByTestId('input-length-MB'), { target: { value: '21.5' } });
         fireEvent.change(screen.getByTestId('input-notes-MB'), { target: { value: 'Calcified canal' } });
-        fireEvent.click(screen.getByTestId('btn-save-measurement-MB'));
+        fireEvent.click(screen.getByTestId('save-canal-measurements'));
         await waitFor(() => expect(mockRecord).toHaveBeenCalledTimes(1));
         expect(screen.getByTestId('input-notes-MB')).toHaveValue('Calcified canal');
     });

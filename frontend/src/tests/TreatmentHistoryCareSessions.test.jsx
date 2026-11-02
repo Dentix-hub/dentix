@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import TreatmentHistory from '@/features/patients/PatientTabs/TreatmentHistory';
 import { useAuthStore } from '@/store/auth.store';
@@ -123,8 +123,8 @@ describe('Slice S25 / Defects 4, 6, 7: TreatmentHistory with Real Care Sessions'
         expect(breakdown).toHaveTextContent('Working Length');
 
         // Verify recorded canal lengths
-        expect(breakdown).toHaveTextContent(/MB1.*20.5mm/);
-        expect(breakdown).toHaveTextContent(/DB.*19.5mm/);
+        expect(within(breakdown).getByRole('row', { name: /MB1 20.5 mm #25/ })).toBeInTheDocument();
+        expect(within(breakdown).getByRole('row', { name: /DB 19.5 mm #25/ })).toBeInTheDocument();
 
         // Verify session notes
         expect(breakdown).toHaveTextContent('Canals located and instrumented to size 25');

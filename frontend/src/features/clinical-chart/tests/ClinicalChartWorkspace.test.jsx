@@ -43,7 +43,7 @@ describe('ClinicalChartWorkspace scaffold', () => {
             name: 'المخطط الحالي - لوحة الفحص',
         });
         expect(within(currentInspector).getByText('46')).toBeInTheDocument();
-        expect(within(currentInspector).getByText('بعيد (D)')).toBeInTheDocument();
+        expect(within(currentInspector).getByText('ديستال (D)')).toBeInTheDocument();
     });
 
     it('keeps root and clinical-layer filters isolated between chart instances', () => {

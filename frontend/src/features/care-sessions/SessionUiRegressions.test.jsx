@@ -13,7 +13,8 @@ it('uses Arabic labels, prefills the selected tooth, and explains an empty measu
     expect(screen.getByText('تسجيل زيارة سابقة')).toBeInTheDocument();
     expect(screen.getByTestId('input-historical-obs-tooth')).toHaveValue('46');
     fireEvent.click(screen.getByTestId('canal-chip-MB'));
-    expect(screen.getByText(ar.care_session.maf_taper)).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: ar.care_session.taper_short })).toBeInTheDocument();
+    expect(screen.getByLabelText(`MB ${ar.care_session.maf_taper}`)).toBeInTheDocument();
     expect(within(screen.getByTestId('canal-target-selector')).getByText(ar.care_session.roots.mesial, { selector: 'span' })).toBeInTheDocument();
     expect(within(screen.getByTestId('select-ref-MB')).getByRole('option', { name: ar.care_session.reference_points.mb_cusp })).toHaveValue('MB cusp');
     fireEvent.change(screen.getByTestId('select-historical-obs-code'), { target: { value: 'measurement' } });

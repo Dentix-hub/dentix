@@ -13,6 +13,7 @@ import { Button, Modal, Badge } from '@/shared/ui';
 import { startCareSession } from '@/api/patients';
 import CanalTargetSelector from './CanalTargetSelector';
 import WorkingLengthEntryTable from './WorkingLengthEntryTable';
+import ObservationSummary from './ObservationSummary';
 import { suggestProcedureChartTemplate } from '@/features/clinical-chart/domain/procedureChartAppearance';
 
 /**
@@ -270,7 +271,7 @@ export default function HistoricalCareSessionModal({
             title={t('care_session.record_historical_visit_title', 'Record Past / Historical Visit')}
             size="lg"
         >
-            <form onSubmit={handleSubmit} data-testid="historical-care-session-form" className="space-y-5">
+            <form onSubmit={handleSubmit} data-testid="historical-care-session-form" className="min-w-0 space-y-5">
                 {/* Information Header Banner */}
                 <div className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
                     <History className="h-5 w-5 shrink-0 text-primary mt-0.5" />
@@ -398,7 +399,7 @@ export default function HistoricalCareSessionModal({
 
                 {/* Delivered Steps Section */}
                 <div className="space-y-2 rounded-xl border border-border bg-surface/50 p-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                         <label className="text-xs font-bold text-text-primary">
                             {t('care_session.delivered_steps', 'Delivered Clinical Steps')}
                         </label>
@@ -466,7 +467,7 @@ export default function HistoricalCareSessionModal({
 
                 {/* Measurements & Observations Section */}
                 <div className="space-y-2 rounded-xl border border-border bg-surface/50 p-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                         <label className="text-xs font-bold text-text-primary">
                             {t('care_session.historical_measurements', 'Clinical Measurements & Observations')}
                         </label>
@@ -475,36 +476,13 @@ export default function HistoricalCareSessionModal({
                         </span>
                     </div>
 
-                    {observations.length > 0 && (
-                        <div className="space-y-1 max-h-36 overflow-y-auto">
-                            {observations.map((ob, idx) => (
-                                <div
-                                    key={idx}
-                                    data-testid={`historical-obs-item-${idx}`}
-                                    className="flex items-center justify-between rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs"
-                                >
-                                    <div className="flex items-center gap-2 font-mono">
-                                        <Badge variant="primary" size="xs">{ob.observation_code}</Badge>
-                                        <span className="text-text-secondary">{procedureLabel(ob.work_item_id)}</span>
-                                        {ob.tooth_key && <span>{t('care_sessions.tooth', 'Tooth')} #{ob.tooth_key}</span>}
-                                        {ob.canal_id && <span>({ob.canal_id})</span>}
-                                        <span className="font-bold text-text-primary">: {ob.value}</span>
-                                        {ob.structured_value?.maf && <span>MAF {ob.structured_value.maf}</span>}
-                                        {ob.structured_value?.taper != null && <span>{t('care_session.maf_taper', 'Master file taper')}: {ob.structured_value.taper}</span>}
-                                        {ob.notes && <span className="text-text-secondary italic">({ob.notes})</span>}
-                                    </div>
-                                    <button
-                                        type="button"
-                                        data-testid={`btn-remove-obs-${idx}`}
-                                        onClick={() => handleRemoveObservation(idx)}
-                                        className="text-[11px] font-bold text-danger hover:underline"
-                                    >
-                                        {t('common.remove', 'Remove')}
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    )}
+                    <ObservationSummary
+                        observations={observations}
+                        onRemove={handleRemoveObservation}
+                        procedureLabels={Object.fromEntries(patientWorkItems.map((item) => [item.id, procedureLabel(item.id)]))}
+                        testIdPrefix="historical-obs-item"
+                        t={t}
+                    />
 
                     <div className="grid grid-cols-2 sm:grid-cols-12 gap-2 pt-1">
                         <input
@@ -566,6 +544,8 @@ export default function HistoricalCareSessionModal({
                                 selectedCanals={selectedCanals}
                                 recordedObservations={observations.filter((observation) => observation.work_item_id === entryProcedureId)}
                                 onSaveMeasurement={addCanalMeasurement}
+                                showRecorded={false}
+                                isStaging
                                 t={t}
                             />
                         </div>
@@ -591,7 +571,7 @@ export default function HistoricalCareSessionModal({
                 </div>
 
                 {/* Footer Buttons */}
-                <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
+                <div className="grid grid-cols-2 gap-2 border-t border-border pt-4 sm:flex sm:items-center sm:justify-end [&_button]:min-h-11">
                     <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
                         {t('common.cancel', 'Cancel')}
                     </Button>

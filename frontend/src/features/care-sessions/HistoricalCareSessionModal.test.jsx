@@ -22,6 +22,20 @@ describe('HistoricalCareSessionModal', () => {
         vi.clearAllMocks();
     });
 
+    it('can requeue a removed local measurement without creating a visit prematurely', async () => {
+        render(<HistoricalCareSessionModal isOpen patientId={5} onClose={vi.fn()} patientWorkItems={[{ id: 101, code: 'ENDO_RCT', tooth_number: '46' }]} />);
+        fireEvent.click(screen.getByTestId('canal-chip-MB'));
+        fireEvent.change(screen.getByTestId('input-length-MB'), { target: { value: '20' } });
+        fireEvent.click(screen.getByTestId('save-canal-measurements'));
+        await screen.findByTestId('historical-obs-item-0');
+        await waitFor(() => expect(screen.getByTestId('save-canal-measurements')).toBeDisabled());
+        fireEvent.click(screen.getByTestId('remove-observation-0'));
+        expect(screen.getByTestId('save-canal-measurements')).toBeEnabled();
+        fireEvent.click(screen.getByTestId('save-canal-measurements'));
+        expect(await screen.findByTestId('historical-obs-item-0')).toHaveTextContent('20');
+        expect(patientsApi.startCareSession).not.toHaveBeenCalled();
+    });
+
     it('records independent lengths, master file sizes and tapers for multiple canals', async () => {
         patientsApi.startCareSession.mockResolvedValue({ data: { id: 80 } });
         render(<HistoricalCareSessionModal isOpen patientId={5} currentUserId={1} onClose={vi.fn()} patientWorkItems={[{ id: 101, code: 'ENDO_RCT', tooth_number: '46' }]} />);
@@ -32,9 +46,9 @@ describe('HistoricalCareSessionModal', () => {
             fireEvent.change(screen.getByTestId(`input-length-${canal}`), { target: { value: length } });
             fireEvent.change(screen.getByTestId(`select-maf-${canal}`), { target: { value: size } });
             fireEvent.change(screen.getByTestId(`input-taper-${canal}`), { target: { value: taper } });
-            fireEvent.click(screen.getByTestId(`btn-save-measurement-${canal}`));
-            await waitFor(() => expect(screen.getByTestId(`btn-save-measurement-${canal}`)).not.toBeDisabled());
         }
+        fireEvent.click(screen.getByTestId('save-canal-measurements'));
+        await waitFor(() => expect(screen.getByTestId('historical-obs-item-1')).toBeInTheDocument());
         expect(patientsApi.startCareSession).not.toHaveBeenCalled();
         fireEvent.click(screen.getByTestId('btn-submit-historical-session'));
         await waitFor(() => expect(patientsApi.startCareSession).toHaveBeenCalledTimes(1));
@@ -152,9 +166,9 @@ describe('HistoricalCareSessionModal', () => {
         fireEvent.change(screen.getByTestId('select-historical-obs-code'), { target: { value: 'working_length' } });
         fireEvent.click(screen.getByTestId('canal-chip-MB'));
         fireEvent.change(screen.getByTestId('input-length-MB'), { target: { value: '20' } });
-        fireEvent.click(screen.getByTestId('btn-save-measurement-MB'));
+        fireEvent.click(screen.getByTestId('save-canal-measurements'));
 
-        expect(screen.getByTestId('historical-obs-item-0')).toBeInTheDocument();
+        expect(await screen.findByTestId('historical-obs-item-0')).toBeInTheDocument();
 
         // Submit
         fireEvent.click(screen.getByTestId('btn-submit-historical-session'));
