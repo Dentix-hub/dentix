@@ -2,9 +2,9 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
-- Session availability incident (2026-11-02): confirmed `Clinical native writes are disabled` is the server's effective clinic rollout gate; history had exposed recording from role alone. Patient history now receives availability, with localized guidance, read-only recheck and retention of open-form entries after a late rejection.
-- Verification: 42 targeted UI/i18n tests and 2 authenticated API/persistence tests PASS; ESLint, Ruff, production/PWA build, PR-diff guardrails and whitespace PASS. No server gate, clinic configuration or stored data changed.
-- Status: PARTIAL for staging recording; UI fix complete, but affected clinic identity/administrative runtime access and successful deployed save remain unverified. Evidence and targeted administrator activation path: docs/reports/care-session-native-availability-2026-11-02.md.
+- General session release (2026-11-02): owner clarified availability for all clinics. New data-only revision d3e4f5a6b7c8 enables the global native-session flag at 100% and activates existing overrides once; fresh bootstrap seeds the same default. Future clinics inherit it automatically; later deliberate administrative stops remain effective.
+- Verification: 81 targeted backend tests PASS, zero failures/skips, including real PostgreSQL activation/bootstrap/clinical guards, migration lineage, API discovery/save agreement and RBAC; Ruff/diff PASS. Prior UI availability correction retains its recorded 42 UI passes and lint/build/guardrails evidence; no frontend changes in this follow-up.
+- Status: DONE implementation/local verification; PR #346 delivery and CI/staging acceptance pending. No live deployment/config mutation or clinical/financial record rewrite. Evidence and staging path: docs/reports/care-session-global-release-2026-11-02.md.
 
 - Session recording follow-up (2026-11-02): direct submit collects valid pending canal/general entries and steps; localized validation/API errors stay beside the footer, and unavailable treating-provider IDs are not sent implicitly.
 - Record Session labels replace Record Past Visit titles/actions; observation choices explain Measurement vs Working Length bilingually. Taper presets 0.02/0.04/0.06 and manual values share the existing numeric observation contract.

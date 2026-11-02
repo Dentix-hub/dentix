@@ -635,7 +635,8 @@ def test_alembic_single_head_is_f4a5b6c7d8e9():
 
     heads = script_dir.get_heads()
     assert len(heads) == 1, f"Expected exactly 1 Alembic head revision, found {heads}"
-    assert heads[0] == "c2d3e4f5a6b7", f"Expected head revision c2d3e4f5a6b7, got {heads[0]}"
+    assert heads[0] == "d3e4f5a6b7c8", f"Expected head revision d3e4f5a6b7c8, got {heads[0]}"
+    assert script_dir.get_revision("d3e4f5a6b7c8").down_revision == "c2d3e4f5a6b7"
     assert script_dir.get_revision("c2d3e4f5a6b7").down_revision == "b1c2d3e4f5a6"
     assert script_dir.get_revision("b1c2d3e4f5a6").down_revision == "f3c4d5e6a7b8"
     assert script_dir.get_revision("f3c4d5e6a7b8").down_revision == "e2b3c4d5e6f7"
@@ -713,6 +714,10 @@ def test_alembic_migration_upgrade_and_downgrade_sqlite(monkeypatch):
                 conn.execute(sa.text("CREATE TABLE treatments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
                 conn.execute(sa.text("CREATE TABLE user_sessions (id INTEGER PRIMARY KEY, user_id INTEGER, token_hash VARCHAR, ip_address VARCHAR, user_agent VARCHAR, device_info VARCHAR, last_active_at DATETIME, expires_at DATETIME, is_active BOOLEAN, created_at DATETIME)"))
                 conn.execute(sa.text("CREATE UNIQUE INDEX ix_users_email ON users(email)"))
+                # The stamped parent already includes the feature tables.
+                # Supply those existing dependencies for the data migration.
+                Base.metadata.tables["feature_flags"].create(conn)
+                Base.metadata.tables["tenant_features"].create(conn)
             inspector = sa.inspect(engine)
             tables = set(inspector.get_table_names())
             for t in CLINICAL_G1_TABLES:

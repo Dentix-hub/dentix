@@ -1,6 +1,8 @@
 <!-- CLASSIFICATION: ACTIVE -->
 # Session recording: native-write availability
 
+Superseded product-policy decision: the owner subsequently requested general availability for every clinic. See [global release implementation](care-session-global-release-2026-11-02.md); per-clinic manual activation is no longer required after that migration is deployed. The investigation and earlier verification below remain historical evidence.
+
 Status: PARTIAL for the reported staging incident. UI correction and local verification are complete; the affected clinic's runtime configuration has not been inspected or changed. There is no claim of a successful save on the deployed clinic.
 
 ## Confirmed cause

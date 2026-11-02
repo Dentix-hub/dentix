@@ -2,6 +2,7 @@
 from alembic import command
 from alembic.config import Config
 import sqlalchemy as sa
+from backend.models import FeatureFlag, TenantFeature
 
 
 def test_session_mode_upgrade_and_roundtrip(tmp_path, monkeypatch, legacy_clinical_schema):
@@ -16,6 +17,9 @@ def test_session_mode_upgrade_and_roundtrip(tmp_path, monkeypatch, legacy_clinic
         conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY)"))
         conn.execute(sa.text("CREATE TABLE attachments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
         conn.execute(sa.text("CREATE TABLE treatments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
+        # These tables already exist at the stamped revision in a real DB.
+        FeatureFlag.__table__.create(conn)
+        TenantFeature.__table__.create(conn)
         conn.execute(sa.text("CREATE TABLE clinical_work_items (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
         conn.execute(sa.text("CREATE TABLE user_sessions (id INTEGER PRIMARY KEY, user_id INTEGER, token_hash VARCHAR, ip_address VARCHAR, user_agent VARCHAR, device_info VARCHAR, last_active_at DATETIME, expires_at DATETIME, is_active BOOLEAN, created_at DATETIME)"))
         conn.execute(sa.text("INSERT INTO user_sessions (id, user_id, token_hash) VALUES (1, 1, 'old')"))
