@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { CheckCircle2, Ruler, Save } from 'lucide-react';
 import { REFERENCE_POINTS, MAF_SIZES } from './canalAnatomy';
@@ -7,18 +7,22 @@ import ObservationSummary from './ObservationSummary';
 const FILE_SIZES = [...new Set(MAF_SIZES.map((size) => size.split(' / ')[0]))];
 
 /** One entry sheet and save action, while each canal retains its clinical identity. */
-export default function WorkingLengthEntryTable({
-    toothKey,
-    selectedCanals = [],
-    recordedObservations = [],
-    onSaveMeasurement,
-    isLoading = false,
-    showRecorded = true,
-    isStaging = false,
-    onSavingChange,
-    t = (key, fallback) => fallback || key,
-}) {
+const WorkingLengthEntryTable = forwardRef(function WorkingLengthEntryTable(
+    {
+        toothKey,
+        selectedCanals = [],
+        recordedObservations = [],
+        onSaveMeasurement,
+        isLoading = false,
+        showRecorded = true,
+        isStaging = false,
+        onSavingChange,
+        t = (key, fallback) => fallback || key,
+    },
+    ref,
+) {
     const [drafts, setDrafts] = useState({});
+    const [taperModes, setTaperModes] = useState({});
     const [savedSignatures, setSavedSignatures] = useState({});
     const [isSaving, setIsSaving] = useState(false);
     const [error, setError] = useState(null);
@@ -72,35 +76,43 @@ export default function WorkingLengthEntryTable({
         setError(null);
     };
 
-    const saveAll = async () => {
-        if (savingRef.current || isLoading || pending.length === 0) return;
-        // Validate the entire entry before making the first request.
-        for (const canal of pending) {
+    const collectPending = () => {
+        return pending.map((canal) => {
             const draft = getDraft(canal);
             if (
                 !draft.length_mm ||
                 !Number.isFinite(Number(draft.length_mm)) ||
                 Number(draft.length_mm) <= 0
             ) {
-                setError(
+                throw new Error(
                     `${canal.canalId}: ${t('care_session.invalid_length', 'Enter a positive numeric working length.')}`,
                 );
-                return;
             }
             if (draft.taper !== '' && (!Number.isFinite(Number(draft.taper)) || Number(draft.taper) <= 0)) {
-                setError(
+                throw new Error(
                     `${canal.canalId}: ${t('care_session.invalid_taper', 'Enter a positive numeric taper.')}`,
                 );
-                return;
             }
+            return payloadFor(canal, draft);
+        });
+    };
+    useImperativeHandle(ref, () => ({ collectPending }));
+    const saveAll = async () => {
+        if (savingRef.current || isLoading || pending.length === 0) return;
+        let measurements;
+        try {
+            measurements = collectPending();
+        } catch (validationError) {
+            setError(validationError.message);
+            return;
         }
         savingRef.current = true;
         setIsSaving(true);
         onSavingChange?.(true);
         setError(null);
         try {
-            for (const canal of pending) {
-                const payload = payloadFor(canal, getDraft(canal));
+            for (const [index, canal] of pending.entries()) {
+                const payload = measurements[index];
                 const result = await onSaveMeasurement(payload, { batch: true });
                 if (result === false) throw new Error('MEASUREMENT_NOT_SAVED');
                 // Remember successful rows so retry never records them a second time.
@@ -243,21 +255,51 @@ export default function WorkingLengthEntryTable({
                                             ))}
                                         </select>
                                     </td>
-                                    <td className="px-1 py-3 sm:px-2">
-                                        <input
-                                            aria-label={`${canal.canalId} ${t('care_session.maf_taper', 'Master file taper')}`}
-                                            type="number"
-                                            min="0"
-                                            step="any"
-                                            inputMode="decimal"
+                                    <td className="space-y-1 px-1 py-3 sm:px-2">
+                                        <select
+                                            aria-label={`${canal.canalId} ${t('care_session.taper_presets', 'Taper presets')}`}
+                                            data-testid={`select-taper-${canal.canalId}`}
                                             dir="ltr"
-                                            value={draft.taper}
                                             disabled={isSaving}
-                                            onChange={(event) => update(canal, 'taper', event.target.value)}
-                                            data-testid={`input-taper-${canal.canalId}`}
-                                            placeholder="0.04"
-                                            className="min-h-11 w-full min-w-0 rounded-control border border-border bg-surface px-2 text-center text-text-primary"
-                                        />
+                                            value={taperModes[key] === 'preset' ? draft.taper : 'custom'}
+                                            onChange={(event) => {
+                                                setTaperModes((previous) => ({
+                                                    ...previous,
+                                                    [key]:
+                                                        event.target.value === 'custom' ? 'custom' : 'preset',
+                                                }));
+                                                if (event.target.value !== 'custom')
+                                                    update(canal, 'taper', event.target.value);
+                                            }}
+                                            className="min-h-11 w-full min-w-0 rounded-control border border-border bg-surface px-1 text-text-primary"
+                                        >
+                                            {['0.02', '0.04', '0.06'].map((value) => (
+                                                <option key={value} value={value}>
+                                                    {value}
+                                                </option>
+                                            ))}
+                                            <option value="custom">
+                                                {t('care_session.custom_taper', 'Custom')}
+                                            </option>
+                                        </select>
+                                        {taperModes[key] !== 'preset' && (
+                                            <input
+                                                aria-label={`${canal.canalId} ${t('care_session.maf_taper', 'Master file taper')}`}
+                                                type="number"
+                                                min="0"
+                                                step="any"
+                                                inputMode="decimal"
+                                                dir="ltr"
+                                                value={draft.taper}
+                                                disabled={isSaving}
+                                                onChange={(event) =>
+                                                    update(canal, 'taper', event.target.value)
+                                                }
+                                                data-testid={`input-taper-${canal.canalId}`}
+                                                placeholder="0.04"
+                                                className="min-h-11 w-full min-w-0 rounded-control border border-border bg-surface px-2 text-center text-text-primary"
+                                            />
+                                        )}
                                     </td>
                                 </tr>
                                 <tr>
@@ -349,7 +391,9 @@ export default function WorkingLengthEntryTable({
             )}
         </section>
     );
-}
+});
+
+export default WorkingLengthEntryTable;
 
 WorkingLengthEntryTable.propTypes = {
     toothKey: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,

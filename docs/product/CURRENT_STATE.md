@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Session recording follow-up (2026-11-02): direct submit collects valid pending canal/general entries and steps; localized validation/API errors stay beside the footer, and unavailable treating-provider IDs are not sent implicitly.
+- Record Session labels replace Record Past Visit titles/actions; observation choices explain Measurement vs Working Length bilingually. Taper presets 0.02/0.04/0.06 and manual values share the existing numeric observation contract.
+- Verification: 88 UI passes in the subsystem run plus 7 unchanged isolated i18n passes (overlap; concurrent scan timeout documented), 2 backend persistence/rollout tests and 8 synthetic browser scenarios PASS; lint/build/guardrails/diff PASS. Status: DONE locally; GitHub delivery authorized, staging acceptance pending. Evidence: docs/reports/care-session-record-submit-2026-11-02.md.
+
 - Grouped canal entry/patient layout (2026-11-02): one save action validates all entered canals, preserves per-canal identity and retries only unsaved rows; current/historical entry, continuation, history and finish share complete grouped measurements.
 - Patient actions, chart controls and visit headers align responsively; mobile procedure history uses labeled cards, workspace procedures scroll with the content, and Arabic numeric direction/status labels are consistent. Existing audit records, permissions and API contracts retained; no backend/schema changes.
 - Terminology follows the clinic's phonetic Arabic preference (ميزيال، ديستال، باكال، كاسب) in roots, reference points, chart surfaces and treatment tooltips; stored clinical codes and English resources stay unchanged.
