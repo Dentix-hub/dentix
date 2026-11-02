@@ -219,7 +219,7 @@ const TreatmentHistory = ({
                             className="inline-flex min-h-11 items-center gap-1.5 rounded-control border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 shadow-xs hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
                             <History className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-                            <span>{t('patientDetails.treatment_history.record_past_visit', '+ Record Past Visit')}</span>
+                            <span>{t('patientDetails.treatment_history.record_past_visit', '+ Record Session')}</span>
                         </button>
                     )}
                     {onAdd && (

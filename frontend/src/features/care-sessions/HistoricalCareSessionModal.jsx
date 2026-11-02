@@ -1,14 +1,7 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import PropTypes from 'prop-types';
-import {
-    Calendar,
-    User,
-    FileText,
-    AlertCircle,
-    History,
-    Save,
-} from 'lucide-react';
+import { Calendar, User, FileText, AlertCircle, History, Save } from 'lucide-react';
 import { Button, Modal, Badge } from '@/shared/ui';
 import { startCareSession } from '@/api/patients';
 import CanalTargetSelector from './CanalTargetSelector';
@@ -51,7 +44,7 @@ export default function HistoricalCareSessionModal({
     });
 
     const [providerUserId, setProviderUserId] = useState(() => {
-        return currentUserId ? String(currentUserId) : '';
+        return doctors.some((doctor) => doctor.id === currentUserId) ? String(currentUserId) : '';
     });
 
     const [selectedWorkItemIds, setSelectedWorkItemIds] = useState(() => {
@@ -61,6 +54,8 @@ export default function HistoricalCareSessionModal({
     const [notes, setNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMsg, setErrorMsg] = useState(null);
+    const measurementEditorRef = useRef(null);
+    const submittingRef = useRef(false);
 
     // Historical Steps State
     const [steps, setSteps] = useState([]);
@@ -83,31 +78,53 @@ export default function HistoricalCareSessionModal({
         : selectedWorkItemIds[0];
     const entryToothKey = useMemo(() => {
         const procedure = patientWorkItems.find((item) => item.id === entryProcedureId);
-        const teeth = [...new Set((procedure?.targets || []).map((target) => target.tooth_key).filter(Boolean).map(String))];
+        const teeth = [
+            ...new Set(
+                (procedure?.targets || [])
+                    .map((target) => target.tooth_key)
+                    .filter(Boolean)
+                    .map(String),
+            ),
+        ];
         return procedure?.tooth_number ? String(procedure.tooth_number) : teeth.length === 1 ? teeth[0] : '';
     }, [entryProcedureId, patientWorkItems]);
-    useEffect(() => { setObsToothKey(entryToothKey); }, [entryProcedureId, entryToothKey]);
+    useEffect(() => {
+        setObsToothKey(entryToothKey);
+    }, [entryProcedureId, entryToothKey]);
     const entryCode = patientWorkItems.find((item) => item.id === entryProcedureId)?.code || '';
-    const isEndo = entryCode === 'ENDO_RCT' || suggestProcedureChartTemplate(entryCode)?.template === 'ENDO_RCT';
-    useEffect(() => { setObsCode(isEndo ? 'working_length' : 'measurement'); }, [entryProcedureId, isEndo]);
-    useEffect(() => { setSelectedCanals([]); }, [entryProcedureId, obsToothKey]);
-    const toggleCanal = (canal) => setSelectedCanals((previous) =>
-        previous.some((item) => item.canalId === canal.canalId && item.rootId === canal.rootId)
-            ? previous.filter((item) => item.canalId !== canal.canalId || item.rootId !== canal.rootId)
-            : [...previous, canal]
-    );
+    const isEndo =
+        entryCode === 'ENDO_RCT' || suggestProcedureChartTemplate(entryCode)?.template === 'ENDO_RCT';
+    useEffect(() => {
+        setObsCode(isEndo ? 'working_length' : 'measurement');
+    }, [entryProcedureId, isEndo]);
+    useEffect(() => {
+        setSelectedCanals([]);
+    }, [entryProcedureId, obsToothKey]);
+    const toggleCanal = (canal) =>
+        setSelectedCanals((previous) =>
+            previous.some((item) => item.canalId === canal.canalId && item.rootId === canal.rootId)
+                ? previous.filter((item) => item.canalId !== canal.canalId || item.rootId !== canal.rootId)
+                : [...previous, canal],
+        );
+    const canalObservation = (measurement) => ({
+        observation_code: 'working_length',
+        work_item_id: entryProcedureId,
+        tooth_key: obsToothKey,
+        canal_id: measurement.canal_id,
+        value: String(measurement.length_mm),
+        notes: measurement.notes,
+        structured_value: {
+            length_mm: measurement.length_mm,
+            canal_id: measurement.canal_id,
+            root_id: measurement.root_id,
+            reference_point: measurement.reference_point,
+            maf: measurement.maf,
+            ...(measurement.taper != null ? { taper: measurement.taper } : {}),
+        },
+    });
     const addCanalMeasurement = (measurement) => {
         if (!entryProcedureId || !obsToothKey) return false;
-        setObservations((previous) => [...previous, {
-            observation_code: 'working_length', work_item_id: entryProcedureId,
-            tooth_key: obsToothKey, canal_id: measurement.canal_id,
-            value: String(measurement.length_mm), notes: measurement.notes,
-            structured_value: {
-                length_mm: measurement.length_mm, canal_id: measurement.canal_id,
-                root_id: measurement.root_id, reference_point: measurement.reference_point,
-                maf: measurement.maf, ...(measurement.taper != null ? { taper: measurement.taper } : {}),
-            },
-        }]);
+        setObservations((previous) => [...previous, canalObservation(measurement)]);
         return true;
     };
     const procedureLabel = (id) => {
@@ -116,14 +133,20 @@ export default function HistoricalCareSessionModal({
     };
 
     const toggleWorkItem = (id) => {
-        if (selectedWorkItemIds.includes(id) && (steps.some((s) => s.work_item_id === id) || observations.some((o) => o.work_item_id === id))) {
-            setErrorMsg(t('care_session.remove_documentation_first', 'Remove this procedure’s steps and observations before deselecting it.'));
+        if (
+            selectedWorkItemIds.includes(id) &&
+            (steps.some((s) => s.work_item_id === id) || observations.some((o) => o.work_item_id === id))
+        ) {
+            setErrorMsg(
+                t(
+                    'care_session.remove_documentation_first',
+                    'Remove this procedure’s steps and observations before deselecting it.',
+                ),
+            );
             return;
         }
         setErrorMsg(null);
-        setSelectedWorkItemIds((prev) =>
-            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-        );
+        setSelectedWorkItemIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
     };
 
     const handleAddStep = (e) => {
@@ -150,7 +173,12 @@ export default function HistoricalCareSessionModal({
     const handleAddObservation = (e) => {
         e?.preventDefault();
         if (!obsValue.trim() || !entryProcedureId) {
-            setObservationError(t('care_session.observation_value_required', 'Enter an observation value and select its procedure before adding it.'));
+            setObservationError(
+                t(
+                    'care_session.observation_value_required',
+                    'Enter an observation value and select its procedure before adding it.',
+                ),
+            );
             return;
         }
         const isLength = obsCode === 'working_length';
@@ -192,7 +220,7 @@ export default function HistoricalCareSessionModal({
     };
 
     const validate = () => {
-        if (!actualVisitDate) {
+        if (!actualVisitDate || Number.isNaN(new Date(actualVisitDate).getTime())) {
             return t('care_session.error_visit_date_required', 'Actual visit date is required.');
         }
         const selectedDate = new Date(actualVisitDate);
@@ -200,19 +228,60 @@ export default function HistoricalCareSessionModal({
             return t('care_session.error_future_date', 'Historical visit date cannot be in the future.');
         }
         if (selectedWorkItemIds.length === 0) {
-            return t('care_session.error_select_procedure', 'Please select at least one procedure worked on during this visit.');
+            return t(
+                'care_session.error_select_procedure',
+                'Please select at least one procedure worked on during this visit.',
+            );
         }
         return null;
     };
 
     const handleSubmit = async (e) => {
         e?.preventDefault();
+        if (submittingRef.current) return;
         const err = validate();
         if (err) {
             setErrorMsg(err);
             return;
         }
+        let pendingMeasurements;
+        try {
+            pendingMeasurements = measurementEditorRef.current?.collectPending() || [];
+        } catch (validationError) {
+            setErrorMsg(validationError.message);
+            return;
+        }
+        if (pendingMeasurements.length && (!entryProcedureId || !obsToothKey)) {
+            setErrorMsg(
+                t(
+                    'care_session.measurement_tooth_required',
+                    'Select a tooth for this procedure before recording measurements.',
+                ),
+            );
+            return;
+        }
+        const visitObservations = [...observations, ...pendingMeasurements.map(canalObservation)];
+        if (obsCode !== 'working_length' && (obsValue.trim() || obsCanal.trim())) {
+            if (!obsValue.trim() || !entryProcedureId) {
+                setErrorMsg(
+                    t(
+                        'care_session.observation_value_required',
+                        'Enter an observation value and select its procedure before adding it.',
+                    ),
+                );
+                return;
+            }
+            visitObservations.push({
+                observation_code: obsCode,
+                work_item_id: entryProcedureId,
+                tooth_key: obsToothKey || null,
+                canal_id: obsCanal.trim() || null,
+                structured_value: { value: obsValue.trim() },
+                notes: obsNotes.trim() || null,
+            });
+        }
         setErrorMsg(null);
+        submittingRef.current = true;
         setIsSubmitting(true);
 
         const payload = {
@@ -221,7 +290,18 @@ export default function HistoricalCareSessionModal({
             provider_user_id: providerUserId ? Number(providerUserId) : null,
             work_item_ids: selectedWorkItemIds,
             notes: notes.trim() || null,
-            historical_steps: steps.map((s, idx) => {
+            historical_steps: [
+                ...steps,
+                ...(newStepTitle.trim()
+                    ? [
+                          {
+                              title: newStepTitle.trim(),
+                              notes: newStepNotes.trim() || null,
+                              work_item_id: entryProcedureId,
+                          },
+                      ]
+                    : []),
+            ].map((s, idx) => {
                 const title = s.title.trim();
                 return {
                     step_order: idx + 1,
@@ -231,7 +311,7 @@ export default function HistoricalCareSessionModal({
                     work_item_id: s.work_item_id || selectedWorkItemIds[0],
                 };
             }),
-            historical_observations: observations.map((o) => {
+            historical_observations: visitObservations.map((o) => {
                 const canal = o.canal_id || null;
                 return {
                     observation_code: o.observation_code || 'measurement',
@@ -253,13 +333,26 @@ export default function HistoricalCareSessionModal({
             if (onSuccess) onSuccess();
             onClose();
         } catch (err) {
+            const detail = err?.response?.data?.detail;
             setErrorMsg(
-                err?.response?.data?.detail?.message ||
-                err?.response?.data?.detail ||
-                err.message ||
-                'Failed to record historical visit'
+                Array.isArray(detail)
+                    ? detail
+                          .map(
+                              (item) =>
+                                  `${(item.loc || []).filter((part) => part !== 'body').join('.')}: ${item.msg}`,
+                          )
+                          .join(' · ')
+                    : typeof detail === 'string'
+                      ? detail
+                      : detail?.message ||
+                        err.message ||
+                        t(
+                            'care_session.record_failed',
+                            'Could not record the session. Your entries are kept; please try again.',
+                        ),
             );
         } finally {
+            submittingRef.current = false;
             setIsSubmitting(false);
         }
     };
@@ -268,10 +361,15 @@ export default function HistoricalCareSessionModal({
         <Modal
             isOpen={isOpen}
             onClose={onClose}
-            title={t('care_session.record_historical_visit_title', 'Record Past / Historical Visit')}
+            title={t('care_session.record_historical_visit_title', 'Record Session')}
             size="lg"
         >
-            <form onSubmit={handleSubmit} data-testid="historical-care-session-form" className="min-w-0 space-y-5">
+            <form
+                onSubmit={handleSubmit}
+                data-testid="historical-care-session-form"
+                noValidate
+                className="min-w-0 space-y-5"
+            >
                 {/* Information Header Banner */}
                 <div className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900/40 dark:bg-blue-950/20">
                     <History className="h-5 w-5 shrink-0 text-primary mt-0.5" />
@@ -287,21 +385,11 @@ export default function HistoricalCareSessionModal({
                         <p className="text-xs text-text-secondary mt-1">
                             {t(
                                 'care_session.historical_entry_desc',
-                                'Documents care previously delivered. The visit is finalized immediately and will not interrupt any active chairside visit.'
+                                'Documents care previously delivered. The visit is finalized immediately and will not interrupt any active chairside visit.',
                             )}
                         </p>
                     </div>
                 </div>
-
-                {errorMsg && (
-                    <div
-                        data-testid="historical-entry-error"
-                        className="flex items-center gap-2 rounded-xl border border-danger/20 bg-danger/10 p-3 text-xs font-bold text-danger"
-                    >
-                        <AlertCircle className="h-4 w-4 shrink-0" />
-                        <span>{errorMsg}</span>
-                    </div>
-                )}
 
                 {/* Date & Doctor Selection */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -332,7 +420,9 @@ export default function HistoricalCareSessionModal({
                             data-testid="select-historical-provider"
                             className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-primary"
                         >
-                            <option value="">{t('care_session.select_provider_prompt', '-- Select Doctor --')}</option>
+                            <option value="">
+                                {t('care_session.select_provider_prompt', '-- Select Doctor --')}
+                            </option>
                             {doctors.map((d) => (
                                 <option key={d.id} value={d.id}>
                                     {d.full_name || d.name || d.username}
@@ -350,7 +440,10 @@ export default function HistoricalCareSessionModal({
 
                     {patientWorkItems.length === 0 ? (
                         <div className="rounded-xl border border-border bg-surface p-4 text-center text-xs text-text-secondary">
-                            {t('care_session.no_patient_procedures', 'No clinical procedures found for this patient.')}
+                            {t(
+                                'care_session.no_patient_procedures',
+                                'No clinical procedures found for this patient.',
+                            )}
                         </div>
                     ) : (
                         <div className="max-h-48 overflow-y-auto rounded-xl border border-border bg-surface p-2 space-y-1">
@@ -361,7 +454,9 @@ export default function HistoricalCareSessionModal({
                                         key={wi.id}
                                         data-testid={`checkbox-proc-${wi.id}`}
                                         className={`flex items-center justify-between gap-3 rounded-lg p-2 text-xs cursor-pointer transition-colors ${
-                                            isChecked ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-surface-elevated text-text-primary'
+                                            isChecked
+                                                ? 'bg-primary/10 text-primary font-bold'
+                                                : 'hover:bg-surface-elevated text-text-primary'
                                         }`}
                                     >
                                         <div className="flex items-center gap-2">
@@ -371,7 +466,13 @@ export default function HistoricalCareSessionModal({
                                                 onChange={() => toggleWorkItem(wi.id)}
                                                 className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
                                             />
-                                            <span>{wi.title || wi.display_label || wi.name || wi.code || `Procedure #${wi.id}`}</span>
+                                            <span>
+                                                {wi.title ||
+                                                    wi.display_label ||
+                                                    wi.name ||
+                                                    wi.code ||
+                                                    `Procedure #${wi.id}`}
+                                            </span>
                                         </div>
                                         {wi.targets?.[0]?.tooth_key && (
                                             <Badge variant="neutral" size="xs">
@@ -386,14 +487,20 @@ export default function HistoricalCareSessionModal({
                 </div>
 
                 <label className="block space-y-1 text-xs font-bold text-text-primary">
-                    <span>{t('care_session.document_procedure', 'Procedure for new steps and observations')}</span>
+                    <span>
+                        {t('care_session.document_procedure', 'Procedure for new steps and observations')}
+                    </span>
                     <select
                         value={entryProcedureId || ''}
                         onChange={(e) => setEntryWorkItemId(e.target.value)}
                         data-testid="historical-entry-procedure"
                         className="w-full rounded-xl border border-border bg-surface p-2"
                     >
-                        {selectedProcedures.map((item) => <option key={item.id} value={item.id}>{procedureLabel(item.id)}</option>)}
+                        {selectedProcedures.map((item) => (
+                            <option key={item.id} value={item.id}>
+                                {procedureLabel(item.id)}
+                            </option>
+                        ))}
                     </select>
                 </label>
 
@@ -417,10 +524,16 @@ export default function HistoricalCareSessionModal({
                                     className="flex items-center justify-between rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs"
                                 >
                                     <div className="flex items-center gap-2">
-                                        <Badge variant="success" size="xs">{t('care_session.step_completed', 'Completed')}</Badge>
+                                        <Badge variant="success" size="xs">
+                                            {t('care_session.step_completed', 'Completed')}
+                                        </Badge>
                                         <span className="font-semibold text-text-primary">{st.title}</span>
-                                        <span className="text-text-secondary">{procedureLabel(st.work_item_id)}</span>
-                                        {st.notes && <span className="text-text-secondary italic">({st.notes})</span>}
+                                        <span className="text-text-secondary">
+                                            {procedureLabel(st.work_item_id)}
+                                        </span>
+                                        {st.notes && (
+                                            <span className="text-text-secondary italic">({st.notes})</span>
+                                        )}
                                     </div>
                                     <button
                                         type="button"
@@ -440,7 +553,10 @@ export default function HistoricalCareSessionModal({
                             type="text"
                             value={newStepTitle}
                             onChange={(e) => setNewStepTitle(e.target.value)}
-                            placeholder={t('care_session.step_title_placeholder', 'Step title (e.g. Access cavity, Instrumentation)')}
+                            placeholder={t(
+                                'care_session.step_title_placeholder',
+                                'Step title (e.g. Access cavity, Instrumentation)',
+                            )}
                             data-testid="input-historical-step-title"
                             className="sm:col-span-6 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary"
                         />
@@ -469,7 +585,10 @@ export default function HistoricalCareSessionModal({
                 <div className="space-y-2 rounded-xl border border-border bg-surface/50 p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <label className="text-xs font-bold text-text-primary">
-                            {t('care_session.historical_measurements', 'Clinical Measurements & Observations')}
+                            {t(
+                                'care_session.historical_measurements',
+                                'Clinical Measurements & Observations',
+                            )}
                         </label>
                         <span className="text-[10px] text-text-secondary">
                             {observations.length} {t('care_session.obs_added', 'measurements')}
@@ -479,7 +598,9 @@ export default function HistoricalCareSessionModal({
                     <ObservationSummary
                         observations={observations}
                         onRemove={handleRemoveObservation}
-                        procedureLabels={Object.fromEntries(patientWorkItems.map((item) => [item.id, procedureLabel(item.id)]))}
+                        procedureLabels={Object.fromEntries(
+                            patientWorkItems.map((item) => [item.id, procedureLabel(item.id)]),
+                        )}
                         testIdPrefix="historical-obs-item"
                         t={t}
                     />
@@ -499,37 +620,48 @@ export default function HistoricalCareSessionModal({
                             data-testid="select-historical-obs-code"
                             className="sm:col-span-3 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary"
                         >
-                            <option value="measurement">{t('care_session.obs_measurement', 'Measurement')}</option>
-                            <option value="working_length">{t('care_session.obs_working_length', 'Working Length')}</option>
+                            <option value="measurement">
+                                {t('care_session.obs_measurement', 'Measurement')}
+                            </option>
+                            <option value="working_length">
+                                {t('care_session.obs_working_length', 'Working Length')}
+                            </option>
                             <option value="shade">{t('care_session.obs_shade', 'Shade')}</option>
                             <option value="vitality">{t('care_session.obs_vitality', 'Vitality')}</option>
                         </select>
-                        {obsCode !== 'working_length' && <><input
-                            type="text"
-                            value={obsValue}
-                            onChange={(e) => setObsValue(e.target.value)}
-                            placeholder={t('care_session.obs_val_placeholder', 'Value (e.g. 21.5, A2)')}
-                            data-testid="input-historical-obs-value"
-                            className="sm:col-span-3 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary"
-                        />
-                        <input
-                            type="text"
-                            value={obsCanal}
-                            onChange={(e) => setObsCanal(e.target.value)}
-                            placeholder={t('care_session.canal_placeholder', 'Canal (e.g. MB)')}
-                            data-testid="input-historical-obs-canal"
-                            className="sm:col-span-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary"
-                        />
-                        <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={handleAddObservation}
-                            data-testid="btn-add-historical-obs"
-                            className="col-span-2 sm:col-span-2 text-xs"
-                        >
-                            + {t('common.add', 'Add')}
-                        </Button></>}
+                        {obsCode !== 'working_length' && (
+                            <>
+                                <input
+                                    type="text"
+                                    value={obsValue}
+                                    onChange={(e) => setObsValue(e.target.value)}
+                                    placeholder={t(
+                                        'care_session.obs_val_placeholder',
+                                        'Value (e.g. 21.5, A2)',
+                                    )}
+                                    data-testid="input-historical-obs-value"
+                                    className="sm:col-span-3 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary"
+                                />
+                                <input
+                                    type="text"
+                                    value={obsCanal}
+                                    onChange={(e) => setObsCanal(e.target.value)}
+                                    placeholder={t('care_session.canal_placeholder', 'Canal (e.g. MB)')}
+                                    data-testid="input-historical-obs-canal"
+                                    className="sm:col-span-2 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs text-text-primary"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={handleAddObservation}
+                                    data-testid="btn-add-historical-obs"
+                                    className="col-span-2 sm:col-span-2 text-xs"
+                                >
+                                    + {t('common.add', 'Add')}
+                                </Button>
+                            </>
+                        )}
                     </div>
                     {obsCode === 'working_length' && obsToothKey && (
                         <div key={`${entryProcedureId}-${obsToothKey}`} className="space-y-3">
@@ -540,9 +672,12 @@ export default function HistoricalCareSessionModal({
                                 t={t}
                             />
                             <WorkingLengthEntryTable
+                                ref={measurementEditorRef}
                                 toothKey={obsToothKey}
                                 selectedCanals={selectedCanals}
-                                recordedObservations={observations.filter((observation) => observation.work_item_id === entryProcedureId)}
+                                recordedObservations={observations.filter(
+                                    (observation) => observation.work_item_id === entryProcedureId,
+                                )}
                                 onSaveMeasurement={addCanalMeasurement}
                                 showRecorded={false}
                                 isStaging
@@ -552,7 +687,11 @@ export default function HistoricalCareSessionModal({
                     )}
                 </div>
 
-                {observationError && <p role="alert" className="text-sm text-danger">{observationError}</p>}
+                {observationError && (
+                    <p role="alert" className="text-sm text-danger">
+                        {observationError}
+                    </p>
+                )}
 
                 {/* Clinical Notes */}
                 <div className="space-y-1">
@@ -565,11 +704,30 @@ export default function HistoricalCareSessionModal({
                         onChange={(e) => setNotes(e.target.value)}
                         data-testid="input-historical-notes"
                         rows={3}
-                        placeholder={t('care_session.historical_notes_placeholder', 'Document treatment delivered, findings, anesthesia, materials...')}
+                        placeholder={t(
+                            'care_session.historical_notes_placeholder',
+                            'Document treatment delivered, findings, anesthesia, materials...',
+                        )}
                         className="w-full rounded-xl border border-border bg-surface p-3 text-xs text-text-primary focus:border-primary focus:outline-hidden"
                     />
                 </div>
 
+                {errorMsg && (
+                    <div
+                        role="alert"
+                        data-testid="historical-entry-error"
+                        className="rounded-control border border-danger/20 bg-danger/10 p-3 text-sm text-danger"
+                    >
+                        <AlertCircle className="me-1 inline h-4 w-4" />
+                        {errorMsg}
+                    </div>
+                )}
+                <p className="text-xs text-text-secondary">
+                    {t(
+                        'care_session.measurement_type_help',
+                        'General measurement records a value or note. Working Length records canal length in mm with file size, taper and reference point.',
+                    )}
+                </p>
                 {/* Footer Buttons */}
                 <div className="grid grid-cols-2 gap-2 border-t border-border pt-4 sm:flex sm:items-center sm:justify-end [&_button]:min-h-11">
                     <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
@@ -587,7 +745,7 @@ export default function HistoricalCareSessionModal({
                         <span>
                             {isSubmitting
                                 ? t('common.recording', 'Recording...')
-                                : t('care_session.record_visit_btn', 'Record Visit')}
+                                : t('care_session.record_visit_btn', 'Record Session')}
                         </span>
                     </Button>
                 </div>

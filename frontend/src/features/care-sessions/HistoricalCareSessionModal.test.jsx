@@ -22,6 +22,55 @@ describe('HistoricalCareSessionModal', () => {
         vi.clearAllMocks();
     });
 
+    it('includes typed canal measurements when recording the visit directly', async () => {
+        patientsApi.startCareSession.mockResolvedValue({ data: { id: 80 } });
+        render(<HistoricalCareSessionModal isOpen patientId={5} onClose={vi.fn()} patientWorkItems={[{ id: 101, code: 'ENDO_RCT', tooth_number: '46' }]} />);
+        fireEvent.click(screen.getByTestId('canal-chip-MB'));
+        fireEvent.change(screen.getByTestId('input-length-MB'), { target: { value: '21.5' } });
+        fireEvent.click(screen.getByTestId('btn-submit-historical-session'));
+        await waitFor(() => expect(patientsApi.startCareSession).toHaveBeenCalledTimes(1));
+        expect(patientsApi.startCareSession.mock.lastCall[1].historical_observations).toEqual([
+            expect.objectContaining({ canal_id: 'MB', structured_value: expect.objectContaining({ length_mm: 21.5 }) }),
+        ]);
+    });
+
+    it('records preset and custom taper values and leaves an unavailable provider unspecified', async () => {
+        patientsApi.startCareSession.mockResolvedValue({ data: { id: 81 } });
+        render(<HistoricalCareSessionModal isOpen patientId={5} currentUserId={99} doctors={[{ id: 1, full_name: 'Test doctor' }]} onClose={vi.fn()} patientWorkItems={[{ id: 101, code: 'ENDO_RCT', tooth_number: '46' }]} />);
+        fireEvent.click(screen.getByTestId('canal-chip-MB'));
+        fireEvent.click(screen.getByTestId('canal-chip-ML'));
+        fireEvent.change(screen.getByTestId('input-length-MB'), { target: { value: '20' } });
+        fireEvent.change(screen.getByTestId('input-length-ML'), { target: { value: '21' } });
+        expect(Array.from(screen.getByTestId('select-taper-MB').options).map((option) => option.value)).toEqual(['0.02', '0.04', '0.06', 'custom']);
+        fireEvent.change(screen.getByTestId('select-taper-MB'), { target: { value: '0.02' } });
+        fireEvent.change(screen.getByTestId('input-taper-ML'), { target: { value: '0.08' } });
+        fireEvent.click(screen.getByTestId('btn-submit-historical-session'));
+        await waitFor(() => expect(patientsApi.startCareSession).toHaveBeenCalledTimes(1));
+        const payload = patientsApi.startCareSession.mock.lastCall[1];
+        expect(payload.provider_user_id).toBeNull();
+        expect(payload.historical_observations.map((observation) => observation.structured_value.taper)).toEqual([0.02, 0.08]);
+    });
+
+    it('keeps entered documentation and renders structured server validation errors safely', async () => {
+        patientsApi.startCareSession.mockRejectedValueOnce({ response: { data: { detail: [{ loc: ['body', 'historical_observations', 0], msg: 'Invalid measurement' }] } } });
+        const close = vi.fn();
+        render(<HistoricalCareSessionModal isOpen patientId={5} onClose={close} patientWorkItems={mockWorkItems} />);
+        fireEvent.change(screen.getByTestId('input-historical-notes'), { target: { value: 'Keep this documentation' } });
+        fireEvent.click(screen.getByTestId('btn-submit-historical-session'));
+        expect(await screen.findByRole('alert')).toHaveTextContent('Invalid measurement');
+        expect(screen.getByTestId('input-historical-notes')).toHaveValue('Keep this documentation');
+        expect(close).not.toHaveBeenCalled();
+    });
+
+    it('reports invalid pending lengths instead of silently ignoring the submit action', () => {
+        render(<HistoricalCareSessionModal isOpen patientId={5} onClose={vi.fn()} patientWorkItems={[{ id: 101, code: 'ENDO_RCT', tooth_number: '46' }]} />);
+        fireEvent.click(screen.getByTestId('canal-chip-MB'));
+        fireEvent.change(screen.getByTestId('input-length-MB'), { target: { value: '-1' } });
+        fireEvent.click(screen.getByTestId('btn-submit-historical-session'));
+        expect(screen.getByRole('alert')).toHaveTextContent('MB');
+        expect(patientsApi.startCareSession).not.toHaveBeenCalled();
+    });
+
     it('can requeue a removed local measurement without creating a visit prematurely', async () => {
         render(<HistoricalCareSessionModal isOpen patientId={5} onClose={vi.fn()} patientWorkItems={[{ id: 101, code: 'ENDO_RCT', tooth_number: '46' }]} />);
         fireEvent.click(screen.getByTestId('canal-chip-MB'));
@@ -71,7 +120,7 @@ describe('HistoricalCareSessionModal', () => {
             />
         );
 
-        expect(screen.getByText(/Record Past \/ Historical Visit/i)).toBeInTheDocument();
+        expect(screen.getByRole('heading', { name: 'Record Session' })).toBeInTheDocument();
         expect(screen.getByText(/Composite Restoration \(Tooth 24\)/i)).toBeInTheDocument();
         expect(screen.getByText(/Surgical Extraction \(Tooth 38\)/i)).toBeInTheDocument();
     });

@@ -545,7 +545,7 @@
       "procedures_view": "Procedures",
       "sessions_view": "Visits & Care Sessions",
       "care_sessions_count": "Care Sessions ({{count}})",
-      "record_past_visit": "+ Record Past Visit"
+      "record_past_visit": "+ Record Session"
     },
     "files": {
       "title": "X-Rays & Attachments",
@@ -3603,7 +3603,7 @@
     "error_visit_date_required": "Actual visit date is required.",
     "error_future_date": "Historical visit date cannot be in the future.",
     "error_select_procedure": "Please select at least one procedure worked on during this visit.",
-    "record_historical_visit_title": "Record Past / Historical Visit",
+    "record_historical_visit_title": "Record Session",
     "historical_entry_badge": "Retrospective Documentation",
     "historical_entry_desc": "Documents care previously delivered. The visit is finalized immediately and will not interrupt any active chairside visit.",
     "actual_visit_date": "Actual Visit Date & Time",
@@ -3627,7 +3627,7 @@
     "canal_placeholder": "Canal (e.g. MB)",
     "visit_notes": "Visit Clinical Notes & Findings",
     "historical_notes_placeholder": "Document treatment delivered, findings, anesthesia, materials...",
-    "record_visit_btn": "Record Visit",
+    "record_visit_btn": "Record Session",
     "addendum_failed": "Unable to save the correction. Please try again.",
     "addendum_title": "Add visit correction",
     "addendum_explanation": "The original visit stays in the record. Your correction is saved with your name, recording time, and reason.",
@@ -3741,7 +3741,11 @@
     "length_unit": "mm",
     "steps_addressed": "{{completed}} of {{total}} steps addressed",
     "canal_notes_label": "Canal notes",
-    "cancelled_label": "Cancelled"
+    "cancelled_label": "Cancelled",
+    "taper_presets": "Taper presets",
+    "custom_taper": "Custom",
+    "record_failed": "Could not record the session. Your entries are kept; please try again.",
+    "measurement_type_help": "General measurement records a value or note. Working Length records canal length in mm with file size, taper and reference point."
   },
   "dental_chart": {
     "primary_teeth": "Primary teeth",

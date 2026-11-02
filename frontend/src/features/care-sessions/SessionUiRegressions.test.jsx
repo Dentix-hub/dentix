@@ -10,7 +10,7 @@ it('uses Arabic labels, prefills the selected tooth, and explains an empty measu
     const i18n = createInstance();
     await i18n.use(initReactI18next).init({ lng: 'ar', resources: { ar: { translation: ar } }, interpolation: { escapeValue: false } });
     render(<I18nextProvider i18n={i18n}><HistoricalCareSessionModal isOpen onClose={vi.fn()} patientId={1} patientWorkItems={[{ id: 10, code: 'ENDO_RCT', targets: [{ tooth_key: '46' }] }, { id: 20, code: 'ENDO_RCT', tooth_number: '36' }]} /></I18nextProvider>);
-    expect(screen.getByText('تسجيل زيارة سابقة')).toBeInTheDocument();
+    expect(screen.getByText('تسجيل جلسة')).toBeInTheDocument();
     expect(screen.getByTestId('input-historical-obs-tooth')).toHaveValue('46');
     fireEvent.click(screen.getByTestId('canal-chip-MB'));
     expect(screen.getByRole('columnheader', { name: ar.care_session.taper_short })).toBeInTheDocument();
