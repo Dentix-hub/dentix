@@ -18,7 +18,10 @@ NATIVE = "clinical_vnext_native_writes"
 
 
 @pytest.fixture(params=["sqlite", "postgresql"])
-def activation_database(request, tmp_path):
+def activation_database(request, tmp_path, monkeypatch):
+    # Each fixture owns a different DB; a role selected by a prior preflight
+    # belongs to that prior DB and must not affect this independent Alembic run.
+    monkeypatch.delenv("DENTIX_MIGRATION_SET_ROLE", raising=False)
     if request.param == "postgresql":
         base_url = _postgres_base_url()
         name, url = _create_database(base_url)
