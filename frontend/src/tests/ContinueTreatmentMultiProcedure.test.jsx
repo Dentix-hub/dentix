@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import ContinueTreatmentCard from '@/features/care-sessions/ContinueTreatmentCard';
@@ -181,7 +181,8 @@ describe('Slice S25 / Defect 3: Multi-Procedure Continuation Card', () => {
 
         // Initially tooth 16 is displayed
         expect(screen.getByTestId('continue-card-tooth-badge')).toHaveTextContent('Tooth 16');
-        expect(screen.getByTestId('canal-measurements-preview')).toHaveTextContent(/MB1.*20mm/);
+        const measurements = within(screen.getByTestId('canal-measurements-preview'));
+        expect(measurements.getByRole('row', { name: /MB1 20 mm #25/ })).toBeInTheDocument();
 
         // Switch to tooth 26 procedure
         fireEvent.click(screen.getByTestId('select-procedure-1'));
