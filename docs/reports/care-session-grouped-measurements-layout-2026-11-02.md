@@ -20,6 +20,8 @@ One user action still uses the existing individual observation requests. This is
 
 Terminology follow-up: the owner requested English clinical terms written phonetically in Arabic rather than anatomical Arabic translations. Roots, reference points, chart surface labels and treatment tooltips now use names such as ميزيال، ديستال، باكال، لينجوال، بالاتال and ميزيو باكال كاسب. Stored IDs, surface/canal codes, reference values and English resources remain unchanged. The follow-up passed 27 existing resource, Arabic-reader, summary and treatment-editor tests, plus ESLint and whitespace checks; logs: `/tmp/dentix-phonetic-terms/`.
 
+CI follow-up: the [Frontend Tests job at `f5752c1`](https://github.com/Dentix-hub/dentix/actions/runs/41459521921/job/125324762782) failed in `ClinicalChartWorkspace.test.jsx` because its focus-isolation test still expected `بعيد (D)`. Local reproduction confirmed the same failure (1 failed, 6 passed). The expected display literal now matches the owner's requested `ديستال (D)`; the `46:D` selection, unaffected historical chart, inspector tooth and all other isolation assertions remain unchanged. Final verification passed **118 tests across 6 files**, targeted ESLint and whitespace checks (exit code 0). Logs: `/tmp/dentix-pr344-ci/`. Application code, CI configuration and test coverage requirements were not changed for this correction; fresh remote CI remains pending.
+
 ## Verification
 
 - Baseline reproduction: one failing UI test, specifically unable to find the single save action. Sanitized evidence: `/tmp/dentix-session-layout/reproduction.log`.
