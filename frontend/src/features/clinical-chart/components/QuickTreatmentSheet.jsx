@@ -32,13 +32,13 @@ import { resolveEffectiveProcedureChartBehavior } from '@/features/clinical-char
 import { palmerToFdi, fdiToPalmer } from '@/utils/toothUtils';
 
 const CLINICAL_SURFACES = [
-    { code: 'M', label: 'M', description: 'Mesial (أنسي)' },
-    { code: 'O', label: 'O', description: 'Occlusal (إطباقي)' },
-    { code: 'D', label: 'D', description: 'Distal (وحشي)' },
-    { code: 'B', label: 'B', description: 'Buccal (دهليزي)' },
-    { code: 'L', label: 'L', description: 'Lingual (لساني)' },
-    { code: 'I', label: 'I', description: 'Incisal (قاطع)' },
-    { code: 'P', label: 'P', description: 'Palatal (حنكي)' },
+    { code: 'M', label: 'M', description: 'Mesial (ميزيال)' },
+    { code: 'O', label: 'O', description: 'Occlusal (أوكلوزال)' },
+    { code: 'D', label: 'D', description: 'Distal (ديستال)' },
+    { code: 'B', label: 'B', description: 'Buccal (باكال)' },
+    { code: 'L', label: 'L', description: 'Lingual (لينجوال)' },
+    { code: 'I', label: 'I', description: 'Incisal (إنسايزال)' },
+    { code: 'P', label: 'P', description: 'Palatal (بالاتال)' },
 ];
 
 const TOOTH_CONDITIONS = [

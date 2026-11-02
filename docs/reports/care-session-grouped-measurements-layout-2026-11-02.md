@@ -18,6 +18,8 @@ Before implementation, `WorkingLengthEntryTable.batch.test.jsx` reproduced the m
 
 One user action still uses the existing individual observation requests. This is intentionally **not an atomic server batch**: successful records remain saved if a later request fails, and the entry sheet identifies unsaved input for retry. No new endpoint, schema, migration, rollout setting, role rule or clinical-history rewrite is introduced.
 
+Terminology follow-up: the owner requested English clinical terms written phonetically in Arabic rather than anatomical Arabic translations. Roots, reference points, chart surface labels and treatment tooltips now use names such as ميزيال، ديستال، باكال، لينجوال، بالاتال and ميزيو باكال كاسب. Stored IDs, surface/canal codes, reference values and English resources remain unchanged. The follow-up passed 27 existing resource, Arabic-reader, summary and treatment-editor tests, plus ESLint and whitespace checks; logs: `/tmp/dentix-phonetic-terms/`.
+
 ## Verification
 
 - Baseline reproduction: one failing UI test, specifically unable to find the single save action. Sanitized evidence: `/tmp/dentix-session-layout/reproduction.log`.
