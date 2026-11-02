@@ -422,7 +422,7 @@ export default function PatientDetails() {
         }
     }, [id, activeCareSession?.id, updateCareSessionStepMutation, refetchActiveSession]);
 
-    const handleSaveObservation = useCallback(async (obsData) => {
+    const handleSaveObservation = useCallback(async (obsData, { batch = false } = {}) => {
         if (!activeCareSession?.id) return;
         try {
             const lengthMm = obsData.structured_value?.length_mm ?? obsData.length_mm;
@@ -447,10 +447,10 @@ export default function PatientDetails() {
                 },
             });
             await refetchActiveSession();
-            toast.success(t('care_session.length_saved', `Saved ${obsData.canal_id} length: ${lengthMm} mm`));
+            if (!batch) toast.success(t('care_session.length_saved', `Saved ${obsData.canal_id} length: ${lengthMm} mm`));
             return true;
         } catch (err) {
-            toast.error(err?.response?.data?.detail || 'Failed to record measurement');
+            if (!batch) toast.error(err?.response?.data?.detail || 'Failed to record measurement');
             return false;
         }
     }, [id, activeCareSession?.id, recordCareObservationMutation, refetchActiveSession, t]);
@@ -844,7 +844,7 @@ export default function PatientDetails() {
                                         </div>
                                         <p className="mt-1 break-words text-xs text-slate-500 dark:text-slate-400">{t('patient_details.chart.subtitle')}</p>
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-2 md:w-auto">
+                                    <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
                                         <button
                                             type="button"
                                             onClick={() => setIsPediatric(value => !value)}
@@ -913,7 +913,7 @@ export default function PatientDetails() {
                                         {careSessionDisabledNotice && (
                                             <div
                                                 data-testid="care-session-disabled-notice"
-                                                className="mb-3 p-3.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 flex items-center justify-between text-sm shadow-sm"
+                                                className="mb-3 flex min-w-0 items-start justify-between gap-3 rounded-card border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 shadow-low"
                                                 role="alert"
                                             >
                                                 <span className="font-medium">{careSessionDisabledNotice}</span>

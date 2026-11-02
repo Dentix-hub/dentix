@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import ObservationSummary from './ObservationSummary';
 import {
     CheckCircle,
     Clock,
     AlertCircle,
     FileText,
-    Ruler,
     Loader2,
     CalendarPlus,
     Info,
@@ -257,33 +257,9 @@ export default function FinishCareSessionSheet({
                     )}
                 </div>
 
-                {/* Canal Observations Summary */}
-                {workingLengthObs.length > 0 && (
-                    <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-                        <div className="flex items-center gap-1.5">
-                            <Ruler className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                {t('care_session.recorded_measurements', 'Recorded Canal Lengths')}
-                            </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 pt-1" data-testid="finish-sheet-canal-measurements">
-                            {workingLengthObs.map((obs) => {
-                                const val = obs.structured_value || {};
-                                return (
-                                    <span
-                                        key={obs.id}
-                                        className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-                                    >
-                                        <span className="font-bold">{obs.canal_id || 'Canal'}:</span>
-                                        <span>{val.length_mm ?? obs.length_mm} mm</span>
-                                        {val.maf && <span className="text-[10px] opacity-75">({val.maf})</span>}
-                                        {val.taper != null && <span>{t('care_session.maf_taper', 'Master file taper')}: {val.taper}</span>}
-                                    </span>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
+                <div data-testid="finish-sheet-canal-measurements">
+                    <ObservationSummary observations={workingLengthObs} t={t} />
+                </div>
 
                 {/* Free Text Notes Entry (G10-M15) */}
                 <div className="space-y-1.5">

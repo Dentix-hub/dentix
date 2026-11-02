@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, within, fireEvent } from '@testing-library/react';
 import ContinueTreatmentCard from '@/features/care-sessions/ContinueTreatmentCard';
 
 describe('Slice S21: Care Session Resume Engine & Continue-Treatment Card', () => {
@@ -84,9 +84,9 @@ describe('Slice S21: Care Session Resume Engine & Continue-Treatment Card', () =
 
         const preview = screen.getByTestId('canal-measurements-preview');
         expect(preview).toBeInTheDocument();
-        expect(preview).toHaveTextContent('MB: 20mm(MAF #25)');
-        expect(preview).toHaveTextContent('ML: 20.5mm(MAF #25)');
-        expect(preview).toHaveTextContent('D: 21mm(MAF #30)');
+        expect(within(preview).getByRole('row', { name: /MB 20 mm #25/ })).toBeInTheDocument();
+        expect(within(preview).getByRole('row', { name: /ML 20.5 mm #25/ })).toBeInTheDocument();
+        expect(within(preview).getByRole('row', { name: /D 21 mm #30/ })).toBeInTheDocument();
     });
 
     it('triggers onResumeTreatment callback when Resume Treatment button is clicked (G10-M13)', () => {
@@ -158,13 +158,13 @@ describe('Slice S21: Care Session Resume Engine & Continue-Treatment Card', () =
             />
         );
 
-        const canalsToggle = screen.getByRole('button', { name: /Canals \(3\)/i });
+        const canalsToggle = screen.getByRole('button', { name: 'Visit details' });
         fireEvent.click(canalsToggle);
 
         expect(screen.getByText('Patient tolerated canal instrumentation well')).toBeInTheDocument();
-        expect(screen.getByText(/Canal Observations & Measurements:/)).toBeInTheDocument();
-        expect(screen.getByText('Length: 20 mm')).toBeInTheDocument();
-        expect(screen.getByText('Length: 20.5 mm')).toBeInTheDocument();
-        expect(screen.getByText('Length: 21 mm')).toBeInTheDocument();
+        expect(screen.getAllByRole('table', { name: 'Canal measurements' })).toHaveLength(1);
+        expect(screen.getByRole('row', { name: /MB 20 mm #25/ })).toBeInTheDocument();
+        expect(screen.getByRole('row', { name: /ML 20.5 mm #25/ })).toBeInTheDocument();
+        expect(screen.getByRole('row', { name: /D 21 mm #30/ })).toBeInTheDocument();
     });
 });

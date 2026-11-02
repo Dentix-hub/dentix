@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { getPatientCareSessions } from '@/api/patients';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GenericVisitWorkspace from '@/features/care-sessions/GenericVisitWorkspace';
@@ -74,6 +74,20 @@ function workspace(code = 'ENDO_RCT', extra = {}) {
 }
 
 describe('GenericVisitWorkspace and TreatmentHistory regressions', () => {
+    it('keeps the visit open and prevents finishing while canal measurements are saving', async () => {
+        let resolve;
+        const close = vi.fn();
+        wrap(workspace('ENDO_RCT', { onClose: close, onSaveObservation: () => new Promise((done) => { resolve = done; }) }));
+        fireEvent.change(screen.getByTestId('input-length-MB'), { target: { value: '20' } });
+        fireEvent.click(screen.getByTestId('save-canal-measurements'));
+        expect(screen.getByTestId('workspace-finish-visit-btn')).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', { name: 'Close', exact: true }));
+        expect(close).not.toHaveBeenCalled();
+        resolve(true);
+        await waitFor(() => expect(screen.getByTestId('workspace-finish-visit-btn')).toBeEnabled());
+        fireEvent.click(screen.getByRole('button', { name: 'Close', exact: true }));
+        expect(close).toHaveBeenCalledTimes(1);
+    });
     it('recalls the previous procedure notes and next action for a non-RCT visit', async () => {
         getPatientCareSessions.mockResolvedValueOnce({ data: [{ id: 99, status: 'completed', actual_visit_date: '2026-10-01T10:00:00Z', created_at: '2026-10-01T10:00:00Z', notes: 'Last visit summary', procedures: [{ id: 12, work_item_id: 10, procedure_notes: 'Provisional crown fitted', next_action: 'Check margin fit' }] }] });
         wrap(workspace('PROS_CROWN'));

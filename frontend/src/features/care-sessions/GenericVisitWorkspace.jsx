@@ -28,6 +28,7 @@ import CareSessionMaterialsModal from './CareSessionMaterialsModal';
 import CareSessionImagesModal from './CareSessionImagesModal';
 import LabHandoffSheet from './LabHandoffSheet';
 import VisitDocumentation from './VisitDocumentation';
+import ObservationSummary from './ObservationSummary';
 import {
     addCareSessionProcedure,
     removeCareSessionProcedure,
@@ -80,6 +81,7 @@ export default function GenericVisitWorkspace({
         return null;
     });
     const [resource, setResource] = useState(null);
+    const [isSavingMeasurements, setIsSavingMeasurements] = useState(false);
     const previousVisits = useQuery({
         queryKey: ['patient', session?.patient_id, 'care-sessions'],
         queryFn: async () => {
@@ -239,7 +241,7 @@ export default function GenericVisitWorkspace({
         });
     };
 
-    const handleSaveMeasurement = (measurement) => {
+    const handleSaveMeasurement = (measurement, options) => {
         if (!procedureToothKey) {
             setValidationError(t('care_session.measurement_tooth_required', 'Select a tooth for this procedure before recording measurements.'));
             return false;
@@ -262,8 +264,9 @@ export default function GenericVisitWorkspace({
                 reference_point: measurement.reference_point,
                 maf: measurement.maf,
                 notes: measurement.notes,
-            });
+            }, options);
         }
+        return false;
     };
 
     const [validationError, setValidationError] = useState(null);
@@ -378,30 +381,31 @@ export default function GenericVisitWorkspace({
         <DentixDialog
             open={isOpen}
             onOpenChange={(nextOpen) => {
-                if (!nextOpen) onClose?.();
+                if (!nextOpen && !isSavingMeasurements) onClose?.();
             }}
             title={t('care_session.workspace_title', 'Chairside Visit Workspace')}
             size="5xl"
             maxWidth="w-[calc(100%-1rem)] max-w-7xl h-[calc(100dvh-1rem)]"
             scrollable={false}
+            closeLabel={t('common.close', 'Close')}
             className="p-0 overflow-hidden"
         >
             <div
                 role="region"
                 aria-label={t('care_session.workspace_title', 'Chairside Visit Workspace')}
                 data-testid="generic-visit-workspace"
-                className="flex h-full w-full flex-col bg-surface overflow-hidden"
+                className="flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-surface"
             >
                 {/* ---------------- Top Header Bar ---------------- */}
-                <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-surface-elevated px-4 py-3 sm:px-6">
-                    <div className="flex items-center gap-3">
+                <header className="flex shrink-0 flex-wrap items-start justify-between gap-3 border-b border-border bg-surface-subtle px-3 py-3 sm:px-4">
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
                         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-white shadow-xs">
                             <Activity className="h-5 w-5" aria-hidden="true" />
                         </div>
-                        <div>
-                            <div className="flex items-center gap-2">
+                        <div className="min-w-0 flex-1">
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
                                 <h2 className="text-base font-bold text-text-primary">
-                                    {t('care_session.visit_workspace', 'Visit Workspace')} #{session.id}
+                                    {t('care_session.session_label', 'Session')} <bdi dir="ltr">#{session.id}</bdi>
                                 </h2>
                                 <Badge variant="success" size="xs" className="font-bold gap-1">
                                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -410,7 +414,7 @@ export default function GenericVisitWorkspace({
                                 {session.appointment_id && (
                                     <Badge variant="neutral" size="xs" className="gap-1 font-semibold">
                                         <Calendar className="h-3 w-3" />
-                                        <span>Appt #{session.appointment_id}</span>
+                                        <span>{t('care_session.appointment_label', 'Appointment')} <bdi dir="ltr">#{session.appointment_id}</bdi></span>
                                     </Badge>
                                 )}
                                 {session.started_at && (
@@ -420,14 +424,14 @@ export default function GenericVisitWorkspace({
                                     </span>
                                 )}
                             </div>
-                            <p className="text-xs text-text-secondary">
+                            <p className="mt-1 truncate text-xs text-text-secondary" title={patient?.name}>
                                 {patient?.name || `Patient #${session.patient_id}`}
                             </p>
                         </div>
                     </div>
 
                     {/* Autosave & Conflict Indicators */}
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 flex-wrap items-center gap-3">
                         {careSessionDraftStatus === 'saving' && (
                             <span
                                 data-testid="workspace-draft-saving"
@@ -478,6 +482,7 @@ export default function GenericVisitWorkspace({
                             variant="success"
                             size="sm"
                             onClick={handleFinishVisit}
+                            disabled={isSavingMeasurements}
                             data-testid="workspace-finish-visit-btn"
                             className="gap-1.5 font-bold shadow-xs"
                         >
@@ -485,16 +490,6 @@ export default function GenericVisitWorkspace({
                             <span>{t('care_session.finish_visit_btn', 'Finish Visit')}</span>
                         </Button>
 
-                        {/* Close Workspace */}
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            data-testid="workspace-close-btn"
-                            aria-label="Close Workspace"
-                            className="rounded-xl p-2 text-text-secondary hover:bg-surface-elevated hover:text-text-primary"
-                        >
-                            <X className="h-5 w-5" />
-                        </button>
                     </div>
                 </header>
 
@@ -519,159 +514,148 @@ export default function GenericVisitWorkspace({
                     </div>
                 )}
 
-                {/* ---------------- Procedures Navigation Strip ---------------- */}
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-surface px-4 py-2 sm:px-6">
-                    <div className="flex items-center gap-2 overflow-x-auto py-1">
-                        <span className="text-xs font-bold text-text-secondary uppercase tracking-wider me-1">
-                            {t('care_session.procedures_label', 'Procedures in Visit')}:
-                        </span>
+                {/* ---------------- Main Content Body ---------------- */}
+                <main className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto p-3 sm:p-4">
+                    {/* ---------------- Procedures Navigation Strip ---------------- */}
+                    <div className="shrink-0 space-y-2 border-b border-border bg-surface px-3 py-3 sm:px-4">
+                        <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            <span className="text-xs font-bold text-text-secondary sm:col-span-2 lg:col-span-3">
+                                {t('care_session.procedures_label', 'Procedures in Visit')}:
+                            </span>
 
-                        {sessionProcedures.map((sp) => {
-                            const isSelected = sp.work_item_id === selectedWorkItemId;
-                            const wi = sp.work_item || (patientWorkItems || []).find((w) => w.id === sp.work_item_id);
-                            const toothKey = wi?.targets?.[0]?.tooth_key || wi?.tooth_key;
+                            {sessionProcedures.map((sp) => {
+                                const isSelected = sp.work_item_id === selectedWorkItemId;
+                                const wi = sp.work_item || (patientWorkItems || []).find((w) => w.id === sp.work_item_id);
+                                const toothKey = wi?.targets?.[0]?.tooth_key || wi?.tooth_key;
 
-                            return (
-                                <div
-                                    key={sp.work_item_id}
-                                    className={`group flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all ${
-                                        isSelected
-                                            ? 'border-primary bg-primary/10 text-primary shadow-xs'
-                                            : 'border-border bg-surface-elevated text-text-secondary hover:border-border-focus hover:text-text-primary'
-                                    }`}
-                                >
-                                    <button
-                                        type="button"
-                                        onClick={() => setSelectedWorkItemId(sp.work_item_id)}
-                                        data-testid={`tab-proc-${sp.work_item_id}`}
-                                        className="flex items-center gap-1.5"
+                                return (
+                                    <div
+                                        key={sp.work_item_id}
+                                        className={`group flex min-w-0 items-center justify-between gap-2 rounded-control border px-3 py-1.5 text-xs font-bold transition-all ${
+                                            isSelected
+                                                ? 'border-primary bg-primary/10 text-primary shadow-xs'
+                                                : 'border-border bg-surface-elevated text-text-secondary hover:border-border-focus hover:text-text-primary'
+                                        }`}
                                     >
-                                        {toothKey && (
-                                            <span className="rounded-md bg-surface px-1.5 py-0.5 text-xs font-black border border-border">
-                                                #{toothKey}
-                                            </span>
-                                        )}
-                                        <span>{wi?.title || wi?.code || `Proc #${sp.work_item_id}`}</span>
-                                    </button>
-
-                                    {/* Inline Procedure Status Control */}
-                                    <ProcedureStatusControl
-                                        patientId={session.patient_id}
-                                        workItemId={sp.work_item_id}
-                                        currentStatus={sp.work_item_status || wi?.status || 'active'}
-                                        versionId={sp.work_item_version_id || wi?.version_id || 1}
-                                        procedureCode={wi?.code || ''}
-                                        procedureTitle={wi?.title || wi?.code || ''}
-                                        onStatusChanged={() => refetchSession && refetchSession()}
-                                        t={t}
-                                    />
-
-                                    {/* Remove procedure button (if 0 steps completed in this visit) */}
-                                    {sessionProcedures.length > 1 && (
                                         <button
                                             type="button"
-                                            onClick={() => handleRemoveProcedure(sp.work_item_id)}
-                                            data-testid={`btn-remove-proc-${sp.work_item_id}`}
-                                            title={t('care_session.remove_proc_title', 'Remove procedure from visit')}
-                                            className="opacity-0 group-hover:opacity-100 p-0.5 text-text-secondary hover:text-danger transition-opacity"
+                                            onClick={() => setSelectedWorkItemId(sp.work_item_id)}
+                                            disabled={isSavingMeasurements}
+                                            data-testid={`tab-proc-${sp.work_item_id}`}
+                                            className="flex min-w-0 items-center gap-1.5 text-start"
                                         >
-                                            <X className="h-3.5 w-3.5" />
-                                        </button>
-                                    )}
-                                </div>
-                            );
-                        })}
-
-                        {/* Add Procedure Button */}
-                        <div className="relative">
-                            <button
-                                type="button"
-                                onClick={() => setIsAddProcOpen(!isAddProcOpen)}
-                                data-testid="btn-add-proc-to-visit"
-                                disabled={availableWorkItems.length === 0 || isAddingProc}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-1.5 text-xs font-bold text-text-secondary hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
-                            >
-                                <Plus className="h-3.5 w-3.5" />
-                                <span>{t('care_session.add_procedure_btn', 'Add Procedure')}</span>
-                            </button>
-
-                            {isAddProcOpen && availableWorkItems.length > 0 && (
-                                <div
-                                    data-testid="dropdown-available-procedures"
-                                    className="absolute left-0 mt-2 z-50 w-64 rounded-2xl border border-border bg-surface-elevated p-2 shadow-xl animate-in fade-in"
-                                >
-                                    <div className="text-xs font-bold text-text-secondary px-2 py-1 mb-1">
-                                        {t('care_session.select_proc_to_add', 'Select Procedure')}:
-                                    </div>
-                                    <div className="max-h-48 overflow-y-auto space-y-1">
-                                        {availableWorkItems.map((wi) => (
-                                            <button
-                                                key={wi.id}
-                                                type="button"
-                                                onClick={() => handleAddProcedure(wi.id)}
-                                                className="w-full flex items-center justify-between gap-2 rounded-xl px-2.5 py-1.5 text-xs text-text-primary hover:bg-surface text-left"
-                                            >
-                                                <span className="font-bold truncate">
-                                                    {wi.title || wi.code || `Procedure #${wi.id}`}
+                                            {toothKey && (
+                                                <span className="rounded-md bg-surface px-1.5 py-0.5 text-xs font-black border border-border">
+                                                    #{toothKey}
                                                 </span>
-                                                {wi.tooth_key && (
-                                                    <span className="rounded bg-surface px-1 py-0.5 text-xs text-text-secondary">
-                                                        #{wi.tooth_key}
-                                                    </span>
-                                                )}
+                                            )}
+                                            <span className="min-w-0 break-words">{wi?.title || wi?.code || `Proc #${sp.work_item_id}`}</span>
+                                        </button>
+
+                                        {/* Remove procedure button (if 0 steps completed in this visit) */}
+                                        {sessionProcedures.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => handleRemoveProcedure(sp.work_item_id)}
+                                                data-testid={`btn-remove-proc-${sp.work_item_id}`}
+                                                title={t('care_session.remove_proc_title', 'Remove procedure from visit')}
+                                                className="inline-flex min-h-10 min-w-10 shrink-0 items-center justify-center rounded-control text-text-secondary hover:bg-danger/10 hover:text-danger"
+                                            >
+                                                <X className="h-3.5 w-3.5" />
                                             </button>
-                                        ))}
+                                        )}
                                     </div>
-                                </div>
+                                );
+                            })}
+
+                            {/* Add Procedure Button */}
+                            <div className="relative min-w-0">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsAddProcOpen(!isAddProcOpen)}
+                                    data-testid="btn-add-proc-to-visit"
+                                    disabled={availableWorkItems.length === 0 || isAddingProc}
+                                    className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-border px-3 py-1.5 text-xs font-bold text-text-secondary hover:border-primary hover:text-primary transition-colors disabled:opacity-50"
+                                >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    <span>{t('care_session.add_procedure_btn', 'Add Procedure')}</span>
+                                </button>
+
+                                {isAddProcOpen && availableWorkItems.length > 0 && (
+                                    <div
+                                        data-testid="dropdown-available-procedures"
+                                        className="absolute start-0 mt-2 z-50 w-full min-w-0 rounded-2xl border border-border bg-surface-elevated p-2 shadow-xl animate-in fade-in"
+                                    >
+                                        <div className="text-xs font-bold text-text-secondary px-2 py-1 mb-1">
+                                            {t('care_session.select_proc_to_add', 'Select Procedure')}:
+                                        </div>
+                                        <div className="max-h-48 overflow-y-auto space-y-1">
+                                            {availableWorkItems.map((wi) => (
+                                                <button
+                                                    key={wi.id}
+                                                    type="button"
+                                                    onClick={() => handleAddProcedure(wi.id)}
+                                                    className="w-full flex items-center justify-between gap-2 rounded-xl px-2.5 py-1.5 text-xs text-text-primary hover:bg-surface text-start"
+                                                >
+                                                    <span className="font-bold truncate">
+                                                        {wi.title || wi.code || `Procedure #${wi.id}`}
+                                                    </span>
+                                                    {wi.tooth_key && (
+                                                        <span className="rounded bg-surface px-1 py-0.5 text-xs text-text-secondary">
+                                                            #{wi.tooth_key}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Context actions */}
+                        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+                            {selectedWorkItem && (
+                                <Button
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => onOpenMaterialsModal ? onOpenMaterialsModal(selectedWorkItem) : setResource('materials')}
+                                    data-testid="workspace-materials-btn"
+                                    className="gap-1 text-xs"
+                                >
+                                    <Layers className="h-3.5 w-3.5" />
+                                    <span>{t('care_session.materials_btn', 'Materials')}</span>
+                                </Button>
                             )}
+                            {selectedWorkItem && (
+                                <Button
+                                    variant="outline"
+                                    size="xs"
+                                    onClick={() => onOpenLabHandoff ? onOpenLabHandoff(selectedWorkItem) : setResource('lab')}
+                                    data-testid="workspace-lab-btn"
+                                    className="gap-1 text-xs"
+                                >
+                                    <Sliders className="h-3.5 w-3.5" />
+                                    <span>{t('care_session.lab_handoff_btn', 'Lab Work')}</span>
+                                </Button>
+                            )}
+                            {selectedWorkItem && <Button variant="outline" size="xs" onClick={() => setResource('images')} data-testid="workspace-images-btn" className="gap-1 text-xs">
+                                <Camera className="h-3.5 w-3.5" />{t('care_session.images_tab', 'Images & X-Rays')}
+                            </Button>}
                         </div>
                     </div>
 
-                    {/* Context actions */}
-                    <div className="flex flex-wrap items-center gap-2">
-                        {selectedWorkItem && (
-                            <Button
-                                variant="outline"
-                                size="xs"
-                                onClick={() => onOpenMaterialsModal ? onOpenMaterialsModal(selectedWorkItem) : setResource('materials')}
-                                data-testid="workspace-materials-btn"
-                                className="gap-1 text-xs"
-                            >
-                                <Layers className="h-3.5 w-3.5" />
-                                <span>{t('care_session.materials_btn', 'Materials')}</span>
-                            </Button>
-                        )}
-                        {selectedWorkItem && (
-                            <Button
-                                variant="outline"
-                                size="xs"
-                                onClick={() => onOpenLabHandoff ? onOpenLabHandoff(selectedWorkItem) : setResource('lab')}
-                                data-testid="workspace-lab-btn"
-                                className="gap-1 text-xs"
-                            >
-                                <Sliders className="h-3.5 w-3.5" />
-                                <span>{t('care_session.lab_handoff_btn', 'Lab Work')}</span>
-                            </Button>
-                        )}
-                        {selectedWorkItem && <Button variant="outline" size="xs" onClick={() => setResource('images')} data-testid="workspace-images-btn" className="gap-1 text-xs">
-                            <Camera className="h-3.5 w-3.5" />{t('care_session.images_tab', 'Images & X-Rays')}
-                        </Button>}
-                    </div>
-                </div>
-
-                {/* ---------------- Main Content Body ---------------- */}
-                <main className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
                     {/* Procedure Headline Card */}
                     <div className="rounded-2xl border border-border bg-surface-elevated p-4 shadow-xs">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
-                                <div className="flex items-center gap-2">
-                                    <h3 className="text-lg font-bold text-text-primary">
+                                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                    <h3 className="min-w-0 break-words text-base font-bold text-text-primary">
                                         {selectedWorkItem?.title || selectedWorkItem?.code || 'Selected Procedure'}
                                     </h3>
                                     {selectedWorkItem?.targets?.[0]?.tooth_key && (
                                         <Badge variant="primary" size="sm" className="font-bold">
-                                            Tooth #{selectedWorkItem.targets[0].tooth_key}
+                                            {t('care_sessions.tooth', 'Tooth')} <bdi>#{selectedWorkItem.targets[0].tooth_key}</bdi>
                                         </Badge>
                                     )}
                                 </div>
@@ -680,7 +664,8 @@ export default function GenericVisitWorkspace({
                                     {templateSnapshot?.version && ` (v${templateSnapshot.version})`}
                                 </p>
                             </div>
-                            <div className="flex items-center gap-3">
+                            <div className="flex min-w-0 flex-wrap items-center gap-3">
+                                {selectedWorkItem && <ProcedureStatusControl patientId={session.patient_id} workItemId={selectedWorkItemId} currentStatus={selectedSessionProc?.work_item_status || selectedWorkItem.status || 'active'} versionId={selectedSessionProc?.work_item_version_id || selectedWorkItem.version_id || 1} procedureCode={selectedWorkItem.code || ''} procedureTitle={selectedWorkItem.title || selectedWorkItem.code || ''} onStatusChanged={() => refetchSession?.()} t={t} />}
                                 <span className="text-xs font-semibold text-text-secondary">
                                     {procedureSteps.filter((s) => s.status === 'completed').length} / {procedureSteps.length}{' '}
                                     {t('care_session.steps_done_label', 'steps completed')}
@@ -701,26 +686,7 @@ export default function GenericVisitWorkspace({
                                 <span>{t('care_session.previous_visit_context', 'Previous Visit Context & Carried Measurements')}</span>
                             </div>
                             {previousVisit && <VisitDocumentation session={{ ...previousVisit, procedures: (previousVisit.procedures || []).filter((procedure) => procedure.work_item_id === selectedWorkItemId) }} addenda={(previousVisits.data || []).filter((visit) => visit.amends_session_id === previousVisit.id)} t={t} />}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                                {carriedObservations.map((obs) => (
-                                    <div
-                                        key={obs.id}
-                                        className="rounded-xl border border-indigo-200/80 bg-surface p-2.5 text-xs shadow-xs"
-                                    >
-                                        <div className="flex items-center justify-between text-text-secondary font-semibold">
-                                            <span>{obs.observation_code}</span>
-                                            {obs.reference_source_date && (
-                                                <span className="text-xs">
-                                                    {new Date(obs.reference_source_date).toLocaleDateString()}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <div className="font-bold text-text-primary mt-1">
-                                            {obs.structured_value ? JSON.stringify(obs.structured_value) : obs.notes}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                            <ObservationSummary observations={carriedObservations} t={t} />
                         </section>
                     )}
 
@@ -730,8 +696,8 @@ export default function GenericVisitWorkspace({
                         aria-label="Workflow Steps"
                         className="rounded-2xl border border-border bg-surface-elevated p-4 shadow-xs"
                     >
-                        <div className="flex items-center justify-between border-b border-border pb-3 mb-3">
-                            <div className="flex items-center gap-2">
+                        <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-border pb-3">
+                            <div className="flex min-w-0 flex-wrap items-center gap-2">
                                 <CheckCircle2 className="h-4 w-4 text-primary" />
                                 <h4 className="text-sm font-bold text-text-primary">
                                     {t('care_session.workflow_steps_title', 'Clinical Workflow Steps')}
@@ -767,7 +733,7 @@ export default function GenericVisitWorkspace({
                                                     : 'border-border bg-surface'
                                             }`}
                                         >
-                                            <div className="flex items-center gap-3">
+                                            <div className="flex min-w-0 flex-wrap items-center gap-3">
                                                 <button
                                                     type="button"
                                                     onClick={() =>
@@ -775,7 +741,7 @@ export default function GenericVisitWorkspace({
                                                         onUpdateStepStatus(step.id, isDone ? 'pending' : 'completed')
                                                     }
                                                     data-testid={`btn-toggle-step-${step.id}`}
-                                                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border transition-colors ${
+                                                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors ${
                                                         isDone
                                                             ? 'border-emerald-600 bg-emerald-600 text-white'
                                                             : isInProgress
@@ -787,7 +753,7 @@ export default function GenericVisitWorkspace({
                                                 </button>
 
                                                 <div>
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex min-w-0 flex-wrap items-center gap-2">
                                                         <span
                                                             className={`text-xs font-bold ${
                                                                 isDone
@@ -815,7 +781,7 @@ export default function GenericVisitWorkspace({
                                             </div>
 
                                             {/* Step actions: In Progress, Skip, Repeat */}
-                                            <div className="flex items-center gap-1.5">
+                                            <div className="flex min-w-0 items-center gap-1.5 text-start">
                                                 {!isDone && !isSkipped && (
                                                     <button
                                                         type="button"
@@ -982,7 +948,7 @@ export default function GenericVisitWorkspace({
                                                     </label>
                                                 </div>
                                             ) : field.field_type === 'number' ? (
-                                                <div className="relative">
+                                                <div className="relative min-w-0">
                                                     <input
                                                         type="number"
                                                         value={val}
@@ -1044,8 +1010,9 @@ export default function GenericVisitWorkspace({
                                 key={`${session.id}-${selectedWorkItemId}`}
                                 toothKey={procedureToothKey}
                                 selectedCanals={selectedCanals}
-                                recordedObservations={procedureObservations}
+                                recordedObservations={procedureObservations.filter((observation) => !observation.is_reference)}
                                 onSaveMeasurement={handleSaveMeasurement}
+                                onSavingChange={setIsSavingMeasurements}
                                 t={t}
                             />
                         </section>
