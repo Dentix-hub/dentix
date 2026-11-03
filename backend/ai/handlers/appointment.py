@@ -34,12 +34,23 @@ class AppointmentHandler(BaseHandler):
             except ValueError:
                 target_date = datetime.now().date()
 
-        # Get appointments
+        # Get appointments intersected with canonical patient visibility
+        vis_service = get_visibility_service(self.db, self.user, self.tenant_id)
+        visible_patient_query = await vis_service.get_visible_patient_query()
+        vis_sub = visible_patient_query.subquery()
+
         stmt = (
-            select(models.Appointment)
-            .join(models.Patient, models.Appointment.patient_id == models.Patient.id)
+            select(models.Appointment, vis_sub.c.name.label("visible_patient_name"))
+            .join(vis_sub, models.Appointment.patient_id == vis_sub.c.id)
             .where(
-                models.Patient.tenant_id == self.tenant_id,
+                or_(
+                    models.Appointment.tenant_id == self.tenant_id,
+                    models.Appointment.tenant_id.is_(None),
+                ),
+                or_(
+                    models.Appointment.is_deleted == False,  # noqa: E712
+                    models.Appointment.is_deleted.is_(None),
+                ),
                 models.Appointment.date_time
                 >= datetime.combine(target_date, datetime.min.time()),
                 models.Appointment.date_time
@@ -48,37 +59,30 @@ class AppointmentHandler(BaseHandler):
                 ),
             )
         )
-        if self.user.role == "doctor":
+        if getattr(self.user, "role", None) == "doctor":
             stmt = stmt.where(models.Appointment.doctor_id == self.user.id)
 
         res = await self.db.execute(stmt)
-        appointments = res.scalars().all()
+        rows = res.all()
 
-        if not appointments:
+        if not rows:
             return {"message": f"لا توجد مواعيد في {target_date}", "appointments": []}
 
-        # Get patient names
-        patient_ids = [a.patient_id for a in appointments]
-        if patient_ids:
-            stmt_p = select(models.Patient).where(models.Patient.id.in_(patient_ids))
-            res_p = await self.db.execute(stmt_p)
-            patients = {p.id: p.name for p in res_p.scalars().all()}
-        else:
-            patients = {}
+        appointments = [
+            {
+                "id": a.id,
+                "patient_name": p_name or "غير معروف",
+                "time": a.date_time.strftime("%H:%M"),
+                "status": a.status,
+                "notes": a.notes,
+            }
+            for a, p_name in sorted(rows, key=lambda x: x[0].date_time)
+        ]
 
         return {
             "message": f"مواعيد يوم {target_date}: {len(appointments)} موعد",
             "date": str(target_date),
-            "appointments": [
-                {
-                    "id": a.id,
-                    "patient_name": patients.get(a.patient_id, "غير معروف"),
-                    "time": a.date_time.strftime("%H:%M"),
-                    "status": a.status,
-                    "notes": a.notes,
-                }
-                for a in sorted(appointments, key=lambda x: x.date_time)
-            ],
+            "appointments": appointments,
         }
 
     async def find_available_slots(self, params: Dict) -> Dict:

@@ -1,7 +1,9 @@
+from datetime import date, datetime
 from typing import Dict, Any, Optional
 from sqlalchemy import desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models, schemas
+from backend.core.permissions import Permission, has_permission
 from backend.services.patient_service import PatientService
 from backend.services.visibility_service import get_visibility_service, PatientVisibilityService
 from backend.utils.patient_search_normalization import (
@@ -202,35 +204,50 @@ class PatientToolAdapter:
             res_t = await self.db.execute(stmt_t)
             recent_treatments = res_t.scalars().all()
 
-            res_p = await self.db.execute(
-                select(models.Payment).where(models.Payment.patient_id == patient.id)
-            )
-            payments = res_p.scalars().all()
+            user_role = getattr(self.user, "role", "guest") if self.user else "guest"
+            can_view_receivables = has_permission(user_role, Permission.RECEIVABLE_READ)
 
-            res_all_t = await self.db.execute(
-                select(models.Treatment).where(models.Treatment.patient_id == patient.id)
-            )
-            all_treatments = res_all_t.scalars().all()
+            def _normalize_date(val):
+                if isinstance(val, datetime):
+                    return val.date()
+                return val
 
-            true_total_cost = sum(
-                (t.cost or 0) - (t.discount or 0) for t in all_treatments
-            )
-            total_paid = sum(pm.amount or 0 for pm in payments)
-            balance = true_total_cost - total_paid
-
-            last_visit = patient.created_at
-            if all_treatments:
-                dates = [t.date for t in all_treatments if t.date]
+            last_visit = _normalize_date(patient.created_at)
+            if recent_treatments:
+                dates = [_normalize_date(t.date) for t in recent_treatments if t.date]
                 if dates:
                     last_visit = max(dates)
 
-            summary_data = {
+            summary_data: Dict[str, Any] = {
                 "age": patient.age,
                 "history": patient.medical_history or "",
                 "recent_procedures": [t.procedure for t in recent_treatments],
                 "last_visit": str(last_visit),
-                "total_due": balance,
             }
+
+            if can_view_receivables:
+                res_p = await self.db.execute(
+                    select(models.Payment).where(models.Payment.patient_id == patient.id)
+                )
+                payments = res_p.scalars().all()
+
+                res_all_t = await self.db.execute(
+                    select(models.Treatment).where(models.Treatment.patient_id == patient.id)
+                )
+                all_treatments = res_all_t.scalars().all()
+
+                true_total_cost = sum(
+                    float(t.cost or 0) - float(t.discount or 0) for t in all_treatments
+                )
+                total_paid = sum(float(pm.amount or 0) for pm in payments)
+                balance = true_total_cost - total_paid
+
+                if all_treatments:
+                    dates = [_normalize_date(t.date) for t in all_treatments if t.date]
+                    if dates:
+                        summary_data["last_visit"] = str(max(dates))
+
+                summary_data["total_due"] = balance
 
             return {
                 "success": True,
@@ -239,7 +256,11 @@ class PatientToolAdapter:
                 "patient_name": patient.name,
             }
         else:
-            result = await self.service.get_patient_summary_data(name)
+            user_role = getattr(self.user, "role", "guest") if self.user else "guest"
+            can_view_receivables = has_permission(user_role, Permission.RECEIVABLE_READ)
+            result = await self.service.get_patient_summary_data(
+                name, include_financials=can_view_receivables
+            )
 
             if not result["found"]:
                 raise AINotFoundError(

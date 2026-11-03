@@ -142,12 +142,6 @@ class AIService:
                     )
                     if not res_p.scalars().first():
                         last_patient_name = None
-            if confirmation_response:
-                return confirmation_response
-
-            intent_response = self._detect_intent(safe_text)
-            if intent_response:
-                return intent_response
 
             # Release database connection back to the pool before slow external model call
             if hasattr(self.db, "commit"):

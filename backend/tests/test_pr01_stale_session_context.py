@@ -132,19 +132,40 @@ async def test_stale_session_patient_cleared_when_visibility_revoked(async_db_se
 
     # Step 4: Doc 1 confirms pending action
     service = AIService(async_db_session, doc1)
-    # User says "نعم" to confirm
-    response = await service.process_query(text="نعم")
-    assert response.success is False
+    with patch.object(service.agent, "_call_llm_safe", new_callable=AsyncMock) as mock_llm:
+        # User says "نعم" to confirm
+        response = await service.process_query(text="نعم")
+        assert response.success is False
+        assert "صلاحية" in response.message
 
-    # Stale action must NOT execute on revoked patient
-    await async_db_session.refresh(p_async)
-    assert "Stale note" not in (p_async.notes or "")
+        # LLM provider must NOT be called for revoked pending action
+        mock_llm.assert_not_called()
 
-    # Session must be cleared
-    cleared_session = state_manager.get_session(tenant_id, doc1.id)
-    assert cleared_session.active_patient_id is None
-    assert cleared_session.active_patient_name is None
-    assert cleared_session.pending_confirmation is None
+        # Stale action must NOT execute on revoked patient
+        await async_db_session.refresh(p_async)
+        assert "Stale note" not in (p_async.notes or "")
+
+        # Session must be cleared
+        cleared_session = state_manager.get_session(tenant_id, doc1.id)
+        assert cleared_session.active_patient_id is None
+        assert cleared_session.active_patient_name is None
+        assert cleared_session.pending_confirmation is None
+
+        # Step 5: Verify prompt boundary on subsequent query with stale last_patient_name
+        from unittest.mock import MagicMock
+        mock_resp = MagicMock()
+        mock_resp.choices = [MagicMock()]
+        mock_resp.choices[0].message.content = '{"tool": "response", "message": "لا يوجد مريض محدد"}'
+        mock_llm.return_value = mock_resp
+
+        await service.process_query(text="ما هي المواعيد؟", last_patient_name=patient.name)
+
+        # Provider was called, but revoked patient name must NOT be present in prompt messages
+        mock_llm.assert_called_once()
+        called_args, called_kwargs = mock_llm.call_args
+        sent_messages = called_args[1] if len(called_args) > 1 else called_kwargs.get("messages", [])
+        for msg in sent_messages:
+            assert patient.name not in msg.get("content", "")
 
 
 def test_stale_session_not_leaked_in_autocomplete_suggestions(client, session_fixture, db_session):

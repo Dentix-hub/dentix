@@ -12,10 +12,14 @@ Denial assertions:
 """
 
 import pytest
+from datetime import datetime, timezone
+from decimal import Decimal
 from unittest.mock import patch, AsyncMock, MagicMock
+from sqlalchemy import select, func
 from backend import models
 from backend.auth import create_access_token, get_password_hash
-from backend.core.permissions import Role, Permission, ROLE_PERMISSIONS
+from backend.core.permissions import Role, Permission, ROLE_PERMISSIONS, has_permission
+from backend.ai.executor import ToolExecutor
 
 
 @pytest.fixture
@@ -130,11 +134,12 @@ def test_guest_lacking_both_permissions_is_denied_analyze_clinic(
 @patch("backend.routers.analytics_ai_v2.get_detailed_analytics", new_callable=AsyncMock)
 @patch("backend.services.ai_service.AIService.analyze_direct", new_callable=AsyncMock)
 def test_user_with_report_read_but_no_ai_chat_is_denied_analyze_clinic(
-    mock_analyze_direct, mock_get_detailed, client, f2_setup, monkeypatch
+    mock_analyze_direct, mock_get_detailed, client, f2_setup, monkeypatch, db_session
 ):
     """
-    Matrix: AI_CHAT=No, REPORT_READ=Yes -> DENIED (HTTP 403).
-    Constructed using isolated test-only role mapping (tests true AND vs ANY-of).
+    R4: Matrix: AI_CHAT=No, REPORT_READ=Yes -> DENIED (HTTP 403).
+    Persists test-only role to DB so authentication dependency reloads intended role.
+    Verifies that a true-AND check blocks finance-only roles.
     """
     # Create test-only role with REPORT_READ but without AI_CHAT
     test_role = Role.ASSISTANT
@@ -146,15 +151,32 @@ def test_user_with_report_read_but_no_ai_chat_is_denied_analyze_clinic(
 
     user = f2_setup["doctor"]
     user.role = test_role.value
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+
+    assert user.role == test_role.value
+    assert has_permission(user.role, Permission.REPORT_READ)
+    assert not has_permission(user.role, Permission.AI_CHAT)
+
     headers = _auth_header(user)
 
-    res = client.post(
-        "/api/v1/admin/ai/analyze-clinic",
-        json=SAMPLE_STATS_PAYLOAD,
-        headers=headers,
-    )
+    seen = []
+    real_has_permission = has_permission
+
+    def spy_has_permission(role, permission):
+        seen.append((role, permission.value))
+        return real_has_permission(role, permission)
+
+    with patch("backend.core.permissions.has_permission", side_effect=spy_has_permission):
+        res = client.post(
+            "/api/v1/admin/ai/analyze-clinic",
+            json=SAMPLE_STATS_PAYLOAD,
+            headers=headers,
+        )
 
     assert res.status_code == 403
+    assert any(role == test_role.value for role, _ in seen), f"Intended role was not checked: {seen}"
     mock_get_detailed.assert_not_called()
     mock_analyze_direct.assert_not_called()
 
@@ -185,3 +207,102 @@ def test_admin_with_both_permissions_is_allowed_analyze_clinic(
     assert res.status_code == 200
     mock_get_detailed.assert_called_once()
     mock_analyze_direct.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_doctor_cannot_obtain_clinic_revenue_via_dashboard_stats(async_db_session, f2_setup):
+    """
+    R1: get_dashboard_stats requires APPOINTMENT_READ for operational statistics,
+    but period_revenue requires AI_CHAT AND REPORT_READ.
+    Doctor has AI_CHAT and APPOINTMENT_READ, but lacks REPORT_READ.
+    Revenue must NOT be queried or returned.
+    """
+    doctor = f2_setup["doctor"]
+    admin = f2_setup["admin"]
+    tenant_id = f2_setup["tenant"].id
+
+    assert has_permission(doctor.role, Permission.AI_CHAT)
+    assert has_permission(doctor.role, Permission.APPOINTMENT_READ)
+    assert not has_permission(doctor.role, Permission.REPORT_READ)
+    assert has_permission(admin.role, Permission.REPORT_READ)
+
+    # Create patient and payment
+    patient = models.Patient(
+        tenant_id=tenant_id,
+        name="Revenue Test Patient",
+        phone="01012345678",
+    )
+    async_db_session.add(patient)
+    await async_db_session.commit()
+    await async_db_session.refresh(patient)
+
+    payment = models.Payment(
+        tenant_id=tenant_id,
+        patient_id=patient.id,
+        amount=Decimal("777.00"),
+        date=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    async_db_session.add(payment)
+    await async_db_session.commit()
+
+    # Doctor executes get_dashboard_stats
+    doc_executor = ToolExecutor(async_db_session, doctor)
+    doc_result = await doc_executor.execute("get_dashboard_stats", {"period": "today"})
+
+    assert doc_result.get("success") is True
+    # Operational stats are present
+    assert "period_appointments" in doc_result
+    assert "total_patients" in doc_result
+    # Revenue is absent for doctor lacking REPORT_READ
+    assert "period_revenue" not in doc_result
+
+    # Parameter injection cannot force revenue
+    doc_inject_result = await doc_executor.execute(
+        "get_dashboard_stats", {"period": "today", "include_revenue": True}
+    )
+    assert "period_revenue" not in doc_inject_result
+
+    # Admin executes get_dashboard_stats -> revenue IS returned
+    admin_executor = ToolExecutor(async_db_session, admin)
+    admin_result = await admin_executor.execute("get_dashboard_stats", {"period": "today"})
+    assert admin_result.get("success") is True
+    assert "period_revenue" in admin_result
+    assert admin_result["period_revenue"] == 777.0
+
+
+@pytest.mark.asyncio
+async def test_dashboard_stats_cross_tenant_isolation(async_db_session, f2_setup):
+    """
+    R1: Cross-tenant payments must never be aggregated into another tenant's dashboard revenue.
+    """
+    admin_1 = f2_setup["admin"]
+
+    # Create Tenant 2
+    tenant_2 = models.Tenant(name="Other Tenant Clinic", is_active=True)
+    async_db_session.add(tenant_2)
+    await async_db_session.commit()
+    await async_db_session.refresh(tenant_2)
+
+    patient_2 = models.Patient(
+        tenant_id=tenant_2.id,
+        name="Tenant 2 Patient",
+        phone="01099999999",
+    )
+    async_db_session.add(patient_2)
+    await async_db_session.commit()
+    await async_db_session.refresh(patient_2)
+
+    payment_2 = models.Payment(
+        tenant_id=tenant_2.id,
+        patient_id=patient_2.id,
+        amount=Decimal("9999.00"),
+        date=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    async_db_session.add(payment_2)
+    await async_db_session.commit()
+
+    admin_1_executor = ToolExecutor(async_db_session, admin_1)
+    admin_1_result = await admin_1_executor.execute("get_dashboard_stats", {"period": "today"})
+    assert admin_1_result.get("success") is True
+    # Tenant 2's 9999 payment must NOT appear in Tenant 1's revenue
+    assert admin_1_result.get("period_revenue", 0.0) != 9999.0

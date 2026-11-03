@@ -42,7 +42,7 @@ class PatientService:
         normalized_name = normalize_patient_name_for_search(name)
         stmt = select(models.Patient).where(
             models.Patient.tenant_id == _tid,
-            models.Patient.is_deleted == False,
+            models.Patient.is_deleted == False,  # noqa: E712
             or_(
                 models.Patient.name_search_normalized == normalized_name,
                 (models.Patient.name_search_normalized.is_(None) & (models.Patient.name == name)),
@@ -60,7 +60,7 @@ class PatientService:
         pattern = escaped_like_pattern(normalized_name)
         stmt = select(models.Patient).where(
             models.Patient.tenant_id == _tid,
-            models.Patient.is_deleted == False,
+            models.Patient.is_deleted == False,  # noqa: E712
             or_(
                 models.Patient.name_search_normalized.ilike(pattern, escape="\\"),
                 (models.Patient.name_search_normalized.is_(None) & models.Patient.name.ilike(f"%{name.strip()}%")),
@@ -99,7 +99,7 @@ class PatientService:
             select(models.Patient)
             .where(
                 models.Patient.tenant_id == _tid,
-                models.Patient.is_deleted == False,
+                models.Patient.is_deleted == False,  # noqa: E712
                 or_(
                     models.Patient.name_search_normalized.ilike(pattern, escape="\\"),
                     (models.Patient.name_search_normalized.is_(None) & models.Patient.name.ilike(f"%{query}%")),
@@ -117,7 +117,7 @@ class PatientService:
             raise ValueError("DB Session required")
         stmt = (
             select(models.Patient)
-            .where(models.Patient.tenant_id == _tid, models.Patient.is_deleted == False)
+            .where(models.Patient.tenant_id == _tid, models.Patient.is_deleted == False)  # noqa: E712
             .options(joinedload(models.Patient.treatments), joinedload(models.Patient.payments))
         )
         result = await _db.execute(stmt)
@@ -132,32 +132,49 @@ class PatientService:
         debtors.sort(key=lambda x: x["balance"], reverse=True)
         return debtors[:50]
 
-    async def get_patient_summary_data(self, name: str, db: AsyncSession = None, tenant_id: int = None) -> dict:
+    async def get_patient_summary_data(
+        self,
+        name: str,
+        db: AsyncSession = None,
+        tenant_id: int = None,
+        include_financials: bool = True,
+    ) -> dict:
         _db = db or self.db
         details = await self.get_patient_file_details(name, db, tenant_id)
         if not details["found"] or details.get("multiple"):
             return details
         patient = details["patient"]
         treatments = details["treatments"]
-        result_p = await _db.execute(select(models.Payment).where(models.Payment.patient_id == patient.id))
-        payments = result_p.scalars().all()
-        result_t = await _db.execute(select(models.Treatment).where(models.Treatment.patient_id == patient.id))
-        all_treatments = result_t.scalars().all()
-        true_total_cost = sum((t.cost or 0) - (t.discount or 0) for t in all_treatments)
-        total_paid = sum(p.amount or 0 for p in payments)
-        balance = true_total_cost - total_paid
-        last_visit = patient.created_at
-        if all_treatments:
-            dates = [t.date for t in all_treatments if t.date]
-            if dates:
-                last_visit = max(dates)
         summary_data = {
             "age": patient.age,
             "history": patient.medical_history or "",
             "recent_procedures": [t.procedure for t in treatments],
-            "last_visit": str(last_visit),
-            "total_due": balance,
         }
+        def _normalize_date(val):
+            if isinstance(val, datetime):
+                return val.date()
+            return val
+
+        last_visit = _normalize_date(patient.created_at)
+        if include_financials:
+            result_p = await _db.execute(select(models.Payment).where(models.Payment.patient_id == patient.id))
+            payments = result_p.scalars().all()
+            result_t = await _db.execute(select(models.Treatment).where(models.Treatment.patient_id == patient.id))
+            all_treatments = result_t.scalars().all()
+            true_total_cost = sum(float(t.cost or 0) - float(t.discount or 0) for t in all_treatments)
+            total_paid = sum(float(p.amount or 0) for p in payments)
+            balance = true_total_cost - total_paid
+            if all_treatments:
+                dates = [_normalize_date(t.date) for t in all_treatments if t.date]
+                if dates:
+                    last_visit = max(dates)
+            summary_data["total_due"] = balance
+        else:
+            if treatments:
+                dates = [_normalize_date(t.date) for t in treatments if t.date]
+                if dates:
+                    last_visit = max(dates)
+        summary_data["last_visit"] = str(last_visit)
         return {"found": True, "patient": patient, "summary_data": summary_data}
 
     async def create_patient(self, patient_data: schemas.PatientCreate, db: AsyncSession = None, tenant_id: int = None, creator_role: str = "doctor") -> models.Patient:
@@ -173,7 +190,7 @@ class PatientService:
         if phone_hash:
             stmt = select(models.Patient).where(
                 models.Patient.tenant_id == _tid,
-                models.Patient.is_deleted == False,
+                models.Patient.is_deleted == False,  # noqa: E712
                 models.Patient.name_search_normalized == normalized_name,
                 models.Patient.phone_search_hash == phone_hash,
             )
@@ -226,7 +243,7 @@ class PatientService:
             select(models.Patient).where(
                 models.Patient.id == patient_id,
                 models.Patient.tenant_id == _tid,
-                models.Patient.is_deleted == False,
+                models.Patient.is_deleted == False,  # noqa: E712
             )
         )
         patient = result.scalars().first()

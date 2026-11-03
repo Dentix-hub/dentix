@@ -2,9 +2,9 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
-- PR-01 AI authorization (2026-11-03): resolved F1 (canonical patient visibility enforcement via PatientVisibilityService across AI autocomplete, handlers, adapters, and session revalidation) and F2 (enforced true-AND via require_all_permissions for AI_CHAT and REPORT_READ on clinic-wide financial analysis).
-- Verification: 13 targeted regression tests (6 F1 visibility, 4 F2 financial RBAC, 3 stale session context) PASS; 64 baseline regression tests (43 visibility/RBAC, 21 tool executor/confirmation) PASS with zero regressions.
-- Status: local implementation complete; Git bundle generated and verified. Ready for owner code review. No push or PR performed.
+- PR-01 AI authorization & review corrections (2026-11-03): resolved F1/F2 and all five review findings (R1: get_dashboard_stats excludes period_revenue and skips payment query without REPORT_READ+AI_CHAT; R2: get_appointments intersects doctor appointments with canonical patient visibility; R3: summarize_patient omits total_due and avoids payment queries without RECEIVABLE_READ; R4: persisted test role in DB for finance-without-AI test; R5: corrected treatment_added action and asserted DB mutation integrity). Stale session revalidation ordering and provider boundary verified.
+- Verification: 17 PR-01 regression tests (8 F1 visibility/tools, 6 F2 financial RBAC/stats, 3 stale session context) PASS; 36 baseline RBAC/visibility tests PASS; Ruff clean.
+- Status: local review corrections complete; verified Git bundle generated. Ready for owner review. No push or PR performed.
 
 - SEO trust/content review corrections (2026-11-03): all six local findings addressed; 18 public URLs, subscription inquiries without unverified prices/tier promises/trial, responsive footer, inventory-driven route/indexability guards, and corrected reports plus SEO_INDEXING_BASELINE.md.
 - Delivery reconciliation: latest staging e662e26 (#348 motion) preserved; PR-A 52 targeted tests/build and PR-B 60 targeted tests/build/lint/diff guardrails PASS. Browser: 163 pass / 2 existing no-JS skips (React login switching and SW lifecycle). Prior full UI: 1162 pass / 3 fail; unchanged isolated reruns pass 7 i18n + 12 PatientDetails tests (overlap).

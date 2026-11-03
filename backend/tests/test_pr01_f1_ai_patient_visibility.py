@@ -6,10 +6,14 @@ enforce canonical patient visibility and tenant isolation.
 """
 
 import pytest
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
+from sqlalchemy import select, func
 from backend import models
 from backend.auth import create_access_token, get_password_hash
 from backend.ai.executor import ToolExecutor
+from backend.core.permissions import Permission, has_permission, PatientVisibilityMode
+from backend.services.visibility_service import get_visibility_service
 from backend.utils.patient_search_normalization import (
     normalize_patient_name_for_search,
     patient_phone_search_hash,
@@ -264,22 +268,45 @@ async def test_doctor_cannot_read_clinical_history_of_restricted_patient(async_d
 
 @pytest.mark.asyncio
 async def test_doctor_cannot_mutate_restricted_patient_clinical_data(async_db_session, f1_setup):
-    """Doctor A cannot add notes, treatments, or update tooth status for restricted patient."""
+    """
+    R5: Doctor A cannot add notes, treatments, or update tooth status for restricted patient.
+    Checks:
+    - Established rejection outcome
+    - No treatments added to database
+    - No clinical notes mutated
+    - No tooth status records added
+    - Positive permitted case passes for authorized visible patient
+    """
     doc_a = f1_setup["doc_a"]
     executor = ToolExecutor(async_db_session, doc_a)
 
     secret_patient = f1_setup["patient_b_secret"]
     orig_notes = secret_patient.notes
 
+    # Snapshot baseline counts before mutations
+    treatments_before = (
+        await async_db_session.execute(
+            select(func.count(models.Treatment.id)).where(
+                models.Treatment.patient_id == secret_patient.id
+            )
+        )
+    ).scalar() or 0
+
+    teeth_before = (
+        await async_db_session.execute(
+            select(func.count(models.ToothStatus.id)).where(
+                models.ToothStatus.patient_id == secret_patient.id
+            )
+        )
+    ).scalar() or 0
+
     # 1. record_medical_note on restricted patient
     note_res = await executor.execute(
         "record_medical_note",
         {"patient_name": "Tarek Restricted", "content": "Doctor A unauthorized note"},
     )
-    # Must fail or be denied
     assert note_res.get("action") != "note_recorded"
 
-    # Refresh patient from db
     reloaded_patient = await async_db_session.get(models.Patient, secret_patient.id)
     assert "Doctor A unauthorized note" not in (reloaded_patient.notes or "")
     assert reloaded_patient.notes == orig_notes
@@ -290,13 +317,139 @@ async def test_doctor_cannot_mutate_restricted_patient_clinical_data(async_db_se
         {"patient_name": "Tarek Restricted", "tooth_number": 16, "condition": "Decayed"},
     )
     assert tooth_res.get("action") != "tooth_updated"
+    teeth_after = (
+        await async_db_session.execute(
+            select(func.count(models.ToothStatus.id)).where(
+                models.ToothStatus.patient_id == secret_patient.id
+            )
+        )
+    ).scalar() or 0
+    assert teeth_after == teeth_before
 
     # 3. add_treatment on restricted patient
     treat_res = await executor.execute(
         "add_treatment",
         {"patient_name": "Tarek Restricted", "procedure": "Unauthorized Extraction", "cost": 300},
     )
-    assert treat_res.get("action") != "treatment_created"
+    # Established success action is "treatment_added"; must NOT be returned
+    assert treat_res.get("action") != "treatment_added"
+    assert treat_res.get("requires_patient") is True or treat_res.get("error") == "not_found"
+
+    treatments_after = (
+        await async_db_session.execute(
+            select(func.count(models.Treatment.id)).where(
+                models.Treatment.patient_id == secret_patient.id
+            )
+        )
+    ).scalar() or 0
+    assert treatments_after == treatments_before
+
+    # Positive permitted case: visible patient can be mutated
+    vis_patient = f1_setup["patient_a1"]
+    perm_note_res = await executor.execute(
+        "record_medical_note",
+        {"patient_name": vis_patient.name, "content": "Authorized Doctor Note"},
+    )
+    assert perm_note_res.get("action") == "note_recorded"
+
+    perm_treat_res = await executor.execute(
+        "add_treatment",
+        {"patient_name": vis_patient.name, "procedure": "Authorized Scaling", "cost": 250},
+    )
+    assert perm_treat_res.get("action") == "treatment_added"
+
+
+@pytest.mark.asyncio
+async def test_doctor_appointment_tool_obeys_canonical_visibility(async_db_session, f1_setup):
+    """
+    R2: Doctor A in all_assigned mode has an appointment with Doctor B's patient.
+    Under canonical visibility, Doctor A cannot view Doctor B's patient.
+    get_appointments must NOT disclose the hidden patient's identity, notes, or counts.
+    """
+    doc_a = f1_setup["doc_a"]
+    hidden_patient = f1_setup["patient_b_secret"]
+    tenant_id = f1_setup["tenant_a"].id
+
+    # 1. Assert canonical visibility denies Doctor A access to hidden_patient
+    vis_service = get_visibility_service(async_db_session, doc_a, tenant_id)
+    assert not await vis_service.can_view_patient(hidden_patient.id)
+
+    # 2. Add an appointment for hidden_patient assigned to doc_a for today
+    today_time = datetime.now().replace(hour=11, minute=30, second=0, microsecond=0)
+    hidden_appt = models.Appointment(
+        tenant_id=tenant_id,
+        patient_id=hidden_patient.id,
+        doctor_id=doc_a.id,
+        date_time=today_time,
+        status="Scheduled",
+        notes="Confidential appointment notes",
+    )
+    async_db_session.add(hidden_appt)
+    await async_db_session.commit()
+
+    # 3. Doctor A calls get_appointments
+    executor = ToolExecutor(async_db_session, doc_a)
+    result = await executor.execute("get_appointments", {"date": "today"})
+
+    # 4. Hidden patient must not be disclosed
+    assert hidden_patient.name not in str(result)
+    assert "Confidential appointment notes" not in str(result)
+    disclosed_ids = [a["id"] for a in result.get("appointments", [])]
+    assert hidden_appt.id not in disclosed_ids
+
+
+@pytest.mark.asyncio
+async def test_patient_summary_respects_receivable_permission(async_db_session, f1_setup):
+    """
+    R3: summarize_patient requires PATIENT_READ for clinical summary,
+    and RECEIVABLE_READ for financial balance output (total_due).
+    Doctor without RECEIVABLE_READ must NOT receive total_due or trigger balance aggregation.
+    """
+    doc_a = f1_setup["doc_a"]
+    rec_a = f1_setup["reception_a"]
+    patient = f1_setup["patient_a1"]
+
+    assert has_permission(doc_a.role, Permission.PATIENT_READ)
+    assert not has_permission(doc_a.role, Permission.RECEIVABLE_READ)
+    assert has_permission(rec_a.role, Permission.RECEIVABLE_READ)
+
+    # Add a treatment and a payment for patient
+    t = models.Treatment(
+        tenant_id=patient.tenant_id,
+        patient_id=patient.id,
+        procedure="Crown",
+        cost=1000.0,
+        discount=0.0,
+        date=datetime.now().date(),
+    )
+    p = models.Payment(
+        tenant_id=patient.tenant_id,
+        patient_id=patient.id,
+        amount=500.0,
+        date=datetime.now().date(),
+    )
+    async_db_session.add_all([t, p])
+    await async_db_session.commit()
+
+    # Doctor summarizes patient
+    doc_executor = ToolExecutor(async_db_session, doc_a)
+    doc_result = await doc_executor.execute("summarize_patient", {"patient_name": patient.name})
+
+    assert doc_result.get("success") is True
+    summary_data = doc_result.get("summary_data", {})
+    # Clinical fields are present
+    assert "age" in summary_data
+    assert "recent_procedures" in summary_data
+    # Financial total_due MUST be absent
+    assert "total_due" not in summary_data
+
+    # Receptionist summarizes patient (has RECEIVABLE_READ)
+    rec_executor = ToolExecutor(async_db_session, rec_a)
+    rec_result = await rec_executor.execute("summarize_patient", {"patient_name": patient.name})
+    assert rec_result.get("success") is True
+    assert "total_due" in rec_result.get("summary_data", {})
+    # patient_a1 has t_a (500) + t (1000) - p (500) = 1000.0 balance
+    assert rec_result["summary_data"]["total_due"] == 1000.0
 
 
 @pytest.mark.asyncio
