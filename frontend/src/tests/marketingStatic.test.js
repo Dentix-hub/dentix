@@ -338,26 +338,26 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(enHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/en/contact">');
         });
 
-        it('verifies Plans pages display approved plan tiers (200, 400, 1000 EGP) and omit unverified limits/trial', () => {
+        // Task 10 requires active billing evidence before publishing offers.
+        // Owner-approved amounts alone are not proof of active subscription records.
+        it('verifies bilingual subscription inquiries without publishing unverified plan prices', () => {
             expect(existsSync(arPlansPath)).toBe(true);
             expect(existsSync(enPlansPath)).toBe(true);
 
             const arHtml = readFileSync(arPlansPath, 'utf8');
-            expect(arHtml).toContain('الأساسية (Essential)');
-            expect(arHtml).toContain('الاحترافية (Professional)');
-            expect(arHtml).toContain('الأعمال (Business)');
-            expect(arHtml).toContain('200');
-            expect(arHtml).toContain('400');
-            expect(arHtml).toContain('1000');
+            expect(arHtml).toContain('خيارات الاشتراك في Dentix');
+            expect(arHtml).toContain('mailto:smartsentalclinicapp@gmail.com');
+            expect(arHtml).toContain('https://wa.me/201010285288');
+            expect(arHtml).not.toContain('class="plan-price"');
+            expect(arHtml).not.toContain('الاحترافية (Professional)');
             expect(arHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/ar/plans">');
 
             const enHtml = readFileSync(enPlansPath, 'utf8');
-            expect(enHtml).toContain('Essential');
-            expect(enHtml).toContain('Professional');
-            expect(enHtml).toContain('Business');
-            expect(enHtml).toContain('200');
-            expect(enHtml).toContain('400');
-            expect(enHtml).toContain('1000');
+            expect(enHtml).toContain('Dentix Subscription Plans');
+            expect(enHtml).toContain('mailto:smartsentalclinicapp@gmail.com');
+            expect(enHtml).toContain('https://wa.me/201010285288');
+            expect(enHtml).not.toContain('class="plan-price"');
+            expect(enHtml).not.toContain('Most Popular');
             expect(enHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/en/plans">');
         });
 

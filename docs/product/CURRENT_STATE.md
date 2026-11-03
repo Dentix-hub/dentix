@@ -2,7 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
-- Trust/content SEO review corrections (2026-11-03): in progress; prior pricing and verification claims are superseded pending corrected evidence. No remote delivery authorized.
+- SEO trust/content review corrections (2026-11-03): all six local findings addressed; 18 public URLs, subscription inquiries without unverified prices/tier promises/trial, responsive footer, inventory-driven route/indexability guards, and corrected reports plus SEO_INDEXING_BASELINE.md.
+- Verification: 60 targeted tests; 143 browser passes / 2 existing no-JS skips (React login switching and SW lifecycle); lint, build/artifacts and diff guardrails PASS. Full UI: 1162 pass / 3 fail in 177 files; unchanged isolated reruns pass 7 i18n + 12 PatientDetails tests (overlap), matching CI's per-file execution style.
+- Backend: 1747 pass / 23 existing skips / 0 fail, coverage 78.87%; every skip reason and exact commands/results recorded in docs/reports/seo-technical-implementation-report-2026-11-03.md. Clinical/security assertions, timeouts, CI settings and backend behavior are unchanged.
+- Status: local review fixes complete; overall rollout PARTIAL pending active pricing/trial evidence, authorized Vercel/production acceptance and Search Console/Bing results. No push/PR/merge/deploy; task branches preserved in a verified local bundle.
 
 - Technical SEO foundation (2026-11-03): six public home/legal pages; legal HTML generated from unchanged locale text. Application shell uses raw noindex (indexing directive, not access control); login discovery and PWA identity retained.
 - Review corrections: semantic robots and alternate-target canonical/reciprocity checks; HTTP X-Robots-Tag checks; public/app/API/redirect expectations derived from the active route inventory, rejecting SPA fallbacks.

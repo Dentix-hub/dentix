@@ -1,4 +1,28 @@
 import { test, expect } from '@playwright/test';
+import { CURRENT_ACTIVE_INDEXABLE_ROUTES } from '../scripts/routeInventory.mjs';
+
+// Exercise every new public page in every configured viewport, including no-JS.
+for (const canonical of CURRENT_ACTIVE_INDEXABLE_ROUTES.filter(url => new URL(url).pathname.split('/').length > 2)) {
+  const pathname = new URL(canonical).pathname;
+  const language = pathname.split('/')[1];
+  const otherLanguage = language === 'ar' ? 'en' : 'ar';
+  test(`public content remains readable and navigable: ${pathname}`, async ({ page }) => {
+    // Vite preview does not execute vercel.json rewrites. This suite checks the
+    // built documents; verify-vercel-preview-routes.mjs checks clean HTTP URLs.
+    await page.goto(`${pathname}/index.html`);
+    await expect(page.locator('html')).toHaveAttribute('lang', language);
+    await expect(page.locator('html')).toHaveAttribute('dir', language === 'ar' ? 'rtl' : 'ltr');
+    await expect(page.locator('main h1')).toHaveCount(1);
+    await expect(page.locator('main')).toBeVisible();
+    await expect(page.locator('#root')).toHaveCount(0);
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', canonical);
+    await expect(page.locator(`link[hreflang="${otherLanguage}"]`)).toHaveAttribute('href', canonical.replace(`/${language}`, `/${otherLanguage}`));
+    await expect(page.locator('.site-footer a[href="/"]')).toBeVisible();
+    await expect(page.locator('.site-footer a[href="/register"]')).toBeVisible();
+    await page.evaluate(() => document.fonts.ready);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), pathname).toBe(false);
+  });
+}
 
 for (const language of ['ar', 'en']) {
   test(`product screenshots load with correct dimensions and no external assets (${language})`, async ({ page, baseURL }) => {

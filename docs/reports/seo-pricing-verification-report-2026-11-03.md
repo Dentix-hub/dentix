@@ -1,74 +1,43 @@
-# DENTIX SEO Report B: Pricing & Plan Limits Verification Report
+# Dentix — Pricing verification
 
-**Document Date:** November 3, 2026  
-**Project:** Dentix — Dental Clinic Management Software  
-**Repository:** `https://github.com/Dentix-hub/dentix`  
-**Base Branch:** `staging`  
+Date: 2026-11-03. Runtime pricing verification: **BLOCKED — no authorized active-plan snapshot supplied or queried.**
 
----
+This report replaces the earlier inaccurate audit. Seed data, code behavior and active database records are different evidence sources. No billing records, schema, registration behavior or quota enforcement were changed.
 
-## 1. Executive Summary
+## Active commercial configuration
 
-This report provides a strict audit and verification of commercial pricing claims, database subscription seeds, and proposed operational plan limits (user seats and daily AI request quotas) prior to public release.
+| Required item | Result |
+| --- | --- |
+| Active plan identities and names | UNKNOWN |
+| Actual prices and currency | UNKNOWN; checkout code uses EGP, but this is not a runtime plan audit |
+| Billing duration | UNKNOWN |
+| User and patient limits | UNKNOWN |
+| Daily AI limits and enabled features | UNKNOWN |
+| Per-plan feature entitlement enforcement | Not verified end to end |
 
-In accordance with Section 2.3 and 2.4 of the Consolidated SEO Plan:
-- **Commercially Approved Prices** (Essential 200 EGP, Professional 400 EGP, Business 1000 EGP) are published on the public Plans pages (`/ar/plans`, `/en/plans`) with explicit operational guidance that plan activations and renewals are managed directly via official technical support and WhatsApp (`+201010285288`).
-- **Proposed Operational Limits** (2, 5, 15 users; 2, 10, 30 AI requests/day) and automated in-app checkout are **OMITTED** because the backend database schema and subscription service do not currently enforce them.
+The owner-approved monthly proposal is Essential / الأساسية 200 EGP, Professional / الاحترافية 400 EGP, Business / الأعمال 1000 EGP. These amounts are approved commercially, not verified as active configuration. They are **omitted from public HTML and metadata**, along with numerical limits, trial promises, Offer data and tier-specific feature claims. The bilingual `/plans` pages provide subscription inquiries with the approved email and WhatsApp channels.
 
----
+## Repository evidence — not live records
 
-## 2. Comparison: Database Seed Values vs. Approved Commercial Prices
+Sources: [SubscriptionPlan](../../backend/models/tenant.py), [seeding paths](../../backend/core/seeding.py), [standalone seed](../../backend/scripts/seeds/seed.py), [subscription service](../../backend/services/subscription_service.py), [schemas](../../backend/schemas/tenant.py), [admin APIs](../../backend/routers/admin_subscriptions.py), [subscription UI](../../frontend/src/features/settings/SettingsTabs/SubscriptionSettings.jsx).
 
-A direct audit of the codebase (`backend/models/tenant.py`, `backend/core/seeding.py`, and `backend/routers/auth/register.py`) reveals a substantial discrepancy between existing seeded development records and owner-approved commercial figures:
+| Seed name | Main seed price | Main duration / users / patients | Alternate seed price | Alternate duration / users / patients |
+| --- | ---: | --- | ---: | --- |
+| trial | 0 | 14 days / 1 / 50 | 0 | 7 days / 1 / 10 |
+| basic | 29.99 | 30 days / 2 / 500 | 500 | 30 days / 1 / 100 |
+| pro | 79.99 | 30 days / 5 / 2000 | 1000 | 30 days / 5 / null |
+| enterprise | 199.99 | 30 days / null / null | 2500 | 30 days / null / null |
 
-| Plan Identifier | Seeded Database Plan Name | Seeded Database Price | Owner-Approved Commercial Name | Owner-Approved Monthly Price | Commercial Status |
-| :--- | :--- | :--- | :--- | :--- | :--- |
-| `trial` | Free Trial | 0.00 | — | — | Legacy seed |
-| `basic` | Basic Clinic | 29.99 (USD/unspecified) | Essential — الأساسية | **200 EGP** | Approved by Owner |
-| `pro` | Pro Clinic | 79.99 (USD/unspecified) | Professional — الاحترافية | **400 EGP** | Approved by Owner |
-| `enterprise` | Enterprise Clinic | 199.99 (USD/unspecified) | Business — الأعمال | **1000 EGP** | Approved by Owner |
+These mutually different seed paths cannot establish what an existing deployment contains. SubscriptionPlan has no currency column; checkout construction in SubscriptionService uses EGP. Do not infer USD from fractional numbers. A duration of 30 days in a seed does not establish calendar-month billing for active records.
 
-### Audit Findings:
-1. The database seeds originate from early development templates with USD-style fractional pricing (29.99, 79.99, 199.99).
-2. The owner-approved pricing structure is denominated in Egyptian Pounds (EGP) as whole integers (200, 400, 1000 EGP/month).
-3. The database migration scripts have not yet been executed to update the `plans` table rows with the new names, EGP currencies, and integer prices.
+The main seed's feature strings include BILLING/REPORTS_BASIC for basic; REPORTS_ADVANCED/LAB_INTEGRATION/MULTI_USER for pro; and AI_ASSISTANT additionally for enterprise. These strings alone do not prove usable or enforced entitlements. AI defaults in the model are is_ai_enabled=false and ai_daily_limit=0; actual values were not read.
 
----
+## Enforcement findings
 
-## 3. Operational Limits Audit: User Seats & Daily AI Requests
+- [users.py](../../backend/routers/users.py) checks subscription_plan.max_users against a tenant-scoped user count on the inspected creation path. The earlier claim that user-limit enforcement is absent was incorrect. Race behavior and all creation paths were not audited here.
+- [AIService._check_subscription_quota](../../backend/services/ai_service.py) checks is_ai_enabled and ai_daily_limit, and counts AIUsageLog rows filtered by the current tenant and day boundary. The earlier claim that clinic-scoped daily accounting is absent was incorrect. Complete quota correctness, concurrency and proposed values were not verified.
+- A patient-limit field exists. A complete patient-limit enforcement audit has not been performed; this report does not assert that all paths enforce it or that no enforcement exists.
 
-Section 2.4 of the plan proposed the following limit tiers:
-- **Essential:** 2 users, 2 AI requests/day.
-- **Professional:** 5 users, 10 AI requests/day.
-- **Business:** 15 users, 30 AI requests/day.
+## Publication prerequisite
 
-### Backend Code Verification:
-1. **User Seat Enforcement:**
-   - In `backend/routers/auth/` and `backend/services/tenant_service.py`, user creation checks tenant membership and role authorization, but does not query the active `TenantSubscription.plan` to block new user invites when a numerical user cap is reached.
-2. **AI Daily Request Quota Enforcement:**
-   - In `backend/routers/ai.py` and `backend/services/ai_service.py`, AI interactions exist for chat assistance and clinical summaries. However, usage counters are not scoped per clinic with daily resetting quota gates tied to `Plan` parameters.
-
-### Product Integrity Decision:
-Because advertising un-enforced seat and AI limits constitutes an unsupported commercial claim, **all proposed numerical user seat and daily AI quotas have been completely omitted from the public marketing pages**. The Plans page instead highlights verified product capabilities:
-- Comprehensive patient electronic health records.
-- Interactive multi-surface dental chart (odontogram).
-- Appointment calendar, chairside scheduling, and SMS/WhatsApp reminders.
-- Practice finance, revenue tracking, and expense management.
-- Multi-user role-based clinic collaboration (Dentists, Assistants, Receptionists).
-
----
-
-## 4. In-App Subscription Architecture & Support Activation Alignment
-
-Inspection of the authenticated application's subscription settings interface (`frontend/src/features/settings/SettingsTabs/SubscriptionSettings.jsx`) reveals the established in-app subscription policy:
-
-> *"يتم تجديد الاشتراكات حصرياً عبر التواصل المباشر مع إدارة المنظومة والدعم الفني."*  
-> *(Subscriptions are renewed exclusively through direct communication with system administration and technical support.)*
-
-### Public Display Alignment:
-To maintain 100% truth-in-advertising without modifying backend billing code:
-1. The public Plans pages display the approved prices (200, 400, 1000 EGP).
-2. The call-to-action buttons link directly to official WhatsApp support (`https://wa.me/201010285288`) with pre-filled Arabic/English activation inquiry messages.
-3. A clear policy notice is published beneath the pricing table stating:
-   - *"يتم تفعيل وتجديد باقات Dentix عبر التواصل المباشر مع فريق الدعم الفني المعتمد لضمان إعداد بيانات العيادة وصلاحيات الفريق بدقة."*
-4. This ensures visitors have complete pricing transparency while aligning with actual operational workflows.
+Obtain an authorized read-only export of active subscription_plans covering names, Arabic names, prices, duration_days, max_users, max_patients, features, is_ai_enabled, ai_daily_limit and ai_features, plus the effective billing currency. Compare against owner approval and verify entitlements before adding a single shared verified source for public pricing. Report mismatches for a separate owner-approved subscription task; do not modify records automatically.

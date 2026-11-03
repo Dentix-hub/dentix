@@ -39,7 +39,7 @@ export const PR_B_INDEXABLE_ROUTES = [
   'https://www.dentixs.app/en/appointments-finance',
 ];
 
-// Current full active indexable routes for sitemap (All 18 verified public routes)
+// Current full active indexable routes for sitemap (18 public routes; runtime delivery remains unverified)
 export const CURRENT_ACTIVE_INDEXABLE_ROUTES = [
   ...PR_A_INDEXABLE_ROUTES,
   ...PR_B_INDEXABLE_ROUTES,
@@ -95,36 +95,9 @@ export const PROTECTED_ROUTES = [
 
 // 5. Redirect-only routes (must NEVER appear in sitemap)
 export const REDIRECT_ONLY_ROUTES = [
-  '/ar/',
-  '/en/',
-  '/ar/index.html',
-  '/en/index.html',
-  '/privacy',
-  '/terms',
-  '/ar/privacy/',
-  '/en/privacy/',
-  '/ar/terms/',
-  '/en/terms/',
-  '/ar/privacy/index.html',
-  '/en/privacy/index.html',
-  '/ar/terms/index.html',
-  '/en/terms/index.html',
-  '/ar/about/',
-  '/en/about/',
-  '/ar/about/index.html',
-  '/en/about/index.html',
-  '/ar/contact/',
-  '/en/contact/',
-  '/ar/contact/index.html',
-  '/en/contact/index.html',
-  '/ar/plans/',
-  '/en/plans/',
-  '/ar/plans/index.html',
-  '/en/plans/index.html',
-  '/ar/dental-clinic-management-software/',
-  '/en/dental-clinic-management-software/',
-  '/ar/dental-patient-records/',
-  '/en/dental-patient-records/',
-  '/ar/appointments-finance/',
-  '/en/appointments-finance/',
+  '/privacy', '/privacy/', '/terms', '/terms/',
+  ...CURRENT_ACTIVE_INDEXABLE_ROUTES.flatMap(url => {
+    const pathname = new URL(url).pathname;
+    return [`${pathname}/`, `${pathname}/index.html`];
+  }),
 ];

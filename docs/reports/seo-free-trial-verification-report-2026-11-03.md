@@ -1,106 +1,27 @@
-# DENTIX SEO Report C: Free Trial Verification Report
+# Dentix — Free trial verification
 
-**Document Date:** November 3, 2026  
-**Project:** Dentix — Dental Clinic Management Software  
-**Repository:** `https://github.com/Dentix-hub/dentix`  
-**Base Branch:** `staging`  
+Date: 2026-11-03. Overall result: **NOT VERIFIED**. Trial marketing claims remain omitted.
 
----
+The approved policy is a 14-day Professional trial without a payment card. No production clinic was created and no registration or billing behavior was changed.
 
-## 1. Executive Summary & Verification Result
+## Executable evidence
 
-| Inspection Target | Commercial Policy Proposal | Verification Result | Final Marketing Action |
-| :--- | :--- | :--- | :--- |
-| **Free Trial Policy** | 14-day duration, Professional plan, No credit card required | **NOT VERIFIED** | **OMITTED** from all public marketing copy, buttons, and metadata |
+The actual endpoint is `POST /api/v1/auth/register_clinic` in [register.py](../../backend/routers/auth/register.py). It uses async SQLAlchemy selects of SubscriptionPlan: it first looks for is_default, then falls back to the first returned plan. It sets the new Tenant.plan_id and creates the first admin account. It does not explicitly select Professional, set a trial start timestamp, or compute a 14-day subscription expiration.
 
-Under Section 2.5 of the Consolidated SEO Plan, advertising a free trial is strictly contingent upon proving that the runtime codebase automatically provisions a 14-day Professional trial upon user registration.
+[Tenant](../../backend/models/tenant.py) has subscription_end_date and a legacy plan default of trial. [SubscriptionService.check_subscription_status](../../backend/services/subscription_service.py) returns active if no end date is present and evaluates active/grace/expired states when dates are present. This code observation is not proof of end-to-end behavior for a newly registered clinic.
 
-Following a thorough audit of the registration routers, tenant creation services, and subscription database models, **the free trial could NOT be confirmed**. 
+The earlier report's db.query(Plan), TenantSubscription construction and claimed line range were not executable evidence from this repository and have been removed.
 
-As mandated by project integrity rules, all references to a "14-day free trial" have been omitted from public marketing pages and pricing tables, and the gap has been logged as a separate backend product requirement.
+## Required results
 
----
+| Requirement | Result | Evidence / limitation |
+| --- | --- | --- |
+| Professional plan assigned | NOT VERIFIED | Assignment depends on database default; active plan identity was not supplied |
+| Trial duration equals 14 days | NOT VERIFIED | Endpoint does not explicitly create that duration; seed paths disagree |
+| Correct start and expiration | NOT VERIFIED | No explicit trial start or expiration is assigned by the inspected registration path |
+| No payment card required | VERIFIED at endpoint input level only | Form fields are clinic_name, admin_username, admin_email, admin_password and contact_phone; no card input. No authorized runtime registration was executed |
+| Correct post-expiration behavior | NOT VERIFIED | Status service exists, but the approved trial lifecycle was not exercised in an isolated staging environment |
 
-## 2. Code-Level Evidence
+## Separate product gap
 
-An inspection of `backend/routers/auth/register.py` demonstrates the exact execution path when a new clinic registers:
-
-```python
-# File: backend/routers/auth/register.py (Lines 112-140)
-
-# Fetch the default plan:
-default_plan = db.query(Plan).filter(Plan.is_active == True).order_by(Plan.id.asc()).first()
-if not default_plan:
-    # Fallback to creating a plan or raising an error
-    default_plan = create_default_plan(db)
-
-# Create subscription:
-subscription = TenantSubscription(
-    tenant_id=tenant.id,
-    plan_id=default_plan.id,
-    status="active",
-    start_date=datetime.utcnow(),
-    end_date=None,  # <-- GAP: end_date is None, no 14-day duration is calculated
-    is_auto_renew=False
-)
-db.add(subscription)
-
-# Assign tenant attributes:
-tenant.subscription_status = "active"
-tenant.plan = "trial"  # Legacy enum string in tenant model
-db.commit()
-```
-
-### Specific Technical Gaps Identified:
-1. **No Plan Selection for Professional:**  
-   The code executes `.order_by(Plan.id.asc()).first()`, picking the first seeded plan in the database (which is `trial` or `basic` with id 1). It does NOT select the `pro` or `Professional` plan.
-2. **No Duration or Expiration Date:**  
-   `subscription.end_date` is assigned as `None`. There is no calculation of `start_date + timedelta(days=14)`.
-3. **No Expiration Enforcement Middleware:**  
-   There is no active middleware or periodic background worker that checks `datetime.utcnow() > subscription.end_date` and transitions `subscription_status` from `"active"` to `"expired"`.
-4. **Subscription Status Remains Indefinitely Active:**  
-   Because `end_date` is `None` and `status` is `"active"`, registered accounts effectively obtain an unrestricted active basic subscription rather than an automated 14-day Professional trial.
-
----
-
-## 3. Marketing & Public Pages Audit
-
-To prevent misleading dental practitioners and maintain absolute trust:
-- **Hero CTA:** Changed from generic trial claims to direct clinic onboarding and registration (`انضم إلى Dentix` / `Get Started`).
-- **Pricing Tables:** The plans display approved monthly pricing (Essential 200 EGP, Professional 400 EGP, Business 1000 EGP) without false claims of automatic 14-day Professional provisioning.
-- **Support Consultation:** Prospective clinics are invited to contact the team via WhatsApp (`+201010285288`) for live demos, custom onboarding, and trial activations.
-
----
-
-## 4. Product Gap Resolution Recommendations (For Future Backend Sprint)
-
-To safely implement and advertise the owner's approved 14-day Professional trial policy in a future release:
-
-1. **Database Migration:**
-   - Ensure the `pro` plan exists and is consistently identifiable via an immutable slug (`slug = "professional"`).
-2. **Registration Router Modification (`backend/routers/auth/register.py`):**
-   ```python
-   # Recommended implementation:
-   trial_plan = db.query(Plan).filter(Plan.slug == "professional", Plan.is_active == True).first()
-   trial_duration_days = 14
-   now = datetime.utcnow()
-
-   subscription = TenantSubscription(
-       tenant_id=tenant.id,
-       plan_id=trial_plan.id,
-       status="trial",
-       start_date=now,
-       end_date=now + timedelta(days=trial_duration_days),
-       is_auto_renew=False
-   )
-   tenant.subscription_status = "trial"
-   ```
-3. **Subscription Expiration Guard:**
-   - In `backend/middleware/auth.py` or tenant context loaders, verify:
-     ```python
-     if tenant.subscription_status == "trial" and subscription.end_date < datetime.utcnow():
-         tenant.subscription_status = "expired"
-     ```
-   - Provide a read-only lock or redirect to subscription renewal when trial expires.
-4. **Owner Review & Validation:**
-   - Test end-to-end trial registration on staging before reinstating public marketing trial claims.
+The approved trial policy needs a separately scoped registration/subscription task, starting with runtime configuration evidence and isolated tests. Its design must establish plan identity, start/expiry, expiration behavior and clinical record access. This SEO change does not prescribe a schema migration or modify those mechanisms.

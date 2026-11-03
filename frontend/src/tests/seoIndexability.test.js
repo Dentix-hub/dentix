@@ -14,6 +14,20 @@ afterEach(() => {
 });
 
 describe('Public indexing regression protection', () => {
+    it('maps every public canonical and document alias to the correct Vercel destination', () => {
+        const config = JSON.parse(readFileSync('vercel.json', 'utf8'));
+        for (const url of CURRENT_ACTIVE_INDEXABLE_ROUTES) {
+            const pathname = new URL(url).pathname;
+            expect(config.rewrites.find(rule => rule.source === pathname), pathname).toEqual({
+                source: pathname, destination: `${pathname}/index.html`,
+            });
+            for (const alias of [`${pathname}/`, `${pathname}/index.html`]) {
+                expect(config.redirects.find(rule => rule.source === alias), alias).toEqual({
+                    source: alias, destination: pathname, permanent: true,
+                });
+            }
+        }
+    });
     it.each([
         ['robots', 'follow, noindex'],
         ['ROBOTS', 'INDEX, FOLLOW, NOINDEX'],

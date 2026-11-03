@@ -4,7 +4,7 @@
  * Generates static HTML pages for Trust & Content expansion in both Arabic and English:
  * - About Dentix (/ar/about, /en/about)
  * - Contact & Support (/ar/contact, /en/contact)
- * - Plans & Pricing (/ar/plans, /en/plans)
+ * - Subscription Plans (/ar/plans, /en/plans)
  * - Dental Clinic Management Software Guide (/ar/dental-clinic-management-software, /en/dental-clinic-management-software)
  * - Dental Patient Records Guide (/ar/dental-patient-records, /en/dental-patient-records)
  * - Dental Appointments & Finance Guide (/ar/appointments-finance, /en/appointments-finance)
@@ -13,7 +13,7 @@
  * - Zero executable JavaScript.
  * - Accurate product features matching verified capabilities.
  * - Approved contact details: smartsentalclinicapp@gmail.com & WhatsApp +201010285288.
- * - Approved plan names and prices (Essential 200 EGP, Professional 400 EGP, Business 1000 EGP).
+ * - Subscription inquiries only: active plan prices/entitlements are not verified.
  * - Omission of unverified limits and trial claims.
  * - Complete reciprocal hreflang clusters across all 6 bilingual page pairs.
  * - Valid Schema.org JSON-LD (AboutPage, ContactPage, WebPage, Article).
@@ -101,7 +101,7 @@ ${JSON.stringify(structuredData, null, 2)}
         <ul class="nav-links">
           <li><a href="${homeUrl}">${isAr ? 'الرئيسية' : 'Home'}</a></li>
           <li><a href="${isAr ? '/ar/about' : '/en/about'}">${isAr ? 'عن Dentix' : 'About'}</a></li>
-          <li><a href="${isAr ? '/ar/plans' : '/en/plans'}">${isAr ? 'الباقات والأسعار' : 'Plans'}</a></li>
+          <li><a href="${isAr ? '/ar/plans' : '/en/plans'}">${isAr ? 'خيارات الاشتراك' : 'Plans'}</a></li>
           <li><a href="${isAr ? '/ar/contact' : '/en/contact'}">${isAr ? 'تواصل معنا' : 'Contact'}</a></li>
         </ul>
         <div class="nav-actions">
@@ -208,7 +208,7 @@ function getAboutAr() {
 
         <section class="prose-section">
           <h2>كيف تبدأ استخدام Dentix؟</h2>
-          <p>يمكنك البدء فوراً بإنشاء حساب عيادتك عبر <a href="/register" style="color: var(--color-primary-dark); font-weight: 700;">صفحة إنشاء حساب عيادة</a>، أو تسجيل الدخول من <a href="/" style="color: var(--color-primary-dark); font-weight: 700;">بوابة الدخول</a>. كما يمكنك الاطلاع على <a href="/ar/plans" style="color: var(--color-primary-dark); font-weight: 700;">الباقات والأسعار المعتمدة</a> والتواصل مع فريق الدعم عبر <a href="/ar/contact" style="color: var(--color-primary-dark); font-weight: 700;">صفحة الاتصال والدعم</a>.</p>
+          <p>يمكنك البدء فوراً بإنشاء حساب عيادتك عبر <a href="/register" style="color: var(--color-primary-dark); font-weight: 700;">صفحة إنشاء حساب عيادة</a>، أو تسجيل الدخول من <a href="/" style="color: var(--color-primary-dark); font-weight: 700;">بوابة الدخول</a>. كما يمكنك الاطلاع على <a href="/ar/plans" style="color: var(--color-primary-dark); font-weight: 700;">خيارات الاشتراك</a> والتواصل مع فريق الدعم عبر <a href="/ar/contact" style="color: var(--color-primary-dark); font-weight: 700;">صفحة الاتصال والدعم</a>.</p>
         </section>
       </article>
   `;
@@ -307,7 +307,7 @@ function getAboutEn() {
 
         <section class="prose-section">
           <h2>Getting Started with Dentix</h2>
-          <p>You can begin today by opening your clinic account via the <a href="/register" style="color: var(--color-primary-dark); font-weight: 700;">Clinic Registration page</a>, or access your existing portal through <a href="/" style="color: var(--color-primary-dark); font-weight: 700;">Login</a>. Explore our <a href="/en/plans" style="color: var(--color-primary-dark); font-weight: 700;">Approved Subscription Plans</a> and get in touch with our team via the <a href="/en/contact" style="color: var(--color-primary-dark); font-weight: 700;">Contact & Support page</a>.</p>
+          <p>You can begin today by opening your clinic account via the <a href="/register" style="color: var(--color-primary-dark); font-weight: 700;">Clinic Registration page</a>, or access your existing portal through <a href="/" style="color: var(--color-primary-dark); font-weight: 700;">Login</a>. Explore our <a href="/en/plans" style="color: var(--color-primary-dark); font-weight: 700;">Subscription Inquiries</a> and get in touch with our team via the <a href="/en/contact" style="color: var(--color-primary-dark); font-weight: 700;">Contact & Support page</a>.</p>
         </section>
       </article>
   `;
@@ -387,7 +387,7 @@ function getContactAr() {
       <article class="legal-article">
         <section class="prose-section">
           <h2>قنوات التواصل الرسمية لعيادات الأسنان</h2>
-          <p>لضمان سرعة الخدمة، يرجى استخدام القناتين الرسميتين المعتمدتين أعلاه (البريد الإلكتروني ورقم الواتساب الرسمي). يتم التعامل مع استفسارات التسجيل، تجديد الاشتراكات، وملاحظات الاستخدام التقنية مباشرة عبر هاتين القناتين.</p>
+          <p>للاستفسارات المتعلقة بالبرنامج والاشتراك، يرجى استخدام القناتين الرسميتين المعتمدتين أعلاه (البريد الإلكتروني ورقم الواتساب الرسمي). يتم التعامل مع استفسارات التسجيل، تجديد الاشتراكات، وملاحظات الاستخدام التقنية مباشرة عبر هاتين القناتين.</p>
         </section>
 
         <section class="prose-section">
@@ -473,7 +473,7 @@ function getContactEn() {
             <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
           </div>
           <h3>Official WhatsApp Chat</h3>
-          <p>Chat directly with our support team on WhatsApp for prompt guidance and onboarding support.</p>
+          <p>Contact our team on WhatsApp with product and subscription questions.</p>
           <a class="btn btn-primary" href="https://wa.me/201010285288" target="_blank" rel="noopener">+201010285288</a>
         </div>
       </div>
@@ -481,7 +481,7 @@ function getContactEn() {
       <article class="legal-article">
         <section class="prose-section">
           <h2>Official Channels for Dental Clinics</h2>
-          <p>To ensure prompt and secure handling of your requests, please use the approved official channels above (official support email and WhatsApp number). All clinic onboarding requests, plan renewals, and technical inquiries are handled directly through these verified points of contact.</p>
+          <p>For product and subscription inquiries, please use the approved official channels above (official support email and WhatsApp number). All clinic onboarding requests, plan renewals, and technical inquiries are handled directly through these verified points of contact.</p>
         </section>
 
         <section class="prose-section">
@@ -544,241 +544,65 @@ function getContactEn() {
   });
 }
 
-// 3. PLANS PAGES
-function getPlansAr() {
-  const contentHtml = `
+// 3. SUBSCRIPTION INQUIRIES
+// Active commercial records have not been supplied. Publish no price, tier
+// entitlement, trial or service-level promise until that verification is complete.
+function getPlans(lang) {
+  const isAr = lang === 'ar';
+  const canonicalUrl = `https://www.dentixs.app/${lang}/plans`;
+  const title = isAr ? 'Dentix — خيارات الاشتراك والباقات' : 'Dentix — Subscription Plans & Inquiries';
+  const contentHtml = isAr ? `
       <header class="legal-header">
-        <h1 class="legal-title">باقات وأسعار اشتراك Dentix</h1>
-        <p class="legal-meta">خطط شهرية واضحة ومناسبة لمختلف أحجام العيادات والمراكز السنية.</p>
-        <p class="legal-intro">اختر الباقة المناسبة لاحتياجات عيادتك الطبية والإدارية. تشتمل كافة الباقات على بيئة سحابية آمنة، دعم كامل للغة العربية والإنجليزية، وإمكانية الوصول من أجهزة متعددة.</p>
+        <h1 class="legal-title">خيارات الاشتراك في Dentix</h1>
+        <p class="legal-intro">تواصل مع فريق Dentix للتعرف على خيارات الاشتراك المناسبة لعيادتك، ومناقشة احتياجات فريق العمل قبل اختيار الباقة.</p>
       </header>
-
-      <div class="plans-grid">
-        <!-- 1. Essential Plan -->
-        <div class="plan-card">
-          <div class="plan-name">الأساسية (Essential)</div>
-          <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px;">للعيادات الفردية الراغبة في تنظيم المواعيد وسجلات المرضى رقمياً.</p>
-          <div class="plan-price">200 <span>ج.م</span></div>
-          <div class="plan-period">شهرياً</div>
-          <ul class="plan-features">
-            <li>سجل إلكتروني متكامل لملفات المرضى</li>
-            <li>جدول مواعيد تفاعلي وتنظيم قائمة الانتظار</li>
-            <li>إصدار فواتير وسندات القبض الأساسية</li>
-            <li>واجهة ثنائية اللغة (عربي / إنجليزي)</li>
-            <li>حفظ سحابي آمن وتحديثات النظام الدورية</li>
-          </ul>
-          <a class="btn btn-secondary" href="https://wa.me/201010285288?text=%D8%A3%D8%B1%D8%BA%D8%A8%20%D9%81%D9%8A%20%D8%A7%D9%84%D8%A7%D8%B4%D8%AA%D8%B1%D8%A7%D9%83%20%D9%81%D9%8A%20%D8%A8%D8%A7%D9%82%D8%A9%20%D8%A7%D9%84%D8%A3%D8%B3%D8%A7%D8%B3%D9%8A%D8%A9" target="_blank" rel="noopener">طلب الباقة الأساسية</a>
-        </div>
-
-        <!-- 2. Professional Plan -->
-        <div class="plan-card featured">
-          <span class="plan-badge">الأكثر طلباً</span>
-          <div class="plan-name">الاحترافية (Professional)</div>
-          <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px;">للعيادات النشطة التي تتطلب توثيقاً سريرياً دقيقاً ومتابعة مالية كاملة.</p>
-          <div class="plan-price">400 <span>ج.م</span></div>
-          <div class="plan-period">شهرياً</div>
-          <ul class="plan-features">
-            <li>كافة مميزات الباقة الأساسية</li>
-            <li>مخطط الأسنان السريري التفاعلي (Odontogram)</li>
-            <li>سجلات علاج الجذور وقياسات القنوات التفصيلية</li>
-            <li>متابعة ديون وحسابات معامل الأسنان</li>
-            <li>تقارير إيرادات ومصروفات مالية تفصيلية</li>
-            <li>دعم فني مباشر وسريع</li>
-          </ul>
-          <a class="btn btn-primary" href="https://wa.me/201010285288?text=%D8%A3%D8%B1%D8%BA%D8%A8%20%D9%81%D9%8A%20%D8%A7%D9%84%D8%A7%D8%B4%D8%AA%D8%B1%D8%A7%D9%83%20%D9%81%D9%8A%20%D8%A7%D9%84%D8%A8%D8%A7%D9%82%D8%A9%20%D8%A7%D9%84%D8%A7%D8%AD%D8%AA%D8%B1%D8%A7%D9%81%D9%8A%D8%A9" target="_blank" rel="noopener">طلب الباقة الاحترافية</a>
-        </div>
-
-        <!-- 3. Business Plan -->
-        <div class="plan-card">
-          <div class="plan-name">الأعمال (Business)</div>
-          <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px;">للمراكز السنية والمجمعات الطبية ذات الإشغال العالي والفرق المتعددة.</p>
-          <div class="plan-price">1000 <span>ج.م</span></div>
-          <div class="plan-period">شهرياً</div>
-          <ul class="plan-features">
-            <li>كافة مميزات الباقة الاحترافية</li>
-            <li>إدارة شاملة لعيادات وفروع متعددة</li>
-            <li>متابعة حركة المخزون والمواد المستهلكة في العيادة</li>
-            <li>تحليلات أداء ومؤشرات مالية وسريرية موسعة</li>
-            <li>أولوية قصوى في الدعم الفني والتأهيل الميداني</li>
-          </ul>
-          <a class="btn btn-secondary" href="https://wa.me/201010285288?text=%D8%A3%D8%B1%D8%BA%D8%A8%20%D9%81%D9%8A%20%D8%A7%D9%84%D8%A7%D8%B4%D8%AA%D8%B1%D8%A7%D9%83%20%D9%81%D9%8A%20%D8%A8%D8%A7%D9%82%D8%A9%20%D8%A7%D9%84%D8%A3%D8%B9%D9%85%D8%A7%D9%84" target="_blank" rel="noopener">طلب باقة الأعمال</a>
-        </div>
-      </div>
-
       <article class="legal-article">
         <section class="prose-section">
-          <h2>كيف يتم تفعيل الاشتراك؟</h2>
-          <p>حرصاً على مرونة الخدمة والتأكد من مطابقة النظام لمتطلبات كل عيادة، يتم تفعيل الاشتراكات وتجديدها حصرياً عبر التواصل المباشر مع إدارة المنظومة وفريق الدعم الفني عبر الواتساب أو البريد الإلكتروني.</p>
-          <div class="prose-alert">
-            <strong>سياسة البيانات الطبية:</strong> تبقى سجلات المرضى والملفات السريرية لعيادتكم متاحة دائماً للاطلاع والقراءة حتى في حال انتهاء فترة الاشتراك، حفاظاً على استمرارية الرعاية الطبية للمرضى.
-          </div>
+          <h2>ناقش احتياجات عيادتك</h2>
+          <p>حدد طريقة عمل العيادة، وعدد أعضاء الفريق، والأدوات التي تحتاج إليها لإدارة ملفات المرضى والمواعيد والحسابات. يمكنك مراجعة <a href="/ar/dental-clinic-management-software">دليل إدارة عيادات الأسنان</a> للتعرف على سير العمل داخل Dentix.</p>
+          <p>اسأل فريق الدعم عن تفاصيل الباقة المتاحة، والتكلفة، ومدة الاشتراك، والخصائص المشمولة قبل الاتفاق على التفعيل أو التجديد.</p>
         </section>
-
         <section class="prose-section">
-          <h2>طريقة الدفع والتجديد</h2>
-          <p>تتم تسوية الاشتراكات الشهرية بالجنيه المصري (EGP) عبر وسائل التحويل والمدفوعات المتفق عليها مع الدعم الفني. لتفعيل باقتك، يمكنك الضغط على زر الطلب المباشر لأي باقة أو مراسلتنا على <a href="https://wa.me/201010285288" style="color: var(--color-primary-dark); font-weight: 700;">+201010285288</a>.</p>
+          <h2>تواصل للاستفسار عن الاشتراك</h2>
+          <p>راسلنا عبر <a href="https://wa.me/201010285288" dir="ltr">WhatsApp +201010285288</a> أو <a href="mailto:smartsentalclinicapp@gmail.com" dir="ltr">smartsentalclinicapp@gmail.com</a>.</p>
+          <p>للمعلومات العامة، راجع <a href="/ar/contact">صفحة الاتصال والدعم</a>. لإنشاء ملف عيادتك، انتقل إلى <a href="/register">صفحة تسجيل عيادة جديدة</a>، أو استخدم <a href="/">تسجيل الدخول</a> إذا كان لديك حساب.</p>
         </section>
-      </article>
-  `;
-
+      </article>` : `
+      <header class="legal-header">
+        <h1 class="legal-title">Dentix Subscription Plans</h1>
+        <p class="legal-intro">Contact the Dentix team to discuss subscription options for your clinic and your team's needs before choosing a plan.</p>
+      </header>
+      <article class="legal-article">
+        <section class="prose-section">
+          <h2>Discuss Your Clinic's Needs</h2>
+          <p>Consider your daily workflow, team size, and the tools you need for patient records, appointments, and clinic accounts. Read our <a href="/en/dental-clinic-management-software">dental clinic management guide</a> to explore how Dentix fits into a clinic day.</p>
+          <p>Ask our team about the available plan, cost, subscription duration, and included capabilities before agreeing to activation or renewal.</p>
+        </section>
+        <section class="prose-section">
+          <h2>Ask About a Subscription</h2>
+          <p>Message us on <a href="https://wa.me/201010285288">WhatsApp +201010285288</a> or email <a href="mailto:smartsentalclinicapp@gmail.com">smartsentalclinicapp@gmail.com</a>.</p>
+          <p>For general inquiries, visit <a href="/en/contact">Contact & Support</a>. To set up your clinic account, use <a href="/register">clinic registration</a>, or <a href="/">log in</a> if you already have an account.</p>
+        </section>
+      </article>`;
   return renderBaseLayout({
-    lang: 'ar',
-    dir: 'rtl',
-    canonicalUrl: 'https://www.dentixs.app/ar/plans',
+    lang, dir: isAr ? 'rtl' : 'ltr', canonicalUrl,
     hreflangAr: 'https://www.dentixs.app/ar/plans',
     hreflangEn: 'https://www.dentixs.app/en/plans',
     hreflangDefault: 'https://www.dentixs.app/ar/plans',
-    targetLangUrl: '/en/plans',
-    targetLangText: 'English',
-    targetLangAria: 'Switch to English Plans & Pricing page',
-    targetLangCode: 'en',
-    title: 'Dentix — خطط وباقات إدارة عيادات الأسنان',
-    metaDescription: 'تعرف على أسعار وباقات برنامج Dentix لإدارة عيادات الأسنان: الأساسية 200 ج.م، الاحترافية 400 ج.م، وباقة الأعمال 1000 ج.م شهرياً.',
+    targetLangUrl: isAr ? '/en/plans' : '/ar/plans',
+    targetLangText: isAr ? 'English' : 'العربية',
+    targetLangAria: isAr ? 'Subscription plans in English' : 'خيارات الاشتراك باللغة العربية',
+    targetLangCode: isAr ? 'en' : 'ar',
+    title,
+    metaDescription: isAr ? 'تواصل مع فريق Dentix لمناقشة خيارات الاشتراك واحتياجات عيادتك من إدارة ملفات المرضى والمواعيد والحسابات.' : 'Discuss Dentix subscription options with our team and explore patient records, appointment management, and clinic accounts for your practice.',
+    breadcrumbName: isAr ? 'خيارات الاشتراك' : 'Subscription Plans',
     structuredData: {
       '@context': 'https://schema.org',
       '@graph': [
-        {
-          '@type': 'Organization',
-          '@id': 'https://www.dentixs.app/#organization',
-          'name': 'Dentix',
-          'url': 'https://www.dentixs.app',
-          'logo': 'https://www.dentixs.app/logo.webp',
-        },
-        {
-          '@type': 'WebPage',
-          '@id': 'https://www.dentixs.app/ar/plans#webpage',
-          'url': 'https://www.dentixs.app/ar/plans',
-          'name': 'Dentix — خطط وباقات إدارة عيادات الأسنان',
-          'inLanguage': 'ar',
-          'isPartOf': {
-            '@type': 'WebSite',
-            '@id': 'https://www.dentixs.app/#website',
-            'url': 'https://www.dentixs.app',
-            'name': 'Dentix',
-          },
-        },
+        { '@type': 'Organization', '@id': 'https://www.dentixs.app/#organization', name: 'Dentix', url: 'https://www.dentixs.app/ar', logo: 'https://www.dentixs.app/logo.webp' },
+        { '@type': 'WebPage', '@id': `${canonicalUrl}#webpage`, url: canonicalUrl, name: title, inLanguage: lang },
       ],
     },
-    breadcrumbName: 'الباقات والأسعار',
-    contentHtml,
-  });
-}
-
-function getPlansEn() {
-  const contentHtml = `
-      <header class="legal-header">
-        <h1 class="legal-title">Dentix Plans & Pricing for Dental Clinics</h1>
-        <p class="legal-meta">Straightforward monthly subscriptions designed for individual practices and growing dental centers.</p>
-        <p class="legal-intro">Choose the subscription that fits your practice workflow. All plans provide secure cloud hosting, full bilingual Arabic and English support, and multi-device browser access.</p>
-      </header>
-
-      <div class="plans-grid">
-        <!-- 1. Essential Plan -->
-        <div class="plan-card">
-          <div class="plan-name">Essential</div>
-          <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px;">For solo practitioners transitioning to digital records and appointment management.</p>
-          <div class="plan-price">200 <span>EGP</span></div>
-          <div class="plan-period">Per month</div>
-          <ul class="plan-features">
-            <li>Complete digital patient record management</li>
-            <li>Interactive appointment book and waiting queue</li>
-            <li>Basic billing, invoices, and payment receipts</li>
-            <li>Bilingual Arabic and English interface</li>
-            <li>Secure cloud storage and continuous system updates</li>
-          </ul>
-          <a class="btn btn-secondary" href="https://wa.me/201010285288?text=I%20am%20interested%20in%20the%20Essential%20Plan" target="_blank" rel="noopener">Select Essential Plan</a>
-        </div>
-
-        <!-- 2. Professional Plan -->
-        <div class="plan-card featured">
-          <span class="plan-badge">Most Popular</span>
-          <div class="plan-name">Professional</div>
-          <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px;">For active clinics requiring detailed clinical dental charting and financial tracking.</p>
-          <div class="plan-price">400 <span>EGP</span></div>
-          <div class="plan-period">Per month</div>
-          <ul class="plan-features">
-            <li>All Essential Plan capabilities</li>
-            <li>Interactive clinical dental chart (Odontogram)</li>
-            <li>Detailed root canal session & canal measurement logging</li>
-            <li>Dental lab order and technician balance tracking</li>
-            <li>Comprehensive revenue and expense reports</li>
-            <li>Direct technical support access</li>
-          </ul>
-          <a class="btn btn-primary" href="https://wa.me/201010285288?text=I%20am%20interested%20in%20the%20Professional%20Plan" target="_blank" rel="noopener">Select Professional Plan</a>
-        </div>
-
-        <!-- 3. Business Plan -->
-        <div class="plan-card">
-          <div class="plan-name">Business</div>
-          <p style="font-size: 13px; color: var(--muted); margin: 0 0 12px;">For busy dental centers and multi-operatory practices managing larger teams.</p>
-          <div class="plan-price">1000 <span>EGP</span></div>
-          <div class="plan-period">Per month</div>
-          <ul class="plan-features">
-            <li>All Professional Plan capabilities</li>
-            <li>Comprehensive multi-operatory practice management</li>
-            <li>Clinic inventory and consumable material tracking</li>
-            <li>Extended financial reports and clinical analytics</li>
-            <li>Priority onboarding and technical customer service</li>
-          </ul>
-          <a class="btn btn-secondary" href="https://wa.me/201010285288?text=I%20am%20interested%20in%20the%20Business%20Plan" target="_blank" rel="noopener">Select Business Plan</a>
-        </div>
-      </div>
-
-      <article class="legal-article">
-        <section class="prose-section">
-          <h2>How Subscription Activation Works</h2>
-          <p>To ensure smooth onboarding tailored to each clinic's specific practice setup, subscriptions are coordinated directly with our system administration and support team via WhatsApp or official email.</p>
-          <div class="prose-alert">
-            <strong>Medical Data Guarantee:</strong> Your patient health records, clinical notes, and treatment histories remain permanently accessible in read-only mode even if your active subscription term expires, safeguarding continuous clinical patient care.
-          </div>
-        </section>
-
-        <section class="prose-section">
-          <h2>Billing and Inquiries</h2>
-          <p>Plans are billed monthly in Egyptian Pounds (EGP). To activate your chosen plan or discuss your practice requirements, select any plan card button above or message our team directly via WhatsApp at <a href="https://wa.me/201010285288" style="color: var(--color-primary-dark); font-weight: 700;">+201010285288</a>.</p>
-        </section>
-      </article>
-  `;
-
-  return renderBaseLayout({
-    lang: 'en',
-    dir: 'ltr',
-    canonicalUrl: 'https://www.dentixs.app/en/plans',
-    hreflangAr: 'https://www.dentixs.app/ar/plans',
-    hreflangEn: 'https://www.dentixs.app/en/plans',
-    hreflangDefault: 'https://www.dentixs.app/ar/plans',
-    targetLangUrl: '/ar/plans',
-    targetLangText: 'العربية',
-    targetLangAria: 'التبديل إلى صفحة الباقات والأسعار باللغة العربية',
-    targetLangCode: 'ar',
-    title: 'Dentix — Plans & Pricing for Dental Clinics',
-    metaDescription: 'Explore approved monthly pricing for Dentix dental clinic software: Essential 200 EGP, Professional 400 EGP, and Business 1000 EGP per month.',
-    structuredData: {
-      '@context': 'https://schema.org',
-      '@graph': [
-        {
-          '@type': 'Organization',
-          '@id': 'https://www.dentixs.app/#organization',
-          'name': 'Dentix',
-          'url': 'https://www.dentixs.app',
-          'logo': 'https://www.dentixs.app/logo.webp',
-        },
-        {
-          '@type': 'WebPage',
-          '@id': 'https://www.dentixs.app/en/plans#webpage',
-          'url': 'https://www.dentixs.app/en/plans',
-          'name': 'Dentix — Plans & Pricing for Dental Clinics',
-          'inLanguage': 'en',
-          'isPartOf': {
-            '@type': 'WebSite',
-            '@id': 'https://www.dentixs.app/#website',
-            'url': 'https://www.dentixs.app',
-            'name': 'Dentix',
-          },
-        },
-      ],
-    },
-    breadcrumbName: 'Plans & Pricing',
     contentHtml,
   });
 }
@@ -833,7 +657,7 @@ function getClinicSoftwareAr() {
 
         <section class="prose-section">
           <h2>ابدأ بتطوير إدارة عيادتك اليوم</h2>
-          <p>اكتشف كيف يساعدك Dentix في تنظيم عيادتك عبر استعراض <a href="/ar/plans" style="color: var(--color-primary-dark); font-weight: 700;">الباقات والأسعار المعتمدة</a>، أو راجع <a href="/ar/dental-patient-records" style="color: var(--color-primary-dark); font-weight: 700;">دليل إدارة ملفات المرضى إلكترونياً</a> لمعرفة تفاصيل التوثيق السريري ومخطط الأسنان.</p>
+          <p>اكتشف كيف يساعدك Dentix في تنظيم عيادتك عبر استعراض <a href="/ar/plans" style="color: var(--color-primary-dark); font-weight: 700;">خيارات الاشتراك</a>، أو راجع <a href="/ar/dental-patient-records" style="color: var(--color-primary-dark); font-weight: 700;">دليل إدارة ملفات المرضى إلكترونياً</a> لمعرفة تفاصيل التوثيق السريري ومخطط الأسنان.</p>
         </section>
       </article>
   `;
@@ -931,7 +755,7 @@ function getClinicSoftwareEn() {
 
         <section class="prose-section">
           <h2>Start Managing Your Clinic With Clarity</h2>
-          <p>Explore our approved plans on the <a href="/en/plans" style="color: var(--color-primary-dark); font-weight: 700;">Plans & Pricing page</a>, or discover our dedicated guide on <a href="/en/dental-patient-records" style="color: var(--color-primary-dark); font-weight: 700;">Digital Dental Patient Records</a> for in-depth charting details.</p>
+          <p>Explore our approved plans on the <a href="/en/plans" style="color: var(--color-primary-dark); font-weight: 700;">Subscription Plans page</a>, or discover our dedicated guide on <a href="/en/dental-patient-records" style="color: var(--color-primary-dark); font-weight: 700;">Digital Dental Patient Records</a> for in-depth charting details.</p>
         </section>
       </article>
   `;
@@ -1225,13 +1049,13 @@ function getAppointmentsFinanceAr() {
           <ul class="prose-list">
             <li>إجمالي الإيرادات المحصلة حسب وسيلة الدفع (نقدي، تحويل، بطاقة).</li>
             <li>صافي الدخل بعد خصم المصروفات التشغيلية ومستحقات المعامل.</li>
-            <li>نسبة التزام المرضى بالمواعيد ومعدلات الحضور والإلغاء.</li>
+            <li>قوائم المواعيد اليومية وحالة كل زيارة.</li>
           </ul>
         </section>
 
         <section class="prose-section">
           <h2>ابدأ بتنظيم مواعيد وحسابات عيادتك</h2>
-          <p>انضم إلى عيادات الأسنان التي تنظم عملياتها اليومية مع Dentix. يمكنك البدء عبر <a href="/register" style="color: var(--color-primary-dark); font-weight: 700;">إنشاء حساب عيادة</a>، أو الاطلاع على <a href="/ar/plans" style="color: var(--color-primary-dark); font-weight: 700;">باقات الاشتراك والأسعار</a>، أو التواصل معنا عبر <a href="/ar/contact" style="color: var(--color-primary-dark); font-weight: 700;">صفحة الدعم والمبيعات</a>.</p>
+          <p>انضم إلى عيادات الأسنان التي تنظم عملياتها اليومية مع Dentix. يمكنك البدء عبر <a href="/register" style="color: var(--color-primary-dark); font-weight: 700;">إنشاء حساب عيادة</a>، أو الاطلاع على <a href="/ar/plans" style="color: var(--color-primary-dark); font-weight: 700;">خيارات الاشتراك</a>، أو التواصل معنا عبر <a href="/ar/contact" style="color: var(--color-primary-dark); font-weight: 700;">صفحة الدعم والمبيعات</a>.</p>
         </section>
       </article>
   `;
@@ -1284,18 +1108,18 @@ function getAppointmentsFinanceEn() {
   const contentHtml = `
       <header class="legal-header">
         <h1 class="legal-title">Dental Appointments & Clinic Financial Management</h1>
-        <p class="legal-meta">Organizing operatory schedules, managing patient queues, collecting balances, and monitoring laboratory costs.</p>
+        <p class="legal-meta">Organizing daily schedules, managing patient queues, collecting balances, and monitoring laboratory costs.</p>
         <p class="legal-intro">Practice success depends on clinical excellence paired with reliable operational efficiency and clear financial tracking. Dentix provides comprehensive tools to manage daily bookings, recall workflows, patient invoices, and clinic expense ledgers.</p>
       </header>
 
       <article class="legal-article">
         <section class="prose-section">
           <h2>Streamlined Appointment Books & Daily Waiting Queues</h2>
-          <p>Dentix appointment scheduling reduces patient wait times and eliminates friction between the reception desk and operatory rooms:</p>
+          <p>Dentix appointment scheduling reduces patient wait times and helps coordinate appointments between the reception desk and dentists:</p>
           <ul class="prose-list">
             <li><strong>Live Appointment Statuses:</strong> Track each visit status in real time (Scheduled, Confirmed, Arrived/Waiting, In Chair, Completed, Cancelled).</li>
             <li><strong>Front-Desk Waiting Queue:</strong> Direct visibility of seated patients to maintain orderly, timely patient transitions.</li>
-            <li><strong>Recall & Multi-Visit Follow-Up Queues:</strong> Automatically track patients needing multi-visit endodontic sessions, crown cementation, or periodic hygiene recalls.</li>
+            <li><strong>Recall & Multi-Visit Follow-Up Queues:</strong> Review follow-up requests and schedule the next visit for treatments that need more than one session.</li>
           </ul>
         </section>
 
@@ -1321,7 +1145,7 @@ function getAppointmentsFinanceEn() {
           <ul class="prose-list">
             <li>Total revenue collections categorized by payment method (cash, card, bank transfer).</li>
             <li>Net practice income after deducting clinic operating expenses and technician costs.</li>
-            <li>Patient attendance metrics, cancellation rates, and operatory chair utilization.</li>
+            <li>Daily appointment lists and the current status of each visit.</li>
           </ul>
         </section>
 
@@ -1387,8 +1211,8 @@ export function generateAllContentPages(outputBaseDir = null) {
     { path: 'ar/contact/index.html', html: getContactAr() },
     { path: 'en/contact/index.html', html: getContactEn() },
     // 3. Plans
-    { path: 'ar/plans/index.html', html: getPlansAr() },
-    { path: 'en/plans/index.html', html: getPlansEn() },
+    { path: 'ar/plans/index.html', html: getPlans('ar') },
+    { path: 'en/plans/index.html', html: getPlans('en') },
     // 4. Dental Clinic Management Software
     { path: 'ar/dental-clinic-management-software/index.html', html: getClinicSoftwareAr() },
     { path: 'en/dental-clinic-management-software/index.html', html: getClinicSoftwareEn() },
@@ -1403,7 +1227,7 @@ export function generateAllContentPages(outputBaseDir = null) {
   for (const p of pages) {
     const fullPath = path.join(baseDir, p.path);
     mkdirSync(path.dirname(fullPath), { recursive: true });
-    writeFileSync(fullPath, p.html, 'utf8');
+    writeFileSync(fullPath, p.html.replace(/[ \t]+$/gm, ''), 'utf8');
     console.log(`[generate-content-pages] Wrote ${p.path}`);
   }
 }

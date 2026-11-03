@@ -646,6 +646,8 @@ html[dir="rtl"] .hero-title {
 }
 .site-footer nav {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   gap: 24px;
   font-size: 11px;
   color: var(--muted);

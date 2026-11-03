@@ -187,6 +187,36 @@
       "source": "/en/appointments-finance/",
       "destination": "/en/appointments-finance",
       "permanent": true
+    },
+    {
+      "source": "/ar/dental-clinic-management-software/index.html",
+      "destination": "/ar/dental-clinic-management-software",
+      "permanent": true
+    },
+    {
+      "source": "/ar/dental-patient-records/index.html",
+      "destination": "/ar/dental-patient-records",
+      "permanent": true
+    },
+    {
+      "source": "/ar/appointments-finance/index.html",
+      "destination": "/ar/appointments-finance",
+      "permanent": true
+    },
+    {
+      "source": "/en/dental-clinic-management-software/index.html",
+      "destination": "/en/dental-clinic-management-software",
+      "permanent": true
+    },
+    {
+      "source": "/en/dental-patient-records/index.html",
+      "destination": "/en/dental-patient-records",
+      "permanent": true
+    },
+    {
+      "source": "/en/appointments-finance/index.html",
+      "destination": "/en/appointments-finance",
+      "permanent": true
     }
   ],
   "rewrites": [
