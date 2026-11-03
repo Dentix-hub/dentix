@@ -43,6 +43,32 @@ export const CURRENT_ACTIVE_INDEXABLE_ROUTES = [
   ...PR_A_INDEXABLE_ROUTES,
 ];
 
+// Page identity and translation expectations come from the active inventory.
+export function publicPageOptions(canonical) {
+  if (!CURRENT_ACTIVE_INDEXABLE_ROUTES.includes(canonical)) {
+    throw new Error(`Not an active indexable public URL: ${canonical}`);
+  }
+  const pathname = new URL(canonical).pathname;
+  const lang = pathname.split('/')[1];
+  const suffix = pathname.slice(lang.length + 1);
+  const expectedAlternates = {};
+  for (const code of ['ar', 'en']) {
+    const alternate = `${CANONICAL_ORIGIN}/${code}${suffix}`;
+    if (CURRENT_ACTIVE_INDEXABLE_ROUTES.includes(alternate)) expectedAlternates[code] = alternate;
+  }
+  const fallback = expectedAlternates.ar || expectedAlternates.en;
+  expectedAlternates['x-default'] = fallback;
+  const otherLanguage = lang === 'ar' ? 'en' : 'ar';
+  return {
+    lang,
+    dir: lang === 'ar' ? 'rtl' : 'ltr',
+    canonical,
+    loginTexts: lang === 'ar' ? ['تسجيل الدخول'] : ['log in', 'login'],
+    targetLangSwitch: new URL(expectedAlternates[otherLanguage] || fallback).pathname,
+    expectedAlternates,
+  };
+}
+
 // 3. Application-only routes (entry point, noindex in raw HTML)
 export const APPLICATION_SHELL_ROUTES = [
   '/',

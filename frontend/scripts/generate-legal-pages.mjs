@@ -397,7 +397,7 @@ export function generateAllLegalPages(outputBaseDir = null) {
     const dirName = path.dirname(page.filePath);
     mkdirSync(dirName, { recursive: true });
     const html = generateLegalHtml(page);
-    writeFileSync(page.filePath, html, 'utf8');
+    writeFileSync(page.filePath, html.replace(/[ \t]+$/gm, ''), 'utf8');
     console.log(`[generate-legal-pages] Wrote ${path.relative(frontendRoot, page.filePath)}`);
   }
 }
