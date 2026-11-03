@@ -131,7 +131,12 @@ async def test_stale_session_patient_cleared_when_visibility_revoked(async_db_se
     await async_db_session.refresh(p_async)
 
     # Step 4: Doc 1 confirms pending action
+    from backend.ai.agent.core import AIAgent
+    from backend.ai.agent.limiter import rate_limiter
+
+    rate_limiter._requests.clear()
     service = AIService(async_db_session, doc1)
+    service.agent = AIAgent()
     with patch.object(service.agent, "_call_llm_safe", new_callable=AsyncMock) as mock_llm:
         # User says "نعم" to confirm
         response = await service.process_query(text="نعم")
