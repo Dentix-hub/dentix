@@ -1272,6 +1272,133 @@ html[dir="rtl"] .journey-step::after {
     font-size: 9px;
   }
 }
+/* --- Legal & Long-form Public Content --- */
+.legal-main {
+  background: var(--surface);
+  padding: 40px 0 80px;
+  min-height: 70vh;
+}
+.legal-container {
+  max-width: 860px;
+}
+.breadcrumbs {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 24px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.breadcrumbs a {
+  color: var(--color-primary-dark);
+  text-decoration: none;
+}
+.breadcrumbs a:hover {
+  text-decoration: underline;
+}
+.legal-header {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 36px 32px 28px;
+  margin-bottom: 24px;
+}
+.legal-title {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--navy);
+  margin: 0 0 8px;
+}
+html[dir="rtl"] .legal-title {
+  font-family: Cairo, Tahoma, Arial, sans-serif;
+}
+.legal-meta {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 16px;
+  font-weight: 600;
+}
+.legal-intro {
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--ink);
+  margin: 0;
+}
+.legal-article {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+}
+.prose-section {
+  margin-bottom: 32px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.prose-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.prose-section h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 0 0 14px;
+}
+html[dir="rtl"] .prose-section h2 {
+  font-family: Cairo, Tahoma, Arial, sans-serif;
+}
+.prose-section h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 16px 0 8px;
+}
+.prose-section p {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin: 8px 0;
+}
+.prose-subblock {
+  margin: 14px 0;
+}
+.prose-list {
+  padding-inline-start: 24px;
+  margin: 10px 0;
+}
+.prose-list li {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.prose-alert {
+  background: var(--sky);
+  border: 1px solid var(--color-primary);
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-weight: 600;
+  color: var(--navy);
+  margin: 16px 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+@media(max-width: 640px) {
+  .legal-header {
+    padding: 24px 20px;
+  }
+  .legal-title {
+    font-size: 24px;
+  }
+  .legal-article {
+    padding: 20px;
+  }
+  .prose-section h2 {
+    font-size: 18px;
+  }
+}
 @media(prefers-reduced-motion:reduce) {
   html {
     scroll-behavior: auto;

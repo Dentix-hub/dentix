@@ -12,7 +12,13 @@
  *   node scripts/verify-vercel-preview-routes.mjs https://dentix-preview.vercel.app
  */
 
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import { CURRENT_ACTIVE_INDEXABLE_ROUTES, APPLICATION_SHELL_ROUTES, PROTECTED_ROUTES, publicPageOptions } from './routeInventory.mjs';
+
 import {
+  validateApplicationShellNoindex,
+  hasNoindexDirective,
   validateMarketingHtml,
   validateSitemapXml,
   validateRobotsTxt,
@@ -20,7 +26,6 @@ import {
 
 const targetUrl = process.argv[2] || process.env.VERCEL_PREVIEW_URL || 'http://localhost:3000';
 const baseUrl = targetUrl.replace(/\/+$/, '');
-const expectedOrigin = new URL(baseUrl).origin;
 
 export async function checkRoute(description, path, expected, deploymentBaseUrl = baseUrl) {
   const currentBase = deploymentBaseUrl.replace(/\/+$/, '');
@@ -78,6 +83,11 @@ export async function checkRoute(description, path, expected, deploymentBaseUrl 
       }
     }
 
+    if (expected.indexable && hasNoindexDirective(res.headers.get('x-robots-tag') || '')) {
+      result.passed = false;
+      result.details.push('Public page is blocked by X-Robots-Tag noindex/none');
+    }
+
     // 4. Body reading and semantic validation
     if (expected.validator || expected.bodyContains || expected.bodyNotContains) {
       const body = await res.text();
@@ -128,140 +138,54 @@ export async function checkRoute(description, path, expected, deploymentBaseUrl 
   return result;
 }
 
+// Expected clean paths and aliases come from the public inventory, not from
+// the deployment's rewrites: serving the SPA with HTTP 200 must fail.
 export const routeTests = [
-  {
-    desc: 'Root / serves SPA application entry (HTTP 200)',
-    path: '/',
-    expected: { status: 200, contentType: 'text/html' },
-  },
-  {
-    desc: 'Clean /ar serves Arabic static landing page (HTTP 200)',
-    path: '/ar',
-    expected: {
-      status: 200,
-      contentType: 'text/html',
-      validator: (html) => validateMarketingHtml(html, null, {
-        lang: 'ar',
-        dir: 'rtl',
-        canonical: 'https://www.dentixs.app/ar',
-        loginTexts: ['تسجيل الدخول'],
-        targetLangSwitch: '/en',
-      }),
-    },
-  },
-  {
-    desc: 'Trailing slash /ar/ redirects with 308 to /ar on same origin',
-    path: '/ar/',
-    expected: { status: 308, location: '/ar' },
-  },
-  {
-    desc: '/ar/index.html redirects with 308 to /ar on same origin',
-    path: '/ar/index.html',
-    expected: { status: 308, location: '/ar' },
-  },
-  {
-    desc: '/ar with query parameters preserves canonical to /ar (HTTP 200)',
-    path: '/ar?utm_source=preview_test',
-    expected: {
-      status: 200,
-      contentType: 'text/html',
-      bodyContains: ['<link rel="canonical" href="https://www.dentixs.app/ar">'],
-    },
-  },
-  {
-    desc: 'Unknown path /ar/unknown returns 404 (NOT 200 SPA login)',
-    path: '/ar/unknown',
-    expected: { status: 404 },
-  },
-  {
-    desc: 'Clean /en serves English static landing page (HTTP 200)',
-    path: '/en',
-    expected: {
-      status: 200,
-      contentType: 'text/html',
-      validator: (html) => validateMarketingHtml(html, null, {
-        lang: 'en',
-        dir: 'ltr',
-        canonical: 'https://www.dentixs.app/en',
-        loginTexts: ['log in', 'login'],
-        targetLangSwitch: '/ar',
-      }),
-    },
-  },
-  {
-    desc: 'Trailing slash /en/ redirects with 308 to /en on same origin',
-    path: '/en/',
-    expected: { status: 308, location: '/en' },
-  },
-  {
-    desc: '/en/index.html redirects with 308 to /en on same origin',
-    path: '/en/index.html',
-    expected: { status: 308, location: '/en' },
-  },
-  {
-    desc: '/en with query parameters preserves canonical to /en (HTTP 200)',
-    path: '/en?utm_source=preview_test',
-    expected: {
-      status: 200,
-      contentType: 'text/html',
-      bodyContains: ['<link rel="canonical" href="https://www.dentixs.app/en">'],
-    },
-  },
-  {
-    desc: 'Unknown path /en/unknown returns 404 (NOT 200 SPA login)',
-    path: '/en/unknown',
-    expected: { status: 404 },
-  },
-  {
-    desc: 'Marketing CSS is served with text/css (HTTP 200)',
-    path: '/marketing/marketing.css',
-    expected: { status: 200, contentType: 'text/css' },
-  },
-  {
-    desc: 'Missing marketing asset returns 404 (NOT 200 SPA login)',
-    path: '/marketing/nonexistent.css',
-    expected: { status: 404 },
-  },
-  {
-    desc: '/robots.txt is served as plain text (HTTP 200) and passes semantic robots validation',
-    path: '/robots.txt',
-    expected: {
-      status: 200,
-      contentType: 'text/plain',
-      contentTypeNot: 'text/html',
-      validator: (txt) => validateRobotsTxt(txt),
-    },
-  },
-  {
-    desc: '/sitemap.xml is served as XML (HTTP 200) and passes semantic XML validation',
-    path: '/sitemap.xml',
-    expected: {
-      status: 200,
-      contentType: 'xml',
-      contentTypeNot: 'text/html',
-      validator: (xml) => validateSitemapXml(xml),
-    },
-  },
-  {
-    desc: 'Security headers present on /ar',
-    path: '/ar',
-    expected: {
-      headers: {
-        'x-content-type-options': 'nosniff',
-        'referrer-policy': 'strict-origin-when-cross-origin',
+  ...CURRENT_ACTIVE_INDEXABLE_ROUTES.flatMap(canonical => {
+    const pathname = new URL(canonical).pathname;
+    return [
+      {
+        desc: `Public ${pathname} serves its indexable static page`,
+        path: pathname,
+        expected: {
+          status: 200, contentType: 'text/html', indexable: true,
+          validator: html => validateMarketingHtml(html, null, publicPageOptions(canonical)),
+          headers: { 'x-content-type-options': 'nosniff', 'referrer-policy': 'strict-origin-when-cross-origin' },
+        },
       },
-    },
-  },
-  {
-    desc: 'Security headers present on /en',
-    path: '/en',
-    expected: {
-      headers: {
-        'x-content-type-options': 'nosniff',
-        'referrer-policy': 'strict-origin-when-cross-origin',
+      ...[`${pathname}/`, `${pathname}/index.html`].map(alias => ({
+        desc: `${alias} redirects to its clean canonical path`,
+        path: alias,
+        expected: { status: 308, location: pathname },
+      })),
+      {
+        desc: `${pathname} preserves canonical identity with query parameters`,
+        path: `${pathname}?utm_source=preview_test`,
+        expected: {
+          status: 200, contentType: 'text/html', indexable: true,
+          validator: html => validateMarketingHtml(html, null, publicPageOptions(canonical)),
+        },
       },
-    },
-  },
+    ];
+  }),
+  ...['privacy', 'terms'].flatMap(page => [`/${page}`, `/${page}/`].map(alias => ({
+    desc: `Legacy ${alias} redirects to public legal content`,
+    path: alias, expected: { status: 308, location: `/ar/${page}` },
+  }))),
+  ...[...APPLICATION_SHELL_ROUTES, ...PROTECTED_ROUTES].map(pathname => ({
+    desc: `Application ${pathname} retains the noindexed SPA shell`,
+    path: pathname,
+    expected: { status: 200, contentType: 'text/html', validator: validateApplicationShellNoindex },
+  })),
+  ...['/ar/unknown', '/en/unknown', '/marketing/nonexistent.css'].map(pathname => ({
+    desc: `Missing public resource ${pathname} returns 404`, path: pathname, expected: { status: 404 },
+  })),
+  { desc: 'Marketing CSS', path: '/marketing/marketing.css', expected: { status: 200, contentType: 'text/css' } },
+  { desc: 'Robots policy', path: '/robots.txt', expected: { status: 200, contentType: 'text/plain', validator: validateRobotsTxt } },
+  { desc: 'Sitemap', path: '/sitemap.xml', expected: { status: 200, contentType: 'xml', validator: validateSitemapXml } },
+  { desc: 'API liveness stays JSON, outside the SPA', path: '/api/v1/health/live', expected: { status: 200, contentType: 'application/json', bodyContains: ['alive'] } },
+  { desc: 'PWA service worker', path: '/sw.js', expected: { status: 200, contentType: 'javascript' } },
+  { desc: 'PWA manifest', path: '/manifest.webmanifest', expected: { status: 200, contentTypeNot: 'text/html' } },
 ];
 
 async function main() {
@@ -302,7 +226,7 @@ This script performs non-mutating HTTP assertions (GET/HEAD only) against the de
   }
 }
 
-const isCli = process.argv[1] && import.meta.url.endsWith(process.argv[1]);
+const isCli = process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
 if (isCli) {
   main();
 }

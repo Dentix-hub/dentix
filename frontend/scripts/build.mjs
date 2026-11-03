@@ -9,9 +9,13 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runVerification } from './verify-marketing-artifacts.mjs';
+import { generateAllLegalPages } from './generate-legal-pages.mjs';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const frontendRoot = path.resolve(scriptDir, '..');
+
+// 0. Generate authoritative static legal pages from translation sources
+generateAllLegalPages();
 
 const args = process.argv.slice(2);
 const isWindows = process.platform === 'win32';
