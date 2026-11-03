@@ -1,9 +1,14 @@
 from typing import Dict
 from datetime import datetime, timedelta
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from ... import models
 from .base import BaseHandler
 from backend.services.patient_service import PatientService
+from backend.services.visibility_service import get_visibility_service
+from backend.utils.patient_search_normalization import (
+    escaped_like_pattern,
+    normalize_patient_name_for_search,
+)
 
 
 class AppointmentHandler(BaseHandler):
@@ -43,6 +48,9 @@ class AppointmentHandler(BaseHandler):
                 ),
             )
         )
+        if self.user.role == "doctor":
+            stmt = stmt.where(models.Appointment.doctor_id == self.user.id)
+
         res = await self.db.execute(stmt)
         appointments = res.scalars().all()
 
@@ -153,8 +161,24 @@ class AppointmentHandler(BaseHandler):
         if not patient_name:
             return {"error": "missing_name", "message": "اسم المريض مطلوب"}
 
-        # Find patient using Service
-        patients = await self.patient_service.search_patients_by_name(patient_name)
+        # Find patient using Visibility Service
+        visibility_service = get_visibility_service(self.db, self.user, self.tenant_id)
+        vis_query = await visibility_service.get_visible_patient_query()
+        normalized_name = normalize_patient_name_for_search(patient_name.strip())
+        pattern = escaped_like_pattern(normalized_name)
+        stmt = (
+            vis_query.where(
+                or_(
+                    models.Patient.name_search_normalized.ilike(pattern, escape="\\"),
+                    (
+                        models.Patient.name_search_normalized.is_(None)
+                        & models.Patient.name.ilike(f"%{patient_name.strip()}%")
+                    ),
+                )
+            ).limit(20)
+        )
+        res = await self.db.execute(stmt)
+        patients = res.scalars().all()
 
         if not patients:
             return {
@@ -249,8 +273,10 @@ class AppointmentHandler(BaseHandler):
         if procedure:
             notes += f" - {procedure}"
 
+        doctor_id = self.user.id if getattr(self.user, "role", None) == "doctor" else None
         appointment = models.Appointment(
             patient_id=patient.id,
+            doctor_id=doctor_id,
             date_time=preferred_time,
             status="Scheduled",
             notes=notes,
@@ -344,8 +370,24 @@ class AppointmentHandler(BaseHandler):
                 target_date, datetime.min.time().replace(hour=10, minute=0)
             )
 
-        # Find patient using Service
-        patients = await self.patient_service.search_patients_by_name(patient_name)
+        # Find patient using Visibility Service
+        visibility_service = get_visibility_service(self.db, self.user, self.tenant_id)
+        vis_query = await visibility_service.get_visible_patient_query()
+        normalized_name = normalize_patient_name_for_search(patient_name.strip())
+        pattern = escaped_like_pattern(normalized_name)
+        stmt = (
+            vis_query.where(
+                or_(
+                    models.Patient.name_search_normalized.ilike(pattern, escape="\\"),
+                    (
+                        models.Patient.name_search_normalized.is_(None)
+                        & models.Patient.name.ilike(f"%{patient_name.strip()}%")
+                    ),
+                )
+            ).limit(20)
+        )
+        res = await self.db.execute(stmt)
+        patients = res.scalars().all()
 
         if not patients:
             return {
@@ -367,8 +409,10 @@ class AppointmentHandler(BaseHandler):
         patient = patients[0]
 
         # Create appointment
+        doctor_id = self.user.id if getattr(self.user, "role", None) == "doctor" else None
         appointment = models.Appointment(
             patient_id=patient.id,
+            doctor_id=doctor_id,
             date_time=target_datetime,
             status="Scheduled",
             notes="حجز عبر المساعد الذكي",

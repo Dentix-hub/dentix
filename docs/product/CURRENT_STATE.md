@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- PR-01 AI authorization (2026-11-03): resolved F1 (canonical patient visibility enforcement via PatientVisibilityService across AI autocomplete, handlers, adapters, and session revalidation) and F2 (enforced true-AND via require_all_permissions for AI_CHAT and REPORT_READ on clinic-wide financial analysis).
+- Verification: 13 targeted regression tests (6 F1 visibility, 4 F2 financial RBAC, 3 stale session context) PASS; 64 baseline regression tests (43 visibility/RBAC, 21 tool executor/confirmation) PASS with zero regressions.
+- Status: local implementation complete; Git bundle generated and verified. Ready for owner code review. No push or PR performed.
+
 - SEO trust/content review corrections (2026-11-03): all six local findings addressed; 18 public URLs, subscription inquiries without unverified prices/tier promises/trial, responsive footer, inventory-driven route/indexability guards, and corrected reports plus SEO_INDEXING_BASELINE.md.
 - Delivery reconciliation: latest staging e662e26 (#348 motion) preserved; PR-A 52 targeted tests/build and PR-B 60 targeted tests/build/lint/diff guardrails PASS. Browser: 163 pass / 2 existing no-JS skips (React login switching and SW lifecycle). Prior full UI: 1162 pass / 3 fail; unchanged isolated reruns pass 7 i18n + 12 PatientDetails tests (overlap).
 - Backend: 1747 pass / 23 existing skips / 0 fail, coverage 78.87%; every skip reason and exact commands/results recorded in docs/reports/seo-technical-implementation-report-2026-11-03.md. Clinical/security assertions, timeouts, CI settings and backend behavior are unchanged.

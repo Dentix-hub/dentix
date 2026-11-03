@@ -17,6 +17,7 @@ from backend.ai.security.sanitizer import AISanitizer
 from backend.ai.errors import AIException
 from backend.ai.policy.execution_policy import policy_engine
 from backend.ai.agent.state_manager import state_manager
+from backend.services.visibility_service import get_visibility_service
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,51 @@ class AIService:
                 return quota_error
 
             confirmation_response = await self._detect_confirmation(safe_text, context)
+            if confirmation_response:
+                return confirmation_response
+
+            intent_response = self._detect_intent(safe_text)
+            if intent_response:
+                return intent_response
+
+            # Revalidate session state and last_patient_name against canonical visibility
+            if self.user.tenant_id and getattr(self.user, "role", None) == "doctor":
+                vis_service = get_visibility_service(self.db, self.user, self.user.tenant_id)
+                session = state_manager.get_session(self.user.tenant_id, self.user.id)
+                if session.active_patient_id:
+                    if not await vis_service.can_view_patient(session.active_patient_id):
+                        state_manager.update_session(
+                            self.user.tenant_id,
+                            self.user.id,
+                            {
+                                "active_patient_id": None,
+                                "active_patient_name": None,
+                                "pending_confirmation": None,
+                            },
+                        )
+                elif session.active_patient_name:
+                    vis_query = await vis_service.get_visible_patient_query()
+                    res_p = await self.db.execute(
+                        vis_query.where(models.Patient.name == session.active_patient_name)
+                    )
+                    if not res_p.scalars().first():
+                        state_manager.update_session(
+                            self.user.tenant_id,
+                            self.user.id,
+                            {
+                                "active_patient_id": None,
+                                "active_patient_name": None,
+                                "pending_confirmation": None,
+                            },
+                        )
+
+                if last_patient_name:
+                    vis_query = await vis_service.get_visible_patient_query()
+                    res_p = await self.db.execute(
+                        vis_query.where(models.Patient.name == last_patient_name)
+                    )
+                    if not res_p.scalars().first():
+                        last_patient_name = None
             if confirmation_response:
                 return confirmation_response
 
@@ -282,6 +328,40 @@ class AIService:
                 state_manager.update_session(
                     self.user.tenant_id, self.user.id, {"pending_confirmation": None}
                 )
+
+                if getattr(self.user, "role", None) == "doctor":
+                    vis_service = get_visibility_service(self.db, self.user, self.user.tenant_id)
+                    p_id = params.get("patient_id") or session.active_patient_id
+                    p_name = params.get("patient_name") or session.active_patient_name
+                    if p_id:
+                        if not await vis_service.can_view_patient(p_id):
+                            state_manager.update_session(
+                                self.user.tenant_id,
+                                self.user.id,
+                                {"active_patient_id": None, "active_patient_name": None},
+                            )
+                            return AIQueryResponse(
+                                success=False,
+                                error="permission_denied",
+                                message="عذراً، لم يعد لديك صلاحية للوصول إلى هذا المريض.",
+                            )
+                    elif p_name:
+                        vis_query = await vis_service.get_visible_patient_query()
+                        res_p = await self.db.execute(
+                            vis_query.where(models.Patient.name == p_name)
+                        )
+                        if not res_p.scalars().first():
+                            state_manager.update_session(
+                                self.user.tenant_id,
+                                self.user.id,
+                                {"active_patient_id": None, "active_patient_name": None},
+                            )
+                            return AIQueryResponse(
+                                success=False,
+                                error="permission_denied",
+                                message="عذراً، لم يعد لديك صلاحية للوصول إلى هذا المريض.",
+                            )
+
                 try:
                     tool_result = await self.executor.execute(tool_name, params)
                     message = tool_result.get("message", "تم التنفيذ.")
