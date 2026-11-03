@@ -9,10 +9,14 @@ for (const language of ['ar', 'en']) {
     });
     await page.goto(`/${language}/index.html`);
     const screenshots = page.locator('img[src^="/marketing/screens/"]');
-    await expect(screenshots).toHaveCount(4);
+    await expect(screenshots).toHaveCount(6);
     for (const screenshot of await screenshots.all()) {
-      await screenshot.scrollIntoViewIfNeeded();
-      await expect(screenshot).toBeVisible();
+      // Tour scenes deliberately alternate visibility. The section screenshots
+      // remain visible; every tour asset must still load at its declared size.
+      if (await screenshot.locator('xpath=ancestor::a[contains(@class,"motion-scene")]').count() === 0) {
+        await screenshot.scrollIntoViewIfNeeded();
+        await expect(screenshot).toBeVisible();
+      }
       await expect.poll(() => screenshot.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
       const dimensions = await screenshot.evaluate((image: HTMLImageElement) => ({
         width: image.naturalWidth, height: image.naturalHeight,
@@ -32,7 +36,7 @@ test.describe('Dentix Arabic Marketing Page', () => {
     await page.goto('/ar/index.html');
 
     // Title & HTML attributes
-    await expect(page).toHaveTitle('Dentix | برنامج إدارة عيادات الأسنان في مصر');
+    await expect(page).toHaveTitle('Dentix — برنامج إدارة عيادات الأسنان');
     const html = page.locator('html');
     await expect(html).toHaveAttribute('lang', 'ar');
     await expect(html).toHaveAttribute('dir', 'rtl');
@@ -130,7 +134,7 @@ test.describe('Dentix English Marketing Page', () => {
     await page.goto('/en/index.html');
 
     // Title & HTML attributes
-    await expect(page).toHaveTitle('Dentix | Dental Clinic Management Software in Egypt');
+    await expect(page).toHaveTitle('Dentix — Dental Clinic Management Software');
     const html = page.locator('html');
     await expect(html).toHaveAttribute('lang', 'en');
     await expect(html).toHaveAttribute('dir', 'ltr');

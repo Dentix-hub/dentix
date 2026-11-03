@@ -6,6 +6,11 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 - Review corrections: semantic robots and alternate-target canonical/reciprocity checks; HTTP X-Robots-Tag checks; public/app/API/redirect expectations derived from the active route inventory, rejecting SPA fallbacks.
 - Verification: targeted marketing/login/indexability tests, frontend lint and production build passed locally; exact commands/results retained for the final SEO report. Vercel runtime and production checks remain pending authorized deployment. No push/PR/deploy.
 
+- Landing motion (2026-11-03): bilingual real-screen CSS tour, patient journey progress, headline/scroll entrances, keyboard pause and reduced-motion fallback; public pages remain script-free.
+- Optional standalone Remotion Arabic/English authoring previews use local synthetic screenshots; no application runtime dependency or video export.
+- Verification on staging base: 24 static tests and 30 browser scenarios (ar/en, 320–1440px, no-JS/reduced-motion) PASS; frontend lint/build and unchanged Remotion lint/bundle PASS.
+- Delivery: user authorized push/PR; `feat/landing-motion` now excludes independent unpublished SEO work. CI/staging acceptance and deployment pending.
+
 - Global-session startup recovery (2026-11-02): supplied log exposed FORCE-RLS rejection under a table-owning runtime login. Pending release data now uses a verified configured same-database administrative login; explicit migration URLs retain precedence. No applied migration/RLS/role/schema changes.
 - Verification: 42 targeted tests PASS with zero failures/skips, including real restricted-owner/system-login scenarios, refusal/rollback cases, cross-clinic denial, existing bootstrap/NOINHERIT repair and RBAC; Ruff/diff PASS.
 - Status: DONE implementation/local verification; CI, deployment and live startup recovery pending. Evidence and operator configuration/acceptance path: docs/reports/session-release-preflight-rls-recovery-2026-11-02.md.

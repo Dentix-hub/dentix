@@ -386,6 +386,219 @@ html[dir="rtl"] .hero-title {
   margin-top: 12px;
   text-align: center;
 }
+/* A no-JavaScript product tour; every frame has a real full-size screenshot link. */
+.motion-product {
+  position: relative;
+  background: linear-gradient(145deg,#e0f2fe,#f0fdfa 70%,#eaf6fc);
+  isolation: isolate;
+}
+.motion-product::before {
+  content: '';
+  position: absolute;
+  inset: -18px;
+  border: 1px solid #0ea5e91a;
+  border-radius: 32px;
+  z-index: -1;
+  pointer-events: none;
+}
+.motion-toggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.motion-stage {
+  position: relative;
+  aspect-ratio: 1440/1000;
+  overflow: hidden;
+  background: #f4f9fc;
+}
+.motion-scene {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  animation: tour-records 12s linear infinite;
+}
+.motion-scene-1 {
+  opacity: 1;
+  visibility: visible;
+  animation-name: tour-booking;
+}
+.motion-scene-3 {
+  animation-name: tour-treatment;
+}
+.hero-product.motion-product .motion-scene img {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  object-fit: contain;
+  object-position: center 28%;
+  animation: tour-drift 12s ease-in-out infinite;
+}
+.scene-caption {
+  position: absolute;
+  inset-inline: 18px;
+  inset-block-end: 18px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: fit-content;
+  max-width: calc(100% - 36px);
+  padding: 10px 18px;
+  border: 1px solid #ffffff40;
+  border-radius: 12px;
+  background: #0c2758f2;
+  color: white;
+  box-shadow: 0 8px 24px #0c275826;
+  font-size: clamp(12px,1.2vw,16px);
+  font-weight: 700;
+}
+.scene-number {
+  color: #5eead4;
+  font-family: Arial,sans-serif;
+  font-size: 11px;
+}
+.patient-journey {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  gap: 10px;
+}
+.journey-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 8px;
+  border: 1px solid #c8e0ec;
+  border-radius: 10px;
+  background: #ffffffb3;
+  color: #36576b;
+  font-size: 11px;
+  font-weight: 700;
+}
+.journey-step::after {
+  content: '';
+  position: absolute;
+  inset-block-end: -1px;
+  inset-inline: 8px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--color-secondary);
+  scale: 0 1;
+  transform-origin: left;
+  animation: journey-progress 12s linear infinite;
+}
+html[dir="rtl"] .journey-step::after {
+  transform-origin: right;
+}
+.journey-step-2::after {
+  animation-delay: 4s;
+}
+.journey-step-3::after {
+  animation-delay: 8s;
+}
+.journey-number {
+  color: var(--color-primary-dark);
+  font: 10px Arial,sans-serif;
+}
+.motion-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+.motion-footer .demo-note {
+  margin: 0;
+  text-align: start;
+}
+.motion-control {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 7px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #c8e0ec;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--navy);
+  cursor: pointer;
+  background: #fff;
+}
+.motion-toggle:checked ~ .motion-footer .motion-control {
+  background: var(--navy);
+  color: white;
+}
+.motion-toggle:focus-visible ~ .motion-footer .motion-control {
+  outline: 3px solid var(--color-primary-dark);
+  outline-offset: 3px;
+}
+.motion-toggle:checked ~ * .motion-scene,
+.motion-toggle:checked ~ * .motion-scene img,
+.motion-toggle:checked ~ * .journey-step::after,
+.motion-product:focus-within .motion-scene,
+.motion-product:focus-within .motion-scene img,
+.motion-product:focus-within .journey-step::after {
+  animation-play-state: paused;
+}
+@keyframes tour-booking {
+  0%,29%,100% { opacity: 1; visibility: visible; }
+  33.333%,96% { opacity: 0; visibility: hidden; }
+}
+@keyframes tour-records {
+  0%,29%,66.666%,100% { opacity: 0; visibility: hidden; }
+  33.333%,62.666% { opacity: 1; visibility: visible; }
+}
+@keyframes tour-treatment {
+  0%,62.666%,100% { opacity: 0; visibility: hidden; }
+  66.666%,96% { opacity: 1; visibility: visible; }
+}
+@keyframes tour-drift {
+  0%,100% { scale: 1; }
+  50% { scale: 1.025; }
+}
+@keyframes journey-progress {
+  0% { scale: 0 1; }
+  32% { scale: 1 1; }
+  33.333%,100% { scale: 0 1; }
+}
+@keyframes landing-arrive {
+  from { opacity: 0; translate: 0 16px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@media(prefers-reduced-motion:no-preference) {
+  .hero-copy .eyebrow,.hero-title,.hero-description,.hero-cta-group,.hero-note {
+    animation: landing-arrive .65s cubic-bezier(.16,1,.3,1) both;
+  }
+  .hero-title { animation-delay: .08s; }
+  .hero-description { animation-delay: .16s; }
+  .hero-cta-group,.hero-note { animation-delay: .24s; }
+  /* Progressive enhancement: unsupported browsers show the content normally. */
+  @supports(animation-timeline:view()) {
+    .feature-card,.day-intro,.story-copy,.day-note {
+      animation: landing-arrive linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 35%;
+    }
+  }
+}
+@media(max-width:640px) {
+  .patient-journey { gap: 5px; }
+  .journey-step { flex-direction: column; gap: 4px; padding: 10px 4px; font-size: 10px; text-align: center; }
+  .scene-caption { inset-inline: 12px; inset-block-end: 12px; padding: 8px 12px; }
+  .motion-footer { align-items: flex-start; }
+  .motion-product::before { inset: -8px; border-radius: 26px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .motion-toggle,.motion-control { display: none; }
+}
 /* Four links into the clinic's day, without an icon-card wall. */
 .feature-strip {
   border-block: 1px solid var(--border);
@@ -646,6 +859,7 @@ html[dir="rtl"] .hero-title {
 }
 .site-footer nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 24px;
   font-size: 11px;
   color: var(--muted);
