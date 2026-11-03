@@ -9,11 +9,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
 import { JSDOM } from 'jsdom';
+import {
+  CURRENT_ACTIVE_INDEXABLE_ROUTES,
+  APPLICATION_SHELL_ROUTES,
+  PROTECTED_ROUTES,
+  REDIRECT_ONLY_ROUTES,
+} from './routeInventory.mjs';
 
-export const ALLOWED_SITEMAP_URLS = new Set([
-  'https://www.dentixs.app/ar',
-  'https://www.dentixs.app/en',
-]);
+export const ALLOWED_SITEMAP_URLS = new Set(CURRENT_ACTIVE_INDEXABLE_ROUTES);
 
 export function validateMarketingHtml(html, distDir = null, options = {}) {
   const {
@@ -22,6 +25,11 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
     canonical = 'https://www.dentixs.app/ar',
     loginTexts = ['تسجيل الدخول'],
     targetLangSwitch = '/en',
+    expectedAlternates = {
+      ar: 'https://www.dentixs.app/ar',
+      en: 'https://www.dentixs.app/en',
+      'x-default': 'https://www.dentixs.app/ar',
+    },
   } = options;
   const errors = [];
   const dom = new JSDOM(html);
@@ -29,6 +37,10 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
 
   // 1. Language & Direction
   const htmlEl = doc.documentElement;
+  if (!htmlEl) {
+    errors.push('Missing <html> root element');
+    return errors;
+  }
   if (htmlEl.getAttribute('lang') !== lang) {
     errors.push(`<html> attribute lang must be '${lang}', found: '${htmlEl.getAttribute('lang')}'`);
   }
@@ -42,20 +54,57 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
     errors.push(`Missing or invalid canonical link: expected '${canonical}', found: '${canonicalEl ? canonicalEl.getAttribute('href') : 'none'}'`);
   }
 
-  // 3. Bidirectional hreflang reciprocity
-  const hreflangAr = doc.querySelector('link[rel="alternate"][hreflang="ar"]');
-  if (!hreflangAr || hreflangAr.getAttribute('href') !== 'https://www.dentixs.app/ar') {
-    errors.push(`Missing or invalid alternate hreflang="ar": expected 'https://www.dentixs.app/ar', found: '${hreflangAr ? hreflangAr.getAttribute('href') : 'none'}'`);
+  // 3. Bidirectional hreflang reciprocity & validation
+  const hreflangElements = Array.from(doc.querySelectorAll('link[rel="alternate"][hreflang]'));
+  const foundAlternates = {};
+
+  for (const el of hreflangElements) {
+    const code = el.getAttribute('hreflang');
+    const href = el.getAttribute('href') || '';
+
+    // Validate language code
+    if (!['ar', 'en', 'x-default'].includes(code)) {
+      errors.push(`Invalid hreflang language code: '${code}'`);
+    }
+
+    foundAlternates[code] = href;
+
+    // Validate alternate href is HTTPS canonical domain
+    if (!href.startsWith('https://www.dentixs.app/')) {
+      errors.push(`hreflang="${code}" must use canonical domain 'https://www.dentixs.app/', found: '${href}'`);
+    }
+
+    // Verify alternate target file exists on disk if distDir provided
+    if (distDir && href.startsWith('https://www.dentixs.app/')) {
+      const pathname = new URL(href).pathname;
+      const targetRel = pathname === '/' ? 'index.html' : pathname.replace(/^\//, '');
+      const possibleFile1 = path.join(distDir, targetRel, 'index.html');
+      const possibleFile2 = path.join(distDir, targetRel);
+      const possibleFile3 = path.join(distDir, `${targetRel}.html`);
+
+      const targetExists = existsSync(possibleFile1) || existsSync(possibleFile2) || existsSync(possibleFile3);
+      if (!targetExists) {
+        errors.push(`hreflang="${code}" alternate target not found on disk: '${href}'`);
+      } else {
+        // Target must not be noindexed
+        const targetHtmlPath = existsSync(possibleFile1) ? possibleFile1 : (existsSync(possibleFile3) ? possibleFile3 : possibleFile2);
+        try {
+          const targetContent = readFileSync(targetHtmlPath, 'utf8');
+          if (targetContent.includes('content="noindex') || targetContent.includes("content='noindex")) {
+            errors.push(`hreflang="${code}" alternate target contains noindex: '${href}'`);
+          }
+        } catch (_) {}
+      }
+    }
   }
 
-  const hreflangEn = doc.querySelector('link[rel="alternate"][hreflang="en"]');
-  if (!hreflangEn || hreflangEn.getAttribute('href') !== 'https://www.dentixs.app/en') {
-    errors.push(`Missing or invalid alternate hreflang="en": expected 'https://www.dentixs.app/en', found: '${hreflangEn ? hreflangEn.getAttribute('href') : 'none'}'`);
-  }
-
-  const hreflangDefault = doc.querySelector('link[rel="alternate"][hreflang="x-default"]');
-  if (!hreflangDefault || hreflangDefault.getAttribute('href') !== 'https://www.dentixs.app/ar') {
-    errors.push(`Missing or invalid alternate hreflang="x-default": expected 'https://www.dentixs.app/ar', found: '${hreflangDefault ? hreflangDefault.getAttribute('href') : 'none'}'`);
+  // Verify all expected alternates exist and match
+  for (const [expCode, expHref] of Object.entries(expectedAlternates)) {
+    if (!foundAlternates[expCode]) {
+      errors.push(`Missing required alternate hreflang="${expCode}": expected '${expHref}'`);
+    } else if (foundAlternates[expCode] !== expHref) {
+      errors.push(`Mismatched alternate hreflang="${expCode}": expected '${expHref}', found '${foundAlternates[expCode]}'`);
+    }
   }
 
   // 4. Executable Script Guard (Zero JS execution)
@@ -126,17 +175,17 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
     if (distDir && href.startsWith('/') && !href.startsWith('//') && href.includes('.')) {
       const localFile = path.join(distDir, href.replace(/^\//, ''));
       if (!existsSync(localFile)) {
-        errors.push(`Broken local asset link in ${lang}/index.html: ${href}`);
+        errors.push(`Broken local asset link in ${canonical}: ${href}`);
       }
     }
   }
 
   if (loginCount < 2) {
-    errors.push(`Expected at least 2 login links pointing to '/', found ${loginCount}`);
+    errors.push(`Expected at least 2 login links pointing to '/', found ${loginCount} in ${canonical}`);
   }
 
   if (!hasLangSwitch) {
-    errors.push(`Missing language switcher link pointing to '${targetLangSwitch}' in ${lang}/index.html`);
+    errors.push(`Missing language switcher link pointing to '${targetLangSwitch}' in ${canonical}`);
   }
 
   // 8. Check <link> assets on disk (stylesheets, icons, touch icons)
@@ -145,7 +194,7 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
     for (const linkEl of linkElements) {
       const rel = (linkEl.getAttribute('rel') || '').toLowerCase();
       const href = linkEl.getAttribute('href') || '';
-      // Exclude canonical, dns-prefetch, preconnect
+      // Exclude canonical, dns-prefetch, preconnect, alternate
       if (['stylesheet', 'icon', 'apple-touch-icon', 'shortcut icon'].some((r) => rel.includes(r))) {
         if (href.startsWith('/') && !href.startsWith('//')) {
           const localFile = path.join(distDir, href.replace(/^\//, ''));
@@ -210,10 +259,47 @@ export function validateSitemapXml(xml, allowedUrls = ALLOWED_SITEMAP_URLS) {
     return errors;
   }
 
-  const extractedUrls = new Set(locs.map((l) => l.textContent.trim()));
+  const extractedUrls = [];
+  const seenUrls = new Set();
+
+  for (const l of locs) {
+    const url = l.textContent.trim();
+    if (seenUrls.has(url)) {
+      errors.push(`Duplicate URL found in sitemap.xml: ${url}`);
+    }
+    seenUrls.add(url);
+    extractedUrls.push(url);
+
+    // Reject non-HTTPS
+    if (!url.startsWith('https://')) {
+      errors.push(`HTTP or non-HTTPS URL in sitemap: ${url}`);
+    }
+
+    // Reject non-canonical domain
+    if (!url.startsWith('https://www.dentixs.app/')) {
+      errors.push(`Non-canonical domain in sitemap: ${url}`);
+    }
+
+    // Reject trailing slash variants of clean paths
+    if (url.endsWith('/') && url !== 'https://www.dentixs.app/') {
+      errors.push(`Trailing slash discrepancy in sitemap: ${url}`);
+    }
+
+    // Reject application-only or protected paths
+    const pathname = new URL(url).pathname;
+    if (APPLICATION_SHELL_ROUTES.includes(pathname)) {
+      errors.push(`Application shell route illegally included in sitemap: ${url}`);
+    }
+    if (PROTECTED_ROUTES.some((pr) => pathname === pr || pathname.startsWith(`${pr}/`))) {
+      errors.push(`Protected application route illegally included in sitemap: ${url}`);
+    }
+    if (REDIRECT_ONLY_ROUTES.includes(pathname)) {
+      errors.push(`Redirect-only route illegally included in sitemap: ${url}`);
+    }
+  }
 
   // Check for disallowed/unexpected URLs
-  for (const url of extractedUrls) {
+  for (const url of seenUrls) {
     if (!allowedUrls.has(url)) {
       errors.push(`Disallowed or unexpected URL in sitemap.xml: ${url}`);
     }
@@ -221,7 +307,7 @@ export function validateSitemapXml(xml, allowedUrls = ALLOWED_SITEMAP_URLS) {
 
   // Check for missing required URLs
   for (const expectedUrl of allowedUrls) {
-    if (!extractedUrls.has(expectedUrl)) {
+    if (!seenUrls.has(expectedUrl)) {
       errors.push(`Required URL missing from sitemap.xml: ${expectedUrl}`);
     }
   }
@@ -314,6 +400,22 @@ export function validatePrecacheExclusions(swContent) {
   return errors;
 }
 
+export function validateApplicationShellNoindex(indexHtmlContent) {
+  const errors = [];
+  const dom = new JSDOM(indexHtmlContent);
+  const doc = dom.window.document;
+  const robotsMeta = doc.querySelector('meta[name="robots"]');
+  if (!robotsMeta) {
+    errors.push('Application shell /index.html is missing <meta name="robots">');
+  } else {
+    const content = robotsMeta.getAttribute('content') || '';
+    if (!content.includes('noindex')) {
+      errors.push(`Application shell /index.html must include 'noindex' in meta robots, found: '${content}'`);
+    }
+  }
+  return errors;
+}
+
 export function runVerification(distDir = 'dist') {
   const resolvedDist = path.resolve(distDir);
   console.log(`[verify-marketing] Inspecting build output at: ${resolvedDist}`);
@@ -326,7 +428,19 @@ export function runVerification(distDir = 'dist') {
   const allErrors = [];
 
   // Required files
-  const requiredFiles = ['ar/index.html', 'en/index.html', 'marketing/marketing.css', 'robots.txt', 'sitemap.xml', 'sw.js'];
+  const requiredFiles = [
+    'index.html',
+    'ar/index.html',
+    'en/index.html',
+    'ar/privacy/index.html',
+    'en/privacy/index.html',
+    'ar/terms/index.html',
+    'en/terms/index.html',
+    'marketing/marketing.css',
+    'robots.txt',
+    'sitemap.xml',
+    'sw.js',
+  ];
   for (const rel of requiredFiles) {
     if (!existsSync(path.join(resolvedDist, rel))) {
       allErrors.push(`Missing required artifact: ${rel}`);
@@ -338,7 +452,11 @@ export function runVerification(distDir = 'dist') {
     process.exit(1);
   }
 
-  // 1. Validate Arabic HTML
+  // 0. Validate Application Shell Noindex
+  const appIndexHtml = readFileSync(path.join(resolvedDist, 'index.html'), 'utf8');
+  allErrors.push(...validateApplicationShellNoindex(appIndexHtml));
+
+  // 1. Validate Arabic Homepage
   const arHtml = readFileSync(path.join(resolvedDist, 'ar/index.html'), 'utf8');
   allErrors.push(...validateMarketingHtml(arHtml, resolvedDist, {
     lang: 'ar',
@@ -346,9 +464,14 @@ export function runVerification(distDir = 'dist') {
     canonical: 'https://www.dentixs.app/ar',
     loginTexts: ['تسجيل الدخول'],
     targetLangSwitch: '/en',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar',
+      en: 'https://www.dentixs.app/en',
+      'x-default': 'https://www.dentixs.app/ar',
+    },
   }));
 
-  // 2. Validate English HTML
+  // 2. Validate English Homepage
   const enHtml = readFileSync(path.join(resolvedDist, 'en/index.html'), 'utf8');
   allErrors.push(...validateMarketingHtml(enHtml, resolvedDist, {
     lang: 'en',
@@ -356,23 +479,88 @@ export function runVerification(distDir = 'dist') {
     canonical: 'https://www.dentixs.app/en',
     loginTexts: ['log in', 'login'],
     targetLangSwitch: '/ar',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar',
+      en: 'https://www.dentixs.app/en',
+      'x-default': 'https://www.dentixs.app/ar',
+    },
   }));
 
-  // 3. Validate Sitemap
+  // 3. Validate Arabic Privacy
+  const arPrivacyHtml = readFileSync(path.join(resolvedDist, 'ar/privacy/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(arPrivacyHtml, resolvedDist, {
+    lang: 'ar',
+    dir: 'rtl',
+    canonical: 'https://www.dentixs.app/ar/privacy',
+    loginTexts: ['تسجيل الدخول'],
+    targetLangSwitch: '/en/privacy',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/privacy',
+      en: 'https://www.dentixs.app/en/privacy',
+      'x-default': 'https://www.dentixs.app/ar/privacy',
+    },
+  }));
+
+  // 4. Validate English Privacy
+  const enPrivacyHtml = readFileSync(path.join(resolvedDist, 'en/privacy/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(enPrivacyHtml, resolvedDist, {
+    lang: 'en',
+    dir: 'ltr',
+    canonical: 'https://www.dentixs.app/en/privacy',
+    loginTexts: ['log in', 'login'],
+    targetLangSwitch: '/ar/privacy',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/privacy',
+      en: 'https://www.dentixs.app/en/privacy',
+      'x-default': 'https://www.dentixs.app/ar/privacy',
+    },
+  }));
+
+  // 5. Validate Arabic Terms
+  const arTermsHtml = readFileSync(path.join(resolvedDist, 'ar/terms/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(arTermsHtml, resolvedDist, {
+    lang: 'ar',
+    dir: 'rtl',
+    canonical: 'https://www.dentixs.app/ar/terms',
+    loginTexts: ['تسجيل الدخول'],
+    targetLangSwitch: '/en/terms',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/terms',
+      en: 'https://www.dentixs.app/en/terms',
+      'x-default': 'https://www.dentixs.app/ar/terms',
+    },
+  }));
+
+  // 6. Validate English Terms
+  const enTermsHtml = readFileSync(path.join(resolvedDist, 'en/terms/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(enTermsHtml, resolvedDist, {
+    lang: 'en',
+    dir: 'ltr',
+    canonical: 'https://www.dentixs.app/en/terms',
+    loginTexts: ['log in', 'login'],
+    targetLangSwitch: '/ar/terms',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/terms',
+      en: 'https://www.dentixs.app/en/terms',
+      'x-default': 'https://www.dentixs.app/ar/terms',
+    },
+  }));
+
+  // 7. Validate Sitemap
   const sitemapXml = readFileSync(path.join(resolvedDist, 'sitemap.xml'), 'utf8');
   allErrors.push(...validateSitemapXml(sitemapXml));
 
-  // 4. Validate Robots.txt
+  // 8. Validate Robots.txt
   const robotsTxt = readFileSync(path.join(resolvedDist, 'robots.txt'), 'utf8');
   allErrors.push(...validateRobotsTxt(robotsTxt));
 
-  // 5. Validate CSS Budget
+  // 9. Validate CSS Budget
   const cssContent = readFileSync(path.join(resolvedDist, 'marketing/marketing.css'), 'utf8');
   const cssResult = validateCssBudget(cssContent);
   allErrors.push(...cssResult.errors);
   console.log(`[verify-marketing] marketing.css raw size: ${(cssResult.rawBytes / 1024).toFixed(2)} KiB, gzip: ${(cssResult.gzipBytes / 1024).toFixed(2)} KiB`);
 
-  // 6. Validate Precache
+  // 10. Validate Precache
   const swContent = readFileSync(path.join(resolvedDist, 'sw.js'), 'utf8');
   allErrors.push(...validatePrecacheExclusions(swContent));
 

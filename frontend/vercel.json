@@ -19,6 +19,26 @@
   ],
   "redirects": [
     {
+      "source": "/privacy",
+      "destination": "/ar/privacy",
+      "permanent": true
+    },
+    {
+      "source": "/privacy/",
+      "destination": "/ar/privacy",
+      "permanent": true
+    },
+    {
+      "source": "/terms",
+      "destination": "/ar/terms",
+      "permanent": true
+    },
+    {
+      "source": "/terms/",
+      "destination": "/ar/terms",
+      "permanent": true
+    },
+    {
       "source": "/ar/",
       "destination": "/ar",
       "permanent": true
@@ -29,6 +49,26 @@
       "permanent": true
     },
     {
+      "source": "/ar/privacy/",
+      "destination": "/ar/privacy",
+      "permanent": true
+    },
+    {
+      "source": "/ar/privacy/index.html",
+      "destination": "/ar/privacy",
+      "permanent": true
+    },
+    {
+      "source": "/ar/terms/",
+      "destination": "/ar/terms",
+      "permanent": true
+    },
+    {
+      "source": "/ar/terms/index.html",
+      "destination": "/ar/terms",
+      "permanent": true
+    },
+    {
       "source": "/en/",
       "destination": "/en",
       "permanent": true
@@ -36,6 +76,26 @@
     {
       "source": "/en/index.html",
       "destination": "/en",
+      "permanent": true
+    },
+    {
+      "source": "/en/privacy/",
+      "destination": "/en/privacy",
+      "permanent": true
+    },
+    {
+      "source": "/en/privacy/index.html",
+      "destination": "/en/privacy",
+      "permanent": true
+    },
+    {
+      "source": "/en/terms/",
+      "destination": "/en/terms",
+      "permanent": true
+    },
+    {
+      "source": "/en/terms/index.html",
+      "destination": "/en/terms",
       "permanent": true
     }
   ],
@@ -49,8 +109,24 @@
       "destination": "/ar/index.html"
     },
     {
+      "source": "/ar/privacy",
+      "destination": "/ar/privacy/index.html"
+    },
+    {
+      "source": "/ar/terms",
+      "destination": "/ar/terms/index.html"
+    },
+    {
       "source": "/en",
       "destination": "/en/index.html"
+    },
+    {
+      "source": "/en/privacy",
+      "destination": "/en/privacy/index.html"
+    },
+    {
+      "source": "/en/terms",
+      "destination": "/en/terms/index.html"
     },
     {
       "source": "/((?!api/|assets/|icons/|marketing/|ar(?:/.*)?$|en(?:/.*)?$|robots\\.txt$|sitemap\\.xml$|sw\\.js|workbox-|registerSW\\.js|manifest\\.webmanifest|favicon\\.ico).*)",

@@ -130,9 +130,23 @@ export async function checkRoute(description, path, expected, deploymentBaseUrl 
 
 export const routeTests = [
   {
-    desc: 'Root / serves SPA application entry (HTTP 200)',
+    desc: 'Root / serves SPA application entry with noindex directive (HTTP 200)',
     path: '/',
-    expected: { status: 200, contentType: 'text/html' },
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      bodyContains: ['<meta name="robots" content="noindex, follow"'],
+    },
+  },
+  {
+    desc: 'Legacy /privacy redirects with 308 to /ar/privacy on same origin',
+    path: '/privacy',
+    expected: { status: 308, location: '/ar/privacy' },
+  },
+  {
+    desc: 'Legacy /terms redirects with 308 to /ar/terms on same origin',
+    path: '/terms',
+    expected: { status: 308, location: '/ar/terms' },
   },
   {
     desc: 'Clean /ar serves Arabic static landing page (HTTP 200)',
@@ -148,6 +162,106 @@ export const routeTests = [
         targetLangSwitch: '/en',
       }),
     },
+  },
+  {
+    desc: 'Clean /ar/privacy serves Arabic static privacy page (HTTP 200)',
+    path: '/ar/privacy',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      validator: (html) => validateMarketingHtml(html, null, {
+        lang: 'ar',
+        dir: 'rtl',
+        canonical: 'https://www.dentixs.app/ar/privacy',
+        loginTexts: ['تسجيل الدخول'],
+        targetLangSwitch: '/en/privacy',
+        expectedAlternates: {
+          ar: 'https://www.dentixs.app/ar/privacy',
+          en: 'https://www.dentixs.app/en/privacy',
+          'x-default': 'https://www.dentixs.app/ar/privacy',
+        },
+      }),
+    },
+  },
+  {
+    desc: 'Trailing slash /ar/privacy/ redirects with 308 to /ar/privacy on same origin',
+    path: '/ar/privacy/',
+    expected: { status: 308, location: '/ar/privacy' },
+  },
+  {
+    desc: 'Clean /en/privacy serves English static privacy page (HTTP 200)',
+    path: '/en/privacy',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      validator: (html) => validateMarketingHtml(html, null, {
+        lang: 'en',
+        dir: 'ltr',
+        canonical: 'https://www.dentixs.app/en/privacy',
+        loginTexts: ['log in', 'login'],
+        targetLangSwitch: '/ar/privacy',
+        expectedAlternates: {
+          ar: 'https://www.dentixs.app/ar/privacy',
+          en: 'https://www.dentixs.app/en/privacy',
+          'x-default': 'https://www.dentixs.app/ar/privacy',
+        },
+      }),
+    },
+  },
+  {
+    desc: 'Trailing slash /en/privacy/ redirects with 308 to /en/privacy on same origin',
+    path: '/en/privacy/',
+    expected: { status: 308, location: '/en/privacy' },
+  },
+  {
+    desc: 'Clean /ar/terms serves Arabic static terms page (HTTP 200)',
+    path: '/ar/terms',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      validator: (html) => validateMarketingHtml(html, null, {
+        lang: 'ar',
+        dir: 'rtl',
+        canonical: 'https://www.dentixs.app/ar/terms',
+        loginTexts: ['تسجيل الدخول'],
+        targetLangSwitch: '/en/terms',
+        expectedAlternates: {
+          ar: 'https://www.dentixs.app/ar/terms',
+          en: 'https://www.dentixs.app/en/terms',
+          'x-default': 'https://www.dentixs.app/ar/terms',
+        },
+      }),
+    },
+  },
+  {
+    desc: 'Trailing slash /ar/terms/ redirects with 308 to /ar/terms on same origin',
+    path: '/ar/terms/',
+    expected: { status: 308, location: '/ar/terms' },
+  },
+  {
+    desc: 'Clean /en/terms serves English static terms page (HTTP 200)',
+    path: '/en/terms',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      validator: (html) => validateMarketingHtml(html, null, {
+        lang: 'en',
+        dir: 'ltr',
+        canonical: 'https://www.dentixs.app/en/terms',
+        loginTexts: ['log in', 'login'],
+        targetLangSwitch: '/ar/terms',
+        expectedAlternates: {
+          ar: 'https://www.dentixs.app/ar/terms',
+          en: 'https://www.dentixs.app/en/terms',
+          'x-default': 'https://www.dentixs.app/ar/terms',
+        },
+      }),
+    },
+  },
+  {
+    desc: 'Trailing slash /en/terms/ redirects with 308 to /en/terms on same origin',
+    path: '/en/terms/',
+    expected: { status: 308, location: '/en/terms' },
   },
   {
     desc: 'Trailing slash /ar/ redirects with 308 to /ar on same origin',

@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Technical SEO & Public Routing Foundation (2026-11-03): App shell /index.html is protected with raw 'noindex, follow' while public marketing at /ar and /en remains discoverable via noscript links and login interface; static legal pages for Privacy Policy and Terms of Service generated directly from authoritative translation sources at /ar/privacy, /en/privacy, /ar/terms, /en/terms with zero executable JS, reciprocal hreflangs, and BreadcrumbList/WebPage JSON-LD.
+- Normalized brand titles and OpenGraph tags to official descriptors ('Dentix — برنامج إدارة عيادات الأسنان' / 'Dentix — Dental Clinic Management Software'). Expanded sitemap infrastructure to all 6 indexable routes with strict semantic and negative checks. Clean Vercel 308 redirects and routing implemented.
+- Verification: 27 marketing static tests, 12 login tests, design system guardrails, and production build with strict semantic artifact parsing all PASS cleanly. Status: PR-A ready for review; no push without owner approval.
+
 - Global-session startup recovery (2026-11-02): supplied log exposed FORCE-RLS rejection under a table-owning runtime login. Pending release data now uses a verified configured same-database administrative login; explicit migration URLs retain precedence. No applied migration/RLS/role/schema changes.
 - Verification: 42 targeted tests PASS with zero failures/skips, including real restricted-owner/system-login scenarios, refusal/rollback cases, cross-clinic denial, existing bootstrap/NOINHERIT repair and RBAC; Ruff/diff PASS.
 - Status: DONE implementation/local verification; CI, deployment and live startup recovery pending. Evidence and operator configuration/acceptance path: docs/reports/session-release-preflight-rls-recovery-2026-11-02.md.
