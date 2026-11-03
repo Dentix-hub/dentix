@@ -1185,6 +1185,129 @@ html[dir="rtl"] .prose-section h2 {
     font-size: 18px;
   }
 }
+/* --- Plans, Contact & Guide Components --- */
+.plans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+  margin: 32px 0;
+}
+.plan-card {
+  background: #fff;
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.plan-card.featured {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.12);
+}
+.plan-badge {
+  position: absolute;
+  top: -12px;
+  inset-inline-end: 20px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 12px;
+}
+.plan-name {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--navy);
+  margin: 0 0 8px;
+}
+.plan-price {
+  font-size: 36px;
+  font-weight: 900;
+  color: var(--ink);
+  margin: 12px 0 4px;
+  line-height: 1.1;
+}
+.plan-price span {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.plan-period {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+.plan-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 28px;
+  flex: 1;
+}
+.plan-features li {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin-bottom: 10px;
+  padding-inline-start: 20px;
+  position: relative;
+}
+.plan-features li::before {
+  content: "✓";
+  position: absolute;
+  inset-inline-start: 0;
+  color: var(--color-secondary);
+  font-weight: bold;
+}
+.contact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+  margin: 32px 0;
+}
+.contact-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.contact-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 12px 0 8px;
+}
+.contact-card p {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 20px;
+  flex: 1;
+}
+.content-figure {
+  margin: 28px 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+.content-figure img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.content-figure figcaption {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
 @media(prefers-reduced-motion:reduce) {
   html {
     scroll-behavior: auto;

@@ -264,6 +264,151 @@ export const routeTests = [
     expected: { status: 308, location: '/en/terms' },
   },
   {
+    desc: 'Clean /ar/about serves Arabic static about page (HTTP 200)',
+    path: '/ar/about',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      validator: (html) => validateMarketingHtml(html, null, {
+        lang: 'ar',
+        dir: 'rtl',
+        canonical: 'https://www.dentixs.app/ar/about',
+        loginTexts: ['تسجيل الدخول'],
+        targetLangSwitch: '/en/about',
+        expectedAlternates: {
+          ar: 'https://www.dentixs.app/ar/about',
+          en: 'https://www.dentixs.app/en/about',
+          'x-default': 'https://www.dentixs.app/ar/about',
+        },
+      }),
+    },
+  },
+  {
+    desc: 'Trailing slash /ar/about/ redirects with 308 to /ar/about on same origin',
+    path: '/ar/about/',
+    expected: { status: 308, location: '/ar/about' },
+  },
+  {
+    desc: 'Clean /en/about serves English static about page (HTTP 200)',
+    path: '/en/about',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      validator: (html) => validateMarketingHtml(html, null, {
+        lang: 'en',
+        dir: 'ltr',
+        canonical: 'https://www.dentixs.app/en/about',
+        loginTexts: ['log in', 'login'],
+        targetLangSwitch: '/ar/about',
+        expectedAlternates: {
+          ar: 'https://www.dentixs.app/ar/about',
+          en: 'https://www.dentixs.app/en/about',
+          'x-default': 'https://www.dentixs.app/ar/about',
+        },
+      }),
+    },
+  },
+  {
+    desc: 'Trailing slash /en/about/ redirects with 308 to /en/about on same origin',
+    path: '/en/about/',
+    expected: { status: 308, location: '/en/about' },
+  },
+  {
+    desc: 'Clean /ar/contact serves Arabic static contact page (HTTP 200)',
+    path: '/ar/contact',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      validator: (html) => validateMarketingHtml(html, null, {
+        lang: 'ar',
+        dir: 'rtl',
+        canonical: 'https://www.dentixs.app/ar/contact',
+        loginTexts: ['تسجيل الدخول'],
+        targetLangSwitch: '/en/contact',
+        expectedAlternates: {
+          ar: 'https://www.dentixs.app/ar/contact',
+          en: 'https://www.dentixs.app/en/contact',
+          'x-default': 'https://www.dentixs.app/ar/contact',
+        },
+      }),
+    },
+  },
+  {
+    desc: 'Clean /en/contact serves English static contact page (HTTP 200)',
+    path: '/en/contact',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      validator: (html) => validateMarketingHtml(html, null, {
+        lang: 'en',
+        dir: 'ltr',
+        canonical: 'https://www.dentixs.app/en/contact',
+        loginTexts: ['log in', 'login'],
+        targetLangSwitch: '/ar/contact',
+        expectedAlternates: {
+          ar: 'https://www.dentixs.app/ar/contact',
+          en: 'https://www.dentixs.app/en/contact',
+          'x-default': 'https://www.dentixs.app/ar/contact',
+        },
+      }),
+    },
+  },
+  {
+    desc: 'Clean /ar/plans serves Arabic static plans page (HTTP 200)',
+    path: '/ar/plans',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      validator: (html) => validateMarketingHtml(html, null, {
+        lang: 'ar',
+        dir: 'rtl',
+        canonical: 'https://www.dentixs.app/ar/plans',
+        loginTexts: ['تسجيل الدخول'],
+        targetLangSwitch: '/en/plans',
+        expectedAlternates: {
+          ar: 'https://www.dentixs.app/ar/plans',
+          en: 'https://www.dentixs.app/en/plans',
+          'x-default': 'https://www.dentixs.app/ar/plans',
+        },
+      }),
+    },
+  },
+  {
+    desc: 'Clean /en/plans serves English static plans page (HTTP 200)',
+    path: '/en/plans',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      validator: (html) => validateMarketingHtml(html, null, {
+        lang: 'en',
+        dir: 'ltr',
+        canonical: 'https://www.dentixs.app/en/plans',
+        loginTexts: ['log in', 'login'],
+        targetLangSwitch: '/ar/plans',
+        expectedAlternates: {
+          ar: 'https://www.dentixs.app/ar/plans',
+          en: 'https://www.dentixs.app/en/plans',
+          'x-default': 'https://www.dentixs.app/ar/plans',
+        },
+      }),
+    },
+  },
+  {
+    desc: 'Clean /ar/dental-clinic-management-software serves clinic guide (HTTP 200)',
+    path: '/ar/dental-clinic-management-software',
+    expected: { status: 200, contentType: 'text/html' },
+  },
+  {
+    desc: 'Clean /ar/dental-patient-records serves patient records guide (HTTP 200)',
+    path: '/ar/dental-patient-records',
+    expected: { status: 200, contentType: 'text/html' },
+  },
+  {
+    desc: 'Clean /ar/appointments-finance serves appointments & finance guide (HTTP 200)',
+    path: '/ar/appointments-finance',
+    expected: { status: 200, contentType: 'text/html' },
+  },
+  {
     desc: 'Trailing slash /ar/ redirects with 308 to /ar on same origin',
     path: '/ar/',
     expected: { status: 308, location: '/ar' },

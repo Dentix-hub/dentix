@@ -32,7 +32,7 @@ test.describe('Dentix Arabic Marketing Page', () => {
     await page.goto('/ar/index.html');
 
     // Title & HTML attributes
-    await expect(page).toHaveTitle('Dentix | برنامج إدارة عيادات الأسنان في مصر');
+    await expect(page).toHaveTitle('Dentix — برنامج إدارة عيادات الأسنان');
     const html = page.locator('html');
     await expect(html).toHaveAttribute('lang', 'ar');
     await expect(html).toHaveAttribute('dir', 'rtl');
@@ -130,7 +130,7 @@ test.describe('Dentix English Marketing Page', () => {
     await page.goto('/en/index.html');
 
     // Title & HTML attributes
-    await expect(page).toHaveTitle('Dentix | Dental Clinic Management Software in Egypt');
+    await expect(page).toHaveTitle('Dentix — Dental Clinic Management Software');
     const html = page.locator('html');
     await expect(html).toHaveAttribute('lang', 'en');
     await expect(html).toHaveAttribute('dir', 'ltr');

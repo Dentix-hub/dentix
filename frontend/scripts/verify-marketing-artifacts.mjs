@@ -436,6 +436,18 @@ export function runVerification(distDir = 'dist') {
     'en/privacy/index.html',
     'ar/terms/index.html',
     'en/terms/index.html',
+    'ar/about/index.html',
+    'en/about/index.html',
+    'ar/contact/index.html',
+    'en/contact/index.html',
+    'ar/plans/index.html',
+    'en/plans/index.html',
+    'ar/dental-clinic-management-software/index.html',
+    'en/dental-clinic-management-software/index.html',
+    'ar/dental-patient-records/index.html',
+    'en/dental-patient-records/index.html',
+    'ar/appointments-finance/index.html',
+    'en/appointments-finance/index.html',
     'marketing/marketing.css',
     'robots.txt',
     'sitemap.xml',
@@ -546,7 +558,187 @@ export function runVerification(distDir = 'dist') {
     },
   }));
 
-  // 7. Validate Sitemap
+  // 7. Validate Arabic About
+  const arAboutHtml = readFileSync(path.join(resolvedDist, 'ar/about/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(arAboutHtml, resolvedDist, {
+    lang: 'ar',
+    dir: 'rtl',
+    canonical: 'https://www.dentixs.app/ar/about',
+    loginTexts: ['تسجيل الدخول'],
+    targetLangSwitch: '/en/about',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/about',
+      en: 'https://www.dentixs.app/en/about',
+      'x-default': 'https://www.dentixs.app/ar/about',
+    },
+  }));
+
+  // 8. Validate English About
+  const enAboutHtml = readFileSync(path.join(resolvedDist, 'en/about/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(enAboutHtml, resolvedDist, {
+    lang: 'en',
+    dir: 'ltr',
+    canonical: 'https://www.dentixs.app/en/about',
+    loginTexts: ['log in', 'login'],
+    targetLangSwitch: '/ar/about',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/about',
+      en: 'https://www.dentixs.app/en/about',
+      'x-default': 'https://www.dentixs.app/ar/about',
+    },
+  }));
+
+  // 9. Validate Arabic Contact
+  const arContactHtml = readFileSync(path.join(resolvedDist, 'ar/contact/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(arContactHtml, resolvedDist, {
+    lang: 'ar',
+    dir: 'rtl',
+    canonical: 'https://www.dentixs.app/ar/contact',
+    loginTexts: ['تسجيل الدخول'],
+    targetLangSwitch: '/en/contact',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/contact',
+      en: 'https://www.dentixs.app/en/contact',
+      'x-default': 'https://www.dentixs.app/ar/contact',
+    },
+  }));
+
+  // 10. Validate English Contact
+  const enContactHtml = readFileSync(path.join(resolvedDist, 'en/contact/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(enContactHtml, resolvedDist, {
+    lang: 'en',
+    dir: 'ltr',
+    canonical: 'https://www.dentixs.app/en/contact',
+    loginTexts: ['log in', 'login'],
+    targetLangSwitch: '/ar/contact',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/contact',
+      en: 'https://www.dentixs.app/en/contact',
+      'x-default': 'https://www.dentixs.app/ar/contact',
+    },
+  }));
+
+  // 11. Validate Arabic Plans
+  const arPlansHtml = readFileSync(path.join(resolvedDist, 'ar/plans/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(arPlansHtml, resolvedDist, {
+    lang: 'ar',
+    dir: 'rtl',
+    canonical: 'https://www.dentixs.app/ar/plans',
+    loginTexts: ['تسجيل الدخول'],
+    targetLangSwitch: '/en/plans',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/plans',
+      en: 'https://www.dentixs.app/en/plans',
+      'x-default': 'https://www.dentixs.app/ar/plans',
+    },
+  }));
+
+  // 12. Validate English Plans
+  const enPlansHtml = readFileSync(path.join(resolvedDist, 'en/plans/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(enPlansHtml, resolvedDist, {
+    lang: 'en',
+    dir: 'ltr',
+    canonical: 'https://www.dentixs.app/en/plans',
+    loginTexts: ['log in', 'login'],
+    targetLangSwitch: '/ar/plans',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/plans',
+      en: 'https://www.dentixs.app/en/plans',
+      'x-default': 'https://www.dentixs.app/ar/plans',
+    },
+  }));
+
+  // 13. Validate Arabic Dental Clinic Management Software Guide
+  const arClinicGuideHtml = readFileSync(path.join(resolvedDist, 'ar/dental-clinic-management-software/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(arClinicGuideHtml, resolvedDist, {
+    lang: 'ar',
+    dir: 'rtl',
+    canonical: 'https://www.dentixs.app/ar/dental-clinic-management-software',
+    loginTexts: ['تسجيل الدخول'],
+    targetLangSwitch: '/en/dental-clinic-management-software',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/dental-clinic-management-software',
+      en: 'https://www.dentixs.app/en/dental-clinic-management-software',
+      'x-default': 'https://www.dentixs.app/ar/dental-clinic-management-software',
+    },
+  }));
+
+  // 14. Validate English Dental Clinic Management Software Guide
+  const enClinicGuideHtml = readFileSync(path.join(resolvedDist, 'en/dental-clinic-management-software/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(enClinicGuideHtml, resolvedDist, {
+    lang: 'en',
+    dir: 'ltr',
+    canonical: 'https://www.dentixs.app/en/dental-clinic-management-software',
+    loginTexts: ['log in', 'login'],
+    targetLangSwitch: '/ar/dental-clinic-management-software',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/dental-clinic-management-software',
+      en: 'https://www.dentixs.app/en/dental-clinic-management-software',
+      'x-default': 'https://www.dentixs.app/ar/dental-clinic-management-software',
+    },
+  }));
+
+  // 15. Validate Arabic Dental Patient Records Guide
+  const arPatientRecordsHtml = readFileSync(path.join(resolvedDist, 'ar/dental-patient-records/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(arPatientRecordsHtml, resolvedDist, {
+    lang: 'ar',
+    dir: 'rtl',
+    canonical: 'https://www.dentixs.app/ar/dental-patient-records',
+    loginTexts: ['تسجيل الدخول'],
+    targetLangSwitch: '/en/dental-patient-records',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/dental-patient-records',
+      en: 'https://www.dentixs.app/en/dental-patient-records',
+      'x-default': 'https://www.dentixs.app/ar/dental-patient-records',
+    },
+  }));
+
+  // 16. Validate English Dental Patient Records Guide
+  const enPatientRecordsHtml = readFileSync(path.join(resolvedDist, 'en/dental-patient-records/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(enPatientRecordsHtml, resolvedDist, {
+    lang: 'en',
+    dir: 'ltr',
+    canonical: 'https://www.dentixs.app/en/dental-patient-records',
+    loginTexts: ['log in', 'login'],
+    targetLangSwitch: '/ar/dental-patient-records',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/dental-patient-records',
+      en: 'https://www.dentixs.app/en/dental-patient-records',
+      'x-default': 'https://www.dentixs.app/ar/dental-patient-records',
+    },
+  }));
+
+  // 17. Validate Arabic Appointments & Finance Guide
+  const arApptFinanceHtml = readFileSync(path.join(resolvedDist, 'ar/appointments-finance/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(arApptFinanceHtml, resolvedDist, {
+    lang: 'ar',
+    dir: 'rtl',
+    canonical: 'https://www.dentixs.app/ar/appointments-finance',
+    loginTexts: ['تسجيل الدخول'],
+    targetLangSwitch: '/en/appointments-finance',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/appointments-finance',
+      en: 'https://www.dentixs.app/en/appointments-finance',
+      'x-default': 'https://www.dentixs.app/ar/appointments-finance',
+    },
+  }));
+
+  // 18. Validate English Appointments & Finance Guide
+  const enApptFinanceHtml = readFileSync(path.join(resolvedDist, 'en/appointments-finance/index.html'), 'utf8');
+  allErrors.push(...validateMarketingHtml(enApptFinanceHtml, resolvedDist, {
+    lang: 'en',
+    dir: 'ltr',
+    canonical: 'https://www.dentixs.app/en/appointments-finance',
+    loginTexts: ['log in', 'login'],
+    targetLangSwitch: '/ar/appointments-finance',
+    expectedAlternates: {
+      ar: 'https://www.dentixs.app/ar/appointments-finance',
+      en: 'https://www.dentixs.app/en/appointments-finance',
+      'x-default': 'https://www.dentixs.app/ar/appointments-finance',
+    },
+  }));
+
+  // 19. Validate Sitemap
   const sitemapXml = readFileSync(path.join(resolvedDist, 'sitemap.xml'), 'utf8');
   allErrors.push(...validateSitemapXml(sitemapXml));
 

@@ -5,6 +5,7 @@
  * Distinguishes:
  * - Public indexable marketing pages
  * - Public indexable legal pages
+ * - Public indexable trust & content pages
  * - Application-only pages (noindex)
  * - Protected application pages (noindex, auth required)
  * - Redirect-only routes (must NEVER appear in sitemap)
@@ -12,7 +13,7 @@
 
 export const CANONICAL_ORIGIN = 'https://www.dentixs.app';
 
-// 1. Authoritative public indexable routes in PR-A
+// 1. Authoritative public indexable routes in PR-A (Home & Legal)
 export const PR_A_INDEXABLE_ROUTES = [
   'https://www.dentixs.app/ar',
   'https://www.dentixs.app/en',
@@ -22,7 +23,7 @@ export const PR_A_INDEXABLE_ROUTES = [
   'https://www.dentixs.app/en/terms',
 ];
 
-// 2. Authoritative public indexable routes added in PR-B
+// 2. Authoritative public indexable routes added in PR-B (Trust & Content Expansion)
 export const PR_B_INDEXABLE_ROUTES = [
   'https://www.dentixs.app/ar/about',
   'https://www.dentixs.app/en/about',
@@ -38,9 +39,10 @@ export const PR_B_INDEXABLE_ROUTES = [
   'https://www.dentixs.app/en/appointments-finance',
 ];
 
-// Current full active indexable routes for sitemap
+// Current full active indexable routes for sitemap (All 18 verified public routes)
 export const CURRENT_ACTIVE_INDEXABLE_ROUTES = [
   ...PR_A_INDEXABLE_ROUTES,
+  ...PR_B_INDEXABLE_ROUTES,
 ];
 
 // 3. Application-only routes (entry point, noindex in raw HTML)
@@ -81,4 +83,22 @@ export const REDIRECT_ONLY_ROUTES = [
   '/en/privacy/index.html',
   '/ar/terms/index.html',
   '/en/terms/index.html',
+  '/ar/about/',
+  '/en/about/',
+  '/ar/about/index.html',
+  '/en/about/index.html',
+  '/ar/contact/',
+  '/en/contact/',
+  '/ar/contact/index.html',
+  '/en/contact/index.html',
+  '/ar/plans/',
+  '/en/plans/',
+  '/ar/plans/index.html',
+  '/en/plans/index.html',
+  '/ar/dental-clinic-management-software/',
+  '/en/dental-clinic-management-software/',
+  '/ar/dental-patient-records/',
+  '/en/dental-patient-records/',
+  '/ar/appointments-finance/',
+  '/en/appointments-finance/',
 ];

@@ -69,6 +69,51 @@
       "permanent": true
     },
     {
+      "source": "/ar/about/",
+      "destination": "/ar/about",
+      "permanent": true
+    },
+    {
+      "source": "/ar/about/index.html",
+      "destination": "/ar/about",
+      "permanent": true
+    },
+    {
+      "source": "/ar/contact/",
+      "destination": "/ar/contact",
+      "permanent": true
+    },
+    {
+      "source": "/ar/contact/index.html",
+      "destination": "/ar/contact",
+      "permanent": true
+    },
+    {
+      "source": "/ar/plans/",
+      "destination": "/ar/plans",
+      "permanent": true
+    },
+    {
+      "source": "/ar/plans/index.html",
+      "destination": "/ar/plans",
+      "permanent": true
+    },
+    {
+      "source": "/ar/dental-clinic-management-software/",
+      "destination": "/ar/dental-clinic-management-software",
+      "permanent": true
+    },
+    {
+      "source": "/ar/dental-patient-records/",
+      "destination": "/ar/dental-patient-records",
+      "permanent": true
+    },
+    {
+      "source": "/ar/appointments-finance/",
+      "destination": "/ar/appointments-finance",
+      "permanent": true
+    },
+    {
       "source": "/en/",
       "destination": "/en",
       "permanent": true
@@ -97,6 +142,51 @@
       "source": "/en/terms/index.html",
       "destination": "/en/terms",
       "permanent": true
+    },
+    {
+      "source": "/en/about/",
+      "destination": "/en/about",
+      "permanent": true
+    },
+    {
+      "source": "/en/about/index.html",
+      "destination": "/en/about",
+      "permanent": true
+    },
+    {
+      "source": "/en/contact/",
+      "destination": "/en/contact",
+      "permanent": true
+    },
+    {
+      "source": "/en/contact/index.html",
+      "destination": "/en/contact",
+      "permanent": true
+    },
+    {
+      "source": "/en/plans/",
+      "destination": "/en/plans",
+      "permanent": true
+    },
+    {
+      "source": "/en/plans/index.html",
+      "destination": "/en/plans",
+      "permanent": true
+    },
+    {
+      "source": "/en/dental-clinic-management-software/",
+      "destination": "/en/dental-clinic-management-software",
+      "permanent": true
+    },
+    {
+      "source": "/en/dental-patient-records/",
+      "destination": "/en/dental-patient-records",
+      "permanent": true
+    },
+    {
+      "source": "/en/appointments-finance/",
+      "destination": "/en/appointments-finance",
+      "permanent": true
     }
   ],
   "rewrites": [
@@ -117,6 +207,30 @@
       "destination": "/ar/terms/index.html"
     },
     {
+      "source": "/ar/about",
+      "destination": "/ar/about/index.html"
+    },
+    {
+      "source": "/ar/contact",
+      "destination": "/ar/contact/index.html"
+    },
+    {
+      "source": "/ar/plans",
+      "destination": "/ar/plans/index.html"
+    },
+    {
+      "source": "/ar/dental-clinic-management-software",
+      "destination": "/ar/dental-clinic-management-software/index.html"
+    },
+    {
+      "source": "/ar/dental-patient-records",
+      "destination": "/ar/dental-patient-records/index.html"
+    },
+    {
+      "source": "/ar/appointments-finance",
+      "destination": "/ar/appointments-finance/index.html"
+    },
+    {
       "source": "/en",
       "destination": "/en/index.html"
     },
@@ -127,6 +241,30 @@
     {
       "source": "/en/terms",
       "destination": "/en/terms/index.html"
+    },
+    {
+      "source": "/en/about",
+      "destination": "/en/about/index.html"
+    },
+    {
+      "source": "/en/contact",
+      "destination": "/en/contact/index.html"
+    },
+    {
+      "source": "/en/plans",
+      "destination": "/en/plans/index.html"
+    },
+    {
+      "source": "/en/dental-clinic-management-software",
+      "destination": "/en/dental-clinic-management-software/index.html"
+    },
+    {
+      "source": "/en/dental-patient-records",
+      "destination": "/en/dental-patient-records/index.html"
+    },
+    {
+      "source": "/en/appointments-finance",
+      "destination": "/en/appointments-finance/index.html"
     },
     {
       "source": "/((?!api/|assets/|icons/|marketing/|ar(?:/.*)?$|en(?:/.*)?$|robots\\.txt$|sitemap\\.xml$|sw\\.js|workbox-|registerSW\\.js|manifest\\.webmanifest|favicon\\.ico).*)",
