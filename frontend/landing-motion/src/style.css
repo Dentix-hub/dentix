@@ -1,0 +1,28 @@
+* { box-sizing: border-box; }
+.preview { background: radial-gradient(ellipse at 30% 60%,#e0f2fe,transparent 65%),#f8fcff; color: #0c2758; font-family: Arial,sans-serif; padding: 44px 50px; }
+.preview[dir=rtl] { font-family: Cairo,Tahoma,sans-serif; }
+.preview-top { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #dce7ed; padding-bottom: 24px; }
+.preview-top img { width: 155px; }
+.preview-top span { color: #0369a1; font-size: 14px; font-weight: 700; }
+.preview-layout { display: flex; gap: 34px; flex: 1; align-items: center; }
+.preview-copy { width: 41%; }
+.preview-eyebrow { color: #0369a1; font-size: 15px; font-weight: 700; }
+.preview-copy h1 { font-size: 51px; line-height: 1.35; margin: 22px 0; letter-spacing: -2px; }
+.preview[dir=rtl] h1 { line-height: 1.6; }
+.preview-copy em { color: #0284c7; font-style: normal; }
+.preview-copy p:not(.preview-eyebrow) { font-size: 21px; line-height: 1.8; color: #475569; }
+.preview-product { flex: 1; min-width: 0; border: 1px solid #c8e0ec; border-radius: 18px; overflow: hidden; background: #fff; box-shadow: 0 25px 70px -35px #0369a170; }
+.preview-browser { display: flex; justify-content: space-between; align-items: center; direction: ltr; padding: 14px 18px; font-size: 12px; border-bottom: 1px solid #dce7ed; color: #526677; }
+.preview-browser span { color: #89c5e0; letter-spacing: 3px; font-size: 10px; }
+.preview-browser b { color: #0369a1; }
+.preview-stage { position: relative; height: 440px; background: #f4f9fc; overflow: hidden; }
+.preview-screen { position: absolute; inset: 0; }
+.preview-screenshot { width: 100%; height: 100%; object-fit: contain; object-position: center 28%; }
+.preview-caption { position: absolute; inset-inline-start: 18px; bottom: 18px; display: flex; gap: 14px; align-items: center; padding: 14px 18px; border-radius: 12px; background: #0c2758f2; color: white; font-size: 22px; font-weight: 700; box-shadow: 0 8px 24px #0c275826; }
+.preview-caption small { color: #5eead4; font-size: 14px; }
+.preview-flow { display: flex; gap: 8px; margin-top: 30px; }
+.preview-step { position: relative; flex: 1; padding: 16px 8px; border: 1px solid #c8e0ec; border-radius: 10px; background: white; font-size: 13px; text-align: center; line-height: 1.6; }
+.preview-step span { display: block; color: #0369a1; font: 11px Arial; margin-bottom: 8px; }
+.preview-step i { position: absolute; bottom: 0; inset-inline: 8px; height: 3px; background: #14b8a6; transform-origin: left; border-radius: 3px; }
+.preview[dir=rtl] .preview-step i { transform-origin: right; }
+.preview-note { color: #526677; text-align: center; margin: 0; font-size: 13px; }
