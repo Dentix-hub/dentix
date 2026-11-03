@@ -1,4 +1,5 @@
-from typing import Dict
+from typing import Dict, Optional, Set
+from sqlalchemy import or_
 from ... import models
 from .base import BaseHandler
 
@@ -9,6 +10,11 @@ from ..tools.security import risk_level, RiskLevel
 from ...services.clinical_service import ClinicalService
 from ...services.scribe_service import ScribeService
 from ...services.patient_service import PatientService
+from backend.services.visibility_service import get_visibility_service
+from backend.utils.patient_search_normalization import (
+    escaped_like_pattern,
+    normalize_patient_name_for_search,
+)
 
 
 class ClinicalHandler(BaseHandler):
@@ -26,7 +32,12 @@ class ClinicalHandler(BaseHandler):
     @risk_level(RiskLevel.SAFE)
     async def get_recent_treatments(self, params: Dict) -> Dict:
         """Get recent treatments."""
-        treatments = await self.clinical.get_recent_treatments()
+        patient_ids: Optional[Set[int]] = None
+        if self.user.role == "doctor":
+            visibility_service = get_visibility_service(self.db, self.user, self.tenant_id)
+            patient_ids = await visibility_service.get_visible_patient_ids()
+
+        treatments = await self.clinical.get_recent_treatments(patient_ids=patient_ids)
         return {
             "message": f"آخر العلاجات: {len(treatments)} علاج",
             "treatments": treatments,
@@ -36,7 +47,12 @@ class ClinicalHandler(BaseHandler):
     async def get_lab_orders(self, params: Dict) -> Dict:
         """Get lab orders."""
         status = params.get("status", "all")
-        orders = await self.clinical.get_lab_orders(status)
+        patient_ids: Optional[Set[int]] = None
+        if self.user.role == "doctor":
+            visibility_service = get_visibility_service(self.db, self.user, self.tenant_id)
+            patient_ids = await visibility_service.get_visible_patient_ids()
+
+        orders = await self.clinical.get_lab_orders(status, patient_ids=patient_ids)
         return {"message": f"طلبات المعمل: {len(orders)} طلب", "orders": orders}
 
     @risk_level(RiskLevel.WRITE)
@@ -63,6 +79,13 @@ class ClinicalHandler(BaseHandler):
                 "message": f"✅ تم تسجيل الملاحظة لـ {patient.name}",
                 "action": "note_recorded",
                 "patient_name": patient.name,
+            }
+
+        if patient_name:
+            return {
+                "error": "not_found",
+                "message": f"لم يتم العثور على مريض باسم '{patient_name}'",
+                "requires_patient": True,
             }
 
         return {
@@ -221,7 +244,21 @@ class ClinicalHandler(BaseHandler):
     async def _find_single_patient(self, name: str):
         if not name:
             return None
-        patients = await self.patient_service.search_patients_by_name(name)
+
+        visibility_service = get_visibility_service(self.db, self.user, self.tenant_id)
+        vis_query = await visibility_service.get_visible_patient_query()
+        normalized_name = normalize_patient_name_for_search(name.strip())
+        pattern = escaped_like_pattern(normalized_name)
+        stmt = (
+            vis_query.where(
+                or_(
+                    models.Patient.name_search_normalized.ilike(pattern, escape="\\"),
+                    (models.Patient.name_search_normalized.is_(None) & models.Patient.name.ilike(f"%{name.strip()}%")),
+                )
+            ).limit(20)
+        )
+        res = await self.db.execute(stmt)
+        patients = res.scalars().all()
         if not patients:
             return None
 

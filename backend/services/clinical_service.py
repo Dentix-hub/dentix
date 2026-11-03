@@ -1,5 +1,5 @@
 import logging
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Set
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
@@ -14,21 +14,24 @@ class ClinicalService:
         self.tenant_id = tenant_id
         self.user_id = user_id
 
-    async def get_recent_treatments(self, limit: int = 20) -> List[Dict[str, Any]]:
+    async def get_recent_treatments(
+        self, limit: int = 20, patient_ids: Optional[Set[int]] = None
+    ) -> List[Dict[str, Any]]:
         stmt = (
             select(models.Treatment)
             .join(models.Patient)
             .where(models.Patient.tenant_id == self.tenant_id)
-            .order_by(models.Treatment.date.desc())
-            .limit(limit)
         )
+        if patient_ids is not None:
+            stmt = stmt.where(models.Treatment.patient_id.in_(patient_ids))
+        stmt = stmt.order_by(models.Treatment.date.desc()).limit(limit)
         res = await self.db.execute(stmt)
         treatments = res.scalars().all()
 
         # Get patient names
-        patient_ids = [t.patient_id for t in treatments]
-        if patient_ids:
-            stmt_patients = select(models.Patient).where(models.Patient.id.in_(patient_ids))
+        found_patient_ids = [t.patient_id for t in treatments]
+        if found_patient_ids:
+            stmt_patients = select(models.Patient).where(models.Patient.id.in_(found_patient_ids))
             res_patients = await self.db.execute(stmt_patients)
             patients = {p.id: p.name for p in res_patients.scalars().all()}
         else:
@@ -47,7 +50,7 @@ class ClinicalService:
         ]
 
     async def get_lab_orders(
-        self, status: str = "all", limit: int = 30
+        self, status: str = "all", limit: int = 30, patient_ids: Optional[Set[int]] = None
     ) -> List[Dict[str, Any]]:
         stmt = (
             select(models.LabOrder)
@@ -57,6 +60,9 @@ class ClinicalService:
 
         if status != "all":
             stmt = stmt.where(models.LabOrder.status == status)
+
+        if patient_ids is not None:
+            stmt = stmt.where(models.LabOrder.patient_id.in_(patient_ids))
 
         stmt = stmt.order_by(models.LabOrder.order_date.desc()).limit(limit)
         res = await self.db.execute(stmt)

@@ -9,6 +9,7 @@ from backend.schemas import User
 from backend.core.tenancy import get_current_tenant_id
 from backend.ai.agent.state_manager import state_manager
 from backend.core.permissions import Permission, require_permission
+from backend.services.visibility_service import get_visibility_service
 
 router = APIRouter(prefix="/ai", tags=["AI Assist"])
 logger = logging.getLogger(__name__)
@@ -27,20 +28,18 @@ async def ai_autocomplete(
     Returns patients and context-aware suggestions.
     """
     results = {"patients": [], "suggestions": []}
+    visibility_service = get_visibility_service(db, current_user, tenant_id)
 
     # 1. Patient Fuzzy Search
     if len(q) >= 2:
-        # Simple ILIKE for now, can be upgraded to Trigram/Fuzzy
+        vis_query = await visibility_service.get_visible_patient_query()
         stmt = (
-            select(models.Patient)
-            .filter(
-                models.Patient.tenant_id == tenant_id,
+            vis_query.filter(
                 or_(
                     models.Patient.name.ilike(f"%{q}%"),
                     models.Patient.phone.ilike(f"%{q}%"),
-                ),
-            )
-            .limit(5)
+                )
+            ).limit(5)
         )
         res = await db.execute(stmt)
         patients = res.scalars().all()
@@ -60,22 +59,32 @@ async def ai_autocomplete(
     session = state_manager.get_session(tenant_id, current_user.id)
 
     if session.active_patient_id:
-        # If we have an active patient, suggest actions for them
-        results["suggestions"].append(
-            {
-                "type": "action",
-                "text": f"حجز موعد لـ {session.active_patient_name}",
-                "intent": "smart_book_appointment",
-                "params": {"patient_name": session.active_patient_name},
-            }
-        )
-        results["suggestions"].append(
-            {
-                "type": "action",
-                "text": f"ماليات {session.active_patient_name}",
-                "intent": "get_financial_record",
-                "params": {"patient_name": session.active_patient_name},
-            }
-        )
+        if await visibility_service.can_view_patient(session.active_patient_id):
+            results["suggestions"].append(
+                {
+                    "type": "action",
+                    "text": f"حجز موعد لـ {session.active_patient_name}",
+                    "intent": "smart_book_appointment",
+                    "params": {"patient_name": session.active_patient_name},
+                }
+            )
+            results["suggestions"].append(
+                {
+                    "type": "action",
+                    "text": f"ماليات {session.active_patient_name}",
+                    "intent": "get_financial_record",
+                    "params": {"patient_name": session.active_patient_name},
+                }
+            )
+        else:
+            state_manager.update_session(
+                tenant_id,
+                current_user.id,
+                {
+                    "active_patient_id": None,
+                    "active_patient_name": None,
+                    "pending_confirmation": None,
+                },
+            )
 
     return results

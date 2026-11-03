@@ -1,5 +1,6 @@
 from typing import Dict
 from ... import models
+from ...core.permissions import Permission, has_permission
 from .base import BaseHandler
 
 # Import Services
@@ -24,7 +25,12 @@ class AdminHandler(BaseHandler):
     async def get_dashboard_stats(self, params: Dict) -> Dict:
         """Get dashboard statistics."""
         period = params.get("period", "today")
-        data = await self.analytics.get_dashboard_summary(period)
+        user_role = getattr(self.user, "role", "guest") if self.user else "guest"
+        can_view_revenue = (
+            has_permission(user_role, Permission.AI_CHAT)
+            and has_permission(user_role, Permission.REPORT_READ)
+        )
+        data = await self.analytics.get_dashboard_summary(period, include_revenue=can_view_revenue)
 
         return {"message": f"📊 إحصائيات ({period})", **data}
 

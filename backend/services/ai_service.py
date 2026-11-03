@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from datetime import datetime
 import json
 import logging
@@ -17,6 +17,11 @@ from backend.ai.security.sanitizer import AISanitizer
 from backend.ai.errors import AIException
 from backend.ai.policy.execution_policy import policy_engine
 from backend.ai.agent.state_manager import state_manager
+from backend.services.visibility_service import get_visibility_service
+from backend.utils.patient_search_normalization import (
+    escaped_like_pattern,
+    normalize_patient_name_for_search,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +107,41 @@ class AIService:
             intent_response = self._detect_intent(safe_text)
             if intent_response:
                 return intent_response
+
+            # Revalidate session state and last_patient_name against canonical visibility
+            if self.user.tenant_id and getattr(self.user, "role", None) == "doctor":
+                vis_service = get_visibility_service(self.db, self.user, self.user.tenant_id)
+                session = state_manager.get_session(self.user.tenant_id, self.user.id)
+                if session.active_patient_id:
+                    if not await vis_service.can_view_patient(session.active_patient_id):
+                        state_manager.update_session(
+                            self.user.tenant_id,
+                            self.user.id,
+                            {
+                                "active_patient_id": None,
+                                "active_patient_name": None,
+                                "pending_confirmation": None,
+                            },
+                        )
+                elif session.active_patient_name:
+                    if not await self._has_visible_patient_matching_name(
+                        vis_service, session.active_patient_name
+                    ):
+                        state_manager.update_session(
+                            self.user.tenant_id,
+                            self.user.id,
+                            {
+                                "active_patient_id": None,
+                                "active_patient_name": None,
+                                "pending_confirmation": None,
+                            },
+                        )
+
+                if last_patient_name:
+                    if not await self._has_visible_patient_matching_name(
+                        vis_service, last_patient_name
+                    ):
+                        last_patient_name = None
 
             # Release database connection back to the pool before slow external model call
             if hasattr(self.db, "commit"):
@@ -258,6 +298,28 @@ class AIService:
                 )
         return None
 
+    async def _has_visible_patient_matching_name(
+        self, vis_service, name: str
+    ) -> bool:
+        """Check whether a name (full or partial) resolves to at least one canonically visible patient."""
+        clean_name = (name or "").strip()
+        if not clean_name:
+            return False
+        normalized_name = normalize_patient_name_for_search(clean_name)
+        pattern = escaped_like_pattern(normalized_name)
+        vis_query = await vis_service.get_visible_patient_query()
+        stmt = vis_query.where(
+            or_(
+                models.Patient.name_search_normalized.ilike(pattern, escape="\\"),
+                (
+                    models.Patient.name_search_normalized.is_(None)
+                    & models.Patient.name.ilike(f"%{clean_name}%")
+                ),
+            )
+        ).limit(1)
+        res_p = await self.db.execute(stmt)
+        return res_p.scalars().first() is not None
+
     async def _detect_confirmation(
         self, text: str, context: Optional[List[Dict]]
     ) -> Optional[AIQueryResponse]:
@@ -282,6 +344,60 @@ class AIService:
                 state_manager.update_session(
                     self.user.tenant_id, self.user.id, {"pending_confirmation": None}
                 )
+
+                if getattr(self.user, "role", None) == "doctor":
+                    vis_service = get_visibility_service(self.db, self.user, self.user.tenant_id)
+                    if tool_name == "create_patient":
+                        # Creating a new patient does not target an existing patient record;
+                        # only scrub stale active session patient if no longer visible.
+                        if session.active_patient_id and not await vis_service.can_view_patient(
+                            session.active_patient_id
+                        ):
+                            state_manager.update_session(
+                                self.user.tenant_id,
+                                self.user.id,
+                                {"active_patient_id": None, "active_patient_name": None},
+                            )
+                    else:
+                        param_p_id = params.get("patient_id")
+                        param_p_name = params.get("patient_name")
+                        denied = False
+
+                        if param_p_id is not None:
+                            if not await vis_service.can_view_patient(param_p_id):
+                                denied = True
+                        elif param_p_name:
+                            if not await self._has_visible_patient_matching_name(
+                                vis_service, param_p_name
+                            ):
+                                denied = True
+
+                        if not denied and session.active_patient_id is not None:
+                            if not await vis_service.can_view_patient(session.active_patient_id):
+                                denied = True
+                        elif (
+                            not denied
+                            and not param_p_id
+                            and not param_p_name
+                            and session.active_patient_name
+                        ):
+                            if not await self._has_visible_patient_matching_name(
+                                vis_service, session.active_patient_name
+                            ):
+                                denied = True
+
+                        if denied:
+                            state_manager.update_session(
+                                self.user.tenant_id,
+                                self.user.id,
+                                {"active_patient_id": None, "active_patient_name": None},
+                            )
+                            return AIQueryResponse(
+                                success=False,
+                                error="permission_denied",
+                                message="عذراً، لم يعد لديك صلاحية للوصول إلى هذا المريض.",
+                            )
+
                 try:
                     tool_result = await self.executor.execute(tool_name, params)
                     message = tool_result.get("message", "تم التنفيذ.")

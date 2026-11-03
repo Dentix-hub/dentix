@@ -187,7 +187,7 @@ class AnalyticsService(LegacyAnalyticsService):
             ],
         }
 
-    async def get_dashboard_summary(self, period: str) -> Dict[str, Any]:
+    async def get_dashboard_summary(self, period: str, include_revenue: bool = True) -> Dict[str, Any]:
         """Return tenant-local high-level AI dashboard stats."""
         start_day, end_day = await self._period_dates(period)
         if start_day is None or end_day is None:
@@ -224,24 +224,28 @@ class AnalyticsService(LegacyAnalyticsService):
                 models.Appointment.date_time < local_end,
             )
         ) or 0
-        period_revenue = await self.db.scalar(
-            select(func.sum(models.Payment.amount))
-            .join(models.Patient, models.Payment.patient_id == models.Patient.id)
-            .where(
-                models.Patient.tenant_id == self.tenant_id,
-                models.Patient.is_deleted == False,  # noqa: E712
-                models.Payment.date >= utc_start,
-                models.Payment.date < utc_end,
-            )
-        ) or 0
 
-        return {
+        summary: Dict[str, Any] = {
             "period": period,
             "total_patients": int(total_patients),
             "new_patients": int(new_patients),
             "period_appointments": int(period_appointments),
-            "period_revenue": float(period_revenue),
         }
+
+        if include_revenue:
+            period_revenue = await self.db.scalar(
+                select(func.sum(models.Payment.amount))
+                .join(models.Patient, models.Payment.patient_id == models.Patient.id)
+                .where(
+                    models.Patient.tenant_id == self.tenant_id,
+                    models.Patient.is_deleted == False,  # noqa: E712
+                    models.Payment.date >= utc_start,
+                    models.Payment.date < utc_end,
+                )
+            ) or 0
+            summary["period_revenue"] = float(period_revenue)
+
+        return summary
 
     async def _named_comparison_period(self, name: str, today: date) -> tuple[date, date]:
         if name == "this_week":

@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- PR-01 AI authorization & review corrections (2026-11-03): resolved F1/F2 and all review findings (R1: get_dashboard_stats excludes period_revenue and skips payment query without REPORT_READ+AI_CHAT; R2: get_appointments intersects doctor appointments with canonical patient visibility across all_assigned/appointments_only/mixed; R3: summarize_patient omits total_due and skips payment queries without RECEIVABLE_READ while preserving exact Decimal money via as_decimal; R4: persisted test role in DB for finance-without-AI test; R5: treatment_added action and DB mutation integrity; confirmation guard allows create_patient and resolves partial visible names via canonical visibility search).
+- Verification: 20 PR-01 regression tests (9 F1 visibility/tools/money, 6 F2 financial RBAC/stats, 5 session/confirmation context) PASS; 36 baseline RBAC/visibility tests PASS; Ruff clean.
+- Status: local review corrections complete; verified Git bundle generated. Ready for owner review. No push or PR performed.
+
 - SEO trust/content review corrections (2026-11-03): all six local findings addressed; 18 public URLs, subscription inquiries without unverified prices/tier promises/trial, responsive footer, inventory-driven route/indexability guards, and corrected reports plus SEO_INDEXING_BASELINE.md.
 - Delivery reconciliation: latest staging e662e26 (#348 motion) preserved; PR-A 52 targeted tests/build and PR-B 60 targeted tests/build/lint/diff guardrails PASS. Browser: 163 pass / 2 existing no-JS skips (React login switching and SW lifecycle). Prior full UI: 1162 pass / 3 fail; unchanged isolated reruns pass 7 i18n + 12 PatientDetails tests (overlap).
 - Backend: 1747 pass / 23 existing skips / 0 fail, coverage 78.87%; every skip reason and exact commands/results recorded in docs/reports/seo-technical-implementation-report-2026-11-03.md. Clinical/security assertions, timeouts, CI settings and backend behavior are unchanged.

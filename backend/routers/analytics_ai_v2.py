@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database import get_async_db
 from .. import models
-from ..core.permissions import Permission, Role, require_permission
+from ..core.permissions import Permission, Role, require_permission, require_all_permissions
 from backend.services.cost_engine import CostEngine
 from backend.services.ai_learning_service import get_ai_learning_service
 from backend.models.inventory import Material
@@ -491,7 +491,7 @@ async def get_detailed_analytics(db: AsyncSession, tenant_id: int, days: int = 3
 
         if has_deleted_col:
             top_procs_query = top_procs_query.filter(
-                models.Treatment.is_deleted == False
+                models.Treatment.is_deleted == False  # noqa: E712
             )
 
         stmt = top_procs_query.group_by(models.Treatment.procedure).order_by(desc("proc_count")).limit(5)
@@ -598,7 +598,9 @@ async def get_detailed_analytics(db: AsyncSession, tenant_id: int, days: int = 3
 async def analyze_clinic(
     stats: ClinicStats,
     db: AsyncSession = Depends(get_async_db),
-    current_user: models.User = Depends(require_permission(Permission.AI_CHAT)),
+    current_user: models.User = Depends(
+        require_all_permissions(Permission.AI_CHAT, Permission.REPORT_READ)
+    ),
 ):
     """
     Generate AI insights based on financial stats.
