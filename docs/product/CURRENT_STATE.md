@@ -2,13 +2,11 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
-- Trust Pages, Approved Pricing & Search Guides (2026-11-03): Built 6 bilingual static content pairs (12 HTML pages at /about, /contact, /plans, /dental-clinic-management-software, /dental-patient-records, /appointments-finance) with verified contact channels (smartsentalclinicapp@gmail.com, WhatsApp +201010285288), approved commercial pricing (Essential 200 EGP, Professional 400 EGP, Business 1000 EGP monthly) linked to WhatsApp activation, zero unverified claims (trial omitted, proposed limits omitted).
-- Expanded sitemap to 18 public URLs with reciprocal hreflangs across all pairs, Vercel 308 redirects/rewrites, Schema.org JSON-LD (AboutPage, ContactPage, WebPage, Article). CSS gzipped at 5.28 KiB (<25 KiB budget).
-- Verification: 31 marketing static tests, 12 login tests, 13 Playwright marketing tests, 337 frontend unit tests, design guardrails, and production build all PASS cleanly. Status: PR-B ready for review; no push without owner approval.
+- Trust/content SEO review corrections (2026-11-03): in progress; prior pricing and verification claims are superseded pending corrected evidence. No remote delivery authorized.
 
-- Technical SEO & Public Routing Foundation (2026-11-03): App shell /index.html is protected with raw 'noindex, follow' while public marketing at /ar and /en remains discoverable via noscript links and login interface; static legal pages for Privacy Policy and Terms of Service generated directly from authoritative translation sources at /ar/privacy, /en/privacy, /ar/terms, /en/terms with zero executable JS, reciprocal hreflangs, and BreadcrumbList/WebPage JSON-LD.
-- Normalized brand titles and OpenGraph tags to official descriptors ('Dentix — برنامج إدارة عيادات الأسنان' / 'Dentix — Dental Clinic Management Software'). Expanded sitemap infrastructure to all 6 indexable routes with strict semantic and negative checks. Clean Vercel 308 redirects and routing implemented.
-- Verification: 27 marketing static tests, 12 login tests, design system guardrails, and production build with strict semantic artifact parsing all PASS cleanly. Status: PR-A ready for review; no push without owner approval.
+- Technical SEO foundation (2026-11-03): six public home/legal pages; legal HTML generated from unchanged locale text. Application shell uses raw noindex (indexing directive, not access control); login discovery and PWA identity retained.
+- Review corrections: semantic robots and alternate-target canonical/reciprocity checks; HTTP X-Robots-Tag checks; public/app/API/redirect expectations derived from the active route inventory, rejecting SPA fallbacks.
+- Verification: targeted marketing/login/indexability tests, frontend lint and production build passed locally; exact commands/results retained for the final SEO report. Vercel runtime and production checks remain pending authorized deployment. No push/PR/deploy.
 
 - Global-session startup recovery (2026-11-02): supplied log exposed FORCE-RLS rejection under a table-owning runtime login. Pending release data now uses a verified configured same-database administrative login; explicit migration URLs retain precedence. No applied migration/RLS/role/schema changes.
 - Verification: 42 targeted tests PASS with zero failures/skips, including real restricted-owner/system-login scenarios, refusal/rollback cases, cross-clinic denial, existing bootstrap/NOINHERIT repair and RBAC; Ruff/diff PASS.

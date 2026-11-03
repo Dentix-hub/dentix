@@ -14,9 +14,23 @@ import {
   APPLICATION_SHELL_ROUTES,
   PROTECTED_ROUTES,
   REDIRECT_ONLY_ROUTES,
+  publicPageOptions,
 } from './routeInventory.mjs';
 
 export const ALLOWED_SITEMAP_URLS = new Set(CURRENT_ACTIVE_INDEXABLE_ROUTES);
+
+export function hasNoindexDirective(value = '') {
+  return String(value).toLowerCase().split(/[\s,:]+/).some(token => token === 'noindex' || token === 'none');
+}
+
+function indexingErrors(doc, context) {
+  return Array.from(doc.querySelectorAll('meta[name]')).flatMap(meta => {
+    const name = meta.getAttribute('name').toLowerCase();
+    if (!/^(robots|googlebot(?:-[a-z]+)?|bingbot|oai-searchbot|gptbot)$/.test(name)) return [];
+    const content = meta.getAttribute('content') || '';
+    return hasNoindexDirective(content) ? [`Public page ${context} contains noindex/none in ${name} metadata`] : [];
+  });
+}
 
 export function validateMarketingHtml(html, distDir = null, options = {}) {
   const {
@@ -34,6 +48,11 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
   const errors = [];
   const dom = new JSDOM(html);
   const doc = dom.window.document;
+  errors.push(...indexingErrors(doc, canonical));
+  if (doc.querySelector('#root')) errors.push(`SPA application shell served for public page ${canonical}`);
+  if (!doc.querySelector('title')?.textContent.trim()) errors.push(`Missing title in ${canonical}`);
+  if (!doc.querySelector('meta[name="description"]')?.getAttribute('content')?.trim()) errors.push(`Missing meta description in ${canonical}`);
+  if (doc.querySelectorAll('h1').length !== 1) errors.push(`Expected one H1 in ${canonical}`);
 
   // 1. Language & Direction
   const htmlEl = doc.documentElement;
@@ -50,7 +69,7 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
 
   // 2. Canonical URL
   const canonicalEl = doc.querySelector('link[rel="canonical"]');
-  if (!canonicalEl || canonicalEl.getAttribute('href') !== canonical) {
+  if (doc.querySelectorAll('link[rel="canonical"]').length !== 1 || !canonicalEl || canonicalEl.getAttribute('href') !== canonical) {
     errors.push(`Missing or invalid canonical link: expected '${canonical}', found: '${canonicalEl ? canonicalEl.getAttribute('href') : 'none'}'`);
   }
 
@@ -67,6 +86,7 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
       errors.push(`Invalid hreflang language code: '${code}'`);
     }
 
+    if (foundAlternates[code]) errors.push(`Duplicate hreflang="${code}" in ${canonical}`);
     foundAlternates[code] = href;
 
     // Validate alternate href is HTTPS canonical domain
@@ -90,10 +110,18 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
         const targetHtmlPath = existsSync(possibleFile1) ? possibleFile1 : (existsSync(possibleFile3) ? possibleFile3 : possibleFile2);
         try {
           const targetContent = readFileSync(targetHtmlPath, 'utf8');
-          if (targetContent.includes('content="noindex') || targetContent.includes("content='noindex")) {
-            errors.push(`hreflang="${code}" alternate target contains noindex: '${href}'`);
+          const targetDoc = new JSDOM(targetContent).window.document;
+          errors.push(...indexingErrors(targetDoc, href));
+          const targetCanonicals = targetDoc.querySelectorAll('link[rel="canonical"]');
+          if (targetCanonicals.length !== 1 || targetCanonicals[0].getAttribute('href') !== href) {
+            errors.push(`hreflang="${code}" alternate target canonical conflicts with '${href}'`);
           }
-        } catch (_) {}
+          const reciprocal = Array.from(targetDoc.querySelectorAll('link[rel="alternate"][hreflang]'))
+            .some(link => link.getAttribute('hreflang') === lang && link.getAttribute('href') === canonical);
+          if (!reciprocal) errors.push(`Missing reciprocal hreflang="${lang}" from '${href}' to '${canonical}'`);
+        } catch (error) {
+          errors.push(`Cannot read alternate target '${href}': ${error.message}`);
+        }
       }
     }
   }
@@ -172,10 +200,12 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
     }
 
     // Local static file check if distDir provided
-    if (distDir && href.startsWith('/') && !href.startsWith('//') && href.includes('.')) {
-      const localFile = path.join(distDir, href.replace(/^\//, ''));
-      if (!existsSync(localFile)) {
-        errors.push(`Broken local asset link in ${canonical}: ${href}`);
+    if (distDir && href.startsWith('/') && !href.startsWith('//')) {
+      const pathname = new URL(href, canonical).pathname;
+      const localFile = path.join(distDir, pathname.replace(/^\//, ''));
+      const isAppEntry = APPLICATION_SHELL_ROUTES.includes(pathname);
+      if (!isAppEntry && !existsSync(localFile) && !existsSync(`${localFile}/index.html`)) {
+        errors.push(`Broken local link in ${canonical}: ${href}`);
       }
     }
   }
@@ -409,10 +439,11 @@ export function validateApplicationShellNoindex(indexHtmlContent) {
     errors.push('Application shell /index.html is missing <meta name="robots">');
   } else {
     const content = robotsMeta.getAttribute('content') || '';
-    if (!content.includes('noindex')) {
+    if (!hasNoindexDirective(content)) {
       errors.push(`Application shell /index.html must include 'noindex' in meta robots, found: '${content}'`);
     }
   }
+  if (!doc.querySelector('#root')) errors.push('Application shell is missing React root');
   return errors;
 }
 
@@ -430,24 +461,7 @@ export function runVerification(distDir = 'dist') {
   // Required files
   const requiredFiles = [
     'index.html',
-    'ar/index.html',
-    'en/index.html',
-    'ar/privacy/index.html',
-    'en/privacy/index.html',
-    'ar/terms/index.html',
-    'en/terms/index.html',
-    'ar/about/index.html',
-    'en/about/index.html',
-    'ar/contact/index.html',
-    'en/contact/index.html',
-    'ar/plans/index.html',
-    'en/plans/index.html',
-    'ar/dental-clinic-management-software/index.html',
-    'en/dental-clinic-management-software/index.html',
-    'ar/dental-patient-records/index.html',
-    'en/dental-patient-records/index.html',
-    'ar/appointments-finance/index.html',
-    'en/appointments-finance/index.html',
+    ...CURRENT_ACTIVE_INDEXABLE_ROUTES.map(url => `${new URL(url).pathname.slice(1)}/index.html`),
     'marketing/marketing.css',
     'robots.txt',
     'sitemap.xml',
@@ -468,277 +482,13 @@ export function runVerification(distDir = 'dist') {
   const appIndexHtml = readFileSync(path.join(resolvedDist, 'index.html'), 'utf8');
   allErrors.push(...validateApplicationShellNoindex(appIndexHtml));
 
-  // 1. Validate Arabic Homepage
-  const arHtml = readFileSync(path.join(resolvedDist, 'ar/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(arHtml, resolvedDist, {
-    lang: 'ar',
-    dir: 'rtl',
-    canonical: 'https://www.dentixs.app/ar',
-    loginTexts: ['تسجيل الدخول'],
-    targetLangSwitch: '/en',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar',
-      en: 'https://www.dentixs.app/en',
-      'x-default': 'https://www.dentixs.app/ar',
-    },
-  }));
+  // Validate every indexable page; the inventory owns required files and identity.
+  for (const canonical of CURRENT_ACTIVE_INDEXABLE_ROUTES) {
+    const file = path.join(resolvedDist, new URL(canonical).pathname.slice(1), 'index.html');
+    allErrors.push(...validateMarketingHtml(readFileSync(file, 'utf8'), resolvedDist, publicPageOptions(canonical)));
+  }
 
-  // 2. Validate English Homepage
-  const enHtml = readFileSync(path.join(resolvedDist, 'en/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(enHtml, resolvedDist, {
-    lang: 'en',
-    dir: 'ltr',
-    canonical: 'https://www.dentixs.app/en',
-    loginTexts: ['log in', 'login'],
-    targetLangSwitch: '/ar',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar',
-      en: 'https://www.dentixs.app/en',
-      'x-default': 'https://www.dentixs.app/ar',
-    },
-  }));
-
-  // 3. Validate Arabic Privacy
-  const arPrivacyHtml = readFileSync(path.join(resolvedDist, 'ar/privacy/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(arPrivacyHtml, resolvedDist, {
-    lang: 'ar',
-    dir: 'rtl',
-    canonical: 'https://www.dentixs.app/ar/privacy',
-    loginTexts: ['تسجيل الدخول'],
-    targetLangSwitch: '/en/privacy',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/privacy',
-      en: 'https://www.dentixs.app/en/privacy',
-      'x-default': 'https://www.dentixs.app/ar/privacy',
-    },
-  }));
-
-  // 4. Validate English Privacy
-  const enPrivacyHtml = readFileSync(path.join(resolvedDist, 'en/privacy/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(enPrivacyHtml, resolvedDist, {
-    lang: 'en',
-    dir: 'ltr',
-    canonical: 'https://www.dentixs.app/en/privacy',
-    loginTexts: ['log in', 'login'],
-    targetLangSwitch: '/ar/privacy',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/privacy',
-      en: 'https://www.dentixs.app/en/privacy',
-      'x-default': 'https://www.dentixs.app/ar/privacy',
-    },
-  }));
-
-  // 5. Validate Arabic Terms
-  const arTermsHtml = readFileSync(path.join(resolvedDist, 'ar/terms/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(arTermsHtml, resolvedDist, {
-    lang: 'ar',
-    dir: 'rtl',
-    canonical: 'https://www.dentixs.app/ar/terms',
-    loginTexts: ['تسجيل الدخول'],
-    targetLangSwitch: '/en/terms',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/terms',
-      en: 'https://www.dentixs.app/en/terms',
-      'x-default': 'https://www.dentixs.app/ar/terms',
-    },
-  }));
-
-  // 6. Validate English Terms
-  const enTermsHtml = readFileSync(path.join(resolvedDist, 'en/terms/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(enTermsHtml, resolvedDist, {
-    lang: 'en',
-    dir: 'ltr',
-    canonical: 'https://www.dentixs.app/en/terms',
-    loginTexts: ['log in', 'login'],
-    targetLangSwitch: '/ar/terms',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/terms',
-      en: 'https://www.dentixs.app/en/terms',
-      'x-default': 'https://www.dentixs.app/ar/terms',
-    },
-  }));
-
-  // 7. Validate Arabic About
-  const arAboutHtml = readFileSync(path.join(resolvedDist, 'ar/about/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(arAboutHtml, resolvedDist, {
-    lang: 'ar',
-    dir: 'rtl',
-    canonical: 'https://www.dentixs.app/ar/about',
-    loginTexts: ['تسجيل الدخول'],
-    targetLangSwitch: '/en/about',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/about',
-      en: 'https://www.dentixs.app/en/about',
-      'x-default': 'https://www.dentixs.app/ar/about',
-    },
-  }));
-
-  // 8. Validate English About
-  const enAboutHtml = readFileSync(path.join(resolvedDist, 'en/about/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(enAboutHtml, resolvedDist, {
-    lang: 'en',
-    dir: 'ltr',
-    canonical: 'https://www.dentixs.app/en/about',
-    loginTexts: ['log in', 'login'],
-    targetLangSwitch: '/ar/about',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/about',
-      en: 'https://www.dentixs.app/en/about',
-      'x-default': 'https://www.dentixs.app/ar/about',
-    },
-  }));
-
-  // 9. Validate Arabic Contact
-  const arContactHtml = readFileSync(path.join(resolvedDist, 'ar/contact/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(arContactHtml, resolvedDist, {
-    lang: 'ar',
-    dir: 'rtl',
-    canonical: 'https://www.dentixs.app/ar/contact',
-    loginTexts: ['تسجيل الدخول'],
-    targetLangSwitch: '/en/contact',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/contact',
-      en: 'https://www.dentixs.app/en/contact',
-      'x-default': 'https://www.dentixs.app/ar/contact',
-    },
-  }));
-
-  // 10. Validate English Contact
-  const enContactHtml = readFileSync(path.join(resolvedDist, 'en/contact/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(enContactHtml, resolvedDist, {
-    lang: 'en',
-    dir: 'ltr',
-    canonical: 'https://www.dentixs.app/en/contact',
-    loginTexts: ['log in', 'login'],
-    targetLangSwitch: '/ar/contact',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/contact',
-      en: 'https://www.dentixs.app/en/contact',
-      'x-default': 'https://www.dentixs.app/ar/contact',
-    },
-  }));
-
-  // 11. Validate Arabic Plans
-  const arPlansHtml = readFileSync(path.join(resolvedDist, 'ar/plans/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(arPlansHtml, resolvedDist, {
-    lang: 'ar',
-    dir: 'rtl',
-    canonical: 'https://www.dentixs.app/ar/plans',
-    loginTexts: ['تسجيل الدخول'],
-    targetLangSwitch: '/en/plans',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/plans',
-      en: 'https://www.dentixs.app/en/plans',
-      'x-default': 'https://www.dentixs.app/ar/plans',
-    },
-  }));
-
-  // 12. Validate English Plans
-  const enPlansHtml = readFileSync(path.join(resolvedDist, 'en/plans/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(enPlansHtml, resolvedDist, {
-    lang: 'en',
-    dir: 'ltr',
-    canonical: 'https://www.dentixs.app/en/plans',
-    loginTexts: ['log in', 'login'],
-    targetLangSwitch: '/ar/plans',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/plans',
-      en: 'https://www.dentixs.app/en/plans',
-      'x-default': 'https://www.dentixs.app/ar/plans',
-    },
-  }));
-
-  // 13. Validate Arabic Dental Clinic Management Software Guide
-  const arClinicGuideHtml = readFileSync(path.join(resolvedDist, 'ar/dental-clinic-management-software/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(arClinicGuideHtml, resolvedDist, {
-    lang: 'ar',
-    dir: 'rtl',
-    canonical: 'https://www.dentixs.app/ar/dental-clinic-management-software',
-    loginTexts: ['تسجيل الدخول'],
-    targetLangSwitch: '/en/dental-clinic-management-software',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/dental-clinic-management-software',
-      en: 'https://www.dentixs.app/en/dental-clinic-management-software',
-      'x-default': 'https://www.dentixs.app/ar/dental-clinic-management-software',
-    },
-  }));
-
-  // 14. Validate English Dental Clinic Management Software Guide
-  const enClinicGuideHtml = readFileSync(path.join(resolvedDist, 'en/dental-clinic-management-software/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(enClinicGuideHtml, resolvedDist, {
-    lang: 'en',
-    dir: 'ltr',
-    canonical: 'https://www.dentixs.app/en/dental-clinic-management-software',
-    loginTexts: ['log in', 'login'],
-    targetLangSwitch: '/ar/dental-clinic-management-software',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/dental-clinic-management-software',
-      en: 'https://www.dentixs.app/en/dental-clinic-management-software',
-      'x-default': 'https://www.dentixs.app/ar/dental-clinic-management-software',
-    },
-  }));
-
-  // 15. Validate Arabic Dental Patient Records Guide
-  const arPatientRecordsHtml = readFileSync(path.join(resolvedDist, 'ar/dental-patient-records/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(arPatientRecordsHtml, resolvedDist, {
-    lang: 'ar',
-    dir: 'rtl',
-    canonical: 'https://www.dentixs.app/ar/dental-patient-records',
-    loginTexts: ['تسجيل الدخول'],
-    targetLangSwitch: '/en/dental-patient-records',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/dental-patient-records',
-      en: 'https://www.dentixs.app/en/dental-patient-records',
-      'x-default': 'https://www.dentixs.app/ar/dental-patient-records',
-    },
-  }));
-
-  // 16. Validate English Dental Patient Records Guide
-  const enPatientRecordsHtml = readFileSync(path.join(resolvedDist, 'en/dental-patient-records/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(enPatientRecordsHtml, resolvedDist, {
-    lang: 'en',
-    dir: 'ltr',
-    canonical: 'https://www.dentixs.app/en/dental-patient-records',
-    loginTexts: ['log in', 'login'],
-    targetLangSwitch: '/ar/dental-patient-records',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/dental-patient-records',
-      en: 'https://www.dentixs.app/en/dental-patient-records',
-      'x-default': 'https://www.dentixs.app/ar/dental-patient-records',
-    },
-  }));
-
-  // 17. Validate Arabic Appointments & Finance Guide
-  const arApptFinanceHtml = readFileSync(path.join(resolvedDist, 'ar/appointments-finance/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(arApptFinanceHtml, resolvedDist, {
-    lang: 'ar',
-    dir: 'rtl',
-    canonical: 'https://www.dentixs.app/ar/appointments-finance',
-    loginTexts: ['تسجيل الدخول'],
-    targetLangSwitch: '/en/appointments-finance',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/appointments-finance',
-      en: 'https://www.dentixs.app/en/appointments-finance',
-      'x-default': 'https://www.dentixs.app/ar/appointments-finance',
-    },
-  }));
-
-  // 18. Validate English Appointments & Finance Guide
-  const enApptFinanceHtml = readFileSync(path.join(resolvedDist, 'en/appointments-finance/index.html'), 'utf8');
-  allErrors.push(...validateMarketingHtml(enApptFinanceHtml, resolvedDist, {
-    lang: 'en',
-    dir: 'ltr',
-    canonical: 'https://www.dentixs.app/en/appointments-finance',
-    loginTexts: ['log in', 'login'],
-    targetLangSwitch: '/ar/appointments-finance',
-    expectedAlternates: {
-      ar: 'https://www.dentixs.app/ar/appointments-finance',
-      en: 'https://www.dentixs.app/en/appointments-finance',
-      'x-default': 'https://www.dentixs.app/ar/appointments-finance',
-    },
-  }));
-
-  // 19. Validate Sitemap
+  // 7. Validate Sitemap
   const sitemapXml = readFileSync(path.join(resolvedDist, 'sitemap.xml'), 'utf8');
   allErrors.push(...validateSitemapXml(sitemapXml));
 
