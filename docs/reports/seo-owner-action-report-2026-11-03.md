@@ -7,7 +7,7 @@ Date: 2026-11-03. Local SEO corrections are separate from commercial approval, r
 1. **Active-plan verification:** supply an authorized read-only subscription-plan snapshot and effective billing currency. Resolve differences from approved 200/400/1000 EGP amounts in a separate subscription task. Public prices remain withheld.
 2. **Proposed limits:** explicitly approve user/AI limits before any publication, then verify actual plan values and enforcement. Existing code contains user and clinic-scoped AI limit checks; this is not approval or proof of the proposed figures.
 3. **Trial product gap:** decide a separate implementation task for the 14-day Professional policy. It remains NOT VERIFIED and absent from marketing.
-4. **Remote delivery:** separately authorize push and two PRs to staging when ready. Do not merge, deploy or promote without explicit approval and required review/CI.
+4. **Remote delivery:** the owner authorized GitHub push and two PRs to staging on 2026-11-03. PR-B remains draft while its dependency and commercial/runtime prerequisites are outstanding. Do not merge, deploy or promote without separate explicit approval and required review/CI.
 5. **Runtime acceptance:** provide the authorized Vercel deployment URL and an authorized staging test account for the documented manual route/authentication/PWA checks. Production verification follows approved deployment.
 
 ## Search consoles — P0 owner work

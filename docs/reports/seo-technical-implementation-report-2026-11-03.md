@@ -1,6 +1,6 @@
 # Dentix — Technical SEO implementation and correction report
 
-Date: 2026-11-03. Delivery: local branches only; no push, PR, protected-branch merge or deployment authorized or performed.
+Date: 2026-11-03. The owner authorized GitHub push and pull requests after local correction. Protected-branch merge and deployment remain unauthorized; GitHub is the source of truth for delivery status.
 
 The technical fixes were integrated locally from the existing PR-A feature branch into the existing PR-B feature branch (merge 9ae45e5); staging and main were not changed.
 
@@ -118,3 +118,18 @@ PostgreSQL-only checks still require the preflight-initialized test environment 
 | G1: inaccurate reports | Replaced invented code/audit assertions and test counts; baseline statuses remain UNKNOWN | Search Console/Bing evidence and runtime product verification pending |
 
 All six local review corrections are implemented. The original end-to-end SEO rollout remains **PARTIAL** until active commercial verification, authorized deployment/runtime acceptance and console evidence are supplied. No remote delivery was performed.
+
+## GitHub delivery reconciliation — 2026-11-03
+
+Before upload, origin/staging advanced from 85e0909 to e662e26 through the independently approved landing-motion PR #348. Both existing SEO branches were reconciled with that staging revision, preserving the bilingual CSS tour, screenshot visibility checks, reduced-motion behavior and both SEO scopes. There was no force push or protected-branch mutation.
+
+Fresh verification after reconciliation:
+
+- PR-A snapshot: 52 targeted tests in 3 files and production build/artifact validation passed, exit 0. The isolated git-archive checkout emitted a non-fatal git-metadata diagnostic because it has no .git directory.
+- Combined PR-B candidate: 60 targeted tests in 4 files, production build/artifact validation, lint and diff guardrails passed, exit 0. Marketing CSS is now 6.45 KiB gzip with the inherited motion styles.
+- `npx playwright test --config playwright.marketing.config.ts`: 163 passed, 2 existing no-JavaScript skips, exit 0. The extra 20 cases come from the inherited landingMotion suite; original SEO page, responsive and PWA checks remain active.
+- The intervening staging change contains no backend edits. Prior full backend results and the qualified full-frontend/isolation results above are retained as dated evidence; no redundant full backend run was performed just for upload.
+
+PR-A targets staging. PR-B also targets staging and remains a draft depending on PR-A; until PR-A is integrated its staging comparison necessarily includes the foundation changes. Its content can be reviewed separately by comparing the two feature branches. Commercial records and deployment/search-console evidence remain outstanding. No active prices or trial promises are introduced by remote delivery.
+
+Delivery verification logs are retained under /home/ubuntu/dentix-task-artifacts/seo-fixes-20261103 with the delivery- prefix.
