@@ -1,4 +1,5 @@
 from datetime import date, datetime, timezone
+from decimal import Decimal
 from typing import List, Optional
 
 from sqlalchemy import desc, or_, select
@@ -7,6 +8,7 @@ from sqlalchemy.orm import joinedload
 
 from backend import models, schemas
 from backend.ai.policy.execution_policy import policy_engine
+from backend.core.money import as_decimal
 from backend.utils.patient_search_normalization import (
     escaped_like_pattern,
     normalize_patient_name_for_search,
@@ -124,8 +126,11 @@ class PatientService:
         patients = result.scalars().unique().all()
         debtors = []
         for p in patients:
-            total_cost = sum((t.cost or 0) - (t.discount or 0) for t in p.treatments)
-            total_paid = sum(pm.amount or 0 for pm in p.payments)
+            total_cost = sum(
+                (as_decimal(t.cost) - as_decimal(t.discount) for t in p.treatments),
+                Decimal("0"),
+            )
+            total_paid = sum((as_decimal(pm.amount) for pm in p.payments), Decimal("0"))
             balance = total_cost - total_paid
             if balance > 0:
                 debtors.append({"id": p.id, "name": p.name, "phone": p.phone or "", "balance": balance})
@@ -161,8 +166,11 @@ class PatientService:
             payments = result_p.scalars().all()
             result_t = await _db.execute(select(models.Treatment).where(models.Treatment.patient_id == patient.id))
             all_treatments = result_t.scalars().all()
-            true_total_cost = sum(float(t.cost or 0) - float(t.discount or 0) for t in all_treatments)
-            total_paid = sum(float(p.amount or 0) for p in payments)
+            true_total_cost = sum(
+                (as_decimal(t.cost) - as_decimal(t.discount) for t in all_treatments),
+                Decimal("0"),
+            )
+            total_paid = sum((as_decimal(p.amount) for p in payments), Decimal("0"))
             balance = true_total_cost - total_paid
             if all_treatments:
                 dates = [_normalize_date(t.date) for t in all_treatments if t.date]

@@ -245,9 +245,23 @@ async def test_doctor_cannot_obtain_clinic_revenue_via_dashboard_stats(async_db_
     async_db_session.add(payment)
     await async_db_session.commit()
 
-    # Doctor executes get_dashboard_stats
-    doc_executor = ToolExecutor(async_db_session, doctor)
-    doc_result = await doc_executor.execute("get_dashboard_stats", {"period": "today"})
+    # Doctor executes get_dashboard_stats — spy on SQL to verify NO payments query is executed
+    from sqlalchemy import event
+
+    doc_sql = []
+
+    def _capture_doc_sql(conn, cursor, statement, parameters, context, executemany):
+        doc_sql.append(statement)
+
+    event.listen(async_db_session.sync_session.bind, "before_cursor_execute", _capture_doc_sql)
+    try:
+        doc_executor = ToolExecutor(async_db_session, doctor)
+        doc_result = await doc_executor.execute("get_dashboard_stats", {"period": "today"})
+        doc_inject_result = await doc_executor.execute(
+            "get_dashboard_stats", {"period": "today", "include_revenue": True}
+        )
+    finally:
+        event.remove(async_db_session.sync_session.bind, "before_cursor_execute", _capture_doc_sql)
 
     assert doc_result.get("success") is True
     # Operational stats are present
@@ -255,19 +269,29 @@ async def test_doctor_cannot_obtain_clinic_revenue_via_dashboard_stats(async_db_
     assert "total_patients" in doc_result
     # Revenue is absent for doctor lacking REPORT_READ
     assert "period_revenue" not in doc_result
-
-    # Parameter injection cannot force revenue
-    doc_inject_result = await doc_executor.execute(
-        "get_dashboard_stats", {"period": "today", "include_revenue": True}
-    )
     assert "period_revenue" not in doc_inject_result
+    # Financial payments table must NOT have been queried for unauthorized doctor
+    assert not any("payments" in stmt.lower() for stmt in doc_sql), (
+        f"Unexpected payments query executed for doctor without REPORT_READ: {doc_sql}"
+    )
 
-    # Admin executes get_dashboard_stats -> revenue IS returned
-    admin_executor = ToolExecutor(async_db_session, admin)
-    admin_result = await admin_executor.execute("get_dashboard_stats", {"period": "today"})
+    # Admin executes get_dashboard_stats -> revenue IS queried and returned
+    admin_sql = []
+
+    def _capture_admin_sql(conn, cursor, statement, parameters, context, executemany):
+        admin_sql.append(statement)
+
+    event.listen(async_db_session.sync_session.bind, "before_cursor_execute", _capture_admin_sql)
+    try:
+        admin_executor = ToolExecutor(async_db_session, admin)
+        admin_result = await admin_executor.execute("get_dashboard_stats", {"period": "today"})
+    finally:
+        event.remove(async_db_session.sync_session.bind, "before_cursor_execute", _capture_admin_sql)
+
     assert admin_result.get("success") is True
     assert "period_revenue" in admin_result
     assert admin_result["period_revenue"] == 777.0
+    assert any("payments" in stmt.lower() for stmt in admin_sql)
 
 
 @pytest.mark.asyncio

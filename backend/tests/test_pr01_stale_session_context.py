@@ -218,3 +218,107 @@ def test_session_isolation_across_users_and_tenants(session_fixture):
     assert state_manager.get_session(t1, u1).active_patient_id == 100
     assert state_manager.get_session(t1, u2).active_patient_id == 200
     assert state_manager.get_session(t2, u3).active_patient_id == 300
+
+
+@pytest.mark.asyncio
+async def test_authorized_doctor_can_confirm_new_patient(async_db_session, session_fixture):
+    """
+    Confirming create_patient must succeed for an authorized doctor even though
+    the new patient does not yet exist in the database.
+    """
+    doc1 = session_fixture["doc1"]
+    tenant_id = session_fixture["tenant1"].id
+
+    state_manager.update_session(
+        tenant_id,
+        doc1.id,
+        {
+            "active_patient_id": None,
+            "active_patient_name": None,
+            "pending_confirmation": {
+                "tool": "create_patient",
+                "params": {
+                    "patient_name": "New Confirmed Patient",
+                    "phone": "01077777777",
+                    "age": 29,
+                },
+            },
+        },
+    )
+
+    service = AIService(async_db_session, doc1)
+    response = await service.process_query(text="نعم")
+    assert response.success is True
+    assert response.tool == "create_patient"
+
+
+@pytest.mark.asyncio
+async def test_authorized_doctor_can_confirm_visible_partial_name_and_blocks_hidden_partial_name(
+    async_db_session, session_fixture
+):
+    """
+    Confirming an action using a partial name ('Dynamic') for a canonically visible
+    patient ('Dynamic Visibility Patient') must succeed via canonical search resolution,
+    whereas confirming with a partial name for a hidden patient must be denied.
+    """
+    doc1 = session_fixture["doc1"]
+    doc2 = session_fixture["doc2"]
+    tenant_id = session_fixture["tenant1"].id
+
+    # Hidden patient assigned to doc2
+    hidden_patient = models.Patient(
+        tenant_id=tenant_id,
+        name="Ziad Hidden Patient",
+        name_search_normalized=normalize_patient_name_for_search("Ziad Hidden Patient"),
+        phone="01222222222",
+        phone_search_hash=patient_phone_search_hash("01222222222"),
+        age=45,
+        assigned_doctor_id=doc2.id,
+    )
+    async_db_session.add(hidden_patient)
+    await async_db_session.commit()
+
+    # 1. Partial name 'Dynamic' for visible patient -> ALLOWED
+    state_manager.update_session(
+        tenant_id,
+        doc1.id,
+        {
+            "active_patient_id": None,
+            "active_patient_name": None,
+            "pending_confirmation": {
+                "tool": "create_appointment",
+                "params": {
+                    "patient_name": "Dynamic",
+                    "date": "2026-04-20",
+                    "time": "12:00",
+                },
+            },
+        },
+    )
+
+    service = AIService(async_db_session, doc1)
+    response = await service.process_query(text="نعم")
+    assert response.success is True
+    assert response.tool == "create_appointment"
+
+    # 2. Partial name 'Ziad' for hidden patient -> DENIED
+    state_manager.update_session(
+        tenant_id,
+        doc1.id,
+        {
+            "active_patient_id": None,
+            "active_patient_name": None,
+            "pending_confirmation": {
+                "tool": "create_appointment",
+                "params": {
+                    "patient_name": "Ziad",
+                    "date": "2026-04-20",
+                    "time": "13:00",
+                },
+            },
+        },
+    )
+
+    denied_response = await service.process_query(text="نعم")
+    assert denied_response.success is False
+    assert "صلاحية" in denied_response.message

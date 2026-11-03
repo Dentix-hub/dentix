@@ -1,8 +1,10 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Dict, Any, Optional
 from sqlalchemy import desc, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models, schemas
+from backend.core.money import as_decimal
 from backend.core.permissions import Permission, has_permission
 from backend.services.patient_service import PatientService
 from backend.services.visibility_service import get_visibility_service, PatientVisibilityService
@@ -237,9 +239,10 @@ class PatientToolAdapter:
                 all_treatments = res_all_t.scalars().all()
 
                 true_total_cost = sum(
-                    float(t.cost or 0) - float(t.discount or 0) for t in all_treatments
+                    (as_decimal(t.cost) - as_decimal(t.discount) for t in all_treatments),
+                    Decimal("0"),
                 )
-                total_paid = sum(float(pm.amount or 0) for pm in payments)
+                total_paid = sum((as_decimal(pm.amount) for pm in payments), Decimal("0"))
                 balance = true_total_cost - total_paid
 
                 if all_treatments:

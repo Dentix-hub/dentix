@@ -362,20 +362,32 @@ async def test_doctor_cannot_mutate_restricted_patient_clinical_data(async_db_se
 @pytest.mark.asyncio
 async def test_doctor_appointment_tool_obeys_canonical_visibility(async_db_session, f1_setup):
     """
-    R2: Doctor A in all_assigned mode has an appointment with Doctor B's patient.
-    Under canonical visibility, Doctor A cannot view Doctor B's patient.
-    get_appointments must NOT disclose the hidden patient's identity, notes, or counts.
+    R2: get_appointments must intersect doctor schedule filtering with canonical patient
+    visibility across all three visibility modes:
+    - all_assigned
+    - appointments_only
+    - mixed
+    Hidden patients' names, IDs, notes, counts, and suggestions must never be disclosed.
     """
-    doc_a = f1_setup["doc_a"]
+    doc_a = f1_setup["doc_a"]  # all_assigned
     hidden_patient = f1_setup["patient_b_secret"]
+    visible_patient_a = f1_setup["patient_a1"]
     tenant_id = f1_setup["tenant_a"].id
 
-    # 1. Assert canonical visibility denies Doctor A access to hidden_patient
-    vis_service = get_visibility_service(async_db_session, doc_a, tenant_id)
-    assert not await vis_service.can_view_patient(hidden_patient.id)
+    # --- Mode 1: all_assigned (doc_a) ---
+    vis_a = get_visibility_service(async_db_session, doc_a, tenant_id)
+    assert not await vis_a.can_view_patient(hidden_patient.id)
+    assert await vis_a.can_view_patient(visible_patient_a.id)
 
-    # 2. Add an appointment for hidden_patient assigned to doc_a for today
     today_time = datetime.now().replace(hour=11, minute=30, second=0, microsecond=0)
+    vis_appt_a = models.Appointment(
+        tenant_id=tenant_id,
+        patient_id=visible_patient_a.id,
+        doctor_id=doc_a.id,
+        date_time=today_time,
+        status="Scheduled",
+        notes="Visible appointment notes",
+    )
     hidden_appt = models.Appointment(
         tenant_id=tenant_id,
         patient_id=hidden_patient.id,
@@ -384,18 +396,95 @@ async def test_doctor_appointment_tool_obeys_canonical_visibility(async_db_sessi
         status="Scheduled",
         notes="Confidential appointment notes",
     )
-    async_db_session.add(hidden_appt)
+    async_db_session.add_all([vis_appt_a, hidden_appt])
     await async_db_session.commit()
 
-    # 3. Doctor A calls get_appointments
-    executor = ToolExecutor(async_db_session, doc_a)
-    result = await executor.execute("get_appointments", {"date": "today"})
+    executor_a = ToolExecutor(async_db_session, doc_a)
+    result_a = await executor_a.execute("get_appointments", {"date": "today"})
+    assert hidden_patient.name not in str(result_a)
+    assert "Confidential appointment notes" not in str(result_a)
+    disclosed_ids_a = [a["id"] for a in result_a.get("appointments", [])]
+    assert hidden_appt.id not in disclosed_ids_a
+    assert any(a["patient_name"] == visible_patient_a.name for a in result_a.get("appointments", []))
 
-    # 4. Hidden patient must not be disclosed
-    assert hidden_patient.name not in str(result)
-    assert "Confidential appointment notes" not in str(result)
-    disclosed_ids = [a["id"] for a in result.get("appointments", [])]
-    assert hidden_appt.id not in disclosed_ids
+    # --- Mode 2: appointments_only ---
+    doc_appt_only = models.User(
+        username="doc_appt_only_r2",
+        email="doc_appt_only_r2@test.com",
+        hashed_password=get_password_hash("pass123"),
+        role="doctor",
+        tenant_id=tenant_id,
+        patient_visibility_mode="appointments_only",
+        is_active=True,
+    )
+    doc_mixed = models.User(
+        username="doc_mixed_r2",
+        email="doc_mixed_r2@test.com",
+        hashed_password=get_password_hash("pass123"),
+        role="doctor",
+        tenant_id=tenant_id,
+        patient_visibility_mode="mixed",
+        is_active=True,
+    )
+    async_db_session.add_all([doc_appt_only, doc_mixed])
+    await async_db_session.commit()
+    await async_db_session.refresh(doc_appt_only)
+    await async_db_session.refresh(doc_mixed)
+
+    # Give doc_appt_only an appointment with visible_patient_a; hidden_patient has NO appointment with doc_appt_only
+    appt_b_vis = models.Appointment(
+        tenant_id=tenant_id,
+        patient_id=visible_patient_a.id,
+        doctor_id=doc_appt_only.id,
+        date_time=today_time,
+        status="Scheduled",
+        notes="Doc ApptOnly visible appointment",
+    )
+    async_db_session.add(appt_b_vis)
+    await async_db_session.commit()
+
+    vis_appt_only = get_visibility_service(async_db_session, doc_appt_only, tenant_id)
+    assert await vis_appt_only.can_view_patient(visible_patient_a.id)
+    assert not await vis_appt_only.can_view_patient(hidden_patient.id)
+
+    executor_b = ToolExecutor(async_db_session, doc_appt_only)
+    result_b = await executor_b.execute("get_appointments", {"date": "today"})
+    assert visible_patient_a.name in str(result_b)
+    assert hidden_patient.name not in str(result_b)
+
+    # --- Mode 3: mixed ---
+    patient_c_assigned = models.Patient(
+        tenant_id=tenant_id,
+        name="Salma Mixed Assigned",
+        name_search_normalized=normalize_patient_name_for_search("Salma Mixed Assigned"),
+        phone="01000000099",
+        phone_search_hash=patient_phone_search_hash("01000000099"),
+        age=29,
+        assigned_doctor_id=doc_mixed.id,
+    )
+    async_db_session.add(patient_c_assigned)
+    await async_db_session.commit()
+    await async_db_session.refresh(patient_c_assigned)
+
+    appt_c = models.Appointment(
+        tenant_id=tenant_id,
+        patient_id=patient_c_assigned.id,
+        doctor_id=doc_mixed.id,
+        date_time=today_time,
+        status="Scheduled",
+        notes="Doc Mixed appointment",
+    )
+    async_db_session.add(appt_c)
+    await async_db_session.commit()
+
+    vis_mixed = get_visibility_service(async_db_session, doc_mixed, tenant_id)
+    assert await vis_mixed.can_view_patient(patient_c_assigned.id)
+    assert not await vis_mixed.can_view_patient(hidden_patient.id)
+
+    executor_c = ToolExecutor(async_db_session, doc_mixed)
+    result_c = await executor_c.execute("get_appointments", {"date": "today"})
+    assert patient_c_assigned.name in str(result_c)
+    assert hidden_patient.name not in str(result_c)
 
 
 @pytest.mark.asyncio
@@ -405,6 +494,9 @@ async def test_patient_summary_respects_receivable_permission(async_db_session, 
     and RECEIVABLE_READ for financial balance output (total_due).
     Doctor without RECEIVABLE_READ must NOT receive total_due or trigger balance aggregation.
     """
+    from decimal import Decimal
+    from sqlalchemy import event
+
     doc_a = f1_setup["doc_a"]
     rec_a = f1_setup["reception_a"]
     patient = f1_setup["patient_a1"]
@@ -418,53 +510,139 @@ async def test_patient_summary_respects_receivable_permission(async_db_session, 
         tenant_id=patient.tenant_id,
         patient_id=patient.id,
         procedure="Crown",
-        cost=1000.0,
-        discount=0.0,
+        cost=Decimal("1000.00"),
+        discount=Decimal("0.00"),
         date=datetime.now().date(),
     )
     p = models.Payment(
         tenant_id=patient.tenant_id,
         patient_id=patient.id,
-        amount=500.0,
+        amount=Decimal("500.00"),
         date=datetime.now().date(),
     )
     async_db_session.add_all([t, p])
     await async_db_session.commit()
 
-    # Doctor summarizes patient
-    doc_executor = ToolExecutor(async_db_session, doc_a)
-    doc_result = await doc_executor.execute("summarize_patient", {"patient_name": patient.name})
+    # Doctor summarizes patient — spy on SQL to verify NO payments query is executed
+    doc_sql = []
+
+    def _capture_doc_sql(conn, cursor, statement, parameters, context, executemany):
+        doc_sql.append(statement)
+
+    event.listen(async_db_session.sync_session.bind, "before_cursor_execute", _capture_doc_sql)
+    try:
+        doc_executor = ToolExecutor(async_db_session, doc_a)
+        doc_result = await doc_executor.execute("summarize_patient", {"patient_name": patient.name})
+    finally:
+        event.remove(async_db_session.sync_session.bind, "before_cursor_execute", _capture_doc_sql)
 
     assert doc_result.get("success") is True
     summary_data = doc_result.get("summary_data", {})
     # Clinical fields are present
     assert "age" in summary_data
     assert "recent_procedures" in summary_data
-    # Financial total_due MUST be absent
+    # Financial total_due MUST be absent and payments table MUST NOT be queried
     assert "total_due" not in summary_data
+    assert not any("payments" in stmt.lower() for stmt in doc_sql), (
+        f"Unexpected payments query executed for doctor without RECEIVABLE_READ: {doc_sql}"
+    )
 
-    # Receptionist summarizes patient (has RECEIVABLE_READ)
-    rec_executor = ToolExecutor(async_db_session, rec_a)
-    rec_result = await rec_executor.execute("summarize_patient", {"patient_name": patient.name})
+    # Receptionist summarizes patient (has RECEIVABLE_READ) -> payments queried and exact Decimal returned
+    rec_sql = []
+
+    def _capture_rec_sql(conn, cursor, statement, parameters, context, executemany):
+        rec_sql.append(statement)
+
+    event.listen(async_db_session.sync_session.bind, "before_cursor_execute", _capture_rec_sql)
+    try:
+        rec_executor = ToolExecutor(async_db_session, rec_a)
+        rec_result = await rec_executor.execute("summarize_patient", {"patient_name": patient.name})
+    finally:
+        event.remove(async_db_session.sync_session.bind, "before_cursor_execute", _capture_rec_sql)
+
     assert rec_result.get("success") is True
     assert "total_due" in rec_result.get("summary_data", {})
-    # patient_a1 has t_a (500) + t (1000) - p (500) = 1000.0 balance
-    assert rec_result["summary_data"]["total_due"] == 1000.0
+    assert any("payments" in stmt.lower() for stmt in rec_sql)
+    # patient_a1 has t_a (500) + t (1000) - p (500) = 1000.00 balance
+    assert rec_result["summary_data"]["total_due"] == Decimal("1000.00")
+
+
+@pytest.mark.asyncio
+async def test_receivable_summary_preserves_exact_decimal_money(async_db_session, f1_setup):
+    """
+    Standards check: Decimal("0.10") + Decimal("0.20") must equal exact Decimal("0.30"),
+    never binary float 0.30000000000000004.
+    """
+    from decimal import Decimal
+    from backend.services.patient_service import PatientService
+
+    rec_a = f1_setup["reception_a"]
+    tenant_id = f1_setup["tenant_a"].id
+
+    patient = models.Patient(
+        tenant_id=tenant_id,
+        name="Decimal Precision Patient",
+        name_search_normalized=normalize_patient_name_for_search("Decimal Precision Patient"),
+        phone="01055555555",
+        phone_search_hash=patient_phone_search_hash("01055555555"),
+        age=41,
+        assigned_doctor_id=f1_setup["doc_a"].id,
+    )
+    async_db_session.add(patient)
+    await async_db_session.commit()
+    await async_db_session.refresh(patient)
+
+    t1 = models.Treatment(
+        tenant_id=tenant_id,
+        patient_id=patient.id,
+        procedure="Step 1",
+        cost=Decimal("0.10"),
+        discount=Decimal("0.00"),
+        date=datetime.now().date(),
+    )
+    t2 = models.Treatment(
+        tenant_id=tenant_id,
+        patient_id=patient.id,
+        procedure="Step 2",
+        cost=Decimal("0.20"),
+        discount=Decimal("0.00"),
+        date=datetime.now().date(),
+    )
+    async_db_session.add_all([t1, t2])
+    await async_db_session.commit()
+
+    rec_executor = ToolExecutor(async_db_session, rec_a)
+    adapter_result = await rec_executor.execute("summarize_patient", {"patient_name": patient.name})
+    service_result = await PatientService(async_db_session, tenant_id).get_patient_summary_data(
+        patient.name, include_financials=True
+    )
+
+    assert adapter_result["summary_data"]["total_due"] == Decimal("0.30")
+    assert str(adapter_result["summary_data"]["total_due"]) != "0.30000000000000004"
+    assert service_result["summary_data"]["total_due"] == Decimal("0.30")
+    assert str(service_result["summary_data"]["total_due"]) != "0.30000000000000004"
 
 
 @pytest.mark.asyncio
 async def test_admin_and_reception_retain_canonical_patient_access(async_db_session, f1_setup):
-    """Admin and reception users must retain access to clinic patients in AI tools."""
+    """
+    Admin and reception users must retain access to clinic patients in AI tools,
+    including reception payment recording (create_payment) and receivable reads,
+    while doctors without RECEIVABLE_READ / PAYMENT_CREATE are denied.
+    """
     admin_a = f1_setup["admin_a"]
     reception_a = f1_setup["reception_a"]
+    doc_a = f1_setup["doc_a"]
+    patient_a1 = f1_setup["patient_a1"]
 
     admin_executor = ToolExecutor(async_db_session, admin_a)
     reception_executor = ToolExecutor(async_db_session, reception_a)
+    doc_executor = ToolExecutor(async_db_session, doc_a)
 
     # Admin searches 'Omar' -> should see both patient_a1 and patient_b1 (same tenant)
     admin_res = await admin_executor.execute("search_patients", {"query": "Omar"})
     admin_ids = {p["id"] for p in admin_res.get("patients", [])}
-    assert f1_setup["patient_a1"].id in admin_ids
+    assert patient_a1.id in admin_ids
     assert f1_setup["patient_b1"].id in admin_ids
     # But never cross-tenant:
     assert f1_setup["patient_tenant_b"].id not in admin_ids
@@ -472,12 +650,49 @@ async def test_admin_and_reception_retain_canonical_patient_access(async_db_sess
     # Reception searches 'Omar' -> should also see both patients in Tenant A
     rec_res = await reception_executor.execute("search_patients", {"query": "Omar"})
     rec_ids = {p["id"] for p in rec_res.get("patients", [])}
-    assert f1_setup["patient_a1"].id in rec_ids
+    assert patient_a1.id in rec_ids
     assert f1_setup["patient_b1"].id in rec_ids
     assert f1_setup["patient_tenant_b"].id not in rec_ids
 
-    # Reception has RECEIVABLE_READ -> get_patients_with_balance succeeds
+    # Reception has RECEIVABLE_READ -> get_patients_with_balance and get_financial_record succeed
     rec_bal = await reception_executor.execute("get_patients_with_balance", {})
     assert rec_bal.get("success") is True
     rec_bal_ids = {p["id"] for p in rec_bal.get("patients", [])}
     assert f1_setup["patient_tenant_b"].id not in rec_bal_ids
+
+    rec_fin = await reception_executor.execute(
+        "get_financial_record", {"patient_name": patient_a1.name}
+    )
+    assert rec_fin.get("success") is True
+    assert "remaining" in rec_fin
+
+    # Reception has PAYMENT_CREATE -> create_payment records a real payment in DB
+    payments_before = (
+        await async_db_session.execute(
+            select(func.count(models.Payment.id)).where(models.Payment.patient_id == patient_a1.id)
+        )
+    ).scalar() or 0
+    rec_pay = await reception_executor.execute(
+        "create_payment", {"patient_name": patient_a1.name, "amount": 150}
+    )
+    assert rec_pay.get("success") is True
+    assert rec_pay.get("action") == "payment_created"
+    payments_after = (
+        await async_db_session.execute(
+            select(func.count(models.Payment.id)).where(models.Payment.patient_id == patient_a1.id)
+        )
+    ).scalar() or 0
+    assert payments_after == payments_before + 1
+
+    # Doctor lacks PAYMENT_CREATE and RECEIVABLE_READ -> denied on both tools
+    doc_pay = await doc_executor.execute(
+        "create_payment", {"patient_name": patient_a1.name, "amount": 150}
+    )
+    assert doc_pay.get("success") is False
+    assert doc_pay.get("error_code") == "permission_denied"
+
+    doc_fin = await doc_executor.execute(
+        "get_financial_record", {"patient_name": patient_a1.name}
+    )
+    assert doc_fin.get("success") is False
+    assert doc_fin.get("error_code") == "permission_denied"
