@@ -5,6 +5,7 @@
  * Distinguishes:
  * - Public indexable marketing pages
  * - Public indexable legal pages
+ * - Public indexable trust & content pages
  * - Application-only pages (noindex)
  * - Protected application pages (noindex, auth required)
  * - Redirect-only routes (must NEVER appear in sitemap)
@@ -12,7 +13,7 @@
 
 export const CANONICAL_ORIGIN = 'https://www.dentixs.app';
 
-// 1. Authoritative public indexable routes in PR-A
+// 1. Authoritative public indexable routes in PR-A (Home & Legal)
 export const PR_A_INDEXABLE_ROUTES = [
   'https://www.dentixs.app/ar',
   'https://www.dentixs.app/en',
@@ -22,7 +23,7 @@ export const PR_A_INDEXABLE_ROUTES = [
   'https://www.dentixs.app/en/terms',
 ];
 
-// 2. Authoritative public indexable routes added in PR-B
+// 2. Authoritative public indexable routes added in PR-B (Trust & Content Expansion)
 export const PR_B_INDEXABLE_ROUTES = [
   'https://www.dentixs.app/ar/about',
   'https://www.dentixs.app/en/about',
@@ -38,9 +39,10 @@ export const PR_B_INDEXABLE_ROUTES = [
   'https://www.dentixs.app/en/appointments-finance',
 ];
 
-// Current full active indexable routes for sitemap
+// Current full active indexable routes for sitemap (18 public routes; runtime delivery remains unverified)
 export const CURRENT_ACTIVE_INDEXABLE_ROUTES = [
   ...PR_A_INDEXABLE_ROUTES,
+  ...PR_B_INDEXABLE_ROUTES,
 ];
 
 // Page identity and translation expectations come from the active inventory.
@@ -93,18 +95,9 @@ export const PROTECTED_ROUTES = [
 
 // 5. Redirect-only routes (must NEVER appear in sitemap)
 export const REDIRECT_ONLY_ROUTES = [
-  '/ar/',
-  '/en/',
-  '/ar/index.html',
-  '/en/index.html',
-  '/privacy',
-  '/terms',
-  '/ar/privacy/',
-  '/en/privacy/',
-  '/ar/terms/',
-  '/en/terms/',
-  '/ar/privacy/index.html',
-  '/en/privacy/index.html',
-  '/ar/terms/index.html',
-  '/en/terms/index.html',
+  '/privacy', '/privacy/', '/terms', '/terms/',
+  ...CURRENT_ACTIVE_INDEXABLE_ROUTES.flatMap(url => {
+    const pathname = new URL(url).pathname;
+    return [`${pathname}/`, `${pathname}/index.html`];
+  }),
 ];
