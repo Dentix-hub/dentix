@@ -1,6 +1,8 @@
 # Dentix — Technical SEO implementation and correction report
 
-Date: 2026-11-03. Delivery: local branches only; no push, PR, merge or deployment authorized or performed.
+Date: 2026-11-03. Delivery: local branches only; no push, PR, protected-branch merge or deployment authorized or performed.
+
+The technical fixes were integrated locally from the existing PR-A feature branch into the existing PR-B feature branch (merge 9ae45e5); staging and main were not changed.
 
 This replaces the initial implementation report. The six review findings are addressed in code/content below; final test results are recorded in the verification section. Runtime pricing, Vercel delivery, authenticated staging acceptance and search-engine indexing are separate outstanding evidence gates.
 
