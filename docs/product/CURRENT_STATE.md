@@ -2,6 +2,8 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- PR-09C Operational modules commercial gating (2026-11-04): Gated inventory, laboratories, price lists, and tenant backup operations on commercial entitlements and emergency restrictions. Fail-closed domain services (InventoryService, LabService, clinic_drive_backup, export_clinic_archive_data). Restoration preserves commercial policy, ledger, and seat invariants without adding users. 8/8 PR-09C acceptance tests PASS, 30/30 regressions PASS, Ruff clean.
+
 - PR-08 AI provider integration & commercial tool gating (2026-11-04): Integrated all provider entry paths (`process_query`, `analyze_direct`, `analyze_clinic`, `ScribeService`, `ToolExecutor`) with the commercial decision engine and PR-07 atomic quota reservation ledger. Gated entry before protected data collection or provider dispatch. Enforced dual domain permissions `AI_CHAT` AND `REPORT_READ` for clinic-wide finance; parent reservations link to confirmations/secondary tools with 0 extra units; tool executor enforces per-plan capabilities as an additional AND condition; removed old log-count quota from active decision paths; explicit outcomes for missing_plan, plan_restricted, subscription_expired, tenant_suspended, ai_emergency_disabled, and limit_exceeded.
 - Verification: 8/8 PR-08 acceptance tests PASS (including live PostgreSQL concurrency serialization); 32/32 PR-01, PR-07, and AI egress/RBAC regressions PASS; Ruff clean. Status: PR-08 verified; ready for user approval before push.
 
