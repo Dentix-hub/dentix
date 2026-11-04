@@ -129,6 +129,8 @@ RLS_TABLES = (
     "tenant_data_operations",
     "google_oauth_attempts",
     "commercial_tenant_overrides",
+    "ai_quota_windows",
+    "ai_reservations",
 )
 
 CHILD_TENANT_RELATIONSHIPS = (
@@ -195,6 +197,9 @@ CHILD_TENANT_RELATIONSHIPS = (
     ("clinical_charges", "legacy_treatment_id", "treatments", True),
     # Onboarding Checklist State User Link
     ("user_onboarding_state", "user_id", "users", False),
+    # AI Reservation Ledger Window and User Links (PR-07)
+    ("ai_reservations", "window_id", "ai_quota_windows", False),
+    ("ai_reservations", "user_id", "users", True),
 )
 
 # Phase G14 / S32: direct parent-patient checks for clinical_charges (kept separate from

@@ -87,6 +87,8 @@ EXPECTED_TENANT_MODELS = {
     "TenantDataOperation",
     "GoogleOAuthAttempt",
     "CommercialTenantOverride",
+    "AIQuotaWindow",
+    "AIReservation",
 }
 
 # Models filtered via parent FK join (no own tenant_id column needed)
