@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional, Tuple, Set
 from sqlalchemy import select, or_
 
 from backend import models
-from backend.core.config import is_ai_disabled
+from backend.core.config import is_ai_disabled, get_subscription_enforcement_mode
 from backend.core.commercial_registry import CapabilityKey, OperationClass
 from backend.services.commercial_decision import (
     CommercialDecisionEngine,
@@ -22,6 +22,7 @@ def evaluate_commercial_ai_access(
     tenant: Optional[models.Tenant],
     db_session: Optional[Any] = None,
     now_utc: Optional[datetime] = None,
+    override_mode: Optional[str] = None,
 ) -> Optional[Tuple[str, str]]:
     """Evaluate whether a tenant has commercial access to provider AI.
 
@@ -29,6 +30,8 @@ def evaluate_commercial_ai_access(
         None if permitted.
         (error_code, explanation_ar) if denied.
     """
+    mode = override_mode or get_subscription_enforcement_mode()
+
     # 1. Platform Global Emergency AI Kill Switch
     if is_ai_disabled():
         return (
@@ -36,18 +39,22 @@ def evaluate_commercial_ai_access(
             "عفواً، خدمة الذكاء الاصطناعي معطلة مؤقتاً لأسباب تتعلق بالسلامة (Maintenance Mode).",
         )
 
-    # 2. Missing tenant / unassigned tenant
+    # 2. Tenant administrative suspension
+    if tenant and not getattr(tenant, "is_active", True):
+        return (
+            "tenant_suspended",
+            "عفواً، تم تعليق حساب العيادة إدارياً. يرجى التواصل مع إدارة المنصة.",
+        )
+
+    # 3. In off/observe modes, commercial restrictions do not change access
+    if mode in {"off", "observe"}:
+        return None
+
+    # 4. Missing tenant / unassigned tenant in enforce mode
     if not tenant:
         return (
             "missing_plan",
             "عفواً، لا توجد عيادة مرتبطة بهذا الحساب أو لم يتم تحديد باقة.",
-        )
-
-    # 3. Tenant administrative suspension
-    if not getattr(tenant, "is_active", True):
-        return (
-            "tenant_suspended",
-            "عفواً، تم تعليق حساب العيادة إدارياً. يرجى التواصل مع إدارة المنصة.",
         )
 
     current_time = now_utc or datetime.now(timezone.utc)
@@ -100,7 +107,7 @@ def evaluate_commercial_ai_access(
         capability=CapabilityKey.AI_INSIGHTS.value,
         operation=OperationClass.EXECUTE_AI.value,
         now=current_time,
-        override_mode="enforce",
+        override_mode=mode,
         commercial_overrides=active_overrides,
         emergency_restrictions=emergency_restrictions,
     )

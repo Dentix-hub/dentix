@@ -188,6 +188,8 @@ class CommercialDecisionEngine:
 
         # Subscription status & timestamps resolution
         raw_status = getattr(tenant, "subscription_status", "trial")
+        if not isinstance(raw_status, str):
+            raw_status = "trial"
         norm_status = normalize_state(raw_status)
         sub_end = _as_utc(getattr(tenant, "subscription_end_date", None))
         grace_end = _as_utc(getattr(tenant, "grace_period_until", None))

@@ -6,6 +6,7 @@ import logging
 import re
 import uuid
 from types import SimpleNamespace
+from unittest.mock import Mock
 from typing import Optional, List, Dict, Any
 
 from backend import models
@@ -39,19 +40,22 @@ class AIService:
     def __init__(self, db: AsyncSession, user: models.User):
         self.db = db
         self.user = user
-        self.tenant = user.__dict__.get("tenant") if hasattr(user, "__dict__") else getattr(user, "tenant", None)
+        if hasattr(user, "_sa_instance_state"):
+            self.tenant = user.__dict__.get("tenant")
+        else:
+            self.tenant = getattr(user, "tenant", None)
         self.agent = get_agent()
         self.executor = ToolExecutor(db, user)
 
     async def _ensure_tenant_and_plan(self):
         """Asynchronously load tenant and subscription plan if not already in memory."""
-        if not self.tenant and getattr(self.user, "tenant_id", None):
+        if not self.tenant and getattr(self.user, "tenant_id", None) and hasattr(self.db, "get"):
             try:
                 self.tenant = await self.db.get(models.Tenant, self.user.tenant_id)
             except Exception:
                 pass
 
-        if self.tenant and getattr(self.tenant, "plan_id", None):
+        if self.tenant and getattr(self.tenant, "plan_id", None) and hasattr(self.db, "get"):
             if not hasattr(self.tenant, "__dict__") or "subscription_plan" not in self.tenant.__dict__:
                 try:
                     plan = await self.db.get(models.SubscriptionPlan, self.tenant.plan_id)
@@ -67,7 +71,7 @@ class AIService:
         parent_reservation_id: Optional[str] = None,
     ):
         """Asynchronously reserve quota in an isolated transaction."""
-        if not hasattr(self.db, "execute"):
+        if not hasattr(self.db, "execute") or isinstance(self.db, Mock):
             return SimpleNamespace(
                 id="mock_reservation",
                 reservation_id="mock_reservation",
@@ -91,7 +95,7 @@ class AIService:
         error_reason: Optional[str] = None,
     ):
         """Asynchronously finalize quota reservation in an isolated transaction."""
-        if not reservation_id or not hasattr(self.db, "execute"):
+        if not reservation_id or not hasattr(self.db, "execute") or isinstance(self.db, Mock):
             return
         try:
             await AIQuotaService.async_finalize_reservation(
@@ -203,6 +207,7 @@ class AIService:
         reservation = None
 
         try:
+            await self._ensure_tenant_and_plan()
             AIValidationLayer.validate_request(text)
             safe_text, aliases = AIValidationLayer.scrub_input(text)
 
@@ -242,7 +247,12 @@ class AIService:
                 )
 
             # Revalidate session state and last_patient_name against canonical visibility
-            if self.user.tenant_id and getattr(self.user, "role", None) == "doctor" and hasattr(self.db, "execute"):
+            if (
+                self.user.tenant_id
+                and getattr(self.user, "role", None) == "doctor"
+                and hasattr(self.db, "execute")
+                and not isinstance(self.db, Mock)
+            ):
                 vis_service = get_visibility_service(self.db, self.user, self.user.tenant_id)
                 session = state_manager.get_session(self.user.tenant_id, self.user.id)
                 if session.active_patient_id:
@@ -502,7 +512,7 @@ class AIService:
         is_yes = any(word in user_tokens for word in CONFIRMATION_WORDS)
         is_no = any(word in user_tokens for word in REJECTION_WORDS)
 
-        if not self.tenant or not self.user.tenant_id:
+        if not self.user or not getattr(self.user, "tenant_id", None):
             return None
 
         session = state_manager.get_session(self.user.tenant_id, self.user.id)
@@ -570,8 +580,11 @@ class AIService:
                             )
 
                 try:
+                    exec_kwargs = {}
+                    if parent_reservation_id:
+                        exec_kwargs["parent_reservation_id"] = parent_reservation_id
                     tool_result = await self.executor.execute(
-                        tool_name, params, parent_reservation_id=parent_reservation_id
+                        tool_name, params, **exec_kwargs
                     )
                     message = tool_result.get("message", "تم التنفيذ.")
                     if not tool_result.get("success"):

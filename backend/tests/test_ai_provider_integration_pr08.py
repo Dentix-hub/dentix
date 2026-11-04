@@ -47,6 +47,11 @@ from backend.ai.executor import ToolExecutor
 from backend.schemas.ai import AIQueryRequest
 
 
+@pytest.fixture(autouse=True)
+def enforce_subscription_mode_for_pr08(monkeypatch):
+    monkeypatch.setenv("SUBSCRIPTION_ENFORCEMENT_MODE", "enforce")
+
+
 def _auth_header(user: models.User) -> Dict[str, str]:
     token = create_access_token(
         data={"sub": user.username, "role": user.role, "tenant_id": user.tenant_id}
