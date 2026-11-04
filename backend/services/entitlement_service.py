@@ -3,15 +3,27 @@ DENTIX Entitlement Service
 Centralized evaluation of tenant entitlements, limits, and read/write capabilities.
 Enforces the fundamental clinical invariant:
 - Clinical-history reads (Patient, Dental Chart, Treatment history, Prescriptions) are PERMANENTLY PERMITTED.
+
+PR-02: Extended with typed commercial capability decision engine and shadow evaluation.
+Existing caller contracts, return signatures, and enforcement semantics are 100% preserved.
 """
 
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional, Set, Callable
 from backend.core.config import get_subscription_enforcement_mode
 from backend.models.tenant import Tenant
 from backend.services.subscription_state_machine import (
     SubscriptionState,
     normalize_state,
+)
+from backend.core.commercial_registry import (
+    CAPABILITY_REGISTRY,
+    CapabilityKey,
+    OperationClass,
+)
+from backend.services.commercial_decision import (
+    CommercialDecision,
+    CommercialDecisionEngine,
 )
 
 
@@ -34,6 +46,13 @@ class EntitlementEvaluation:
         can_write_billable: bool,
         can_create_appointments: bool,
         reason: Optional[str] = None,
+        # Additive attributes for PR-02 (backward compatible defaults)
+        plan_id: Optional[int] = None,
+        plan_name: Optional[str] = None,
+        commercial_decisions: Optional[Dict[str, Dict[str, Any]]] = None,
+        shadow_discrepancies: Optional[List[str]] = None,
+        unmapped_keys: Optional[List[str]] = None,
+        is_shadow: bool = True,
     ):
         self.tenant_id = tenant_id
         self.status = status
@@ -43,6 +62,12 @@ class EntitlementEvaluation:
         self.can_write_billable = can_write_billable
         self.can_create_appointments = can_create_appointments
         self.reason = reason
+        self.plan_id = plan_id
+        self.plan_name = plan_name
+        self.commercial_decisions = commercial_decisions or {}
+        self.shadow_discrepancies = shadow_discrepancies or []
+        self.unmapped_keys = unmapped_keys or []
+        self.is_shadow = is_shadow
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -54,6 +79,12 @@ class EntitlementEvaluation:
             "can_write_billable": self.can_write_billable,
             "can_create_appointments": self.can_create_appointments,
             "reason": self.reason,
+            "plan_id": self.plan_id,
+            "plan_name": self.plan_name,
+            "commercial_decisions": self.commercial_decisions,
+            "shadow_discrepancies": self.shadow_discrepancies,
+            "unmapped_keys": self.unmapped_keys,
+            "is_shadow": self.is_shadow,
         }
 
 
@@ -63,9 +94,13 @@ class EntitlementService:
         tenant: Tenant,
         now: Optional[datetime] = None,
         override_mode: Optional[str] = None,
+        commercial_overrides: Optional[Dict[str, bool]] = None,
+        emergency_restrictions: Optional[Set[str]] = None,
+        rollout_resolver: Optional[Callable[[str, int], bool]] = None,
     ) -> EntitlementEvaluation:
         """
         Evaluate full entitlement set for a given tenant.
+        Preserves legacy caller API contracts while running shadow commercial evaluation.
         """
         mode = override_mode or get_subscription_enforcement_mode()
         current_time = _as_utc(now or datetime.now(timezone.utc))
@@ -87,6 +122,38 @@ class EntitlementService:
         elif norm_status == SubscriptionState.GRACE.value and not is_in_grace:
             effective_status = SubscriptionState.EXPIRED_READ_ONLY.value
 
+        plan = getattr(tenant, "subscription_plan", None)
+        plan_name = getattr(plan, "name", getattr(tenant, "plan", None))
+        plan_id = getattr(plan, "id", getattr(tenant, "plan_id", None))
+
+        # --- Commercial Shadow Decisions Evaluation ---
+        commercial_decisions: Dict[str, Dict[str, Any]] = {}
+        shadow_discrepancies: List[str] = []
+        unmapped_keys: List[str] = []
+
+        for cap_key, defn in CAPABILITY_REGISTRY.items():
+            if not defn.is_sellable:
+                continue
+            decision = CommercialDecisionEngine.evaluate_capability(
+                tenant=tenant,
+                capability=cap_key,
+                operation=OperationClass.WRITE_BUSINESS.value,
+                now=current_time,
+                override_mode=mode,
+                commercial_overrides=commercial_overrides,
+                emergency_restrictions=emergency_restrictions,
+                rollout_resolver=rollout_resolver,
+            )
+            commercial_decisions[cap_key] = decision.to_dict()
+            if decision.is_discrepancy:
+                shadow_discrepancies.append(
+                    f"Capability '{cap_key}': actual={decision.allowed}, proposed={decision.proposed_allowed} ({decision.reason_code.value})"
+                )
+            if decision.diagnostics.get("unmapped_plan_keys"):
+                unmapped_keys.extend(decision.diagnostics["unmapped_plan_keys"])
+
+        is_shadow = (mode != "enforce")
+
         # Invariant: Clinical-history read is ALWAYS permitted (enforced in EntitlementEvaluation)
         # In 'off' mode: allow all writes
         if mode == "off":
@@ -99,6 +166,12 @@ class EntitlementService:
                 can_write_billable=True,
                 can_create_appointments=True,
                 reason="Enforcement mode is OFF.",
+                plan_id=plan_id,
+                plan_name=plan_name,
+                commercial_decisions=commercial_decisions,
+                shadow_discrepancies=shadow_discrepancies,
+                unmapped_keys=sorted(list(set(unmapped_keys))),
+                is_shadow=is_shadow,
             )
 
         # In 'observe' mode: calculate but do not block
@@ -117,10 +190,20 @@ class EntitlementService:
                 can_write_billable=True,
                 can_create_appointments=True,
                 reason="[OBSERVE] Would be blocked in enforce mode." if is_expired else None,
+                plan_id=plan_id,
+                plan_name=plan_name,
+                commercial_decisions=commercial_decisions,
+                shadow_discrepancies=shadow_discrepancies,
+                unmapped_keys=sorted(list(set(unmapped_keys))),
+                is_shadow=is_shadow,
             )
 
         # In 'enforce' mode:
-        if effective_status in {SubscriptionState.ACTIVE.value, SubscriptionState.TRIAL.value, SubscriptionState.GRACE.value}:
+        if effective_status in {
+            SubscriptionState.ACTIVE.value,
+            SubscriptionState.TRIAL.value,
+            SubscriptionState.GRACE.value,
+        }:
             return EntitlementEvaluation(
                 tenant_id=tenant.id,
                 status=effective_status,
@@ -130,6 +213,12 @@ class EntitlementService:
                 can_write_billable=True,
                 can_create_appointments=True,
                 reason=None,
+                plan_id=plan_id,
+                plan_name=plan_name,
+                commercial_decisions=commercial_decisions,
+                shadow_discrepancies=shadow_discrepancies,
+                unmapped_keys=sorted(list(set(unmapped_keys))),
+                is_shadow=is_shadow,
             )
 
         if effective_status == SubscriptionState.EXPIRED_READ_ONLY.value:
@@ -142,6 +231,12 @@ class EntitlementService:
                 can_write_billable=False,
                 can_create_appointments=False,
                 reason="Subscription expired. Read-only clinical history mode active.",
+                plan_id=plan_id,
+                plan_name=plan_name,
+                commercial_decisions=commercial_decisions,
+                shadow_discrepancies=shadow_discrepancies,
+                unmapped_keys=sorted(list(set(unmapped_keys))),
+                is_shadow=is_shadow,
             )
 
         if effective_status == SubscriptionState.SUSPENDED_ADMIN.value:
@@ -154,6 +249,12 @@ class EntitlementService:
                 can_write_billable=False,
                 can_create_appointments=False,
                 reason="Tenant administratively suspended. Contact platform administrator.",
+                plan_id=plan_id,
+                plan_name=plan_name,
+                commercial_decisions=commercial_decisions,
+                shadow_discrepancies=shadow_discrepancies,
+                unmapped_keys=sorted(list(set(unmapped_keys))),
+                is_shadow=is_shadow,
             )
 
         # Cancelled
@@ -166,4 +267,65 @@ class EntitlementService:
             can_write_billable=False,
             can_create_appointments=False,
             reason="Subscription cancelled.",
+            plan_id=plan_id,
+            plan_name=plan_name,
+            commercial_decisions=commercial_decisions,
+            shadow_discrepancies=shadow_discrepancies,
+            unmapped_keys=sorted(list(set(unmapped_keys))),
+            is_shadow=is_shadow,
         )
+
+    @staticmethod
+    def evaluate_commercial_capability(
+        tenant: Tenant,
+        capability: str,
+        operation: str = OperationClass.WRITE_BUSINESS.value,
+        now: Optional[datetime] = None,
+        override_mode: Optional[str] = None,
+        commercial_overrides: Optional[Dict[str, bool]] = None,
+        emergency_restrictions: Optional[Set[str]] = None,
+        rollout_resolver: Optional[Callable[[str, int], bool]] = None,
+    ) -> CommercialDecision:
+        """
+        Evaluate a single commercial capability using the canonical typed decision engine.
+        """
+        return CommercialDecisionEngine.evaluate_capability(
+            tenant=tenant,
+            capability=capability,
+            operation=operation,
+            now=now,
+            override_mode=override_mode,
+            commercial_overrides=commercial_overrides,
+            emergency_restrictions=emergency_restrictions,
+            rollout_resolver=rollout_resolver,
+        )
+
+    @staticmethod
+    def get_effective_capabilities(
+        tenant: Tenant,
+        now: Optional[datetime] = None,
+        override_mode: Optional[str] = None,
+        commercial_overrides: Optional[Dict[str, bool]] = None,
+        emergency_restrictions: Optional[Set[str]] = None,
+        rollout_resolver: Optional[Callable[[str, int], bool]] = None,
+    ) -> Dict[str, CommercialDecision]:
+        """
+        Return the complete dictionary of commercial capability decisions for a tenant.
+        """
+        current_time = _as_utc(now or datetime.now(timezone.utc))
+        mode = override_mode or get_subscription_enforcement_mode()
+        decisions: Dict[str, CommercialDecision] = {}
+
+        for cap_key in CAPABILITY_REGISTRY.keys():
+            decisions[cap_key] = CommercialDecisionEngine.evaluate_capability(
+                tenant=tenant,
+                capability=cap_key,
+                operation=OperationClass.WRITE_BUSINESS.value,
+                now=current_time,
+                override_mode=mode,
+                commercial_overrides=commercial_overrides,
+                emergency_restrictions=emergency_restrictions,
+                rollout_resolver=rollout_resolver,
+            )
+
+        return decisions

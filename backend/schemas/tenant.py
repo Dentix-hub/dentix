@@ -223,3 +223,59 @@ class SubscriptionWebhookEvent(BaseModel):
     @classmethod
     def normalize_currency(cls, value: str) -> str:
         return value.strip().upper()
+
+
+# -------------------------------------------------------------
+# PR-02 Additive Commercial Capability Schemas
+# -------------------------------------------------------------
+
+class CommercialDecisionSchema(BaseModel):
+    capability: str
+    operation: str
+    allowed: bool
+    proposed_allowed: bool
+    is_shadow: bool
+    is_discrepancy: bool
+    mode: str
+    reason_code: str
+    explanation_en: str
+    explanation_ar: str
+    commercial_grant: bool
+    subscription_state_allowed: bool
+    rollout_allowed: bool
+    emergency_denied: bool
+    is_clinical_history_read: bool
+    plan_id: Optional[int] = None
+    plan_name: Optional[str] = None
+    policy_revision: int = 1
+    diagnostics: dict = Field(default_factory=dict)
+
+
+class CapabilityMetadataSchema(BaseModel):
+    key: str
+    display_name_en: str
+    display_name_ar: str
+    is_sellable: bool
+    default_enabled_launch: bool
+    allowed_operations: list[str]
+    associated_routes: list[str]
+    associated_tools: list[str]
+    description_en: str = ""
+    description_ar: str = ""
+
+
+class TenantEffectiveEntitlementsResponse(BaseModel):
+    tenant_id: int
+    plan_id: Optional[int] = None
+    plan_name: Optional[str] = None
+    status: str
+    mode: str
+    is_shadow: bool
+    can_read_clinical: bool
+    can_write_clinical: bool
+    can_write_billable: bool
+    can_create_appointments: bool
+    commercial_decisions: dict[str, CommercialDecisionSchema]
+    shadow_discrepancies: list[str] = Field(default_factory=list)
+    unmapped_keys: list[str] = Field(default_factory=list)
+
