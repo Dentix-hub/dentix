@@ -22,8 +22,9 @@ def test_alembic_single_head_and_linear_lineage():
 
     heads = script_dir.get_heads()
     assert len(heads) == 1, f"Expected exactly 1 Alembic head revision, found {heads}"
-    assert heads[0] == "2a3b4c5d6e7f", f"Expected current head revision, got {heads[0]}"
+    assert heads[0] == "3b4c5d6e7f8a", f"Expected current head revision, got {heads[0]}"
 
+    assert script_dir.get_revision("3b4c5d6e7f8a").down_revision == "2a3b4c5d6e7f"
     assert script_dir.get_revision("2a3b4c5d6e7f").down_revision == "1f2e3d4c5b6a"
     assert script_dir.get_revision("1f2e3d4c5b6a").down_revision == "f5b6c7d8e9f0"
     assert script_dir.get_revision("f5b6c7d8e9f0").down_revision == "e4a5b6c7d8e9"

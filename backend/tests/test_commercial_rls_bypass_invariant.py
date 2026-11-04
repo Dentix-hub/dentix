@@ -34,3 +34,13 @@ def test_cleanup_migration_exists_and_is_head():
     assert 'down_revision: Union[str, Sequence[str], None] = "1f2e3d4c5b6a"' in content
     assert "ALTER POLICY" in content
     assert "rls.bypass_rls" in content
+
+
+def test_ai_reservations_trigger_migration_exists():
+    """Migration 3b4c5d6e7f8a must exist and install child tenant triggers for ai_reservations."""
+    trigger_path = Path("backend/alembic/versions/3b4c5d6e7f8a_ai_reservations_child_tenant_triggers.py")
+    assert trigger_path.is_file()
+    content = trigger_path.read_text(encoding="utf-8")
+    assert 'down_revision: Union[str, Sequence[str], None] = "2a3b4c5d6e7f"' in content
+    assert "trg_ai_reservations_window_id_parent_tenant" in content
+    assert "trg_ai_reservations_user_id_parent_tenant" in content
