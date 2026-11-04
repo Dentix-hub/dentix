@@ -357,15 +357,55 @@ async def get_current_user(
                 detail="تم إيقاف حساب العيادة مؤقتاً. يرجى التواصل مع الدعم الفني.",
             )
 
-        entitlements = EntitlementService.evaluate_tenant_entitlements(user.tenant)
-        if (
-            request.method.upper() not in SAFE_IMPERSONATION_METHODS
-            and not entitlements.can_write_clinical
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="انتهت صلاحية الاشتراك. يرجى التجديد للتمكن من الإضافة أو التعديل.",
+        emergency_restrictions, commercial_overrides = (
+            await EntitlementService.async_resolve_restrictions_and_overrides(
+                db, user.tenant_id
             )
+        )
+        entitlements = EntitlementService.evaluate_tenant_entitlements(
+            user.tenant,
+            emergency_restrictions=emergency_restrictions,
+            commercial_overrides=commercial_overrides,
+        )
+        path = request.url.path
+        is_auth_endpoint = path.startswith("/api/v1/auth") or path.startswith("/auth")
+        clinical_prefixes = (
+            "/api/v1/patients",
+            "/patients",
+            "/api/v1/appointments",
+            "/appointments",
+            "/api/v1/treatments",
+            "/treatments",
+            "/api/v1/prescriptions",
+            "/prescriptions",
+            "/api/v1/medications",
+            "/medications",
+            "/api/v1/procedures",
+            "/procedures",
+            "/api/v1/procedure-chart-styles",
+            "/procedure-chart-styles",
+            "/api/v1/next-visit-requests",
+            "/next-visit-requests",
+            "/api/v1/workflow-templates",
+            "/workflow-templates",
+            "/api/v1/clinical",
+            "/clinical",
+        )
+        is_clinical_path = any(path.startswith(p) for p in clinical_prefixes)
+
+        if not is_auth_endpoint and request.method.upper() not in SAFE_IMPERSONATION_METHODS:
+            if not entitlements.can_write_clinical and not entitlements.can_write_billable:
+                detail_msg = entitlements.reason or "انتهت صلاحية الاشتراك. يرجى التجديد للتمكن من الإضافة أو التعديل."
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=detail_msg,
+                )
+            elif not entitlements.can_write_clinical and is_clinical_path:
+                detail_msg = entitlements.reason or "الخاصية السريرية غير مفعلة في باقة اشتراك العيادة."
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=detail_msg,
+                )
 
     from backend.core.tenancy import set_current_tenant_id, set_super_admin_bypass
 

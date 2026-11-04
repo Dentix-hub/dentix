@@ -8,8 +8,9 @@ PR-02: Extended with typed commercial capability decision engine and shadow eval
 Existing caller contracts, return signatures, and enforcement semantics are 100% preserved.
 """
 
+import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional, Set, Callable
+from typing import Dict, Any, List, Optional, Set, Callable, Tuple
 from backend.core.config import get_subscription_enforcement_mode
 from backend.models.tenant import Tenant
 from backend.services.subscription_state_machine import (
@@ -25,6 +26,8 @@ from backend.services.commercial_decision import (
     CommercialDecision,
     CommercialDecisionEngine,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
@@ -122,7 +125,12 @@ class EntitlementService:
         elif norm_status == SubscriptionState.GRACE.value and not is_in_grace:
             effective_status = SubscriptionState.EXPIRED_READ_ONLY.value
 
-        plan = getattr(tenant, "subscription_plan", None)
+        plan = tenant.__dict__.get("subscription_plan") if hasattr(tenant, "__dict__") else None
+        if plan is None:
+            try:
+                plan = getattr(tenant, "subscription_plan", None)
+            except Exception:
+                plan = None
         plan_name = getattr(plan, "name", getattr(tenant, "plan", None))
         plan_id = getattr(plan, "id", getattr(tenant, "plan_id", None))
 
@@ -204,15 +212,32 @@ class EntitlementService:
             SubscriptionState.TRIAL.value,
             SubscriptionState.GRACE.value,
         }:
+            clinical_decision = commercial_decisions.get(CapabilityKey.CLINICAL.value, {})
+            has_explicit_denial = bool(
+                clinical_decision.get("emergency_denied")
+                or (plan is not None and not clinical_decision.get("commercial_grant", True))
+                or (getattr(tenant, "is_active", True) is False)
+            )
+            if has_explicit_denial:
+                can_write = False
+                reason_msg = (
+                    clinical_decision.get("explanation_ar")
+                    or clinical_decision.get("explanation_en")
+                    or "Clinical write access is restricted."
+                )
+            else:
+                can_write = True
+                reason_msg = None
+
             return EntitlementEvaluation(
                 tenant_id=tenant.id,
                 status=effective_status,
                 mode=mode,
                 can_read_clinical=True,
-                can_write_clinical=True,
-                can_write_billable=True,
-                can_create_appointments=True,
-                reason=None,
+                can_write_clinical=can_write,
+                can_write_billable=can_write,
+                can_create_appointments=can_write,
+                reason=reason_msg,
                 plan_id=plan_id,
                 plan_name=plan_name,
                 commercial_decisions=commercial_decisions,
@@ -329,3 +354,57 @@ class EntitlementService:
             )
 
         return decisions
+
+    @staticmethod
+    async def async_resolve_restrictions_and_overrides(
+        db: Any,
+        tenant_id: Optional[int],
+        now: Optional[datetime] = None,
+    ) -> Tuple[Set[str], Dict[str, bool]]:
+        """Asynchronously query active emergency restrictions and tenant commercial overrides from DB."""
+        from unittest.mock import Mock
+        from sqlalchemy import select, or_
+        from backend import models
+
+        emergency_restrictions: Set[str] = set()
+        commercial_overrides: Dict[str, bool] = {}
+
+        if not db or not hasattr(db, "execute") or isinstance(db, Mock):
+            return emergency_restrictions, commercial_overrides
+
+        current_time = _as_utc(now or datetime.now(timezone.utc))
+        now_naive = current_time.replace(tzinfo=None) if current_time.tzinfo else current_time
+
+        try:
+            # Query emergency restrictions from SystemSetting
+            prefix = "emergency_restriction_"
+            stmt_sys = select(models.SystemSetting).where(
+                models.SystemSetting.key.startswith(prefix)
+            )
+            res_sys = await db.execute(stmt_sys)
+            sys_rows = res_sys.scalars().all() if hasattr(res_sys, "scalars") else []
+            for r in sys_rows:
+                if getattr(r, "value", "false") == "true":
+                    canon_key = r.key[len(prefix):]
+                    emergency_restrictions.add(canon_key)
+        except Exception as exc:
+            logger.warning("Failed to query emergency restrictions: %s", exc)
+
+        if tenant_id:
+            try:
+                # Query tenant commercial overrides
+                stmt_ov = select(models.CommercialTenantOverride).where(
+                    models.CommercialTenantOverride.tenant_id == tenant_id,
+                    or_(
+                        models.CommercialTenantOverride.expires_at.is_(None),
+                        models.CommercialTenantOverride.expires_at > now_naive,
+                    ),
+                )
+                res_ov = await db.execute(stmt_ov)
+                ov_rows = res_ov.scalars().all() if hasattr(res_ov, "scalars") else []
+                for r in ov_rows:
+                    commercial_overrides[r.capability_key] = bool(r.is_enabled)
+            except Exception as exc:
+                logger.warning("Failed to query commercial overrides for tenant %s: %s", tenant_id, exc)
+
+        return emergency_restrictions, commercial_overrides

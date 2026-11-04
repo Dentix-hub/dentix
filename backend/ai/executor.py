@@ -4,6 +4,8 @@ Executes AI tool commands against the database and enforces the same RBAC
 boundaries as the equivalent HTTP workflows.
 """
 
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional
 import logging
@@ -13,7 +15,7 @@ from backend import models
 from backend.ai.errors import AIException
 from backend.core.permissions import Permission, has_permission
 from backend.core.commercial_registry import CapabilityKey, OperationClass
-from backend.services.commercial_decision import CommercialDecisionEngine
+from backend.services.commercial_decision import CommercialDecisionEngine, CommercialReasonCode
 
 from ..ai.handlers.patient import PatientHandler
 from ..ai.handlers.appointment import AppointmentHandler
@@ -218,26 +220,42 @@ class ToolExecutor:
 
         # Avoid async lazy-loading relationship error on self.user.tenant
         tenant = self.user.__dict__.get("tenant")
-        if tenant is None and self.tenant_id and self.db is not None:
+        if (tenant is None or tenant.__dict__.get("subscription_plan") is None) and self.tenant_id and self.db is not None:
             try:
-                tenant = await self.db.get(models.Tenant, self.tenant_id)
+                stmt = (
+                    select(models.Tenant)
+                    .options(selectinload(models.Tenant.subscription_plan))
+                    .where(models.Tenant.id == self.tenant_id)
+                )
+                res = await self.db.execute(stmt)
+                fetched = res.scalar_one_or_none()
+                if fetched is not None:
+                    tenant = fetched
             except Exception:
-                tenant = None
+                pass
 
         if not tenant:
             return None
 
         from backend.core.config import get_subscription_enforcement_mode
+        from backend.services.entitlement_service import EntitlementService
 
         mode = get_subscription_enforcement_mode()
         is_write = tool_name.startswith(("create_", "add_", "update_", "record_", "send_", "learn_", "forget_"))
         op_class = OperationClass.WRITE_BUSINESS.value if is_write else OperationClass.READ_HISTORY.value
 
+        emergency_restrictions, active_overrides = (
+            await EntitlementService.async_resolve_restrictions_and_overrides(
+                self.db, self.tenant_id
+            )
+        )
         decision = CommercialDecisionEngine.evaluate_capability(
             tenant=tenant,
             capability=req_cap,
             operation=op_class,
             override_mode=mode,
+            commercial_overrides=active_overrides,
+            emergency_restrictions=emergency_restrictions,
         )
         if not decision.allowed:
             logger.warning(
@@ -246,10 +264,22 @@ class ToolExecutor:
                 req_cap,
                 decision.reason_code.value,
             )
+            rc = decision.reason_code
+            if rc == CommercialReasonCode.SUBSCRIPTION_EXPIRED:
+                error_code = "subscription_expired"
+            elif rc == CommercialReasonCode.SUBSCRIPTION_CANCELLED:
+                error_code = "subscription_cancelled"
+            elif rc == CommercialReasonCode.TENANT_SUSPENDED:
+                error_code = "tenant_suspended"
+            elif rc == CommercialReasonCode.EMERGENCY_RESTRICTION_ACTIVE:
+                error_code = "emergency_restriction_active"
+            else:
+                error_code = "plan_restricted"
+
             return {
                 "success": False,
-                "error_code": "plan_restricted",
-                "message": f"عفواً، خاصية '{req_cap}' غير مفعلة في باقة اشتراك العيادة.",
+                "error_code": error_code,
+                "message": decision.explanation_ar or f"عفواً، خاصية '{req_cap}' غير مفعلة في باقة اشتراك العيادة.",
                 "risk_level": "BLOCKED",
             }
         return None
