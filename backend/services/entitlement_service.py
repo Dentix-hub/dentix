@@ -81,6 +81,9 @@ class EntitlementEvaluation:
             "can_write_clinical": self.can_write_clinical,
             "can_write_billable": self.can_write_billable,
             "can_create_appointments": self.can_create_appointments,
+            "can_manage_inventory": self.can_manage_inventory,
+            "can_manage_laboratories": self.can_manage_laboratories,
+            "can_manage_backups": self.can_manage_backups,
             "reason": self.reason,
             "plan_id": self.plan_id,
             "plan_name": self.plan_name,
@@ -89,6 +92,45 @@ class EntitlementEvaluation:
             "unmapped_keys": self.unmapped_keys,
             "is_shadow": self.is_shadow,
         }
+
+    @property
+    def can_manage_inventory(self) -> bool:
+        if self.mode == "off":
+            return True
+        if self.status in {
+            SubscriptionState.EXPIRED_READ_ONLY.value,
+            SubscriptionState.CANCELLED.value,
+            SubscriptionState.SUSPENDED_ADMIN.value,
+        }:
+            return False
+        dec = self.commercial_decisions.get(CapabilityKey.INVENTORY.value, {})
+        return bool(dec.get("allowed", True))
+
+    @property
+    def can_manage_laboratories(self) -> bool:
+        if self.mode == "off":
+            return True
+        if self.status in {
+            SubscriptionState.EXPIRED_READ_ONLY.value,
+            SubscriptionState.CANCELLED.value,
+            SubscriptionState.SUSPENDED_ADMIN.value,
+        }:
+            return False
+        dec = self.commercial_decisions.get(CapabilityKey.LABORATORIES.value, {})
+        return bool(dec.get("allowed", True))
+
+    @property
+    def can_manage_backups(self) -> bool:
+        if self.mode == "off":
+            return True
+        if self.status in {
+            SubscriptionState.EXPIRED_READ_ONLY.value,
+            SubscriptionState.CANCELLED.value,
+            SubscriptionState.SUSPENDED_ADMIN.value,
+        }:
+            return False
+        dec = self.commercial_decisions.get(CapabilityKey.TENANT_BACKUPS.value, {})
+        return bool(dec.get("allowed", True))
 
 
 class EntitlementService:

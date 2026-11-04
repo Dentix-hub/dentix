@@ -403,6 +403,12 @@ async def get_current_user(
             "/accounting",
             "/api/v1/financials",
             "/financials",
+            "/api/v1/clinical-charges",
+            "/clinical-charges",
+            "/api/v1/price-lists",
+            "/price-lists",
+            "/api/v1/insurance",
+            "/insurance",
         )
         is_financial_write_path = any(path.startswith(p) for p in financial_write_prefixes)
 
@@ -415,10 +421,36 @@ async def get_current_user(
             or path.endswith("/export.csv")
         )
 
+        inventory_prefixes = (
+            "/api/v1/inventory",
+            "/inventory",
+        )
+        is_inventory_write_path = any(path.startswith(p) for p in inventory_prefixes)
+
+        lab_prefixes = (
+            "/api/v1/laboratories",
+            "/laboratories",
+            "/api/v1/lab-orders",
+            "/lab-orders",
+        )
+        is_lab_write_path = any(path.startswith(p) for p in lab_prefixes)
+
+        backup_prefixes = (
+            "/api/v1/settings/backup",
+            "/settings/backup",
+            "/api/v1/settings/drive",
+            "/settings/drive",
+            "/api/v1/tenant-backups",
+            "/tenant-backups",
+            "/api/v1/clinic-google",
+            "/clinic-google",
+        )
+        is_backup_path = any(path.startswith(p) for p in backup_prefixes)
+
         if not is_auth_endpoint:
             if request.method.upper() not in SAFE_IMPERSONATION_METHODS:
                 if not entitlements.can_write_clinical and not entitlements.can_write_billable:
-                    detail_msg = entitlements.reason or "انتهت صلاحية الاشتراك. يرجى التجديد للتمكن من الإضافة أو التعديل."
+                    detail_msg = "انتهت صلاحية الاشتراك. يرجى التجديد للتمكن من الإضافة أو التعديل."
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail=detail_msg,
@@ -441,6 +473,30 @@ async def get_current_user(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail=detail_msg,
                     )
+                elif is_inventory_write_path:
+                    inv_dec = entitlements.commercial_decisions.get(CapabilityKey.INVENTORY.value, {})
+                    if not inv_dec.get("allowed", True):
+                        detail_msg = (
+                            inv_dec.get("explanation_ar")
+                            or inv_dec.get("explanation_en")
+                            or "خاصية المخزون والمواد الطبية غير مفعلة في باقة اشتراك العيادة."
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=detail_msg,
+                        )
+                elif is_lab_write_path:
+                    lab_dec = entitlements.commercial_decisions.get(CapabilityKey.LABORATORIES.value, {})
+                    if not lab_dec.get("allowed", True):
+                        detail_msg = (
+                            lab_dec.get("explanation_ar")
+                            or lab_dec.get("explanation_en")
+                            or "خاصية إدارة المعامل غير مفعلة في باقة اشتراك العيادة."
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=detail_msg,
+                        )
 
             if is_export_report_path:
                 export_dec = entitlements.commercial_decisions.get(CapabilityKey.EXPORT_REPORTS.value, {})
@@ -449,6 +505,19 @@ async def get_current_user(
                         export_dec.get("explanation_ar")
                         or export_dec.get("explanation_en")
                         or "خاصية تصدير التقارير غير مفعلة في باقة اشتراك العيادة."
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=detail_msg,
+                    )
+
+            if is_backup_path:
+                backup_dec = entitlements.commercial_decisions.get(CapabilityKey.TENANT_BACKUPS.value, {})
+                if not backup_dec.get("allowed", True):
+                    detail_msg = (
+                        backup_dec.get("explanation_ar")
+                        or backup_dec.get("explanation_en")
+                        or "خاصية النسخ الاحتياطي وأرشفة بيانات العيادة غير مفعلة في باقة اشتراك العيادة."
                     )
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,

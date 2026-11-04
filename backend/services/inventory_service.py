@@ -32,10 +32,56 @@ class InventoryService:
             raise RuntimeError("No database session provided to InventoryService. Please pass db parameter to method calls.")
         return result
 
+    async def ensure_commercial_writes_enabled(self, tenant_id: int, db: AsyncSession = None) -> None:
+        """Enforce commercial entitlement for inventory mutations."""
+        from fastapi import HTTPException
+        from sqlalchemy.orm import selectinload
+        from backend import models
+        from backend.core.config import get_subscription_enforcement_mode
+        from backend.core.commercial_registry import CapabilityKey
+        from backend.services.entitlement_service import EntitlementService
+
+        mode = get_subscription_enforcement_mode()
+        if mode in {"off", "observe"}:
+            return
+        tid = tenant_id or self.tenant_id
+        session = self._get_db(db)
+        if not tid or not hasattr(session, "execute"):
+            return
+        stmt = (
+            select(models.Tenant)
+            .options(selectinload(models.Tenant.subscription_plan))
+            .where(models.Tenant.id == tid)
+        )
+        res = await session.execute(stmt)
+        tenant = res.scalar_one_or_none()
+        if tenant:
+            emergency_restrictions, commercial_overrides = (
+                await EntitlementService.async_resolve_restrictions_and_overrides(
+                    session, tid
+                )
+            )
+            eval_res = EntitlementService.evaluate_tenant_entitlements(
+                tenant,
+                override_mode=mode,
+                emergency_restrictions=emergency_restrictions,
+                commercial_overrides=commercial_overrides,
+            )
+            inv_dec = eval_res.commercial_decisions.get(CapabilityKey.INVENTORY.value, {})
+            if not inv_dec.get("allowed", True):
+                detail_msg = (
+                    inv_dec.get("explanation_ar")
+                    or inv_dec.get("explanation_en")
+                    or eval_res.reason
+                    or "خاصية المخزون والمواد الطبية غير مفعلة في باقة اشتراك العيادة."
+                )
+                raise HTTPException(status_code=403, detail=detail_msg)
+
     # --- WAREHOUSE ---
     async def create_warehouse(
         self, data: schemas.WarehouseCreate, tenant_id: int, db: AsyncSession = None
     ) -> Warehouse:
+        await self.ensure_commercial_writes_enabled(tenant_id, db)
         db = self._get_db(db)
         wh = Warehouse(**data.model_dump(), tenant_id=tenant_id)
         db.add(wh)
@@ -53,6 +99,7 @@ class InventoryService:
         """
         Delete warehouse if empty (no stock items with quantity > 0).
         """
+        await self.ensure_commercial_writes_enabled(tenant_id, db)
         db = self._get_db(db)
         stmt = select(Warehouse).where(Warehouse.id == warehouse_id, Warehouse.tenant_id == tenant_id)
         wh = (await db.execute(stmt)).scalars().first()
@@ -105,6 +152,7 @@ class InventoryService:
     async def create_material(
         self, data: schemas.MaterialCreate, tenant_id: int, db: AsyncSession = None
     ) -> Material:
+        await self.ensure_commercial_writes_enabled(tenant_id, db)
         db = self._get_db(db)
         mat = Material(**data.model_dump(), tenant_id=tenant_id)
         db.add(mat)
@@ -130,6 +178,7 @@ class InventoryService:
         tenant_id: int,
         db: AsyncSession = None,
     ) -> Material:
+        await self.ensure_commercial_writes_enabled(tenant_id, db)
         db = self._get_db(db)
         stmt = select(Material).where(
             Material.id == material_id,
@@ -238,6 +287,7 @@ class InventoryService:
         Purchase/Receive Stock.
         Creates SEPARATE StockItems for each unit so each can have its own session.
         """
+        await self.ensure_commercial_writes_enabled(tenant_id, db)
         db = self._get_db(db)
 
         # 1. Check Batch
@@ -524,6 +574,7 @@ class InventoryService:
         Enforces strict opening rules:
         - If item is not 'Open' (no active session), requires auto_open=True or fails.
         """
+        await self.ensure_commercial_writes_enabled(tenant_id, db)
         db = self._get_db(db)
 
         # 0. Resolve Warehouse (Default to CLINIC if not specified)
@@ -825,6 +876,7 @@ class InventoryService:
         """
         Soft-delete an empty material while preserving its inventory audit trail.
         """
+        await self.ensure_commercial_writes_enabled(tenant_id, db)
         db = self._get_db(db)
 
         stmt_mat = select(Material).where(
@@ -929,6 +981,7 @@ class InventoryService:
         """
         Transfer stock between warehouses (e.g., MAIN -> CLINIC).
         """
+        await self.ensure_commercial_writes_enabled(tenant_id, db)
         db = self._get_db(db)
 
         # 1. Source Item
