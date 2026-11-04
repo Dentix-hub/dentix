@@ -177,30 +177,28 @@ class SubscriptionPlanBase(BaseModel):
     policy_revision: int = 1
     billing_cycle_unit: str = "month"
 
+    @field_validator("billing_cycle_unit")
+    @classmethod
+    def check_billing_cycle_unit(cls, v: str) -> str:
+        unit = (v or "month").strip().lower()
+        if unit not in {"day", "month", "year"}:
+            return "month"
+        return unit
+
+
+class SubscriptionPlanCreate(SubscriptionPlanBase):
     @field_validator("features")
     @classmethod
     def check_features(cls, v: Optional[str]) -> Optional[str]:
         return validate_plan_features_json(v)
 
-    @field_validator("billing_cycle_unit")
-    @classmethod
-    def check_billing_cycle_unit(cls, v: str) -> str:
-        unit = v.strip().lower()
-        if unit not in {"day", "month", "year"}:
-            raise ValueError("billing_cycle_unit must be 'day', 'month', or 'year'")
-        return unit
-
     @model_validator(mode="after")
-    def check_ai_limits(self) -> "SubscriptionPlanBase":
+    def check_ai_limits(self) -> "SubscriptionPlanCreate":
         if self.is_ai_enabled and self.ai_daily_limit <= 0:
             raise ValueError("ai_daily_limit must be greater than 0 when is_ai_enabled is True")
         if not self.is_ai_enabled and self.ai_daily_limit > 0:
             raise ValueError("ai_daily_limit must be 0 when is_ai_enabled is False")
         return self
-
-
-class SubscriptionPlanCreate(SubscriptionPlanBase):
-    pass
 
 
 class SubscriptionPlanUpdate(BaseModel):
@@ -233,6 +231,14 @@ class SubscriptionPlanUpdate(BaseModel):
         if unit not in {"day", "month", "year"}:
             raise ValueError("billing_cycle_unit must be 'day', 'month', or 'year'")
         return unit
+
+    @model_validator(mode="after")
+    def check_ai_limits(self) -> "SubscriptionPlanUpdate":
+        if self.is_ai_enabled is True and (self.ai_daily_limit is not None and self.ai_daily_limit <= 0):
+            raise ValueError("ai_daily_limit must be greater than 0 when is_ai_enabled is True")
+        if self.is_ai_enabled is False and (self.ai_daily_limit is not None and self.ai_daily_limit > 0):
+            raise ValueError("ai_daily_limit must be 0 when is_ai_enabled is False")
+        return self
 
 
 class SubscriptionPlanPreviewRequest(BaseModel):

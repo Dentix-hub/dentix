@@ -53,7 +53,7 @@ async def seed_default_data(db) -> None:
                 duration_days=14,
                 max_users=1,
                 max_patients=50,
-                features='["TRIAL", "BASIC_REPORTING"]',
+                features='["clinical", "export_reports"]',
                 is_active=True
             ),
             models.SubscriptionPlan(
@@ -63,7 +63,7 @@ async def seed_default_data(db) -> None:
                 duration_days=30,
                 max_users=2,
                 max_patients=500,
-                features='["BILLING", "REPORTS_BASIC"]',
+                features='["billing", "export_reports"]',
                 is_active=True
             ),
             models.SubscriptionPlan(
@@ -73,7 +73,7 @@ async def seed_default_data(db) -> None:
                 duration_days=30,
                 max_users=5,
                 max_patients=2000,
-                features='["BILLING", "REPORTS_ADVANCED", "LAB_INTEGRATION", "MULTI_USER"]',
+                features='["billing", "export_reports", "laboratories", "clinical"]',
                 is_active=True
             ),
             models.SubscriptionPlan(
@@ -83,7 +83,7 @@ async def seed_default_data(db) -> None:
                 duration_days=30,
                 max_users=None,
                 max_patients=None,
-                features='["BILLING", "REPORTS_ADVANCED", "LAB_INTEGRATION", "MULTI_USER", "AI_ASSISTANT"]',
+                features='["billing", "export_reports", "laboratories", "clinical", "ai_insights"]',
                 is_active=True
             )
         ]
@@ -193,7 +193,7 @@ async def seed_subscription_plans():
                             display_name_ar='تجريبي',
                             price=0.0,
                             duration_days=7,
-                            features='["TRIAL", "BASIC_REPORTING"]',
+                            features='["clinical", "export_reports"]',
                             max_users=1,
                             max_patients=10
                         ),
@@ -202,7 +202,7 @@ async def seed_subscription_plans():
                             display_name_ar='أساسي',
                             price=500.0,
                             duration_days=30,
-                            features='["BILLING", "REPORTS_BASIC"]',
+                            features='["billing", "export_reports"]',
                             max_users=1,
                             max_patients=100
                         ),
@@ -211,7 +211,7 @@ async def seed_subscription_plans():
                             display_name_ar='محترف',
                             price=1000.0,
                             duration_days=30,
-                            features='["BILLING", "REPORTS_ADVANCED", "LAB_INTEGRATION", "MULTI_USER"]',
+                            features='["billing", "export_reports", "laboratories", "clinical"]',
                             max_users=5,
                             max_patients=None
                         ),
@@ -220,7 +220,7 @@ async def seed_subscription_plans():
                             display_name_ar='مؤسسات',
                             price=2500.0,
                             duration_days=30,
-                            features='["BILLING", "REPORTS_ADVANCED", "LAB_INTEGRATION", "MULTI_USER", "AI_ASSISTANT"]',
+                            features='["billing", "export_reports", "laboratories", "clinical", "ai_insights"]',
                             max_users=None,
                             max_patients=None
                         )

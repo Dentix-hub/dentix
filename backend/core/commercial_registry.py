@@ -321,6 +321,8 @@ CAPABILITY_ALIASES: Dict[str, str] = {
     "prescriptions": CapabilityKey.CLINICAL.value,
     "odontogram": CapabilityKey.CLINICAL.value,
     "dashboard": CapabilityKey.CLINICAL.value,
+    "multi_user": CapabilityKey.CLINICAL.value,
+    "trial": CapabilityKey.CLINICAL.value,
 
     # Billing
     "billing": CapabilityKey.BILLING.value,
@@ -350,6 +352,9 @@ CAPABILITY_ALIASES: Dict[str, str] = {
     "export_reports": CapabilityKey.EXPORT_REPORTS.value,
     "reports_advanced": CapabilityKey.EXPORT_REPORTS.value,
     "advanced_reports": CapabilityKey.EXPORT_REPORTS.value,
+    "reports_basic": CapabilityKey.EXPORT_REPORTS.value,
+    "basic_reporting": CapabilityKey.EXPORT_REPORTS.value,
+    "reporting": CapabilityKey.EXPORT_REPORTS.value,
     "analytics": CapabilityKey.EXPORT_REPORTS.value,
     "exports": CapabilityKey.EXPORT_REPORTS.value,
     "finance_exports": CapabilityKey.EXPORT_REPORTS.value,
