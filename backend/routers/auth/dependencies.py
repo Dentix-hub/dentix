@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models, schemas, crud, auth
 from backend.database import get_async_db
 from backend.core.permissions import Role
+from backend.core.commercial_registry import CapabilityKey
 from backend.services.auth_service import AuthService
 from backend.services.entitlement_service import EntitlementService
 
@@ -393,19 +394,66 @@ async def get_current_user(
         )
         is_clinical_path = any(path.startswith(p) for p in clinical_prefixes)
 
-        if not is_auth_endpoint and request.method.upper() not in SAFE_IMPERSONATION_METHODS:
-            if not entitlements.can_write_clinical and not entitlements.can_write_billable:
-                detail_msg = entitlements.reason or "انتهت صلاحية الاشتراك. يرجى التجديد للتمكن من الإضافة أو التعديل."
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=detail_msg,
-                )
-            elif not entitlements.can_write_clinical and is_clinical_path:
-                detail_msg = entitlements.reason or "الخاصية السريرية غير مفعلة في باقة اشتراك العيادة."
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail=detail_msg,
-                )
+        financial_write_prefixes = (
+            "/api/v1/payments",
+            "/payments",
+            "/api/v1/expenses",
+            "/expenses",
+            "/api/v1/accounting",
+            "/accounting",
+            "/api/v1/financials",
+            "/financials",
+        )
+        is_financial_write_path = any(path.startswith(p) for p in financial_write_prefixes)
+
+        export_report_prefixes = (
+            "/api/v1/reports",
+            "/reports",
+        )
+        is_export_report_path = (
+            any(path.startswith(p) for p in export_report_prefixes)
+            or path.endswith("/export.csv")
+        )
+
+        if not is_auth_endpoint:
+            if request.method.upper() not in SAFE_IMPERSONATION_METHODS:
+                if not entitlements.can_write_clinical and not entitlements.can_write_billable:
+                    detail_msg = entitlements.reason or "انتهت صلاحية الاشتراك. يرجى التجديد للتمكن من الإضافة أو التعديل."
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=detail_msg,
+                    )
+                elif not entitlements.can_write_clinical and is_clinical_path:
+                    detail_msg = entitlements.reason or "الخاصية السريرية غير مفعلة في باقة اشتراك العيادة."
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=detail_msg,
+                    )
+                elif not entitlements.can_write_billable and is_financial_write_path:
+                    billing_dec = entitlements.commercial_decisions.get(CapabilityKey.BILLING.value, {})
+                    detail_msg = (
+                        billing_dec.get("explanation_ar")
+                        or billing_dec.get("explanation_en")
+                        or entitlements.reason
+                        or "خاصية الفواتير والمدفوعات غير مفعلة في باقة اشتراك العيادة."
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=detail_msg,
+                    )
+
+            if is_export_report_path:
+                export_dec = entitlements.commercial_decisions.get(CapabilityKey.EXPORT_REPORTS.value, {})
+                if not export_dec.get("allowed", True):
+                    detail_msg = (
+                        export_dec.get("explanation_ar")
+                        or export_dec.get("explanation_en")
+                        or "خاصية تصدير التقارير غير مفعلة في باقة اشتراك العيادة."
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=detail_msg,
+                    )
 
     from backend.core.tenancy import set_current_tenant_id, set_super_admin_bypass
 
