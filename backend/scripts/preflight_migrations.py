@@ -128,6 +128,7 @@ RLS_TABLES = (
     "user_onboarding_state",
     "tenant_data_operations",
     "google_oauth_attempts",
+    "commercial_tenant_overrides",
 )
 
 CHILD_TENANT_RELATIONSHIPS = (
@@ -1033,7 +1034,9 @@ def _rls_release_migration_url(engine, config, db_url: str) -> tuple[str, bool]:
     release_data_revisions = {"d3e4f5a6b7c8"}
     if not pending.intersection(release_data_revisions):
         return db_url, False
-    data_only = pending.issubset(release_data_revisions)
+    release_target = "d3e4f5a6b7c8"
+    revisions_to_release = {rev.revision for rev in scripts.iterate_revisions(release_target, current)}
+    data_only = revisions_to_release.issubset(release_data_revisions)
     if _release_migration_access(db_url, needs_ddl=not data_only):
         os.environ.pop("DENTIX_MIGRATION_SET_ROLE", None)
         return db_url, data_only
@@ -1339,10 +1342,13 @@ def run_alembic_upgrade():
             logger.info("[PREFLIGHT] Existing versioned schema detected; running alembic upgrade head ...")
             release_url, release_data_only = _rls_release_migration_url(engine, alembic_cfg, db_url)
             if release_url != db_url:
-                engine.dispose()
-                db_url = release_url
-                engine = create_engine(db_url)
-                alembic_cfg = _alembic_config(db_url)
+                release_engine = create_engine(release_url)
+                release_alembic_cfg = _alembic_config(release_url)
+                if release_engine.name == "postgresql" and not release_data_only:
+                    _prepare_postgresql_migration_privileges(release_engine, release_url)
+                command.upgrade(release_alembic_cfg, "d3e4f5a6b7c8")
+                release_engine.dispose()
+
             if engine.name == "postgresql" and not release_data_only:
                 _prepare_postgresql_migration_privileges(engine, db_url)
 

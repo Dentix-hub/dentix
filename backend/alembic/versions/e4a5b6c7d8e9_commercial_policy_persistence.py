@@ -24,31 +24,33 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     bind = op.get_bind()
     is_postgres = (bind.dialect.name == "postgresql")
+    inspector = sa.inspect(bind)
+    tables = set(inspector.get_table_names())
 
     # 1. Additive columns on subscription_plans
-    inspector = sa.inspect(bind)
-    plan_cols = {c["name"] for c in inspector.get_columns("subscription_plans")}
-    if "policy_revision" not in plan_cols:
-        op.add_column(
-            "subscription_plans",
-            sa.Column("policy_revision", sa.Integer(), nullable=False, server_default="1"),
-        )
-    if "billing_cycle_unit" not in plan_cols:
-        op.add_column(
-            "subscription_plans",
-            sa.Column("billing_cycle_unit", sa.String(20), nullable=False, server_default="month"),
-        )
+    if "subscription_plans" in tables:
+        plan_cols = {c["name"] for c in inspector.get_columns("subscription_plans")}
+        if "policy_revision" not in plan_cols:
+            op.add_column(
+                "subscription_plans",
+                sa.Column("policy_revision", sa.Integer(), nullable=False, server_default="1"),
+            )
+        if "billing_cycle_unit" not in plan_cols:
+            op.add_column(
+                "subscription_plans",
+                sa.Column("billing_cycle_unit", sa.String(20), nullable=False, server_default="month"),
+            )
 
     # 2. Additive column on tenants
-    tenant_cols = {c["name"] for c in inspector.get_columns("tenants")}
-    if "policy_revision" not in tenant_cols:
-        op.add_column(
-            "tenants",
-            sa.Column("policy_revision", sa.Integer(), nullable=False, server_default="1"),
-        )
+    if "tenants" in tables:
+        tenant_cols = {c["name"] for c in inspector.get_columns("tenants")}
+        if "policy_revision" not in tenant_cols:
+            op.add_column(
+                "tenants",
+                sa.Column("policy_revision", sa.Integer(), nullable=False, server_default="1"),
+            )
 
     # 3. Create commercial_tenant_overrides table
-    tables = set(inspector.get_table_names())
     if "commercial_tenant_overrides" not in tables:
         op.create_table(
             "commercial_tenant_overrides",
@@ -136,12 +138,14 @@ def downgrade() -> None:
     if "commercial_tenant_overrides" in tables:
         op.drop_table("commercial_tenant_overrides")
 
-    tenant_cols = {c["name"] for c in inspector.get_columns("tenants")}
-    if "policy_revision" in tenant_cols:
-        op.drop_column("tenants", "policy_revision")
+    if "tenants" in tables:
+        tenant_cols = {c["name"] for c in inspector.get_columns("tenants")}
+        if "policy_revision" in tenant_cols:
+            op.drop_column("tenants", "policy_revision")
 
-    plan_cols = {c["name"] for c in inspector.get_columns("subscription_plans")}
-    if "billing_cycle_unit" in plan_cols:
-        op.drop_column("subscription_plans", "billing_cycle_unit")
-    if "policy_revision" in plan_cols:
-        op.drop_column("subscription_plans", "policy_revision")
+    if "subscription_plans" in tables:
+        plan_cols = {c["name"] for c in inspector.get_columns("subscription_plans")}
+        if "billing_cycle_unit" in plan_cols:
+            op.drop_column("subscription_plans", "billing_cycle_unit")
+        if "policy_revision" in plan_cols:
+            op.drop_column("subscription_plans", "policy_revision")
