@@ -104,7 +104,6 @@ def upgrade() -> None:
     # 3. Apply RLS on PostgreSQL
     if is_postgres:
         tenant_expr = "tenant_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer"
-        bypass_expr = "CAST(NULLIF(current_setting('rls.bypass_rls', true), '') AS BOOLEAN) = true"
 
         # ai_quota_windows
         op.execute('ALTER TABLE "ai_quota_windows" ENABLE ROW LEVEL SECURITY')
@@ -115,8 +114,8 @@ def upgrade() -> None:
                 f'''CREATE POLICY "ai_quota_windows_tenant_policy"
                     ON "ai_quota_windows"
                     FOR ALL
-                    USING (({tenant_expr}) OR {bypass_expr})
-                    WITH CHECK (({tenant_expr}) OR {bypass_expr})'''
+                    USING ({tenant_expr})
+                    WITH CHECK ({tenant_expr})'''
             )
         )
 
@@ -129,8 +128,8 @@ def upgrade() -> None:
                 f'''CREATE POLICY "ai_reservations_tenant_policy"
                     ON "ai_reservations"
                     FOR ALL
-                    USING (({tenant_expr}) OR {bypass_expr})
-                    WITH CHECK (({tenant_expr}) OR {bypass_expr})'''
+                    USING ({tenant_expr})
+                    WITH CHECK ({tenant_expr})'''
             )
         )
 

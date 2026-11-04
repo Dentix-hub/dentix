@@ -100,9 +100,6 @@ def upgrade() -> None:
         tenant_expr = (
             "tenant_id = NULLIF(current_setting('rls.tenant_id', true), '')::integer"
         )
-        bypass_expr = (
-            "CAST(NULLIF(current_setting('rls.bypass_rls', true), '') AS BOOLEAN) = true"
-        )
 
         op.execute('ALTER TABLE "commercial_tenant_overrides" ENABLE ROW LEVEL SECURITY')
         op.execute('ALTER TABLE "commercial_tenant_overrides" FORCE ROW LEVEL SECURITY')
@@ -115,8 +112,8 @@ def upgrade() -> None:
                 f'''CREATE POLICY "commercial_tenant_overrides_tenant_policy"
                     ON "commercial_tenant_overrides"
                     FOR ALL
-                    USING (({tenant_expr}) OR {bypass_expr})
-                    WITH CHECK (({tenant_expr}) OR {bypass_expr})'''
+                    USING ({tenant_expr})
+                    WITH CHECK ({tenant_expr})'''
             )
         )
 
