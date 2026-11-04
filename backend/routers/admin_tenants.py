@@ -292,6 +292,33 @@ async def get_tenant_entitlements_diagnostics(
     return success_response(data=diagnostics)
 
 
+@router.get("/{tenant_id}/commercial-overrides", response_model=StandardResponse[schemas.TenantCommercialOverridesResponse])
+async def get_tenant_commercial_overrides(
+    tenant_id: int,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Get active commercial capability overrides for a specific tenant."""
+    from backend.services.subscription_service import SubscriptionService
+    data = await SubscriptionService.get_tenant_commercial_overrides(db, tenant_id)
+    return success_response(data=data)
+
+
+@router.put("/{tenant_id}/commercial-overrides", response_model=StandardResponse[schemas.TenantCommercialOverridesResponse])
+async def update_tenant_commercial_overrides(
+    tenant_id: int,
+    update_data: schemas.TenantCommercialOverridesUpdateRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Update commercial capability overrides for a specific tenant with optimistic concurrency check."""
+    from backend.services.subscription_service import SubscriptionService
+    data = await SubscriptionService.update_tenant_commercial_overrides(
+        db, tenant_id, update_data, admin_user=current_user
+    )
+    return success_response(data=data, message="Commercial overrides updated successfully")
+
+
 
 @router.post("/{tenant_id}/features/{feature_key}", response_model=StandardResponse[dict])
 async def toggle_tenant_feature(

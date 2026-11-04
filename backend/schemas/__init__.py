@@ -260,6 +260,16 @@ from .tenant import (
     CapacitiesDiagnostics,
     CapabilityDiagnosticItem,
     TenantEntitlementDiagnosticsResponse,
+    SubscriptionPlanPreviewRequest,
+    SubscriptionPlanPreviewResponse,
+    CommercialOverrideItem,
+    TenantCommercialOverridesUpdateRequest,
+    CommercialTenantOverrideResponse,
+    TenantCommercialOverridesResponse,
+    TrialPolicyResponse,
+    TrialPolicyUpdateRequest,
+    EmergencyRestrictionUpdateRequest,
+    EmergencyRestrictionResponse,
 )
 
 # Laboratory
@@ -416,6 +426,16 @@ __all__ = [
     "CapacitiesDiagnostics",
     "CapabilityDiagnosticItem",
     "TenantEntitlementDiagnosticsResponse",
+    "SubscriptionPlanPreviewRequest",
+    "SubscriptionPlanPreviewResponse",
+    "CommercialOverrideItem",
+    "TenantCommercialOverridesUpdateRequest",
+    "CommercialTenantOverrideResponse",
+    "TenantCommercialOverridesResponse",
+    "TrialPolicyResponse",
+    "TrialPolicyUpdateRequest",
+    "EmergencyRestrictionUpdateRequest",
+    "EmergencyRestrictionResponse",
     # Laboratory
     "LaboratoryBase",
     "LaboratoryCreate",

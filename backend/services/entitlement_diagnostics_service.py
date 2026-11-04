@@ -14,7 +14,7 @@ Invariants (PR-03):
 
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -149,6 +149,24 @@ async def build_tenant_entitlement_diagnostics(
             "Tenant has no recognized subscription plan assigned. All commercial capabilities default to disabled."
         )
 
+    # Active Commercial Overrides for this tenant
+    active_overrides: Dict[str, bool] = {}
+    if hasattr(models, "CommercialTenantOverride"):
+        now_naive = current_time.replace(tzinfo=None)
+        stmt_ov = select(models.CommercialTenantOverride).where(
+            models.CommercialTenantOverride.tenant_id == tenant_id,
+            or_(
+                models.CommercialTenantOverride.expires_at.is_(None),
+                models.CommercialTenantOverride.expires_at > now_naive,
+            ),
+        )
+        ov_rows = (await db.execute(stmt_ov)).scalars().all()
+        for r in ov_rows:
+            if r.override_value == "allow":
+                active_overrides[r.capability_key] = True
+            elif r.override_value == "deny":
+                active_overrides[r.capability_key] = False
+
     for cap_key, defn in CAPABILITY_REGISTRY.items():
         decision = CommercialDecisionEngine.evaluate_capability(
             tenant=tenant,
@@ -156,6 +174,7 @@ async def build_tenant_entitlement_diagnostics(
             operation="write_business",
             now=current_time,
             override_mode=mode,
+            commercial_overrides=active_overrides,
         )
 
         enforcement_status = "not_enforced"
@@ -167,6 +186,8 @@ async def build_tenant_entitlement_diagnostics(
         source = "plan_default"
         if decision.emergency_denied:
             source = "emergency_restriction"
+        elif cap_key in active_overrides:
+            source = "commercial_override"
         elif not decision.commercial_grant:
             source = "not_granted"
 
@@ -176,8 +197,9 @@ async def build_tenant_entitlement_diagnostics(
             "display_name_en": defn.display_name_en,
             "is_sellable": defn.is_sellable,
             "commercial_grant": decision.commercial_grant,
-            "effective_allowed": decision.allowed,
+            "effective_allowed": decision.proposed_allowed,
             "proposed_allowed": decision.proposed_allowed,
+            "runtime_allowed": decision.allowed,
             "is_shadow": decision.is_shadow,
             "is_discrepancy": decision.is_discrepancy,
             "reason_code": decision.reason_code.value,
@@ -206,7 +228,7 @@ async def build_tenant_entitlement_diagnostics(
         "grace_period_until": grace_end.isoformat() if grace_end else None,
         "is_past_end": is_past_end,
         "is_in_grace": is_in_grace,
-        "policy_revision": 1,
+        "policy_revision": getattr(tenant, "policy_revision", 1) or 1,
 
         # Enforcement & Modes
         "enforcement_mode": mode,

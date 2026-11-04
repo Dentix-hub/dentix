@@ -17,6 +17,7 @@ from .tenant import (
     SubscriptionPayment,
     SubscriptionCheckout,
     SubscriptionRenewalRequest,
+    CommercialTenantOverride,
 )
 from .user import User, PasswordResetToken, LoginHistory, UserSession
 from .push_subscription import PushSubscription

@@ -80,6 +80,23 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
             toast.error(t('super_admin.plans.error_invalid_duration') || 'يرجى إدخال مدة أيام صحيحة أكبر من الصفر');
             return false;
         }
+        if (data.max_users !== null && data.max_users !== undefined && data.max_users !== '') {
+            const users = Number(data.max_users);
+            if (users <= 0) {
+                toast.error(t('super_admin.plans.error_invalid_users') || 'الحد الأقصى للمستخدمين يجب أن يكون 1 على الأقل');
+                return false;
+            }
+        }
+        if (data.is_ai_enabled) {
+            const aiLimit = sanitizeNumber(data.ai_daily_limit, 0);
+            if (aiLimit <= 0) {
+                toast.error(t('super_admin.plans.error_ai_limit_required') || 'يجب تحديد حد يومي لطلبات الذكاء الاصطناعي أكبر من 0 عند تفعيل المساعد');
+                return false;
+            }
+        } else if (!data.is_ai_enabled && sanitizeNumber(data.ai_daily_limit, 0) > 0) {
+            toast.error(t('super_admin.plans.error_ai_disabled_zero') || 'الحد اليومي يجب أن يكون 0 عند تعطيل المساعد الذكي');
+            return false;
+        }
         return true;
     };
 
@@ -165,12 +182,14 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
         const payload = {
             ...candidate,
+            expected_revision: plan.policy_revision || 1,
+            reason: t('super_admin.plans.audit_reason_update') || 'تحديث الخطة بواسطة المدير العام',
             display_name_ar: candidate.display_name_ar.trim(),
             price: Math.max(0, sanitizeNumber(candidate.price, 0)),
             duration_days: Math.max(1, parseInt(candidate.duration_days, 10) || 30),
             max_users: sanitizeNullableInt(candidate.max_users),
             max_patients: sanitizeNullableInt(candidate.max_patients),
-            ai_daily_limit: Math.max(0, parseInt(candidate.ai_daily_limit, 10) || 0),
+            ai_daily_limit: candidate.is_ai_enabled ? Math.max(0, parseInt(candidate.ai_daily_limit, 10) || 0) : 0,
             is_ai_enabled: Boolean(candidate.is_ai_enabled),
             is_default: Boolean(candidate.is_default),
         };
@@ -278,19 +297,30 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     <div className="grid grid-cols-1 gap-2">
                                         {KNOWN_PLAN_FEATURES.map(feat => {
                                             const isChecked = currentFeatures.keys.includes(feat.key);
+                                            const isSellable = feat.isSellable !== false;
                                             return (
                                                 <button
                                                     type="button"
                                                     key={feat.key}
-                                                    onClick={() => toggleEditFeature(feat.key)}
-                                                    className={`w-full flex items-center gap-3 p-2 rounded-xl text-xs font-bold transition-all text-start ${
-                                                        isChecked 
+                                                    disabled={!isSellable}
+                                                    onClick={() => isSellable && toggleEditFeature(feat.key)}
+                                                    className={`w-full flex items-center justify-between p-2 rounded-xl text-xs font-bold transition-all text-start ${
+                                                        !isSellable
+                                                        ? 'opacity-60 bg-slate-100/50 dark:bg-slate-800/40 text-slate-400 cursor-not-allowed'
+                                                        : isChecked 
                                                         ? 'bg-indigo-100/70 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' 
                                                         : 'hover:bg-slate-200/50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-400'
                                                     }`}
                                                 >
-                                                    {isChecked ? <CheckSquare size={16} className="text-indigo-600 shrink-0" /> : <Square size={16} className="text-slate-400 shrink-0" />}
-                                                    <span>{isRtl ? feat.label_ar : feat.label_en}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        {isChecked ? <CheckSquare size={16} className={isSellable ? "text-indigo-600 shrink-0" : "text-slate-400 shrink-0"} /> : <Square size={16} className="text-slate-400 shrink-0" />}
+                                                        <span>{isRtl ? feat.label_ar : feat.label_en}</span>
+                                                    </div>
+                                                    {!isSellable && (
+                                                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 font-normal">
+                                                            {t('super_admin.plans.feature_unavailable') || 'غير متاح'}
+                                                        </span>
+                                                    )}
                                                 </button>
                                             );
                                         })}
@@ -323,7 +353,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                             />
                                         </div>
                                         <div>
-                                            <label htmlFor={`edit_ai_limit_${plan.id}`} className={`block text-xs font-bold text-slate-500 mb-1`}>{t('super_admin.plans.ai_daily_limit') || 'الحد اليومي لطلبات الذكاء الاصطناعي'} (0 = {t('super_admin.plans.unlimited') || 'غير محدود'})</label>
+                                            <label htmlFor={`edit_ai_limit_${plan.id}`} className={`block text-xs font-bold text-slate-500 mb-1`}>{t('super_admin.plans.ai_daily_limit') || 'الحد اليومي لطلبات الذكاء الاصطناعي'} (0 = {t('super_admin.plans.ai_disabled') || 'معطّل'})</label>
                                             <input
                                                 id={`edit_ai_limit_${plan.id}`}
                                                 type="number"
@@ -555,19 +585,30 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                             <div className="grid grid-cols-1 gap-2">
                                 {KNOWN_PLAN_FEATURES.map(feat => {
                                     const isChecked = newSelectedFeatures.includes(feat.key);
+                                    const isSellable = feat.isSellable !== false;
                                     return (
                                         <button
                                             type="button"
                                             key={feat.key}
-                                            onClick={() => toggleNewFeature(feat.key)}
-                                            className={`w-full flex items-center gap-3 p-2 rounded-xl text-xs font-bold transition-all text-start ${
-                                                isChecked 
+                                            disabled={!isSellable}
+                                            onClick={() => isSellable && toggleNewFeature(feat.key)}
+                                            className={`w-full flex items-center justify-between gap-3 p-2 rounded-xl text-xs font-bold transition-all text-start ${
+                                                !isSellable
+                                                ? 'opacity-60 bg-slate-100/50 dark:bg-slate-800/40 text-slate-400 cursor-not-allowed'
+                                                : isChecked 
                                                 ? 'bg-emerald-100/70 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' 
                                                 : 'hover:bg-slate-200/50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-400'
                                             }`}
                                         >
-                                            {isChecked ? <CheckSquare size={16} className="text-emerald-600 shrink-0" /> : <Square size={16} className="text-slate-400 shrink-0" />}
-                                            <span>{isRtl ? feat.label_ar : feat.label_en}</span>
+                                            <div className="flex items-center gap-3">
+                                                {isChecked ? <CheckSquare size={16} className={isSellable ? "text-emerald-600 shrink-0" : "text-slate-400 shrink-0"} /> : <Square size={16} className="text-slate-400 shrink-0" />}
+                                                <span>{isRtl ? feat.label_ar : feat.label_en}</span>
+                                            </div>
+                                            {!isSellable && (
+                                                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 font-normal">
+                                                    {t('super_admin.plans.feature_unavailable') || 'غير متاح'}
+                                                </span>
+                                            )}
                                         </button>
                                     );
                                 })}
@@ -610,7 +651,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     />
                                 </div>
                                 <div>
-                                    <label htmlFor="new_ai_limit" className={`block text-xs font-bold text-slate-500 mb-1`}>{t('super_admin.plans.ai_daily_limit') || 'الحد اليومي لطلبات الذكاء الاصطناعي'} (0 = {t('super_admin.plans.unlimited') || 'غير محدود'})</label>
+                                    <label htmlFor="new_ai_limit" className={`block text-xs font-bold text-slate-500 mb-1`}>{t('super_admin.plans.ai_daily_limit') || 'الحد اليومي لطلبات الذكاء الاصطناعي'} (0 = {t('super_admin.plans.ai_disabled') || 'معطّل'})</label>
                                     <input
                                         id="new_ai_limit"
                                         type="number"

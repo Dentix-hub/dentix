@@ -38,8 +38,19 @@ async def create_plan(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = await SubscriptionService.create_plan(db, plan)
+    data = await SubscriptionService.create_plan(db, plan, admin_user=current_user)
     return success_response(data=data, message="Plan created successfully")
+
+
+@router.post("/plans/{plan_id}/preview", response_model=StandardResponse[schemas.SubscriptionPlanPreviewResponse])
+async def preview_plan_update(
+    plan_id: int,
+    preview_req: schemas.SubscriptionPlanPreviewRequest,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = await SubscriptionService.preview_plan_update(db, plan_id, preview_req)
+    return success_response(data=data)
 
 
 @router.put("/plans/{plan_id}", response_model=StandardResponse[schemas.SubscriptionPlan])
@@ -49,7 +60,7 @@ async def update_plan(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = await SubscriptionService.update_plan(db, plan_id, plan_update)
+    data = await SubscriptionService.update_plan(db, plan_id, plan_update, admin_user=current_user)
     return success_response(data=data, message="Plan updated successfully")
 
 
@@ -59,8 +70,55 @@ async def delete_plan(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = await SubscriptionService.delete_plan(db, plan_id)
+    data = await SubscriptionService.delete_plan(db, plan_id, admin_user=current_user)
     return success_response(data=data, message="Plan deleted successfully")
+
+
+@router.post("/plans/reconcile-duplicates", response_model=StandardResponse[dict])
+async def reconcile_duplicate_plans(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = await SubscriptionService.reconcile_duplicate_plans(db)
+    return success_response(data=data, message="Duplicate plans reconciled successfully")
+
+
+@router.get("/plans/catalog-template", response_model=StandardResponse[List[dict]])
+async def get_launch_catalog_template(
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = SubscriptionService.get_launch_catalog_template()
+    return success_response(data=data)
+
+
+@router.post("/plans/seed-catalog", response_model=StandardResponse[dict])
+async def seed_launch_catalog(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = await SubscriptionService.seed_launch_catalog(db, admin_user=current_user)
+    return success_response(data=data, message=data.get("message", "Seeded launch plans"))
+
+
+# Trial Policy
+@router.get("/trial-policy", response_model=StandardResponse[schemas.TrialPolicyResponse])
+async def get_trial_policy(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = await SubscriptionService.get_trial_policy(db)
+    return success_response(data=data)
+
+
+@router.put("/trial-policy", response_model=StandardResponse[schemas.TrialPolicyResponse])
+async def update_trial_policy(
+    update_data: schemas.TrialPolicyUpdateRequest,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = await SubscriptionService.update_trial_policy(db, update_data, admin_user=current_user)
+    return success_response(data=data, message="Trial policy updated successfully")
+
 
 
 # Payments
