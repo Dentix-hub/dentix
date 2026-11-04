@@ -10,6 +10,11 @@ import {
     Mail,
     Globe,
     Phone,
+    CheckCircle2,
+    XCircle,
+    AlertTriangle,
+    Cpu,
+    Lock,
 } from 'lucide-react';
 import { api } from '@/api';
 import { format } from 'date-fns';
@@ -27,6 +32,7 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
     const [reason, setReason] = useState('');
     const [loading, setLoading] = useState(true);
     const [onboardingFeature, setOnboardingFeature] = useState(null);
+    const [entitlements, setEntitlements] = useState(null);
     const [overrideLoading, setOverrideLoading] = useState(false);
 
     useEffect(() => {
@@ -34,13 +40,18 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
         const fetchDetails = async () => {
             try {
                 setLoading(true);
-                const [detailsRes, usersRes] = await Promise.all([
+                const [detailsRes, usersRes, entitlementsRes] = await Promise.all([
                     api.get(`/api/v1/admin/tenants/${tenantId}/details`),
                     api.get(`/api/v1/admin/tenants/${tenantId}/users`),
+                    api.get(`/api/v1/admin/tenants/${tenantId}/entitlements`).catch((err) => {
+                        logger.error('Failed to load entitlements:', err);
+                        return { data: null };
+                    }),
                 ]);
                 setData(detailsRes.data);
                 setOnboardingFeature(detailsRes.data?.tenant?.onboarding_feature || null);
                 setUsers(usersRes.data.users || []);
+                setEntitlements(entitlementsRes.data || null);
                 setSelectedUser('');
                 setReason('');
             } catch (error) {
@@ -48,6 +59,7 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                 setData(null);
                 setOnboardingFeature(null);
                 setUsers([]);
+                setEntitlements(null);
             } finally {
                 setLoading(false);
             }
@@ -266,6 +278,199 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                                 </div>
                             </div>
                         </div>
+
+                        {/* PR-03: Commercial Entitlements & Subscription Access (Visually distinct from rollout pilots) */}
+                        {entitlements && (
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
+                                        {t('super_admin.tenant_detail.entitlements_title', 'الاستحقاقات التجارية والاشتراك')}
+                                    </h4>
+                                    <span
+                                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border ${
+                                            entitlements.enforcement_mode === 'enforce'
+                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                                                : entitlements.enforcement_mode === 'observe'
+                                                ? 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800'
+                                                : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                                        }`}
+                                    >
+                                        {entitlements.enforcement_mode === 'enforce'
+                                            ? t('super_admin.tenant_detail.mode_enforced', 'مفعّل وإلزامي')
+                                            : entitlements.enforcement_mode === 'observe'
+                                            ? t('super_admin.tenant_detail.mode_observe', 'مراقبة فقط')
+                                            : t('super_admin.tenant_detail.mode_off', 'تقييم ظل (غير مفعّل)')}
+                                    </span>
+                                </div>
+
+                                {/* Hard Disabled Alert */}
+                                {entitlements.is_hard_disabled && (
+                                    <div className="flex items-center gap-3 p-3.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 rounded-2xl text-xs font-semibold">
+                                        <AlertTriangle size={18} className="text-rose-600 shrink-0" />
+                                        <span>
+                                            {t(
+                                                'super_admin.tenant_detail.hard_disabled_warning',
+                                                'حساب العيادة معطل أمنياً أو إدارياً (Hard Disabled) - يمنع أي وصول للعيادة حتى إعادة التفعيل.'
+                                            )}
+                                        </span>
+                                    </div>
+                                )}
+
+                                {/* Plan & Lifecycle Summary */}
+                                <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+                                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-700/60">
+                                        <div>
+                                            <span className="text-xs text-slate-400 block font-medium">
+                                                {t('super_admin.tenant_detail.effective_plan', 'الباقة المعتمدة')}
+                                            </span>
+                                            <span className="text-base font-bold text-slate-800 dark:text-white">
+                                                {isRtl ? entitlements.plan_display_name_ar : entitlements.plan_display_name_en}
+                                            </span>
+                                        </div>
+                                        <div className="text-end">
+                                            <span className="text-xs text-slate-400 block font-medium">
+                                                {t('super_admin.tenant_detail.status', 'حالة الاشتراك')}
+                                            </span>
+                                            <span
+                                                className={`inline-block px-2 py-0.5 rounded-md text-xs font-bold uppercase ${
+                                                    entitlements.effective_subscription_status === 'active' || entitlements.effective_subscription_status === 'trial'
+                                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                                        : entitlements.effective_subscription_status === 'grace'
+                                                        ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                                        : 'bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300'
+                                                }`}
+                                            >
+                                                {entitlements.effective_subscription_status}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Dates & Periods */}
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                        <div className="p-2.5 bg-slate-50 dark:bg-slate-700/40 rounded-xl">
+                                            <span className="text-slate-400 block mb-0.5">
+                                                {t('super_admin.tenant_detail.sub_end_date', 'تاريخ انتهاء الباقة')}
+                                            </span>
+                                            <span className="font-bold text-slate-700 dark:text-slate-200">
+                                                {entitlements.subscription_end_date
+                                                    ? format(new Date(entitlements.subscription_end_date), 'dd MMM yyyy', { locale: dateLocale })
+                                                    : t('super_admin.tenant_detail.not_set', 'غير محدد')}
+                                            </span>
+                                        </div>
+                                        <div className="p-2.5 bg-slate-50 dark:bg-slate-700/40 rounded-xl">
+                                            <span className="text-slate-400 block mb-0.5">
+                                                {t('super_admin.tenant_detail.grace_until', 'فترة السماح حتى')}
+                                            </span>
+                                            <span className="font-bold text-slate-700 dark:text-slate-200">
+                                                {entitlements.grace_period_until
+                                                    ? format(new Date(entitlements.grace_period_until), 'dd MMM yyyy', { locale: dateLocale })
+                                                    : t('super_admin.tenant_detail.none', 'لا توجد')}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Clinical Invariant Notice */}
+                                    <div className="p-2.5 bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-xl text-xs text-indigo-900 dark:text-indigo-200 flex items-center gap-2">
+                                        <Lock size={14} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                        <span>
+                                            {t(
+                                                'super_admin.tenant_detail.clinical_invariant_notice',
+                                                'حق دائم: قراءة السجلات الطبية السابقة متاحة دائماً ومحمية قانونياً ولا تحجب بأي سبب تجاري.'
+                                            )}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Truthful Capacities: Seats & AI */}
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
+                                        <div className="flex items-center gap-2 text-teal-600 dark:text-teal-400">
+                                            <Users size={16} />
+                                            <span className="text-xs font-bold">
+                                                {t('super_admin.tenant_detail.seats_capacity', 'المقاعد النشطة')}
+                                            </span>
+                                        </div>
+                                        <div className="text-lg font-bold text-slate-800 dark:text-white">
+                                            {entitlements.capacities?.seats?.used || 0}
+                                            <span className="text-xs font-normal text-slate-400">
+                                                {' / '}
+                                                {entitlements.capacities?.seats?.limit != null
+                                                    ? entitlements.capacities.seats.limit
+                                                    : t('super_admin.tenant_detail.unlimited', 'غير محدد')}
+                                            </span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-400">
+                                            {entitlements.capacities?.seats?.is_exhausted
+                                                ? t('super_admin.tenant_detail.seats_exhausted', 'تم استنفاد المقاعد')
+                                                : `${t('super_admin.tenant_detail.seats_remaining', 'المتبقي')}: ${entitlements.capacities?.seats?.remaining ?? '-'}`}
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3.5 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-1">
+                                        <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                                            <Cpu size={16} />
+                                            <span className="text-xs font-bold">
+                                                {t('super_admin.tenant_detail.ai_capacity', 'حد الذكاء الاصطناعي')}
+                                            </span>
+                                        </div>
+                                        <div className="text-lg font-bold text-slate-800 dark:text-white">
+                                            {entitlements.capacities?.ai?.daily_limit || 0}
+                                            <span className="text-xs font-normal text-slate-400">
+                                                {' '}
+                                                {t('super_admin.tenant_detail.per_day', 'طلب / يوم')}
+                                            </span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-400 truncate" title={entitlements.capacities?.ai?.historical_diagnostic_label}>
+                                            {t('super_admin.tenant_detail.diagnostic_count', 'سجل تشخيص اليوم')}:{' '}
+                                            {entitlements.capacities?.ai?.historical_diagnostic_count ?? 0}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Capabilities Access Table */}
+                                <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2.5">
+                                    <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                                        {t('super_admin.tenant_detail.capabilities_matrix', 'مصفوفة الخدمات والإمكانيات')}
+                                    </div>
+                                    <div className="space-y-1.5 divide-y divide-slate-100 dark:divide-slate-700/50">
+                                        {Object.values(entitlements.capabilities || {})
+                                            .filter((cap) => cap.is_sellable)
+                                            .map((cap) => (
+                                                <div key={cap.key} className="pt-1.5 first:pt-0 flex items-center justify-between text-xs">
+                                                    <div className="flex items-center gap-2 min-w-0">
+                                                        {cap.effective_allowed ? (
+                                                            <CheckCircle2 size={15} className="text-emerald-500 shrink-0" />
+                                                        ) : (
+                                                            <XCircle size={15} className="text-slate-400 shrink-0" />
+                                                        )}
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">
+                                                            {isRtl ? cap.display_name_ar : cap.display_name_en}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 shrink-0">
+                                                        <span
+                                                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                                                cap.effective_allowed
+                                                                    ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400'
+                                                                    : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                                                            }`}
+                                                        >
+                                                            {cap.effective_allowed
+                                                                ? t('super_admin.tenant_detail.allowed', 'متاح')
+                                                                : t('super_admin.tenant_detail.denied', 'محجوب')}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-400">
+                                                            ({cap.enforcement_status === 'enforced'
+                                                                ? t('super_admin.tenant_detail.status_enforced', 'مطبق')
+                                                                : t('super_admin.tenant_detail.status_shadow', 'ظل')})
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
                         <div className="space-y-4">
                             <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">

@@ -491,6 +491,25 @@ async def get_tenant_features(
     return success_response(data={"features": sorted(list(feature_keys))})
 
 
+@router.get("/entitlements", response_model=StandardResponse[schemas.TenantEntitlementDiagnosticsResponse])
+async def get_current_tenant_entitlements(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Get effective commercial entitlements and diagnostics for the current authenticated tenant.
+    Never accepts client-selected tenant override (enforces self-tenant scope).
+    """
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="User does not belong to any clinic")
+
+    from backend.services.entitlement_diagnostics_service import build_tenant_entitlement_diagnostics
+    diagnostics = await build_tenant_entitlement_diagnostics(db, tenant_id)
+    return success_response(data=diagnostics)
+
+
+
 
 @router.put("/tenant", response_model=StandardResponse[schemas.Tenant])
 async def update_tenant_settings(

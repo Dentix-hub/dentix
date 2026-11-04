@@ -279,3 +279,76 @@ class TenantEffectiveEntitlementsResponse(BaseModel):
     shadow_discrepancies: list[str] = Field(default_factory=list)
     unmapped_keys: list[str] = Field(default_factory=list)
 
+
+# PR-03 Diagnostics Schemas
+class CapacitySeatsDiagnostics(BaseModel):
+    limit: Optional[int] = None
+    used: int
+    remaining: Optional[int] = None
+    unit: str = "active_login_accounts"
+    is_exhausted: bool = False
+
+
+class CapacityAIDiagnostics(BaseModel):
+    is_enabled: bool = False
+    daily_limit: int = 0
+    historical_diagnostic_count: int = 0
+    historical_diagnostic_label: str
+    quota_ledger_source: str = "unavailable"
+    quota_ledger_note: str
+    remaining_quota: Optional[int] = None
+    window_reset: str = "clinic_local_midnight"
+    timezone: str = "Africa/Cairo"
+
+
+class CapacitiesDiagnostics(BaseModel):
+    seats: CapacitySeatsDiagnostics
+    ai: CapacityAIDiagnostics
+
+
+class CapabilityDiagnosticItem(BaseModel):
+    key: str
+    display_name_ar: str
+    display_name_en: str
+    is_sellable: bool
+    commercial_grant: bool
+    effective_allowed: bool
+    proposed_allowed: bool
+    is_shadow: bool
+    is_discrepancy: bool
+    reason_code: str
+    explanation_ar: str
+    explanation_en: str
+    enforcement_status: str
+    source: str
+
+
+class TenantEntitlementDiagnosticsResponse(BaseModel):
+    tenant_id: int
+    tenant_name: str
+    domain: Optional[str] = None
+    is_active: bool
+    is_hard_disabled: bool
+    timezone: str
+    plan_id: Optional[int] = None
+    plan_name: str
+    plan_display_name_ar: str
+    plan_display_name_en: str
+    raw_subscription_status: str
+    effective_subscription_status: str
+    subscription_end_date: Optional[str] = None
+    grace_period_until: Optional[str] = None
+    is_past_end: bool
+    is_in_grace: bool
+    policy_revision: int = 1
+    enforcement_mode: str
+    is_shadow: bool
+    can_read_clinical: bool
+    can_write_clinical: bool
+    can_write_billable: bool
+    can_create_appointments: bool
+    capacities: CapacitiesDiagnostics
+    capabilities: dict[str, CapabilityDiagnosticItem]
+    configuration_warnings: list[str] = Field(default_factory=list)
+
+

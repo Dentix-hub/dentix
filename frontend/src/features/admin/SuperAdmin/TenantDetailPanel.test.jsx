@@ -33,7 +33,9 @@ vi.mock('react-i18next', () => ({
                 'super_admin.tenant_detail.no_activity': 'لا يوجد',
             };
             if (key === 'super_admin.tenant_detail.clinic_number') return `عيادة #${options?.id}`;
-            return fallbacks[key] || key;
+            if (fallbacks[key]) return fallbacks[key];
+            if (typeof options === 'string') return options;
+            return key;
         },
         i18n: { language: 'ar' },
     }),
@@ -110,4 +112,60 @@ describe('TenantDetailPanel impersonation contract and UI safety', () => {
         await screen.findByText('Dental Plus');
         expect(screen.queryByTestId('external-link')).not.toBeInTheDocument();
     });
+
+    it('renders commercial entitlements and capacity diagnostics when entitlements endpoint succeeds', async () => {
+        apiMocks.apiGet.mockImplementation((url) => {
+            if (url.includes('/details')) {
+                return Promise.resolve({
+                    data: {
+                        tenant: { id: 10, name: 'Dental Plus', domain: 'plus', plan: 'pro', plan_id: 2 },
+                        stats: { patients_count: 50, appointments_count: 100, total_revenue: 15000 },
+                    },
+                });
+            }
+            if (url.includes('/users')) {
+                return Promise.resolve({
+                    data: { users: [{ id: 1, username: 'dr_sarah', is_active: true, role: 'doctor' }] },
+                });
+            }
+            if (url.includes('/entitlements')) {
+                return Promise.resolve({
+                    data: {
+                        tenant_id: 10,
+                        plan_id: 2,
+                        plan_name: 'professional',
+                        plan_display_name_ar: 'الباقة الاحترافية',
+                        plan_display_name_en: 'Professional',
+                        effective_subscription_status: 'active',
+                        enforcement_mode: 'observe',
+                        is_hard_disabled: false,
+                        capacities: {
+                            seats: { limit: 5, used: 2, remaining: 3, is_exhausted: false },
+                            ai: { daily_limit: 10, historical_diagnostic_count: 3 },
+                        },
+                        capabilities: {
+                            clinical: {
+                                key: 'clinical',
+                                display_name_ar: 'السجلات الطبية والمواعيد',
+                                display_name_en: 'Clinical Records & Appointments',
+                                is_sellable: true,
+                                effective_allowed: true,
+                                enforcement_status: 'observe_only',
+                            },
+                        },
+                    },
+                });
+            }
+            return Promise.resolve({ data: {} });
+        });
+
+        render(<TenantDetailPanel tenantId={10} onClose={mockOnClose} onImpersonate={mockOnImpersonate} />);
+
+        expect(await screen.findByText('الاستحقاقات التجارية والاشتراك')).toBeInTheDocument();
+        expect(screen.getByText('الباقة الاحترافية')).toBeInTheDocument();
+        expect(screen.getByText('مراقبة فقط')).toBeInTheDocument();
+        expect(screen.getByText((_, element) => element?.textContent === '2 / 5')).toBeInTheDocument();
+        expect(screen.getByText('السجلات الطبية والمواعيد')).toBeInTheDocument();
+    });
 });
+

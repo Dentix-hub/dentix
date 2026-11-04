@@ -255,6 +255,11 @@ from .tenant import (
     SubscriptionCheckoutCreate,
     SubscriptionCheckoutSession,
     SubscriptionWebhookEvent,
+    CapacitySeatsDiagnostics,
+    CapacityAIDiagnostics,
+    CapacitiesDiagnostics,
+    CapabilityDiagnosticItem,
+    TenantEntitlementDiagnosticsResponse,
 )
 
 # Laboratory
@@ -406,6 +411,11 @@ __all__ = [
     "SubscriptionCheckoutCreate",
     "SubscriptionCheckoutSession",
     "SubscriptionWebhookEvent",
+    "CapacitySeatsDiagnostics",
+    "CapacityAIDiagnostics",
+    "CapacitiesDiagnostics",
+    "CapabilityDiagnosticItem",
+    "TenantEntitlementDiagnosticsResponse",
     # Laboratory
     "LaboratoryBase",
     "LaboratoryCreate",
