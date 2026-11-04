@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from backend import models, schemas
@@ -107,7 +108,11 @@ async def get_user_by_email(db: AsyncSession, email: str | None):
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int, tenant_id: int):
-    stmt = select(models.User).where(models.User.id == user_id, models.User.tenant_id == tenant_id)
+    stmt = select(models.User).where(
+        models.User.id == user_id,
+        models.User.tenant_id == tenant_id,
+        models.User.is_deleted == False,  # noqa: E712
+    )
     result = await db.execute(stmt)
     return result.scalars().first()
 
@@ -133,8 +138,15 @@ async def create_user(db: AsyncSession, user: schemas.User, password_hash: str, 
 async def get_users(
     db: AsyncSession, tenant_id: int, skip: int = 0, limit: int = 100, role: str = None
 ):
-    stmt = select(models.User).where(models.User.tenant_id == tenant_id).options(
-        selectinload(models.User.tenant).selectinload(models.Tenant.subscription_plan)
+    stmt = (
+        select(models.User)
+        .where(
+            models.User.tenant_id == tenant_id,
+            models.User.is_deleted == False,  # noqa: E712
+        )
+        .options(
+            selectinload(models.User.tenant).selectinload(models.Tenant.subscription_plan)
+        )
     )
     if role:
         stmt = stmt.where(models.User.role == role)
@@ -146,7 +158,11 @@ async def get_users(
 async def update_user(
     db: AsyncSession, user_id: int, user_update: schemas.UserUpdate, tenant_id: int
 ):
-    stmt = select(models.User).where(models.User.id == user_id, models.User.tenant_id == tenant_id)
+    stmt = select(models.User).where(
+        models.User.id == user_id,
+        models.User.tenant_id == tenant_id,
+        models.User.is_deleted == False,  # noqa: E712
+    )
     result = await db.execute(stmt)
     db_user = result.scalars().first()
     if db_user:
@@ -170,10 +186,19 @@ async def update_user(
 
 
 async def delete_user(db: AsyncSession, user_id: int, tenant_id: int):
-    stmt = select(models.User).where(models.User.id == user_id, models.User.tenant_id == tenant_id)
+    stmt = select(models.User).where(
+        models.User.id == user_id,
+        models.User.tenant_id == tenant_id,
+        models.User.is_deleted == False,  # noqa: E712
+    )
     result = await db.execute(stmt)
     user = result.scalars().first()
     if user:
-        await db.delete(user)
+        user.is_active = False
+        user.is_deleted = True
+        user.deleted_at = datetime.now(timezone.utc).replace(tzinfo=None)
+        from backend.services.auth_service import AuthService
+
+        await AuthService.revoke_all_user_sessions(db, user_id, commit=False)
         await db.commit()
     return user

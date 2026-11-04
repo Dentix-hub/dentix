@@ -449,7 +449,6 @@ async def reset_user_password(
     user.failed_login_attempts = 0
     user.account_locked_until = None
     user.last_failed_login = None
-    user.is_active = True
 
     await db.commit()
 

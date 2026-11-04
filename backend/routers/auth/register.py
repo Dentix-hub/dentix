@@ -100,6 +100,12 @@ async def register_clinic(
             await crud.seed_tenant_default_procedures(registration_db, new_tenant.id)
 
             # Create the clinic's first admin user in the same transaction.
+            from backend.services.account_admission_service import AccountAdmissionService
+
+            await AccountAdmissionService.admit_active_account(
+                registration_db, tenant_id=new_tenant.id
+            )
+
             hashed_password = auth_utils.get_password_hash(admin_password)
             new_user = models.User(
                 username=admin_username,
