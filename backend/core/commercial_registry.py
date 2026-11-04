@@ -497,6 +497,14 @@ def canonicalize_plan_name(name: Optional[str]) -> Optional[str]:
     return PLAN_NAME_ALIASES.get(normalized)
 
 
+def resolve_plan_spec(name: Optional[str]) -> Optional[PlanSpecification]:
+    """Resolve a raw plan name, alias, or display name to authoritative PlanSpecification."""
+    canon = canonicalize_plan_name(name)
+    if canon:
+        return LAUNCH_PLAN_SPECS.get(canon)
+    return None
+
+
 def is_sellable_capability(key: str) -> bool:
     """Return True if capability is registered and sellable in launch plans."""
     canon = canonicalize_capability_key(key)

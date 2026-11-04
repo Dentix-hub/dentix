@@ -105,17 +105,11 @@ async def build_tenant_entitlement_diagnostics(
         effective_status = SubscriptionState.EXPIRED_READ_ONLY.value
 
     # 4. Truthful Capacity Measurements
-    # Active login accounts count (Users that are active and not deleted)
-    stmt_users = select(func.count(models.User.id)).where(
-        models.User.tenant_id == tenant_id,
-        models.User.is_active == True,  # noqa: E712
-        models.User.is_deleted == False,  # noqa: E712
-    )
-    active_users_count = (await db.execute(stmt_users)).scalar() or 0
+    from backend.services.account_admission_service import AccountAdmissionService
 
-    seat_limit = getattr(plan, "max_users", None)
-    if seat_limit is None and tier_spec:
-        seat_limit = tier_spec.max_active_users
+    # Active login accounts count (Users that are active and not deleted)
+    active_users_count = await AccountAdmissionService.get_active_account_count(db, tenant_id)
+    seat_limit = AccountAdmissionService.resolve_effective_max_users(tenant)
 
     remaining_seats = max(0, seat_limit - active_users_count) if seat_limit is not None else None
 

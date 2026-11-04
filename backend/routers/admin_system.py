@@ -95,6 +95,14 @@ async def toggle_user_status(
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot disable your own account")
     new_status = not user.is_active
+
+    if new_status and user.tenant_id:
+        from backend.services.account_admission_service import AccountAdmissionService
+
+        await AccountAdmissionService.admit_active_account(
+            db, tenant_id=user.tenant_id, target_user_id=user.id
+        )
+
     user.is_active = new_status
     if not new_status:
         revoked_count = await AuthService.revoke_all_user_sessions(db, user.id)
