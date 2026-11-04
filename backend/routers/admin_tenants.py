@@ -262,6 +262,7 @@ async def get_tenant_details(
             "name": tenant.name,
             "domain": tenant.domain,
             "plan": tenant.plan,
+            "plan_id": tenant.plan_id,
             "created_at": tenant.created_at,
             "subscription_end_date": tenant.subscription_end_date,
             "is_active": tenant.is_active,
@@ -271,6 +272,25 @@ async def get_tenant_details(
         },
         "stats": stats
     })
+
+
+@router.get("/{tenant_id}/entitlements", response_model=StandardResponse[schemas.TenantEntitlementDiagnosticsResponse])
+async def get_tenant_entitlements_diagnostics(
+    tenant_id: int,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Get effective commercial entitlements and diagnostics for a specific tenant.
+    Requires SUPER_ADMIN role.
+    """
+    from backend.services.entitlement_diagnostics_service import build_tenant_entitlement_diagnostics
+    try:
+        diagnostics = await build_tenant_entitlement_diagnostics(db, tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return success_response(data=diagnostics)
+
 
 
 @router.post("/{tenant_id}/features/{feature_key}", response_model=StandardResponse[dict])
@@ -356,9 +376,9 @@ async def impersonate_tenant(
     async with system_session_scope() as system_db:
         stmt = select(models.User).options(selectinload(models.User.tenant)).where(
             models.User.tenant_id == tenant_id,
-            models.User.is_active == True,
+            models.User.is_active == True,  # noqa: E712
             # is_deleted is nullable in legacy rows; NULL means not deleted.
-            or_(models.User.is_deleted == False, models.User.is_deleted.is_(None)),
+            or_(models.User.is_deleted == False, models.User.is_deleted.is_(None)),  # noqa: E712
         )
 
         if user_id:
