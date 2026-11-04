@@ -152,6 +152,7 @@ class CommercialDecisionEngine:
         tenant_id = getattr(tenant, "id", 0)
         mode = override_mode or get_subscription_enforcement_mode()
         current_time = _as_utc(now or datetime.now(timezone.utc))
+        effective_revision = getattr(tenant, "policy_revision", policy_revision) or policy_revision
 
         canon_cap = canonicalize_capability_key(capability)
         diagnostics: Dict[str, Any] = {
@@ -179,7 +180,7 @@ class CommercialDecisionEngine:
                 rollout_allowed=False,
                 emergency_denied=False,
                 is_clinical_history_read=False,
-                policy_revision=policy_revision,
+                policy_revision=effective_revision,
                 diagnostics=diagnostics,
             )
 
@@ -236,7 +237,7 @@ class CommercialDecisionEngine:
                 is_clinical_history_read=True,
                 plan_id=plan_id,
                 plan_name=plan_name,
-                policy_revision=policy_revision,
+                policy_revision=effective_revision,
                 diagnostics=diagnostics,
             )
 
@@ -270,7 +271,7 @@ class CommercialDecisionEngine:
                 is_clinical_history_read=False,
                 plan_id=plan_id,
                 plan_name=plan_name,
-                policy_revision=policy_revision,
+                policy_revision=effective_revision,
                 diagnostics=diagnostics,
             )
 
@@ -301,7 +302,7 @@ class CommercialDecisionEngine:
                 is_clinical_history_read=False,
                 plan_id=plan_id,
                 plan_name=plan_name,
-                policy_revision=policy_revision,
+                policy_revision=effective_revision,
                 diagnostics=diagnostics,
             )
 
@@ -349,7 +350,7 @@ class CommercialDecisionEngine:
                 is_clinical_history_read=False,
                 plan_id=plan_id,
                 plan_name=plan_name,
-                policy_revision=policy_revision,
+                policy_revision=effective_revision,
                 diagnostics=diagnostics,
             )
 
@@ -407,7 +408,7 @@ class CommercialDecisionEngine:
                 is_clinical_history_read=False,
                 plan_id=plan_id,
                 plan_name=plan_name,
-                policy_revision=policy_revision,
+                policy_revision=effective_revision,
                 diagnostics=diagnostics,
             )
 
@@ -441,7 +442,7 @@ class CommercialDecisionEngine:
                 is_clinical_history_read=False,
                 plan_id=plan_id,
                 plan_name=plan_name,
-                policy_revision=policy_revision,
+                policy_revision=effective_revision,
                 diagnostics=diagnostics,
             )
 
@@ -466,6 +467,6 @@ class CommercialDecisionEngine:
             is_clinical_history_read=False,
             plan_id=plan_id,
             plan_name=plan_name,
-            policy_revision=policy_revision,
+            policy_revision=effective_revision,
             diagnostics=diagnostics,
         )

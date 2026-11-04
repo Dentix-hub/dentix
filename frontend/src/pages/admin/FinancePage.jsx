@@ -87,16 +87,24 @@ export default function FinancePage() {
         fetchData();
     }, [fetchData]);
 
-    const handleSavePlan = async (planId) => {
+    const handleSavePlan = async (planId, payload) => {
         try {
-            await updateSubscriptionPlan(planId, editedPlanData);
+            await updateSubscriptionPlan(planId, payload || editedPlanData);
             setEditingPlan(null);
             setEditedPlanData({});
             fetchData();
             toast.success(t('super_admin.plans.save_success') || 'تم حفظ الخطة بنجاح');
         } catch (err) {
-            const errorMsg = err.response?.data?.detail || err.message || t('super_admin.plans.error_saving') || 'فشل التعديل';
-            toast.error(errorMsg);
+            const status = err.response?.status;
+            if (status === 409) {
+                toast.error(
+                    t('super_admin.plans.error_conflict_revision') ||
+                    'حدث تعارض في التعديل: تم تحديث الخطة بواسطة مسؤول آخر. يرجى إعادة تحميل الصفحة والمحاولة مجدداً.'
+                );
+            } else {
+                const errorMsg = err.response?.data?.detail || err.message || t('super_admin.plans.error_saving') || 'فشل التعديل';
+                toast.error(errorMsg);
+            }
         }
     };
 

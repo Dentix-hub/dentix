@@ -2609,7 +2609,10 @@
       "disable": "Disable",
       "close_create": "Cancel Creation",
       "feature_key_label": "Feature Key",
-      "rollout_percentage_label": "Rollout Percentage (%)"
+      "rollout_percentage_label": "Rollout Percentage (%)",
+      "rollout_notice": "Note: This panel controls technical and experimental rollout flags, separate from commercial subscription plans.",
+      "reset_inherit": "Reset to Inherit",
+      "reset_inherit_success": "Override reset to inherit successfully"
     },
     "notifications": {
       "title": "Send New System Notification",
@@ -2850,7 +2853,14 @@
       "error_invalid_duration": "Invalid duration in days",
       "custom_features_placeholder": "Custom features (one per line)",
       "delete_plan": "Delete Plan",
-      "delete_title": "Confirm Plan Deletion"
+      "delete_title": "Confirm Plan Deletion",
+      "ai_disabled": "Disabled",
+      "feature_unavailable": "Unavailable in current launch",
+      "error_invalid_users": "Max users limit must be at least 1",
+      "error_ai_limit_required": "AI daily limit must be greater than 0 when AI is enabled",
+      "error_ai_disabled_zero": "AI daily limit must be 0 when AI is disabled",
+      "audit_reason_update": "Subscription plan updated by Super Admin",
+      "error_conflict_revision": "Conflict detected: This plan was updated by another administrator. Please refresh and retry."
     },
     "impersonation": {
       "banner": "Simulation Mode ({{scope}}): Clinic {{tenant}}{{user}}",

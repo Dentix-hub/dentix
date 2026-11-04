@@ -2589,7 +2589,10 @@
       "disable": "تعطيل",
       "close_create": "إلغاء الإضافة",
       "feature_key_label": "مفتاح الميزة (Feature Key)",
-      "rollout_percentage_label": "نسبة النشر (%)"
+      "rollout_percentage_label": "نسبة النشر (%)",
+      "rollout_notice": "ملاحظة: هذه اللوحة مخصصة للتحكم في الإطلاق التدريجي للميزات البرمجية والتجريبية (Rollout Flags)، وليست بديلاً عن باقات الاشتراك التجاري.",
+      "reset_inherit": "إعادة للتوريث",
+      "reset_inherit_success": "تمت إعادة ضبط التجاوز واستعادة التوريث بنجاح"
     },
     "notifications": {
       "title": "إرسال إشعار جديد للنظام",
@@ -2830,7 +2833,14 @@
       "error_invalid_duration": "المدة بالأيام غير صحيحة",
       "custom_features_placeholder": "ميزات مخصصة (ميزة في كل سطر)",
       "delete_plan": "حذف الخطة",
-      "delete_title": "تأكيد حذف الخطة"
+      "delete_title": "تأكيد حذف الخطة",
+      "ai_disabled": "معطّل",
+      "feature_unavailable": "غير متاح في الإصدار التجاري",
+      "error_invalid_users": "الحد الأقصى للمستخدمين يجب أن يكون 1 على الأقل",
+      "error_ai_limit_required": "يجب تحديد حد يومي أكبر من الصفر لطلبات الذكاء الاصطناعي عند تفعيله",
+      "error_ai_disabled_zero": "الحد اليومي يجب أن يكون 0 عند تعطيل المساعد الذكي",
+      "audit_reason_update": "تحديث الخطة بواسطة المدير العام",
+      "error_conflict_revision": "حدث تعارض في التعديل: تم تحديث الخطة بواسطة مسؤول آخر. يرجى إعادة تحميل الصفحة والمحاولة مجدداً."
     },
     "impersonation": {
       "banner": "وضع المحاكاة ({{scope}}): عيادة {{tenant}}{{user}}",
