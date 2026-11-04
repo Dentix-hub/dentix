@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from ..core.response import success_response, error_response
 from sqlalchemy import func, desc, case, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,6 +13,13 @@ from ..core.permissions import Permission, Role, require_permission, require_all
 from backend.services.cost_engine import CostEngine
 from backend.services.ai_learning_service import get_ai_learning_service
 from backend.models.inventory import Material
+from backend.services.commercial_ai_guard import evaluate_commercial_ai_access
+from backend.services.ai_quota_service import (
+    AIQuotaService,
+    AIQuotaExhaustedError,
+    IdempotencyConflictError,
+    ScopeMismatchError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -597,6 +604,7 @@ async def get_detailed_analytics(db: AsyncSession, tenant_id: int, days: int = 3
 @router.post("/analyze-clinic")
 async def analyze_clinic(
     stats: ClinicStats,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(
         require_all_permissions(Permission.AI_CHAT, Permission.REPORT_READ)
@@ -604,10 +612,43 @@ async def analyze_clinic(
 ):
     """
     Generate AI insights based on financial stats.
+    Enforces AI_CHAT and REPORT_READ, then evaluates commercial AI access and reserves quota
+    BEFORE collecting protected data.
     """
+    # 1. Commercial AI access evaluation
+    denial = evaluate_commercial_ai_access(current_user.tenant)
+    if denial:
+        err_code, err_msg = denial
+        raise HTTPException(
+            status_code=403,
+            detail=err_code,
+        )
+
+    # 2. PR-07 Atomic Quota Reservation
+    idempotency_key = request.headers.get("X-Idempotency-Key") if request else None
+    try:
+        reservation = await AIQuotaService.async_reserve_quota(
+            bind=db,
+            tenant_id=current_user.tenant_id,
+            user_id=current_user.id,
+            operation="analyze_clinic",
+            payload=stats.dict(),
+            idempotency_key=idempotency_key,
+        )
+    except AIQuotaExhaustedError:
+        raise HTTPException(
+            status_code=403,
+            detail="limit_exceeded",
+        )
+    except (IdempotencyConflictError, ScopeMismatchError) as exc:
+        raise HTTPException(
+            status_code=409,
+            detail=str(exc),
+        )
+
     service = AIService(db, current_user)
 
-    # Enrich with deep KPIs
+    # 3. Enrich with deep KPIs (Protected aggregation occurs ONLY after commercial admission)
     try:
         detailed_context = await get_detailed_analytics(db, current_user.tenant_id)
     except Exception as e:
@@ -646,6 +687,11 @@ async def analyze_clinic(
     Format as a clean Markdown. Language: Arabic.
     """
 
-    response = await service.analyze_direct(prompt)
+    response = await service.analyze_direct(prompt, reservation_id=reservation.reservation_id)
+    if not response.success:
+        raise HTTPException(
+            status_code=500,
+            detail=response.error or response.message,
+        )
 
     return success_response(data={"insights": response.message})

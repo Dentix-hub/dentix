@@ -216,12 +216,18 @@ class CommercialDecisionEngine:
         elif norm_status == SubscriptionState.GRACE.value and not is_in_grace:
             effective_status = SubscriptionState.EXPIRED_READ_ONLY.value
 
-        plan = getattr(tenant, "subscription_plan", None)
+        try:
+            plan = getattr(tenant, "subscription_plan", None)
+        except Exception:
+            plan = tenant.__dict__.get("subscription_plan") if hasattr(tenant, "__dict__") else None
         plan_name = getattr(plan, "name", getattr(tenant, "plan", None))
         plan_id = getattr(plan, "id", getattr(tenant, "plan_id", None))
 
         if has_future_started:
-            future_plan = getattr(tenant, "future_plan", None)
+            try:
+                future_plan = getattr(tenant, "future_plan", None)
+            except Exception:
+                future_plan = tenant.__dict__.get("future_plan") if hasattr(tenant, "__dict__") else None
             if future_plan:
                 plan = future_plan
                 plan_name = getattr(future_plan, "name", plan_name)
@@ -234,7 +240,10 @@ class CommercialDecisionEngine:
         diagnostics["plan_id"] = plan_id
 
         # 1. Clinical History Invariant
-        is_history_read = (operation == OperationClass.READ_HISTORY.value)
+        is_history_read = (
+            operation == OperationClass.READ_HISTORY.value
+            and canon_cap == CapabilityKey.CLINICAL.value
+        )
         if is_history_read:
             return CommercialDecision(
                 tenant_id=tenant_id,

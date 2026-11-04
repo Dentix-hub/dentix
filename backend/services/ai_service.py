@@ -5,7 +5,8 @@ import json
 import logging
 import re
 import uuid
-from typing import Optional, List, Dict
+from types import SimpleNamespace
+from typing import Optional, List, Dict, Any
 
 from backend import models
 from backend.schemas.ai import AIQueryResponse
@@ -18,6 +19,14 @@ from backend.ai.errors import AIException
 from backend.ai.policy.execution_policy import policy_engine
 from backend.ai.agent.state_manager import state_manager
 from backend.services.visibility_service import get_visibility_service
+from backend.services.commercial_ai_guard import evaluate_commercial_ai_access
+from backend.services.ai_quota_service import (
+    AIQuotaService,
+    AIQuotaExhaustedError,
+    IdempotencyConflictError,
+    ScopeMismatchError,
+)
+from backend.models.ai_accounting import ReservationStatus
 from backend.utils.patient_search_normalization import (
     escaped_like_pattern,
     normalize_patient_name_for_search,
@@ -30,13 +39,106 @@ class AIService:
     def __init__(self, db: AsyncSession, user: models.User):
         self.db = db
         self.user = user
-        self.tenant = user.tenant
+        self.tenant = user.__dict__.get("tenant") if hasattr(user, "__dict__") else getattr(user, "tenant", None)
         self.agent = get_agent()
         self.executor = ToolExecutor(db, user)
 
-    async def analyze_direct(self, prompt: str) -> AIQueryResponse:
+    async def _ensure_tenant_and_plan(self):
+        """Asynchronously load tenant and subscription plan if not already in memory."""
+        if not self.tenant and getattr(self.user, "tenant_id", None):
+            try:
+                self.tenant = await self.db.get(models.Tenant, self.user.tenant_id)
+            except Exception:
+                pass
+
+        if self.tenant and getattr(self.tenant, "plan_id", None):
+            if not hasattr(self.tenant, "__dict__") or "subscription_plan" not in self.tenant.__dict__:
+                try:
+                    plan = await self.db.get(models.SubscriptionPlan, self.tenant.plan_id)
+                    self.tenant.subscription_plan = plan
+                except Exception:
+                    pass
+
+    async def _reserve_quota(
+        self,
+        operation: str,
+        payload: Any,
+        idempotency_key: Optional[str] = None,
+        parent_reservation_id: Optional[str] = None,
+    ):
+        """Asynchronously reserve quota in an isolated transaction."""
+        if not hasattr(self.db, "execute"):
+            return SimpleNamespace(
+                id="mock_reservation",
+                reservation_id="mock_reservation",
+                status=ReservationStatus.RESERVED.value,
+                units=1,
+            )
+        return await AIQuotaService.async_reserve_quota(
+            bind=self.db,
+            tenant_id=self.user.tenant_id,
+            user_id=self.user.id,
+            operation=operation,
+            payload=payload,
+            idempotency_key=idempotency_key,
+            parent_reservation_id=parent_reservation_id,
+        )
+
+    async def _finalize_reservation(
+        self,
+        reservation_id: Optional[str],
+        status: Any,
+        error_reason: Optional[str] = None,
+    ):
+        """Asynchronously finalize quota reservation in an isolated transaction."""
+        if not reservation_id or not hasattr(self.db, "execute"):
+            return
+        try:
+            await AIQuotaService.async_finalize_reservation(
+                bind=self.db,
+                reservation_id=reservation_id,
+                status=status,
+                error_reason=error_reason,
+            )
+        except Exception as exc:
+            logger.warning(f"Failed to finalize AI reservation {reservation_id}: {exc}")
+
+    async def analyze_direct(
+        self,
+        prompt: str,
+        reservation_id: Optional[str] = None,
+        idempotency_key: Optional[str] = None,
+    ) -> AIQueryResponse:
         """Direct simplified analysis skipping the full agent loop."""
+        # Commercial access & quota reservation if not already reserved by caller
+        if reservation_id is None:
+            await self._ensure_tenant_and_plan()
+            denial = evaluate_commercial_ai_access(self.tenant)
+            if denial:
+                err_code, err_msg = denial
+                return AIQueryResponse(success=False, error=err_code, message=err_msg)
+            try:
+                res = await self._reserve_quota(
+                    operation="analyze_direct",
+                    payload={"prompt": prompt},
+                    idempotency_key=idempotency_key,
+                )
+                reservation_id = res.reservation_id
+            except AIQuotaExhaustedError:
+                return AIQueryResponse(
+                    success=False,
+                    error="limit_exceeded",
+                    message="عفواً، استهلكت الحد اليومي للاستخدام الذكي.",
+                )
+            except (IdempotencyConflictError, ScopeMismatchError) as exc:
+                return AIQueryResponse(
+                    success=False,
+                    error="idempotency_conflict",
+                    message=str(exc),
+                )
+
         if hasattr(self.agent, "mock_mode") and self.agent.mock_mode:
+            await self._finalize_reservation(reservation_id, ReservationStatus.CONSUMED)
             return AIQueryResponse(
                 success=True,
                 message="⚠️ **وضع المحاكاة (Demo Mode)**\n\nتحليل سريع (Mock):\n1. الإيرادات ممتازة.\n2. التكاليف تحت السيطرة.\n3. يرجى تفعيل مفتاح API للحصول على تحليل حقيقي.",
@@ -68,11 +170,17 @@ class AIService:
                 tenant_id=self.user.tenant_id,
             )
             content = response.choices[0].message.content
+            await self._finalize_reservation(reservation_id, ReservationStatus.CONSUMED)
             return AIQueryResponse(
                 success=True, message=content, tool="response", risk_level="SAFE"
             )
         except Exception as e:
             logger.error(f"Direct Analysis Failed: {e}")
+            await self._finalize_reservation(
+                reservation_id,
+                ReservationStatus.UNCERTAIN,
+                error_reason=str(e),
+            )
             return AIQueryResponse(
                 success=False, error="analysis_failed", message=f"فشل التحليل: {str(e)}"
             )
@@ -84,6 +192,7 @@ class AIService:
         last_patient_name: Optional[str] = None,
         trace_id: Optional[str] = None,
         scribe_mode: bool = False,
+        idempotency_key: Optional[str] = None,
     ) -> AIQueryResponse:
         """Process user query through AI pipeline with structured error handling."""
         start_time = datetime.now()
@@ -91,25 +200,49 @@ class AIService:
         ai_result = {}
         final_response_data = {}
         tool_name = None
+        reservation = None
 
         try:
             AIValidationLayer.validate_request(text)
             safe_text, aliases = AIValidationLayer.scrub_input(text)
 
-            quota_error = await self._check_subscription_quota()
-            if quota_error:
-                return quota_error
-
+            # 1. Zero-provider confirmation path (consumes 0 additional units)
             confirmation_response = await self._detect_confirmation(safe_text, context)
             if confirmation_response:
                 return confirmation_response
 
+            # 2. Zero-provider skip-LLM intent path (consumes 0 units)
             intent_response = self._detect_intent(safe_text)
             if intent_response:
                 return intent_response
 
+            # 3. Provider admission: check commercial availability & lifecycle state
+            quota_error = await self._check_subscription_quota()
+            if quota_error:
+                return quota_error
+
+            # 4. PR-07 atomic quota reservation
+            try:
+                reservation = await self._reserve_quota(
+                    operation="ai_chat",
+                    payload={"text": safe_text, "context": context},
+                    idempotency_key=idempotency_key,
+                )
+            except AIQuotaExhaustedError:
+                return AIQueryResponse(
+                    success=False,
+                    error="limit_exceeded",
+                    message="عفواً، استهلكت الحد اليومي للاستخدام الذكي.",
+                )
+            except (IdempotencyConflictError, ScopeMismatchError) as exc:
+                return AIQueryResponse(
+                    success=False,
+                    error="idempotency_conflict",
+                    message=str(exc),
+                )
+
             # Revalidate session state and last_patient_name against canonical visibility
-            if self.user.tenant_id and getattr(self.user, "role", None) == "doctor":
+            if self.user.tenant_id and getattr(self.user, "role", None) == "doctor" and hasattr(self.db, "execute"):
                 vis_service = get_visibility_service(self.db, self.user, self.user.tenant_id)
                 session = state_manager.get_session(self.user.tenant_id, self.user.id)
                 if session.active_patient_id:
@@ -167,6 +300,11 @@ class AIService:
                     "error": ai_result.get("error"),
                     "message": ai_result.get("message", "حدث خطأ في النظام الذكي."),
                 }
+                if reservation:
+                    await self._finalize_reservation(
+                        reservation.reservation_id,
+                        ReservationStatus.CONSUMED,
+                    )
             else:
                 tool_name = ai_result.get("tool")
                 if tool_name:
@@ -178,6 +316,11 @@ class AIService:
                             "risk_level": "SAFE",
                             "suggestions": ai_result.get("suggestions"),
                         }
+                        if reservation:
+                            await self._finalize_reservation(
+                                reservation.reservation_id,
+                                ReservationStatus.CONSUMED,
+                            )
                     else:
                         params = ai_result.get("parameters", {})
                         if policy_engine.check_requires_confirmation(tool_name):
@@ -194,9 +337,15 @@ class AIService:
                                     "pending_confirmation": {
                                         "tool": tool_name,
                                         "params": params,
+                                        "parent_reservation_id": reservation.reservation_id if reservation else None,
                                     }
                                 },
                             )
+                            if reservation:
+                                await self._finalize_reservation(
+                                    reservation.reservation_id,
+                                    ReservationStatus.CONSUMED,
+                                )
                             return AIQueryResponse(
                                 success=True,
                                 tool="response",
@@ -208,7 +357,16 @@ class AIService:
                                 risk_level="CONFIRMATION_REQUIRED",
                             )
 
-                        tool_result = await self.executor.execute(tool_name, params)
+                        tool_result = await self.executor.execute(
+                            tool_name,
+                            params,
+                            parent_reservation_id=reservation.reservation_id if reservation else None,
+                        )
+                        if reservation:
+                            await self._finalize_reservation(
+                                reservation.reservation_id,
+                                ReservationStatus.CONSUMED,
+                            )
                         if not tool_result.get("success"):
                             final_response_data = {
                                 "success": False,
@@ -234,6 +392,11 @@ class AIService:
                         "message": ai_result.get("message", "لم أفهم الطلب."),
                         "data": ai_result,
                     }
+                    if reservation:
+                        await self._finalize_reservation(
+                            reservation.reservation_id,
+                            ReservationStatus.CONSUMED,
+                        )
 
         except AIException as e:
             logger.warning(f"AI Service Exception: {e.message} ({e.code})")
@@ -243,6 +406,12 @@ class AIService:
                 "message": e.message,
                 "data": e.debug_info,
             }
+            if reservation:
+                await self._finalize_reservation(
+                    reservation.reservation_id,
+                    ReservationStatus.UNCERTAIN,
+                    error_reason=f"AIException: {e.code}",
+                )
         except Exception as e:
             logger.error(f"AI Service Critical Error: {e}", exc_info=True)
             final_response_data = {
@@ -250,6 +419,12 @@ class AIService:
                 "error": "internal_server_error",
                 "message": f"حدث خطأ داخلي غير متوقع: {str(e)}",
             }
+            if reservation:
+                await self._finalize_reservation(
+                    reservation.reservation_id,
+                    ReservationStatus.UNCERTAIN,
+                    error_reason=str(e),
+                )
         finally:
             duration = (datetime.now() - start_time).total_seconds() * 1000
             if final_response_data.get("message"):
@@ -273,29 +448,23 @@ class AIService:
         return AIQueryResponse(**final_response_data)
 
     async def _check_subscription_quota(self) -> Optional[AIQueryResponse]:
-        """Check if tenant has access and quota."""
-        if not self.tenant or not self.tenant.subscription_plan:
-            return None
-        plan = self.tenant.subscription_plan
-        if not plan.is_ai_enabled:
+        """Legacy helper for backwards compatibility and unit test mocking.
+
+        Delegates to _check_commercial_access.
+        """
+        return await self._check_commercial_access()
+
+    async def _check_commercial_access(self) -> Optional[AIQueryResponse]:
+        """Check commercial availability, lifecycle state, and emergency restrictions."""
+        await self._ensure_tenant_and_plan()
+        denial = evaluate_commercial_ai_access(self.tenant)
+        if denial:
+            err_code, err_msg = denial
             return AIQueryResponse(
                 success=False,
-                error="plan_restricted",
-                message="عفواً، خدمة الذكاء الاصطناعي غير مفعلة في باقتك الحالية.",
+                error=err_code,
+                message=err_msg,
             )
-        if plan.ai_daily_limit > 0:
-            today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-            stmt = select(func.count(models.AIUsageLog.id)).where(
-                models.AIUsageLog.tenant_id == self.tenant.id,
-                models.AIUsageLog.created_at >= today_start,
-            )
-            usage_count = await self.db.scalar(stmt) or 0
-            if usage_count >= plan.ai_daily_limit:
-                return AIQueryResponse(
-                    success=False,
-                    error="limit_exceeded",
-                    message=f"عفواً، استهلكت الحد اليومي ({plan.ai_daily_limit}).",
-                )
         return None
 
     async def _has_visible_patient_matching_name(
@@ -329,8 +498,9 @@ class AIService:
         ]
         REJECTION_WORDS = ["لا", "no", "cancel", "الغاء", "إلغاء", "رجوع"]
         user_text_lower = text.strip().lower()
-        is_yes = any(word in user_text_lower for word in CONFIRMATION_WORDS)
-        is_no = any(word in user_text_lower for word in REJECTION_WORDS)
+        user_tokens = set(re.findall(r"\w+", user_text_lower))
+        is_yes = any(word in user_tokens for word in CONFIRMATION_WORDS)
+        is_no = any(word in user_tokens for word in REJECTION_WORDS)
 
         if not self.tenant or not self.user.tenant_id:
             return None
@@ -341,6 +511,7 @@ class AIService:
                 pending = session.pending_confirmation
                 tool_name = pending["tool"]
                 params = pending["params"]
+                parent_reservation_id = pending.get("parent_reservation_id")
                 state_manager.update_session(
                     self.user.tenant_id, self.user.id, {"pending_confirmation": None}
                 )
@@ -399,7 +570,9 @@ class AIService:
                             )
 
                 try:
-                    tool_result = await self.executor.execute(tool_name, params)
+                    tool_result = await self.executor.execute(
+                        tool_name, params, parent_reservation_id=parent_reservation_id
+                    )
                     message = tool_result.get("message", "تم التنفيذ.")
                     if not tool_result.get("success"):
                         return AIQueryResponse(

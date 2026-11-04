@@ -22,11 +22,12 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.database import async_engine
+from backend.database import async_engine, engine
 from backend import models
 
-_SyncSessionLocal = sessionmaker(bind=async_engine.sync_engine, autoflush=False, autocommit=False)
+_SyncSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 from backend.models.ai_accounting import (
     AIQuotaWindow,
     AIReservation,
@@ -398,7 +399,10 @@ class AIQuotaService:
     ) -> AIReservation:
         """Finalize or update a reservation state idempotently."""
         now_naive = _as_utc_naive(now_utc)
-        target_status = status.value if isinstance(status, ReservationStatus) else str(status)
+        if hasattr(status, "value"):
+            target_status = status.value
+        else:
+            target_status = str(status).upper()
 
         try:
             reservation = (
@@ -527,3 +531,55 @@ class AIQuotaService:
             "is_exhausted": bool(admitted >= limit),
             "quota_source": "ai_quota_windows",
         }
+
+    @classmethod
+    async def async_reserve_quota(
+        cls,
+        bind: Any,
+        tenant_id: int,
+        user_id: Optional[int],
+        operation: str,
+        payload: Any,
+        idempotency_key: Optional[str] = None,
+        parent_reservation_id: Optional[str] = None,
+        now_utc: Optional[datetime] = None,
+    ) -> AIReservation:
+        """Reserve quota asynchronously in an isolated session."""
+        target_bind = bind.bind if hasattr(bind, "bind") else (bind or async_engine)
+        async with AsyncSession(bind=target_bind, expire_on_commit=False) as session:
+            return await session.run_sync(
+                lambda s: cls.reserve_quota(
+                    session=s,
+                    tenant_id=tenant_id,
+                    user_id=user_id,
+                    operation=operation,
+                    payload=payload,
+                    idempotency_key=idempotency_key,
+                    parent_reservation_id=parent_reservation_id,
+                    now_utc=now_utc,
+                )
+            )
+
+    @classmethod
+    async def async_finalize_reservation(
+        cls,
+        bind: Any,
+        reservation_id: str,
+        status: Any,
+        error_reason: Optional[str] = None,
+        reconciliation_notes: Optional[str] = None,
+        now_utc: Optional[datetime] = None,
+    ) -> AIReservation:
+        """Finalize reservation asynchronously in an isolated session."""
+        target_bind = bind.bind if hasattr(bind, "bind") else (bind or async_engine)
+        async with AsyncSession(bind=target_bind, expire_on_commit=False) as session:
+            return await session.run_sync(
+                lambda s: cls.finalize_reservation(
+                    session=s,
+                    reservation_id=reservation_id,
+                    status=status,
+                    error_reason=error_reason,
+                    reconciliation_notes=reconciliation_notes,
+                    now_utc=now_utc,
+                )
+            )

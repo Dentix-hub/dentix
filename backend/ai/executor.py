@@ -5,13 +5,15 @@ boundaries as the equivalent HTTP workflows.
 """
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import logging
 import traceback
 
 from backend import models
 from backend.ai.errors import AIException
 from backend.core.permissions import Permission, has_permission
+from backend.core.commercial_registry import CapabilityKey, OperationClass
+from backend.services.commercial_decision import CommercialDecisionEngine
 
 from ..ai.handlers.patient import PatientHandler
 from ..ai.handlers.appointment import AppointmentHandler
@@ -63,6 +65,51 @@ _TOOL_REQUIRED_PERMISSION = {
     "get_revenue_trend": Permission.REPORT_READ,
     "send_appointment_reminders": Permission.APPOINTMENT_UPDATE,
     "send_whatsapp_message": Permission.APPOINTMENT_UPDATE,
+}
+
+_TOOL_CAPABILITY_MAP = {
+    # Patient tools
+    "get_patient_file": CapabilityKey.CLINICAL.value,
+    "search_patients": CapabilityKey.CLINICAL.value,
+    "get_patients_with_balance": CapabilityKey.BILLING.value,
+    "summarize_patient": CapabilityKey.CLINICAL.value,
+    "create_patient": CapabilityKey.CLINICAL.value,
+    # Appointment tools
+    "get_appointments": CapabilityKey.CLINICAL.value,
+    "find_available_slots": CapabilityKey.CLINICAL.value,
+    "smart_book_appointment": CapabilityKey.CLINICAL.value,
+    "create_appointment": CapabilityKey.CLINICAL.value,
+    "send_appointment_reminders": CapabilityKey.CLINICAL.value,
+    "send_whatsapp_message": CapabilityKey.CLINICAL.value,
+    # Finance tools
+    "get_financial_record": CapabilityKey.BILLING.value,
+    "create_payment": CapabilityKey.BILLING.value,
+    "get_procedure_price": CapabilityKey.BILLING.value,
+    "get_today_payments": CapabilityKey.BILLING.value,
+    "get_expenses": CapabilityKey.BILLING.value,
+    "get_procedures_list": CapabilityKey.BILLING.value,
+    # Clinical tools
+    "get_recent_treatments": CapabilityKey.CLINICAL.value,
+    "get_lab_orders": CapabilityKey.LABORATORIES.value,
+    "record_medical_note": CapabilityKey.CLINICAL.value,
+    "add_treatment_voice": CapabilityKey.CLINICAL.value,
+    "add_treatment": CapabilityKey.CLINICAL.value,
+    "update_tooth_status": CapabilityKey.CLINICAL.value,
+    "parse_medical_dictation": CapabilityKey.CLINICAL.value,
+    "analyze_medical_dictation": CapabilityKey.CLINICAL.value,
+    # Report & Admin tools
+    "get_doctor_ranking": CapabilityKey.EXPORT_REPORTS.value,
+    "compare_periods": CapabilityKey.EXPORT_REPORTS.value,
+    "get_top_procedures": CapabilityKey.EXPORT_REPORTS.value,
+    "get_revenue_trend": CapabilityKey.EXPORT_REPORTS.value,
+    "get_dashboard_stats": CapabilityKey.EXPORT_REPORTS.value,
+    "get_subscription_info": CapabilityKey.AI_INSIGHTS.value,
+    "get_clinic_info": CapabilityKey.AI_INSIGHTS.value,
+    "get_users_list": CapabilityKey.AI_INSIGHTS.value,
+    "get_ai_stats": CapabilityKey.AI_INSIGHTS.value,
+    "learn_clinic_info": CapabilityKey.AI_INSIGHTS.value,
+    "list_my_knowledge": CapabilityKey.AI_INSIGHTS.value,
+    "forget_info": CapabilityKey.AI_INSIGHTS.value,
 }
 
 
@@ -163,8 +210,57 @@ class ToolExecutor:
             "risk_level": "BLOCKED",
         }
 
-    async def execute(self, tool_name: str, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute a tool after resolving it and re-enforcing domain permission."""
+    async def _commercial_capability_error(self, tool_name: str) -> Dict[str, Any] | None:
+        """PR-08: Enforce commercial per-plan capability in executor as an additional AND condition."""
+        req_cap = _TOOL_CAPABILITY_MAP.get(tool_name)
+        if not req_cap or not self.tenant_id:
+            return None
+
+        # Avoid async lazy-loading relationship error on self.user.tenant
+        tenant = self.user.__dict__.get("tenant")
+        if tenant is None and self.tenant_id and self.db is not None:
+            try:
+                tenant = await self.db.get(models.Tenant, self.tenant_id)
+            except Exception:
+                tenant = None
+
+        if not tenant:
+            return None
+
+        from backend.core.config import get_subscription_enforcement_mode
+
+        mode = get_subscription_enforcement_mode()
+        is_write = tool_name.startswith(("create_", "add_", "update_", "record_", "send_", "learn_", "forget_"))
+        op_class = OperationClass.WRITE_BUSINESS.value if is_write else OperationClass.READ_HISTORY.value
+
+        decision = CommercialDecisionEngine.evaluate_capability(
+            tenant=tenant,
+            capability=req_cap,
+            operation=op_class,
+            override_mode=mode,
+        )
+        if not decision.allowed:
+            logger.warning(
+                "AI tool denied by commercial capability: tool=%s capability=%s reason=%s",
+                tool_name,
+                req_cap,
+                decision.reason_code.value,
+            )
+            return {
+                "success": False,
+                "error_code": "plan_restricted",
+                "message": f"عفواً، خاصية '{req_cap}' غير مفعلة في باقة اشتراك العيادة.",
+                "risk_level": "BLOCKED",
+            }
+        return None
+
+    async def execute(
+        self,
+        tool_name: str,
+        parameters: Dict[str, Any],
+        parent_reservation_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Execute a tool after resolving it and re-enforcing domain permission & commercial capability."""
         handler = self.tools.get(tool_name)
         if not handler and self.registry:
             tool_def = self.registry.get(tool_name)
@@ -188,6 +284,10 @@ class ToolExecutor:
                 getattr(self.user, "role", None),
             )
             return permission_error
+
+        capability_error = await self._commercial_capability_error(tool_name)
+        if capability_error:
+            return capability_error
 
         from backend.core.config import is_ai_read_only, is_ai_disabled
 
@@ -218,6 +318,9 @@ class ToolExecutor:
                     "message": "⚠️ النظام في وضع 'القراءة فقط'. العمليات التي تغير البيانات غير مسموح بها حالياً.",
                     "risk_level": "BLOCKED",
                 }
+
+        if parent_reservation_id and isinstance(parameters, dict):
+            parameters["_parent_reservation_id"] = parent_reservation_id
 
         try:
             result = await handler(parameters)
