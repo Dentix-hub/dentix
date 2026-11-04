@@ -213,30 +213,51 @@ class EntitlementService:
             SubscriptionState.GRACE.value,
         }:
             clinical_decision = commercial_decisions.get(CapabilityKey.CLINICAL.value, {})
-            has_explicit_denial = bool(
+            billing_decision = commercial_decisions.get(CapabilityKey.BILLING.value, {})
+
+            has_clinical_denial = bool(
                 clinical_decision.get("emergency_denied")
                 or (plan is not None and not clinical_decision.get("commercial_grant", True))
                 or (getattr(tenant, "is_active", True) is False)
             )
-            if has_explicit_denial:
-                can_write = False
+            has_billing_denial = bool(
+                billing_decision.get("emergency_denied")
+                or (plan is not None and not billing_decision.get("commercial_grant", True))
+                or (getattr(tenant, "is_active", True) is False)
+            )
+
+            can_write_clinical = not has_clinical_denial
+            can_write_billable = not has_billing_denial
+            can_create_appointments = can_write_clinical
+
+            reason_msg = None
+            if has_clinical_denial and has_billing_denial:
+                reason_msg = (
+                    clinical_decision.get("explanation_ar")
+                    or clinical_decision.get("explanation_en")
+                    or "Write access is restricted."
+                )
+            elif has_clinical_denial:
                 reason_msg = (
                     clinical_decision.get("explanation_ar")
                     or clinical_decision.get("explanation_en")
                     or "Clinical write access is restricted."
                 )
-            else:
-                can_write = True
-                reason_msg = None
+            elif has_billing_denial:
+                reason_msg = (
+                    billing_decision.get("explanation_ar")
+                    or billing_decision.get("explanation_en")
+                    or "Billing write access is restricted."
+                )
 
             return EntitlementEvaluation(
                 tenant_id=tenant.id,
                 status=effective_status,
                 mode=mode,
                 can_read_clinical=True,
-                can_write_clinical=can_write,
-                can_write_billable=can_write,
-                can_create_appointments=can_write,
+                can_write_clinical=can_write_clinical,
+                can_write_billable=can_write_billable,
+                can_create_appointments=can_create_appointments,
                 reason=reason_msg,
                 plan_id=plan_id,
                 plan_name=plan_name,
