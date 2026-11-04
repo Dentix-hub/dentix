@@ -219,9 +219,13 @@ class ClinicalHandler(BaseHandler):
         if not text:
             return {"error": "missing_text", "message": "النص فارغ"}
 
+        parent_res_id = params.get("_parent_reservation_id")
         try:
             procedures = self.scribe.analyze_dictation(
-                text, tenant_id=self.tenant_id
+                text,
+                tenant_id=self.tenant_id,
+                user_id=getattr(self.user, "id", None),
+                parent_reservation_id=parent_res_id,
             )
 
             # Contextual Patient Match

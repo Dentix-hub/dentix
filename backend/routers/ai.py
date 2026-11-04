@@ -34,6 +34,7 @@ async def ai_query(
     """
     service = AIService(db, current_user)
     trace_id = getattr(request.state, "trace_id", None)
+    idempotency_key = query_data.idempotency_key or request.headers.get("X-Idempotency-Key")
 
     return await service.process_query(
         text=query_data.text,
@@ -41,6 +42,7 @@ async def ai_query(
         last_patient_name=query_data.last_patient_name,
         trace_id=trace_id,
         scribe_mode=query_data.scribe_mode,
+        idempotency_key=idempotency_key,
     )
 
 
