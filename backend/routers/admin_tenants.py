@@ -8,6 +8,11 @@ from backend import models, schemas
 from backend.database import get_async_db, system_session_scope
 from backend.services.admin_service import AdminService
 from backend.services.feature_service import FeatureFlagService
+from backend.services.account_admission_service import AccountAdmissionService
+from backend.services.subscription_state_machine import (
+    SubscriptionState,
+    normalize_state,
+)
 from backend.services.subscription_renewal_service import (
     SubscriptionRenewalError,
     renew_subscription,
@@ -129,31 +134,130 @@ async def assign_plan_to_tenant(
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
-    res_tenant = await db.execute(select(models.Tenant).where(models.Tenant.id == tenant_id))
-    tenant = res_tenant.scalar_one_or_none()
+    stmt = select(models.Tenant).where(models.Tenant.id == tenant_id).with_for_update()
+    tenant = (await db.execute(stmt)).scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    curr_state = normalize_state(tenant.subscription_status or "trial")
+    if curr_state in {
+        SubscriptionState.SUSPENDED_ADMIN.value,
+        SubscriptionState.CANCELLED.value,
+    }:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot assign plan: tenant is in '{curr_state}' state. Explicit reactivation is required.",
+        )
+
     res_plan = await db.execute(
-        select(models.SubscriptionPlan)
-        .where(models.SubscriptionPlan.id == plan_id)
+        select(models.SubscriptionPlan).where(models.SubscriptionPlan.id == plan_id)
     )
     plan = res_plan.scalar_one_or_none()
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
+    if not plan or not plan.is_active:
+        raise HTTPException(status_code=404, detail="Subscription plan not found")
 
+    # Lower-cap assignment cannot bypass capacity rules (Task 2):
+    active_count = await AccountAdmissionService.get_active_account_count(db, tenant.id)
+    if plan.max_users is not None and active_count > plan.max_users:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Cannot assign plan '{plan.name}': tenant currently has {active_count} active accounts, "
+                f"which exceeds the target plan cap ({plan.max_users}). Deactivate or delete accounts first."
+            ),
+        )
+
+    old_plan = tenant.plan
     tenant.plan = plan.name
     tenant.plan_id = plan.id
-    tenant.is_active = True
-    tenant.subscription_end_date = datetime.now(timezone.utc) + timedelta(
-        days=plan.duration_days
+    # Preserves existing paid/trial time and NEVER alters is_active:
+    if not tenant.subscription_end_date:
+        tenant.subscription_end_date = datetime.now(timezone.utc).replace(
+            tzinfo=None
+        ) + timedelta(days=plan.duration_days)
+
+    db.add(
+        models.AuditLog(
+            action="TENANT_ASSIGN_PLAN",
+            entity_type="Tenant",
+            entity_id=tenant.id,
+            target_username=tenant.name,
+            performed_by_id=current_user.id,
+            performed_by_username=current_user.username,
+            old_value=f"plan={old_plan}",
+            new_value=f"plan={plan.name}",
+            tenant_id=tenant.id,
+        )
     )
 
     await db.commit()
     await db.refresh(tenant)
     return success_response(
-        data={"tenant": tenant.name},
+        data={"tenant": tenant.name, "plan": tenant.plan},
         message=f"Plan '{plan.name}' assigned successfully",
+    )
+
+
+@router.post("/{tenant_id}/schedule-downgrade", response_model=StandardResponse[dict])
+async def schedule_tenant_downgrade(
+    tenant_id: int,
+    plan_id: int,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Schedule a plan downgrade for the next renewal (Task 10).
+    Requires active accounts to already be within the target plan cap.
+    """
+    stmt = select(models.Tenant).where(models.Tenant.id == tenant_id).with_for_update()
+    tenant = (await db.execute(stmt)).scalar_one_or_none()
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Tenant not found")
+
+    res_plan = await db.execute(
+        select(models.SubscriptionPlan).where(models.SubscriptionPlan.id == plan_id)
+    )
+    target_plan = res_plan.scalar_one_or_none()
+    if not target_plan or not target_plan.is_active:
+        raise HTTPException(status_code=404, detail="Subscription plan not found")
+
+    active_count = await AccountAdmissionService.get_active_account_count(db, tenant.id)
+    if target_plan.max_users is not None and active_count > target_plan.max_users:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Cannot schedule downgrade to '{target_plan.name}': tenant currently has {active_count} active accounts, "
+                f"exceeding the target cap ({target_plan.max_users}). Deactivate or delete accounts before scheduling downgrade."
+            ),
+        )
+
+    tenant.scheduled_downgrade_plan_id = target_plan.id
+
+    db.add(
+        models.AuditLog(
+            action="SUBSCRIPTION_SCHEDULE_DOWNGRADE",
+            entity_type="Tenant",
+            entity_id=tenant.id,
+            target_username=tenant.name,
+            performed_by_id=current_user.id,
+            performed_by_username=current_user.username,
+            old_value=f"scheduled_downgrade={tenant.scheduled_downgrade_plan_id}",
+            new_value=f"scheduled_downgrade={target_plan.id} ({target_plan.name})",
+            details=f"Downgrade scheduled for next renewal. Active accounts: {active_count}/{target_plan.max_users}",
+            tenant_id=tenant.id,
+        )
+    )
+
+    await db.commit()
+    await db.refresh(tenant)
+    return success_response(
+        data={
+            "tenant_id": tenant.id,
+            "scheduled_downgrade_plan_id": target_plan.id,
+            "scheduled_downgrade_plan": target_plan.name,
+            "effective_cap": target_plan.max_users,
+        },
+        message="Downgrade scheduled successfully for next renewal",
     )
 
 

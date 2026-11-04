@@ -4,7 +4,13 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database import system_session_scope
 from backend.models.tenant import Tenant
-from sqlalchemy import select, or_
+from backend import models
+from backend.services.subscription_state_machine import (
+    SubscriptionState,
+    normalize_state,
+    validate_transition,
+)
+from sqlalchemy import select, or_, and_
 import traceback
 
 from prefect import task, flow
@@ -34,11 +40,25 @@ async def check_expired_subscriptions(db: AsyncSession):
         return 0
 
     now = datetime.now(timezone.utc)
+    now_naive = now.replace(tzinfo=None)
+
     stmt = select(Tenant).where(
         Tenant.is_active == True,
-        Tenant.subscription_end_date != None,
-        Tenant.subscription_end_date < now,
-        or_(Tenant.grace_period_until == None, Tenant.grace_period_until < now),
+        Tenant.is_deleted == False,
+        Tenant.subscription_status.notin_(
+            [
+                SubscriptionState.SUSPENDED_ADMIN.value,
+                SubscriptionState.CANCELLED.value,
+            ]
+        ),
+        or_(
+            Tenant.subscription_end_date < now,
+            Tenant.subscription_end_date < now_naive,
+            and_(
+                Tenant.future_plan_id != None,
+                Tenant.future_plan_start_date <= now_naive,
+            ),
+        ),
     )
     result = await db.execute(stmt)
     expired_tenants = result.scalars().all()
@@ -48,17 +68,65 @@ async def check_expired_subscriptions(db: AsyncSession):
 
     count = 0
     for tenant in expired_tenants:
-        if mode == "observe":
-            logger.info(
-                f"[OBSERVE] Tenant {tenant.id} ({tenant.name}) subscription is past expiry date."
-            )
-        elif mode == "enforce":
-            # Update subscription status, but NEVER set is_active = False!
-            tenant.subscription_status = "expired"
-            logger.info(
-                f"[ENFORCE] Tenant {tenant.id} ({tenant.name}) subscription marked expired (read-only clinical history preserved)."
-            )
-            count += 1
+        curr_status = normalize_state(tenant.subscription_status or "trial")
+        # Defensive check: worker never overwrites security suspension or cancellation
+        if curr_status in {
+            SubscriptionState.SUSPENDED_ADMIN.value,
+            SubscriptionState.CANCELLED.value,
+        }:
+            continue
+
+        # Check if a future plan (e.g. bought during trial) starts now
+        if tenant.future_plan_id and tenant.future_plan_start_date:
+            f_start = tenant.future_plan_start_date
+            if f_start.tzinfo is None:
+                f_start = f_start.replace(tzinfo=timezone.utc)
+            if now >= f_start:
+                if mode == "enforce":
+                    future_plan = await db.get(models.SubscriptionPlan, tenant.future_plan_id)
+                    if future_plan:
+                        tenant.plan_id = future_plan.id
+                        tenant.plan = future_plan.name
+                    tenant.future_plan_id = None
+                    tenant.future_plan_start_date = None
+                    tenant.subscription_status = SubscriptionState.ACTIVE.value
+                    logger.info(
+                        f"[ENFORCE] Tenant {tenant.id} activated future paid plan {tenant.plan}."
+                    )
+                    count += 1
+                continue
+
+        # Otherwise evaluate expiry / grace
+        sub_end = tenant.subscription_end_date
+        if sub_end and sub_end.tzinfo is None:
+            sub_end = sub_end.replace(tzinfo=timezone.utc)
+
+        grace_end = tenant.grace_period_until
+        if grace_end and grace_end.tzinfo is None:
+            grace_end = grace_end.replace(tzinfo=timezone.utc)
+
+        if curr_status == SubscriptionState.TRIAL.value:
+            # Trial has no grace period
+            target_status = SubscriptionState.EXPIRED_READ_ONLY.value
+        else:
+            # Paid subscription: allow 7 grace days
+            if grace_end and now <= grace_end:
+                target_status = SubscriptionState.GRACE.value
+            else:
+                target_status = SubscriptionState.EXPIRED_READ_ONLY.value
+
+        if target_status != curr_status:
+            if mode == "observe":
+                logger.info(
+                    f"[OBSERVE] Tenant {tenant.id} ({tenant.name}) status transition: {curr_status} -> {target_status}."
+                )
+            elif mode == "enforce":
+                new_status = validate_transition(curr_status, target_status)
+                tenant.subscription_status = new_status
+                logger.info(
+                    f"[ENFORCE] Tenant {tenant.id} ({tenant.name}) transitioned from '{curr_status}' to '{new_status}' (read-only clinical history preserved, is_active unmodified)."
+                )
+                count += 1
 
     if mode == "enforce" and count > 0:
         await db.commit()

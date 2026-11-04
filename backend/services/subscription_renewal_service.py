@@ -10,6 +10,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import models, schemas
+from backend.core.commercial_registry import canonicalize_plan_name
+from backend.services.subscription_calendar import (
+    add_calendar_months,
+    calculate_grace_period,
+)
 from backend.services.subscription_state_machine import (
     SubscriptionState,
     normalize_state,
@@ -97,20 +102,65 @@ async def renew_subscription(
             raise SubscriptionRenewalError(
                 400, "New subscription end date must be in the future"
             )
-    else:
-        days = request.extension_days or (plan.duration_days if plan else 30)
+    elif request.extension_days:
         base = current_end if current_end and current_end > now else now
-        calculated_end = base + timedelta(days=days)
+        calculated_end = base + timedelta(days=request.extension_days)
+    else:
+        # Default calendar month renewal with preserved billing day anchor
+        base = current_end if current_end and current_end > now else now
+        calc_end, anchor = add_calendar_months(
+            base,
+            months=1,
+            anchor_day=tenant.billing_day_anchor,
+            tz_name=tenant.timezone or "Africa/Cairo",
+        )
+        calculated_end = _utc(calc_end)
+        tenant.billing_day_anchor = anchor
+
+    # Task 10: Scheduled downgrade activation at renewal
+    if tenant.scheduled_downgrade_plan_id:
+        downgrade_plan = await db.get(
+            models.SubscriptionPlan, tenant.scheduled_downgrade_plan_id
+        )
+        if downgrade_plan:
+            from backend.services.account_admission_service import AccountAdmissionService
+
+            active_count = await AccountAdmissionService.get_active_account_count(
+                db, tenant.id
+            )
+            if (
+                downgrade_plan.max_users is not None
+                and active_count > downgrade_plan.max_users
+            ):
+                raise SubscriptionRenewalError(
+                    400,
+                    f"Cannot activate scheduled downgrade to '{downgrade_plan.name}': tenant currently has {active_count} active accounts, exceeding target limit of {downgrade_plan.max_users}. Deactivate accounts before renewal.",
+                )
+            plan = downgrade_plan
+            tenant.scheduled_downgrade_plan_id = None
 
     old_status = current_state
-    new_status = validate_transition(old_status, SubscriptionState.ACTIVE.value)
     old_end = tenant.subscription_end_date
-    if plan:
-        tenant.plan_id = plan.id
-        tenant.plan = plan.name
+
+    # Task 6: Payment / renewal during trial preserves remaining trial days
+    if current_state == SubscriptionState.TRIAL.value and current_end and current_end > now:
+        new_status = SubscriptionState.TRIAL.value
+        # If renewing plan differs from current trial plan (Professional), store as future assignment
+        if plan and canonicalize_plan_name(plan.name) != canonicalize_plan_name(tenant.plan):
+            tenant.future_plan_id = plan.id
+            tenant.future_plan_start_date = current_end
+        elif plan:
+            tenant.plan_id = plan.id
+            tenant.plan = plan.name
+    else:
+        new_status = validate_transition(old_status, SubscriptionState.ACTIVE.value)
+        if plan:
+            tenant.plan_id = plan.id
+            tenant.plan = plan.name
+
     tenant.subscription_status = new_status
     tenant.subscription_end_date = calculated_end
-    tenant.grace_period_until = None
+    tenant.grace_period_until = calculate_grace_period(calculated_end)
     # Account activation is deliberately independent. Never mutate is_active.
 
     result = {

@@ -186,48 +186,51 @@ async def seed_subscription_plans():
         async with database.system_session_scope() as db:
                 res = await db.execute(select(models.SubscriptionPlan))
                 if not res.scalars().first():
-                    logger.info('[SEED] No subscription plans found. Seeding defaults...')
+                    logger.info('[SEED] No subscription plans found. Seeding canonical launch defaults...')
                     plans = [
                         models.SubscriptionPlan(
-                            name='trial',
-                            display_name_ar='تجريبي',
-                            price=0.0,
-                            duration_days=7,
-                            features='["clinical", "export_reports"]',
-                            max_users=1,
-                            max_patients=10
+                            name='essential',
+                            display_name_ar='الباقة الأساسية',
+                            price=200.0,
+                            duration_days=30,
+                            features='["clinical", "billing", "laboratories", "inventory", "export_reports", "ai_insights", "tenant_backups"]',
+                            max_users=2,
+                            max_patients=None,
+                            is_ai_enabled=True,
+                            ai_daily_limit=2,
+                            is_default=False,
+                            is_active=True,
                         ),
                         models.SubscriptionPlan(
-                            name='basic',
-                            display_name_ar='أساسي',
-                            price=500.0,
+                            name='professional',
+                            display_name_ar='الباقة الاحترافية',
+                            price=400.0,
                             duration_days=30,
-                            features='["billing", "export_reports"]',
-                            max_users=1,
-                            max_patients=100
-                        ),
-                        models.SubscriptionPlan(
-                            name='pro',
-                            display_name_ar='محترف',
-                            price=1000.0,
-                            duration_days=30,
-                            features='["billing", "export_reports", "laboratories", "clinical"]',
+                            features='["clinical", "billing", "laboratories", "inventory", "export_reports", "ai_insights", "tenant_backups"]',
                             max_users=5,
-                            max_patients=None
+                            max_patients=None,
+                            is_ai_enabled=True,
+                            ai_daily_limit=10,
+                            is_default=True,
+                            is_active=True,
                         ),
                         models.SubscriptionPlan(
-                            name='enterprise',
-                            display_name_ar='مؤسسات',
-                            price=2500.0,
+                            name='business',
+                            display_name_ar='باقة الأعمال',
+                            price=800.0,
                             duration_days=30,
-                            features='["billing", "export_reports", "laboratories", "clinical", "ai_insights"]',
-                            max_users=None,
-                            max_patients=None
-                        )
+                            features='["clinical", "billing", "laboratories", "inventory", "export_reports", "ai_insights", "tenant_backups"]',
+                            max_users=15,
+                            max_patients=None,
+                            is_ai_enabled=True,
+                            ai_daily_limit=30,
+                            is_default=False,
+                            is_active=True,
+                        ),
                     ]
                     db.add_all(plans)
                     await db.commit()
-                    logger.info('[SEED] Subscription plans seeded successfully.')
+                    logger.info('[SEED] Canonical launch subscription plans seeded successfully.')
                 else:
                     logger.info('[SEED] Subscription plans already exist. Skipping.')
     except Exception as e:

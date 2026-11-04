@@ -345,22 +345,72 @@ async def assign_tenant_plan(
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    service = AdminService(db)
-
-    res = await db.execute(
-        select(models.SubscriptionPlan)
-        .where(models.SubscriptionPlan.id == plan_id)
-    )
-    plan = res.scalar_one_or_none()
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
-
-    tenant = await service.update_tenant(tenant_id, plan=plan.name, plan_id=plan.id)
+    stmt = select(models.Tenant).where(models.Tenant.id == tenant_id).with_for_update()
+    tenant = (await db.execute(stmt)).scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
+    from backend.services.subscription_state_machine import (
+        SubscriptionState,
+        normalize_state,
+    )
+
+    curr_state = normalize_state(tenant.subscription_status or "trial")
+    if curr_state in {
+        SubscriptionState.SUSPENDED_ADMIN.value,
+        SubscriptionState.CANCELLED.value,
+    }:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Cannot assign plan: tenant is in '{curr_state}' state. Explicit reactivation is required.",
+        )
+
+    res = await db.execute(
+        select(models.SubscriptionPlan).where(models.SubscriptionPlan.id == plan_id)
+    )
+    plan = res.scalar_one_or_none()
+    if not plan or not plan.is_active:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    from backend.services.account_admission_service import AccountAdmissionService
+
+    active_count = await AccountAdmissionService.get_active_account_count(db, tenant.id)
+    if plan.max_users is not None and active_count > plan.max_users:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Cannot assign plan '{plan.name}': tenant currently has {active_count} active accounts, "
+                f"which exceeds the target plan cap ({plan.max_users}). Deactivate or delete accounts first."
+            ),
+        )
+
+    old_plan = tenant.plan
+    tenant.plan = plan.name
+    tenant.plan_id = plan.id
+    if not tenant.subscription_end_date:
+        tenant.subscription_end_date = datetime.now(timezone.utc).replace(
+            tzinfo=None
+        ) + datetime.timedelta(days=plan.duration_days)
+
+    db.add(
+        models.AuditLog(
+            action="TENANT_ASSIGN_PLAN",
+            entity_type="Tenant",
+            entity_id=tenant.id,
+            target_username=tenant.name,
+            performed_by_id=current_user.id,
+            performed_by_username=current_user.username,
+            old_value=f"plan={old_plan}",
+            new_value=f"plan={plan.name}",
+            tenant_id=tenant.id,
+        )
+    )
+    await db.commit()
+    await db.refresh(tenant)
+
     return success_response(
-        data={"tenant": tenant.name}, message="Plan updated successfully"
+        data={"tenant": tenant.name, "plan": tenant.plan},
+        message="Plan updated successfully",
     )
 
 

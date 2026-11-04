@@ -14,7 +14,17 @@ from fastapi import HTTPException
 from backend.core.commercial_registry import (
     CAPABILITY_REGISTRY,
     canonicalize_capability_key,
+    canonicalize_plan_name,
     is_sellable_capability,
+)
+from backend.services.subscription_calendar import (
+    add_calendar_months,
+    calculate_grace_period,
+)
+from backend.services.subscription_state_machine import (
+    SubscriptionState,
+    normalize_state,
+    validate_transition,
 )
 from backend.services.webhook_service import WebhookService
 
@@ -820,6 +830,16 @@ class SubscriptionService:
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
 
+        curr_state = normalize_state(tenant.subscription_status or "trial")
+        if curr_state in {
+            SubscriptionState.SUSPENDED_ADMIN.value,
+            SubscriptionState.CANCELLED.value,
+        }:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Cannot record payment for tenant in '{curr_state}' state. Explicit reactivation is required.",
+            )
+
         stmt = select(models.SubscriptionPlan).where(models.SubscriptionPlan.id == payment_data.plan_id)
         plan = (await db.execute(stmt)).scalar_one_or_none()
         if not plan:
@@ -832,22 +852,48 @@ class SubscriptionService:
         )
         db.add(payment)
 
-        # Update tenant subscription
-        now = datetime.now(timezone.utc)
+        # Update tenant subscription with calendar months and preserved anchor
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
         sub_end = tenant.subscription_end_date
-        if sub_end and sub_end.tzinfo is None:
-            sub_end = sub_end.replace(tzinfo=timezone.utc)
-        target_date = (
-            tenant.subscription_end_date
-            if tenant.subscription_end_date
-            and sub_end > now
-            else now
-        )
-        tenant.subscription_end_date = target_date + timedelta(days=plan.duration_days)
-        tenant.plan = plan.name
-        tenant.plan_id = plan.id
-        tenant.is_active = True
-        tenant.subscription_status = "active"
+        if sub_end and sub_end.tzinfo:
+            sub_end = sub_end.astimezone(timezone.utc).replace(tzinfo=None)
+
+        # Task 6: Payment during trial preserves remaining trial days
+        if curr_state == SubscriptionState.TRIAL.value and sub_end and sub_end > now_utc:
+            # Paid period begins when trial ends
+            calc_end, anchor = add_calendar_months(
+                sub_end,
+                months=1,
+                anchor_day=tenant.billing_day_anchor,
+                tz_name=tenant.timezone or "Africa/Cairo",
+            )
+            tenant.subscription_end_date = calc_end
+            tenant.billing_day_anchor = anchor
+            tenant.grace_period_until = calculate_grace_period(calc_end)
+
+            # If paid plan differs from current trial plan, store as future assignment
+            if canonicalize_plan_name(plan.name) != canonicalize_plan_name(tenant.plan):
+                tenant.future_plan_id = plan.id
+                tenant.future_plan_start_date = sub_end
+            else:
+                tenant.plan_id = plan.id
+                tenant.plan = plan.name
+        else:
+            base = sub_end if (sub_end and sub_end > now_utc) else now_utc
+            calc_end, anchor = add_calendar_months(
+                base,
+                months=1,
+                anchor_day=tenant.billing_day_anchor,
+                tz_name=tenant.timezone or "Africa/Cairo",
+            )
+            tenant.subscription_end_date = calc_end
+            tenant.billing_day_anchor = anchor
+            tenant.grace_period_until = calculate_grace_period(calc_end)
+            tenant.plan = plan.name
+            tenant.plan_id = plan.id
+            tenant.subscription_status = "active"
+
+        # Security disable is independent. NEVER mutate is_active on payment!
 
         await db.flush()
         if commit:

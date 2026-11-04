@@ -34,7 +34,7 @@ from backend.services.subscription_state_machine import (
 
 
 def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
-    if value is None:
+    if not isinstance(value, datetime):
         return None
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)
@@ -191,12 +191,22 @@ class CommercialDecisionEngine:
         norm_status = normalize_state(raw_status)
         sub_end = _as_utc(getattr(tenant, "subscription_end_date", None))
         grace_end = _as_utc(getattr(tenant, "grace_period_until", None))
+        future_start = _as_utc(getattr(tenant, "future_plan_start_date", None))
+        future_plan_id = getattr(tenant, "future_plan_id", None)
 
         is_past_end = bool(sub_end and sub_end < current_time)
         is_in_grace = bool(grace_end and current_time <= grace_end)
+        has_future_started = bool(
+            future_plan_id and future_start and current_time >= future_start
+        )
 
         effective_status = norm_status
-        if norm_status in {SubscriptionState.ACTIVE.value, SubscriptionState.TRIAL.value}:
+        if norm_status == SubscriptionState.TRIAL.value:
+            if has_future_started:
+                effective_status = SubscriptionState.ACTIVE.value
+            elif is_past_end:
+                effective_status = SubscriptionState.EXPIRED_READ_ONLY.value
+        elif norm_status == SubscriptionState.ACTIVE.value:
             if is_past_end:
                 effective_status = (
                     SubscriptionState.GRACE.value
@@ -209,6 +219,13 @@ class CommercialDecisionEngine:
         plan = getattr(tenant, "subscription_plan", None)
         plan_name = getattr(plan, "name", getattr(tenant, "plan", None))
         plan_id = getattr(plan, "id", getattr(tenant, "plan_id", None))
+
+        if has_future_started:
+            future_plan = getattr(tenant, "future_plan", None)
+            if future_plan:
+                plan = future_plan
+                plan_name = getattr(future_plan, "name", plan_name)
+                plan_id = future_plan.id
 
         diagnostics["effective_status"] = effective_status
         diagnostics["is_past_end"] = is_past_end
