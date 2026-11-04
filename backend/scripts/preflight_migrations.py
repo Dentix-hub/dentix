@@ -893,6 +893,64 @@ def _install_postgresql_restore_write_gates(connection) -> None:
         )
 
 
+def _repair_postgresql_rls_policies(connection) -> None:
+    """Remove application-controlled GUC bypass from all live PostgreSQL policies."""
+    if connection.dialect.name != "postgresql":
+        return
+
+    set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+    if set_role:
+        connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+
+    connection.execute(
+        text(
+            r"""
+            DO $$
+            DECLARE
+                policy_row record;
+                tenant_expression text;
+                alter_clauses text;
+            BEGIN
+                FOR policy_row IN
+                    SELECT tablename, policyname, qual, with_check
+                      FROM pg_policies
+                     WHERE schemaname = current_schema()
+                       AND (
+                           COALESCE(qual, '') LIKE '%rls.bypass_rls%'
+                           OR COALESCE(with_check, '') LIKE '%rls.bypass_rls%'
+                       )
+                LOOP
+                    IF policy_row.tablename = 'notifications' THEN
+                        tenant_expression :=
+                            '((tenant_id = NULLIF(current_setting(''rls.tenant_id'', true), '''')::integer) '
+                            'OR (is_global = true) OR (tenant_id IS NULL))';
+                    ELSE
+                        tenant_expression :=
+                            '(tenant_id = NULLIF(current_setting(''rls.tenant_id'', true), '''')::integer)';
+                    END IF;
+
+                    alter_clauses := '';
+                    IF policy_row.qual IS NOT NULL THEN
+                        alter_clauses := alter_clauses || ' USING (' || tenant_expression || ')';
+                    END IF;
+                    IF policy_row.with_check IS NOT NULL THEN
+                        alter_clauses := alter_clauses || ' WITH CHECK (' || tenant_expression || ')';
+                    END IF;
+
+                    EXECUTE format(
+                        'ALTER POLICY %I ON %I%s',
+                        policy_row.policyname,
+                        policy_row.tablename,
+                        alter_clauses
+                    );
+                END LOOP;
+            END
+            $$
+            """
+        )
+    )
+
+
 def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
     """Create/resume the current canonical schema for a brand-new database."""
     from alembic import command
@@ -1367,6 +1425,23 @@ def run_alembic_upgrade():
             logger.info("[PREFLIGHT] Alembic upgrade completed successfully.")
 
         if engine.name == "postgresql":
+            rls_failures = _verify_postgresql_rls(
+                engine, tuple(RLS_TABLES) + ("notifications",)
+            )
+            bypass_failures = [
+                f for f in rls_failures if "no_application_bypass=False" in f
+            ]
+            if bypass_failures:
+                logger.warning(
+                    "[PREFLIGHT] Legacy application-controlled RLS bypass detected (%s); repairing policies: %s",
+                    len(bypass_failures),
+                    bypass_failures,
+                )
+                _prepare_postgresql_migration_privileges(engine, db_url)
+                with engine.begin() as connection:
+                    _repair_postgresql_rls_policies(connection)
+                _sync_postgresql_runtime_privileges(engine, db_url)
+
             missing_gates = _verify_postgresql_restore_write_gates(engine)
             if missing_gates:
                 logger.warning(
