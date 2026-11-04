@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
@@ -8,7 +10,6 @@ from backend.core.limiter import limiter
 from backend.core.response import success_response, StandardResponse
 from backend.services.auth_bootstrap import clinic_registration_scope
 from .dependencies import get_async_db, validate_password
-import logging
 
 logger = logging.getLogger("smart_clinic")
 
@@ -71,26 +72,32 @@ async def register_clinic(
                 )
                 raise HTTPException(status_code=400, detail="Email already registered")
 
-            # Get Default Plan (Basic)
-            stmt_plan = select(models.SubscriptionPlan).where(
-                models.SubscriptionPlan.is_default
+            # Look up the approved Professional trial plan
+            stmt_pro = select(models.SubscriptionPlan).where(
+                models.SubscriptionPlan.name.in_(["professional", "pro"]),
+                models.SubscriptionPlan.is_active == True,  # noqa: E712
             )
-            result_plan = await registration_db.execute(stmt_plan)
-            default_plan = result_plan.scalars().first()
-            # Fallback if no default plan
-            if not default_plan:
-                stmt_plan_fallback = select(models.SubscriptionPlan)
-                result_plan_fallback = await registration_db.execute(
-                    stmt_plan_fallback
+            trial_plan = (await registration_db.execute(stmt_pro)).scalars().first()
+            if not trial_plan:
+                logger.error("Registration aborted: Professional trial plan is not configured in catalog.")
+                raise HTTPException(
+                    status_code=500,
+                    detail="فشل تسجيل العيادة: باقة التجربة المجانية غير مهيأة في النظام. يرجى التواصل مع الدعم.",
                 )
-                default_plan = result_plan_fallback.scalars().first()
 
-            plan_id = default_plan.id if default_plan else None
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            trial_end_utc = now_utc + timedelta(days=14)
 
             new_tenant = models.Tenant(
                 name=clinic_name,
                 is_active=True,
-                plan_id=plan_id,
+                plan_id=trial_plan.id,
+                plan=trial_plan.name,
+                subscription_status="trial",
+                subscription_start_date=now_utc,
+                subscription_end_date=trial_end_utc,
+                grace_period_until=None,  # No grace period for trial
+                billing_day_anchor=now_utc.day,
                 contact_phone=contact_phone,
             )
             registration_db.add(new_tenant)

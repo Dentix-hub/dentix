@@ -28,7 +28,7 @@ from backend.services.commercial_decision import (
 
 
 def _as_utc(value: Optional[datetime]) -> Optional[datetime]:
-    if value is None:
+    if not isinstance(value, datetime):
         return None
     if value.tzinfo is None:
         return value.replace(tzinfo=timezone.utc)

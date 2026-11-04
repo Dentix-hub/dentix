@@ -50,7 +50,7 @@ class SubscriptionPlan(Base):
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
 
-    tenants = relationship("Tenant", back_populates="subscription_plan")
+    tenants = relationship("Tenant", back_populates="subscription_plan", foreign_keys="[Tenant.plan_id]")
     payments = relationship("SubscriptionPayment", back_populates="plan")
 
 
@@ -169,7 +169,16 @@ class Tenant(Base):
     auto_suspend_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     payment_failed_count: Mapped[int] = mapped_column(Integer, default=0)
     manual_override_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    subscription_start_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     subscription_end_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    billing_day_anchor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    future_plan_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=True
+    )
+    future_plan_start_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    scheduled_downgrade_plan_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=True
+    )
     plan: Mapped[str] = mapped_column(String, default="trial")  # Legacy
     plan_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("subscription_plans.id"), nullable=True)
     domain: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
@@ -218,7 +227,11 @@ class Tenant(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     users = relationship("User", back_populates="tenant")
-    subscription_plan = relationship("SubscriptionPlan", back_populates="tenants")
+    subscription_plan = relationship("SubscriptionPlan", foreign_keys=[plan_id], back_populates="tenants")
+    future_plan = relationship("SubscriptionPlan", foreign_keys=[future_plan_id])
+    scheduled_downgrade_plan = relationship(
+        "SubscriptionPlan", foreign_keys=[scheduled_downgrade_plan_id]
+    )
     payments = relationship(
         "SubscriptionPayment", back_populates="tenant", cascade="all, delete-orphan"
     )

@@ -1685,7 +1685,6 @@ class CareSessionService:
         self, patient_id: int, session_id: int, eager_load: bool = True
     ) -> Any:
         """Retrieve a care session by ID with tenant and patient scoping."""
-        await self.ensure_native_writes_enabled()
         await self._verify_patient(patient_id)
 
         stmt = select(models.CareSession).where(

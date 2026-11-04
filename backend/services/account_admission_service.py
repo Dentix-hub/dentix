@@ -60,6 +60,7 @@ class AccountAdmissionService:
         Resolve the maximum active users allowed for a tenant.
         1. Explicit SubscriptionPlan.max_users if linked.
         2. Fallback to canonical PlanTierSpec (Essential=2, Professional=5, Business=15).
+        3. If a lower-cap downgrade is scheduled, enforce the pending lower cap.
         """
         plan = None
         if "subscription_plan" in getattr(tenant, "__dict__", {}):
@@ -74,16 +75,36 @@ class AccountAdmissionService:
             except Exception:
                 pass
 
+        base_max: Optional[int] = None
         if plan is not None and plan.max_users is not None:
-            return plan.max_users
+            base_max = plan.max_users
+        else:
+            plan_key = getattr(plan, "name", None) or getattr(tenant, "plan", None)
+            if plan_key:
+                spec = resolve_plan_spec(plan_key)
+                if spec is not None:
+                    base_max = spec.max_active_users
 
-        plan_key = getattr(plan, "name", None) or getattr(tenant, "plan", None)
-        if plan_key:
-            spec = resolve_plan_spec(plan_key)
-            if spec is not None:
-                return spec.max_active_users
+        # Check for scheduled pending lower cap (Task 10)
+        downgrade_plan = None
+        if "scheduled_downgrade_plan" in getattr(tenant, "__dict__", {}):
+            downgrade_plan = tenant.__dict__["scheduled_downgrade_plan"]
+        elif getattr(tenant, "scheduled_downgrade_plan_id", None) is not None:
+            try:
+                from sqlalchemy.orm import attributes
 
-        return None
+                state = attributes.instance_state(tenant)
+                if "scheduled_downgrade_plan" not in state.unloaded:
+                    downgrade_plan = tenant.scheduled_downgrade_plan
+            except Exception:
+                pass
+
+        if downgrade_plan is not None and downgrade_plan.max_users is not None:
+            if base_max is None:
+                return downgrade_plan.max_users
+            return min(base_max, downgrade_plan.max_users)
+
+        return base_max
 
     @classmethod
     async def can_admit_active_account(
@@ -95,7 +116,10 @@ class AccountAdmissionService:
         """
         stmt = (
             select(models.Tenant)
-            .options(selectinload(models.Tenant.subscription_plan))
+            .options(
+                selectinload(models.Tenant.subscription_plan),
+                selectinload(models.Tenant.scheduled_downgrade_plan),
+            )
             .where(models.Tenant.id == tenant_id)
         )
         res = await db.execute(stmt)
@@ -147,7 +171,10 @@ class AccountAdmissionService:
         # 1. Row-lock Tenant to serialize admissions per tenant (PostgreSQL row lock; safe on SQLite)
         stmt_tenant = (
             select(models.Tenant)
-            .options(selectinload(models.Tenant.subscription_plan))
+            .options(
+                selectinload(models.Tenant.subscription_plan),
+                selectinload(models.Tenant.scheduled_downgrade_plan),
+            )
             .where(models.Tenant.id == tenant_id)
             .with_for_update()
         )

@@ -18,9 +18,15 @@ class TenantBase(BaseModel):
     subscription_status: Optional[str] = "active"
     logo: Optional[str] = None
     plan: Optional[str] = "trial"
+    plan_id: Optional[int] = None
     is_active: Optional[bool] = True
+    subscription_start_date: Optional[datetime] = None
     subscription_end_date: Optional[datetime] = None
     grace_period_until: Optional[datetime] = None
+    billing_day_anchor: Optional[int] = None
+    future_plan_id: Optional[int] = None
+    future_plan_start_date: Optional[datetime] = None
+    scheduled_downgrade_plan_id: Optional[int] = None
     auto_suspend_at: Optional[datetime] = None
     backup_frequency: Optional[str] = "off"
     last_backup_at: Optional[datetime] = None
