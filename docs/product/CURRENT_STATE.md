@@ -167,3 +167,4 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 - PR-09C (2026-11-04): Gated inventory, laboratory, price list, and backup mutations against commercial entitlements; verified restoration invariance.
 - CD RLS Fix (2026-11-04): Removed application-controlled RLS bypass ('rls.bypass_rls') from commercial and AI policies to enforce strict fail-closed deployment contract.
 - CD Child Triggers Fix (2026-11-04): Added missing child tenant triggers for ai_reservations and additive auto-repair in preflight upgrade.
+- PR-10 (2026-11-04): Gated clinic frontend navigation, feature mounting, and quota warnings on commercial entitlements; enforced fail-closed fallback and Flutter freeze policy.

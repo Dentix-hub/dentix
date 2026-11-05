@@ -81,6 +81,35 @@ describe('ProtectedRoute', () => {
 
         expect(screen.getByText('Loading...')).toBeInTheDocument();
     });
+
+    it('redirects to /unauthorized when requiredFeature is not enabled for the tenant', async () => {
+        const { useTenantStore } = await import('@/store/tenant.store');
+        useTenantStore.setState({ features: { LABORATORIES: false } });
+
+        renderWithAuth(
+            { user: { role: 'admin' }, loading: false, isAuthenticated: true },
+            <ProtectedRoute requiredFeature="LABORATORIES">
+                <div>Lab Management</div>
+            </ProtectedRoute>
+        );
+
+        expect(screen.getByText('Unauthorized')).toBeInTheDocument();
+        expect(screen.queryByText('Lab Management')).not.toBeInTheDocument();
+    });
+
+    it('shows content when requiredFeature is enabled for the tenant', async () => {
+        const { useTenantStore } = await import('@/store/tenant.store');
+        useTenantStore.setState({ features: { LABORATORIES: true } });
+
+        renderWithAuth(
+            { user: { role: 'admin' }, loading: false, isAuthenticated: true },
+            <ProtectedRoute requiredFeature="LABORATORIES">
+                <div>Lab Management</div>
+            </ProtectedRoute>
+        );
+
+        expect(screen.getByText('Lab Management')).toBeInTheDocument();
+    });
 });
 
 describe('AuthContext', () => {
