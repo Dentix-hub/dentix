@@ -45,8 +45,8 @@ Executed evidence is stored outside the repository at `/home/ubuntu/dentix-task-
 
 | Gate | Actual result | Evidence |
 |---|---|---|
-| Full backend, CI coverage threshold | **1,934 passed, 1 failed, 1 skipped**, exit 1; coverage 81.78% (required 52%) | backend-full.log / backend-full.xml / coverage.xml |
-| Full frontend | **1,193 passed, 1 failed** across 180 files, exit 1 | frontend-full.log |
+| Final full backend on frozen code commit `136fde2` | **1,943 passed, 0 failed, 1 existing skip**, exit 0; coverage 81.82% (required 52%) | backend-final-full.log / backend-final-full.xml / coverage-final.xml |
+| Final full frontend on the same frozen code | **1,195 passed** across 180 files, exit 0 | frontend-final-full.log |
 | Final affected backend acceptance | **140 passed**, exit 0 | backend-final-acceptance.log / backend-final-focused.xml |
 | Final payment/policy/lifecycle follow-up, including first-month anchor, provider-reference conflicts, missing identity and missing-policy preview | **61 passed**, exit 0 | final-policy-2.log / final-policy.xml |
 | AI executor and confirmation baseline | **21 passed**, exit 0 | ai-executor-final.log |
@@ -55,9 +55,9 @@ Executed evidence is stored outside the repository at `/home/ubuntu/dentix-task-
 | Receipt lost-response + reload UI follow-up | **4 passed**, exit 0 | receipt-reload-ui.log |
 | Ruff / changed-file ESLint / whitespace | PASS | ruff-final.log / eslint-final.log / git diff --check |
 | Production/PWA/marketing build | PASS | frontend-build-final.log |
-| Design guardrails | Legacy report completed; committed PR-diff check recorded in handoff | design-final.log / design-diff.log |
+| Design guardrails | PASS; zero newly added violations in the committed diff; legacy debt remains report-only | design-final.log / design-diff.log |
 
-The two full-run failures were **introduced during implementation and corrected**, not called baseline passes: the new period adapter initially interpreted an unset optional MagicMock field as a timestamp, and four new AI UI translation keys were missing. The existing Super Admin regression was retained unchanged; typed optional-date handling fixed its failure. Locale resources were added without exemptions or weakened assertions. The affected acceptance/resource tests above passed after correction. Broad full suites were not rerun after those localized corrections; normal PR CI remains required before integration. The sole existing skip is `test_auth_refresh_token`: TestClient has no request.client.host for session tracking.
+The initial full runs (backend 1,934 passed / one failed / one existing skip; frontend 1,193 passed / one failed) exposed two **introduced implementation failures that were corrected**: the new period adapter initially interpreted an unset optional MagicMock field as a timestamp, and four new AI UI translation keys were missing. The existing Super Admin regression was retained unchanged; typed optional-date handling fixed its failure. Locale resources were added without exemptions or weakened assertions. The affected acceptance/resource tests passed after correction. Because the first-paid-month fix also changed financial behavior, both broad full suites were then rerun on frozen code commit `136fde23b33959aa97b68284a08ad3b4250f7c5a`; the final rows above are their actual successful results. Normal PR CI remains required before integration. The sole existing skip is `test_auth_refresh_token`: TestClient has no request.client.host for session tracking.
 
 The final backend policy follow-up includes 28 new regression cases, using real PostgreSQL for manual receipt replay/concurrency, renewal persistence and paid-trial state. Owner-role PG tests do not claim a new deployed restricted-role RLS certification.
 
