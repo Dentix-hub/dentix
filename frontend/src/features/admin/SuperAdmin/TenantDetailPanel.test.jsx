@@ -17,6 +17,9 @@ vi.mock('@/shared/ui', () => ({
     DentixDrawer: ({ open, title, children }) => (
         open ? <div role="dialog" aria-label={title}>{children}</div> : null
     ),
+    Modal: ({ isOpen, title, children }) => (
+        isOpen ? <div role="dialog" aria-label={typeof title === 'string' ? title : 'modal'}>{children}</div> : null
+    ),
 }));
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({

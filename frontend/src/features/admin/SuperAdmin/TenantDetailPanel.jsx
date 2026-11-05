@@ -24,7 +24,7 @@ import { api } from '@/api';
 import { format } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
-import { DentixDrawer } from '@/shared/ui';
+import { DentixDrawer, Modal } from '@/shared/ui';
 
 const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, onImpersonate }) {
     const { t, i18n } = useTranslation();
@@ -743,82 +743,81 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                 </div>
 
                 {/* PR-11 Action Confirmation & Preview Modal */}
-                {actionModal.open && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
-                        <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
-                            <h3 className="text-lg font-black text-slate-800 dark:text-white">
-                                {actionModal.title}
-                            </h3>
-
-                            {actionModal.loading && !actionModal.preview ? (
-                                <div className="p-4 text-center text-xs text-slate-500 animate-pulse">
-                                    {t('super_admin.tenant_detail.loading_preview', 'جاري جلب معاينة الأثر...')}
-                                </div>
-                            ) : (
-                                <>
-                                    {actionModal.preview && (
-                                        <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-2 text-xs border border-slate-100 dark:border-slate-700/60">
-                                            <div className="flex justify-between">
-                                                <span className="text-slate-400">{t('super_admin.tenant_detail.current_status', 'الحالة الحالية')}:</span>
-                                                <span className="font-bold text-slate-700 dark:text-slate-300">
-                                                    {String(actionModal.preview.previous_state?.subscription_status || '')}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-slate-400">{t('super_admin.tenant_detail.resulting_status', 'الحالة الناتجة')}:</span>
-                                                <span className="font-bold text-indigo-600 dark:text-indigo-400">
-                                                    {String(actionModal.preview.resulting_state?.subscription_status || '')}
-                                                </span>
-                                            </div>
-                                            {actionModal.preview.clinical_history_preserved && (
-                                                <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-                                                    <Lock size={12} className="shrink-0" />
-                                                    <span>{t('super_admin.tenant_detail.invariant_guarantee', 'قراءة السجلات السريرية السابقة تظل متاحة ومحمية قانونياً.')}</span>
-                                                </div>
-                                            )}
+                <Modal
+                    isOpen={actionModal.open}
+                    onClose={() => setActionModal({ open: false, type: null, title: '', preview: null, reason: '', loading: false })}
+                    title={actionModal.title}
+                    maxWidth="max-w-md"
+                >
+                    <div className="space-y-4 pt-2">
+                        {actionModal.loading && !actionModal.preview ? (
+                            <div className="p-4 text-center text-xs text-slate-500 animate-pulse">
+                                {t('super_admin.tenant_detail.loading_preview', 'جاري جلب معاينة الأثر...')}
+                            </div>
+                        ) : (
+                            <>
+                                {actionModal.preview && (
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-2 text-xs border border-slate-100 dark:border-slate-700/60">
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-400">{t('super_admin.tenant_detail.current_status', 'الحالة الحالية')}:</span>
+                                            <span className="font-bold text-slate-700 dark:text-slate-300">
+                                                {String(actionModal.preview.previous_state?.subscription_status || '')}
+                                            </span>
                                         </div>
-                                    )}
-
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
-                                            {t('super_admin.tenant_detail.reason_label', 'سبب القرار الإداري (مطلوب - للتوثيق الأمني):')}
-                                        </label>
-                                        <textarea
-                                            value={actionModal.reason}
-                                            onChange={(e) => setActionModal((prev) => ({ ...prev, reason: e.target.value }))}
-                                            placeholder={t('super_admin.tenant_detail.reason_min_placeholder', 'اكتب سبب الإجراء هنا (5 أحرف على الأقل)...')}
-                                            rows={3}
-                                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
-                                        />
-                                        {actionModal.reason && actionModal.reason.trim().length < 5 && (
-                                            <p className="text-[11px] text-rose-500 mt-1">
-                                                {t('super_admin.tenant_detail.min_reason', 'الحد الأدنى 5 أحرف')}
-                                            </p>
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-400">{t('super_admin.tenant_detail.resulting_status', 'الحالة الناتجة')}:</span>
+                                            <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                                                {String(actionModal.preview.resulting_state?.subscription_status || '')}
+                                            </span>
+                                        </div>
+                                        {actionModal.preview.clinical_history_preserved && (
+                                            <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                                                <Lock size={12} className="shrink-0" />
+                                                <span>{t('super_admin.tenant_detail.invariant_guarantee', 'قراءة السجلات السريرية السابقة تظل متاحة ومحمية قانونياً.')}</span>
+                                            </div>
                                         )}
                                     </div>
-                                </>
-                            )}
+                                )}
 
-                            <div className="flex gap-2 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setActionModal({ open: false, type: null, title: '', preview: null, reason: '', loading: false })}
-                                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
-                                >
-                                    {t('common.cancel', 'إلغاء')}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={handleConfirmAction}
-                                    disabled={!actionModal.reason || actionModal.reason.trim().length < 5 || actionModal.loading}
-                                    className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
-                                >
-                                    {actionModal.loading ? t('common.loading', 'جاري التنفيذ...') : t('common.confirm', 'تأكيد التنفيذ')}
-                                </button>
-                            </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                                        {t('super_admin.tenant_detail.reason_label', 'سبب القرار الإداري (مطلوب - للتوثيق الأمني):')}
+                                    </label>
+                                    <textarea
+                                        value={actionModal.reason}
+                                        onChange={(e) => setActionModal((prev) => ({ ...prev, reason: e.target.value }))}
+                                        placeholder={t('super_admin.tenant_detail.reason_min_placeholder', 'اكتب سبب الإجراء هنا (5 أحرف على الأقل)...')}
+                                        rows={3}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    {actionModal.reason && actionModal.reason.trim().length < 5 && (
+                                        <p className="text-[11px] text-rose-500 mt-1">
+                                            {t('super_admin.tenant_detail.min_reason', 'الحد الأدنى 5 أحرف')}
+                                        </p>
+                                    )}
+                                </div>
+                            </>
+                        )}
+
+                        <div className="flex gap-2 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setActionModal({ open: false, type: null, title: '', preview: null, reason: '', loading: false })}
+                                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                            >
+                                {t('common.cancel', 'إلغاء')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmAction}
+                                disabled={!actionModal.reason || actionModal.reason.trim().length < 5 || actionModal.loading}
+                                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                            >
+                                {actionModal.loading ? t('common.loading', 'جاري التنفيذ...') : t('common.confirm', 'تأكيد التنفيذ')}
+                            </button>
                         </div>
                     </div>
-                )}
+                </Modal>
             </div>
         </DentixDrawer>
     );

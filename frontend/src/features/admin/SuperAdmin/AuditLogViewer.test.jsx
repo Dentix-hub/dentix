@@ -31,6 +31,13 @@ vi.mock('@/shared/ui', () => ({
         success: vi.fn(),
         error: vi.fn(),
     },
+    Modal: ({ isOpen, title, children }) =>
+        isOpen ? (
+            <div role="dialog">
+                <h2>{title}</h2>
+                {children}
+            </div>
+        ) : null,
 }));
 
 describe('AuditLogViewer MS-08', () => {
