@@ -1,8 +1,10 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './useAuth';
+import { useTenantStore } from '@/store/tenant.store';
 
-export default function ProtectedRoute({ children, allowedRoles = [] }) {
+export default function ProtectedRoute({ children, allowedRoles = [], requiredFeature = null }) {
     const { user, loading, isAuthenticated } = useAuth();
+    const hasFeature = useTenantStore((state) => state.hasFeature);
     const location = useLocation();
 
     if (loading) {
@@ -10,15 +12,15 @@ export default function ProtectedRoute({ children, allowedRoles = [] }) {
     }
 
     if (!isAuthenticated) {
-        // Redirect them to the /login page, but save the current location they were
-        // trying to go to when they were redirected. This allows us to send them
-        // along to that page after they login, which is a nicer user experience.
         return <Navigate to="/" state={{ from: location }} replace />;
     }
 
     if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-        // User authorized but not for this role
         return <Navigate to="/unauthorized" replace />;
+    }
+
+    if (requiredFeature && !hasFeature(requiredFeature)) {
+        return <Navigate to="/unauthorized" state={{ reason: 'feature_disabled', feature: requiredFeature }} replace />;
     }
 
     return children;

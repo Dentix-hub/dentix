@@ -374,7 +374,11 @@
       "plan_basic": "Basic Plan",
       "plan_trial": "Trial Period",
       "expired_readonly": "Subscription expired — system is in read-only mode",
-      "expiring_soon": "Your subscription is expiring soon ({{count}} days remaining)"
+      "expiring_soon": "Your subscription is expiring soon ({{count}} days remaining)",
+      "trial_badge": "Trial: {{count}} days left",
+      "trial_ending_soon": "Trial period ending soon ({{count}} days left)",
+      "security_disabled": "Account disabled for security reasons. Please contact system administration.",
+      "commercial_suspended": "Commercial subscription suspended. Please contact support to activate."
     }
   },
   "dashboard": {
@@ -1719,7 +1723,9 @@
       "powered_by": "Powered by Smart Dent AI",
       "voice_enabled": "Voice Recognition Enabled",
       "voice_unsupported": "Voice Recognition Not Supported"
-    }
+    },
+    "quota_status": "Daily remaining: {{remaining}} of {{total}}",
+    "quota_exhausted": "Daily quota fully consumed. Resets automatically at midnight ({{timezone}})"
   },
   "billing": {
     "title": "Billing",
