@@ -166,3 +166,4 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 - PR-09B (2026-11-04): Gated financial mutations, CSV exports, and billing domain services on commercial entitlements and emergency restrictions, while preserving money calculations and reception flows.
 - PR-09C (2026-11-04): Gated inventory, laboratory, price list, and backup mutations against commercial entitlements; verified restoration invariance.
 - CD RLS Fix (2026-11-04): Removed application-controlled RLS bypass ('rls.bypass_rls') from commercial and AI policies to enforce strict fail-closed deployment contract.
+- CD Child Triggers Fix (2026-11-04): Added missing child tenant triggers for ai_reservations and additive auto-repair in preflight upgrade.

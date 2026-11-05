@@ -63,7 +63,7 @@ def test_global_release_uses_separate_rls_login_without_escalating_app(monkeypat
         with psycopg2.connect(admin_url) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT version_num FROM alembic_version")
-                assert cur.fetchone()[0] == ("2a3b4c5d6e7f" if system_available else "c2d3e4f5a6b7")
+                assert cur.fetchone()[0] == ("3b4c5d6e7f8a" if system_available else "c2d3e4f5a6b7")
                 cur.execute("SELECT is_global_enabled FROM feature_flags WHERE key = 'clinical_vnext_native_writes'")
                 assert cur.fetchone()[0] is system_available
                 cur.execute("SELECT is_enabled FROM tenant_features ORDER BY tenant_id")

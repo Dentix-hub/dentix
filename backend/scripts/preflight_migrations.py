@@ -951,6 +951,84 @@ def _repair_postgresql_rls_policies(connection) -> None:
     )
 
 
+def _repair_postgresql_child_tenant_triggers(connection) -> None:
+    """Additively install any missing child tenant triggers on PostgreSQL."""
+    if connection.dialect.name != "postgresql":
+        return
+
+    set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+    if set_role:
+        connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+
+    existing_tables = set(inspect(connection).get_table_names())
+    expected = {
+        _child_tenant_trigger_name(table, key): (table, key, parent, allow_null)
+        for table, key, parent, allow_null in CHILD_TENANT_RELATIONSHIPS
+        if table in existing_tables
+    }
+    present = set(
+        connection.execute(
+            text(
+                """SELECT tgname FROM pg_trigger
+                   WHERE NOT tgisinternal AND tgname = ANY(:names)"""
+            ),
+            {"names": list(expected.keys())},
+        ).scalars()
+    )
+    missing = set(expected.keys()) - present
+    if not missing:
+        return
+
+    logger.info("[PREFLIGHT] Repairing missing child tenant triggers: %s", sorted(missing))
+    connection.execute(
+        text(
+            """
+            DO $do$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_proc WHERE proname = 'dentix_assert_parent_tenant'
+                ) THEN
+                    EXECUTE $create_func$
+                        CREATE FUNCTION dentix_assert_parent_tenant()
+                        RETURNS trigger LANGUAGE plpgsql AS $$
+                        DECLARE
+                            child_parent_id integer;
+                            parent_tenant_id integer;
+                            allow_null boolean := COALESCE(TG_ARGV[2], 'false')::boolean;
+                        BEGIN
+                            child_parent_id := NULLIF(to_jsonb(NEW) ->> TG_ARGV[1], '')::integer;
+                            IF child_parent_id IS NULL AND allow_null THEN RETURN NEW; END IF;
+                            IF child_parent_id IS NULL THEN
+                                RAISE EXCEPTION 'Missing required parent on %', TG_TABLE_NAME;
+                            END IF;
+                            EXECUTE format('SELECT tenant_id FROM %I WHERE id = $1', TG_ARGV[0])
+                               INTO parent_tenant_id USING child_parent_id;
+                            IF parent_tenant_id IS NULL OR NEW.tenant_id IS DISTINCT FROM parent_tenant_id THEN
+                                RAISE EXCEPTION 'Tenant mismatch on %', TG_TABLE_NAME;
+                            END IF;
+                            RETURN NEW;
+                        END;
+                        $$;
+                    $create_func$;
+                END IF;
+            END $do$;
+            """
+        )
+    )
+    for trigger_name in sorted(missing):
+        table, child_key, parent, allow_null = expected[trigger_name]
+        connection.execute(text(f'DROP TRIGGER IF EXISTS "{trigger_name}" ON "{table}"'))
+        connection.execute(
+            text(
+                f'''CREATE TRIGGER "{trigger_name}"
+                    BEFORE INSERT OR UPDATE OF tenant_id, "{child_key}" ON "{table}"
+                    FOR EACH ROW EXECUTE FUNCTION dentix_assert_parent_tenant(
+                        '{parent}', '{child_key}', '{str(allow_null).lower()}'
+                    )'''
+            )
+        )
+
+
 def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
     """Create/resume the current canonical schema for a brand-new database."""
     from alembic import command
@@ -1461,6 +1539,28 @@ def run_alembic_upgrade():
                         "[PREFLIGHT] Restore write gates repair failed; %s gates still missing: %s",
                         len(remaining_missing),
                         remaining_missing,
+                    )
+                    return False
+
+            missing_triggers = _verify_postgresql_child_tenant_triggers(engine)
+            if missing_triggers:
+                logger.warning(
+                    "[PREFLIGHT] Missing child tenant triggers detected (%s); applying additive installation.",
+                    len(missing_triggers),
+                )
+                _prepare_postgresql_migration_privileges(engine, db_url)
+                with engine.begin() as connection:
+                    set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+                    if set_role:
+                        connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+                    _repair_postgresql_child_tenant_triggers(connection)
+                _sync_postgresql_runtime_privileges(engine, db_url)
+                remaining_triggers = _verify_postgresql_child_tenant_triggers(engine)
+                if remaining_triggers:
+                    logger.error(
+                        "[PREFLIGHT] Child tenant triggers repair failed; %s triggers still missing: %s",
+                        len(remaining_triggers),
+                        remaining_triggers,
                     )
                     return False
 
