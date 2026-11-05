@@ -20,7 +20,10 @@ from backend.ai.errors import AIException
 from backend.ai.policy.execution_policy import policy_engine
 from backend.ai.agent.state_manager import state_manager
 from backend.services.visibility_service import get_visibility_service
-from backend.services.commercial_ai_guard import evaluate_commercial_ai_access
+from backend.services.commercial_ai_guard import (
+    evaluate_commercial_ai_access,
+    async_evaluate_commercial_ai_access,
+)
 from backend.services.ai_quota_service import (
     AIQuotaService,
     AIQuotaExhaustedError,
@@ -93,6 +96,7 @@ class AIService:
         reservation_id: Optional[str],
         status: Any,
         error_reason: Optional[str] = None,
+        reconciliation_notes: Optional[str] = None,
     ):
         """Asynchronously finalize quota reservation in an isolated transaction."""
         if not reservation_id or not hasattr(self.db, "execute") or isinstance(self.db, Mock):
@@ -103,9 +107,20 @@ class AIService:
                 reservation_id=reservation_id,
                 status=status,
                 error_reason=error_reason,
+                reconciliation_notes=reconciliation_notes,
             )
         except Exception as exc:
             logger.warning(f"Failed to finalize AI reservation {reservation_id}: {exc}")
+
+    async def _get_reservation(self, reservation_id: str) -> Optional[models.AIReservation]:
+        if not reservation_id or not hasattr(self.db, "execute") or isinstance(self.db, Mock):
+            return None
+        try:
+            stmt = select(models.AIReservation).where(models.AIReservation.reservation_id == reservation_id)
+            res = await self.db.execute(stmt)
+            return res.scalar_one_or_none()
+        except Exception:
+            return None
 
     async def analyze_direct(
         self,
@@ -117,7 +132,7 @@ class AIService:
         # Commercial access & quota reservation if not already reserved by caller
         if reservation_id is None:
             await self._ensure_tenant_and_plan()
-            denial = evaluate_commercial_ai_access(self.tenant)
+            denial = await async_evaluate_commercial_ai_access(self.tenant, db=self.db)
             if denial:
                 err_code, err_msg = denial
                 return AIQueryResponse(success=False, error=err_code, message=err_msg)
@@ -127,6 +142,13 @@ class AIService:
                     payload={"prompt": prompt},
                     idempotency_key=idempotency_key,
                 )
+                if getattr(res, "is_replay", False) or getattr(res, "status", None) == ReservationStatus.CONSUMED.value:
+                    return AIQueryResponse(
+                        success=True,
+                        message=getattr(res, "reconciliation_notes", None) or "تحليل العيادة مكتمل مسبقاً لهذا الطلب.",
+                        tool="response",
+                        risk_level="SAFE",
+                    )
                 reservation_id = res.reservation_id
             except AIQuotaExhaustedError:
                 return AIQueryResponse(
@@ -139,6 +161,16 @@ class AIService:
                     success=False,
                     error="idempotency_conflict",
                     message=str(exc),
+                )
+        else:
+            # Caller supplied reservation_id: check if already CONSUMED on a replay
+            res_obj = await self._get_reservation(reservation_id)
+            if res_obj and (res_obj.status == ReservationStatus.CONSUMED.value or getattr(res_obj, "is_replay", False)):
+                return AIQueryResponse(
+                    success=True,
+                    message=res_obj.reconciliation_notes or "تحليل العيادة مكتمل مسبقاً لهذا الطلب.",
+                    tool="response",
+                    risk_level="SAFE",
                 )
 
         if hasattr(self.agent, "mock_mode") and self.agent.mock_mode:
@@ -174,7 +206,7 @@ class AIService:
                 tenant_id=self.user.tenant_id,
             )
             content = response.choices[0].message.content
-            await self._finalize_reservation(reservation_id, ReservationStatus.CONSUMED)
+            await self._finalize_reservation(reservation_id, ReservationStatus.CONSUMED, reconciliation_notes=content)
             return AIQueryResponse(
                 success=True, message=content, tool="response", risk_level="SAFE"
             )
@@ -467,7 +499,7 @@ class AIService:
     async def _check_commercial_access(self) -> Optional[AIQueryResponse]:
         """Check commercial availability, lifecycle state, and emergency restrictions."""
         await self._ensure_tenant_and_plan()
-        denial = evaluate_commercial_ai_access(self.tenant)
+        denial = await async_evaluate_commercial_ai_access(self.tenant, db=self.db)
         if denial:
             err_code, err_msg = denial
             return AIQueryResponse(

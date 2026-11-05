@@ -163,16 +163,17 @@ class AIQuotaService:
                 .first()
             )
 
+        # 1. Authoritative Persisted Database Plan Configuration
+        if plan is not None:
+            if not plan.is_ai_enabled:
+                return 0
+            if plan.ai_daily_limit is not None:
+                return int(plan.ai_daily_limit)
+
+        # 2. Hardcoded fallback only when plan is not persisted in database
         spec = None
-        if plan and plan.name:
-            spec = resolve_plan_spec(plan.name)
-        if not spec and tenant.plan:
+        if tenant.plan:
             spec = resolve_plan_spec(tenant.plan)
-        if not spec:
-            if plan and getattr(plan, "max_users", 0) <= 2:
-                spec = resolve_plan_spec("essential")
-            else:
-                spec = resolve_plan_spec("trial")
 
         if not spec or not spec.is_ai_enabled:
             return 0
@@ -336,6 +337,7 @@ class AIQuotaService:
                         raise IdempotencyConflictError(
                             f"Idempotency key '{idempotency_key}' reused with a different request payload."
                         )
+                    existing.is_replay = True
                     return existing
 
             # 3. Active Window & Atomic Reservation Lock
