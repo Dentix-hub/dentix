@@ -112,20 +112,12 @@ RULES:
         if not self.client:
             if reservation:
                 if session is not None:
-                    AIQuotaService.finalize_reservation(
-                        session,
-                        reservation_id=reservation.reservation_id,
-                        status=ReservationStatus.UNCERTAIN,
-                        error_reason="Groq API Key not configured",
-                    )
+                    AIQuotaService.finalize_reservation(session, reservation.reservation_id,
+                        ReservationStatus.RELEASED, error_reason="Provider client unavailable before dispatch")
                 else:
                     with isolated_accounting_session() as acct_session:
-                        AIQuotaService.finalize_reservation(
-                            acct_session,
-                            reservation_id=reservation.reservation_id,
-                            status=ReservationStatus.UNCERTAIN,
-                            error_reason="Groq API Key not configured",
-                        )
+                        AIQuotaService.finalize_reservation(acct_session, reservation.reservation_id,
+                            ReservationStatus.RELEASED, error_reason="Provider client unavailable before dispatch")
             raise ValueError("Groq API Key not configured")
 
         try:

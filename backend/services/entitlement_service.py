@@ -149,23 +149,10 @@ class EntitlementService:
         """
         mode = override_mode or get_subscription_enforcement_mode()
         current_time = _as_utc(now or datetime.now(timezone.utc))
-        norm_status = normalize_state(getattr(tenant, "subscription_status", "trial"))
+        from backend.services.subscription_period import resolve_subscription_period
 
-        subscription_end = _as_utc(tenant.subscription_end_date)
-        grace_end = _as_utc(tenant.grace_period_until)
-        is_past_end = bool(subscription_end and subscription_end < current_time)
-        is_in_grace = bool(grace_end and current_time <= grace_end)
-
-        effective_status = norm_status
-        if norm_status in {SubscriptionState.ACTIVE.value, SubscriptionState.TRIAL.value}:
-            if is_past_end:
-                effective_status = (
-                    SubscriptionState.GRACE.value
-                    if is_in_grace
-                    else SubscriptionState.EXPIRED_READ_ONLY.value
-                )
-        elif norm_status == SubscriptionState.GRACE.value and not is_in_grace:
-            effective_status = SubscriptionState.EXPIRED_READ_ONLY.value
+        period = resolve_subscription_period(tenant, current_time)
+        effective_status = period.status
 
         plan = tenant.__dict__.get("subscription_plan") if hasattr(tenant, "__dict__") else None
         if plan is None:
@@ -173,6 +160,8 @@ class EntitlementService:
                 plan = getattr(tenant, "subscription_plan", None)
             except Exception:
                 plan = None
+        if period.future_started:
+            plan = tenant.__dict__.get("future_plan")
         plan_name = getattr(plan, "name", getattr(tenant, "plan", None))
         plan_id = getattr(plan, "id", getattr(tenant, "plan_id", None))
 

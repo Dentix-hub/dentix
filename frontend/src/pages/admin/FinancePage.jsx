@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import {
@@ -47,6 +47,8 @@ export default function FinancePage() {
     const [editedPlanData, setEditedPlanData] = useState({});
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
+    const receiptAttempt = useRef(null);
+    const receiptBusy = useRef(false);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -128,7 +130,7 @@ export default function FinancePage() {
         if (e && typeof e.preventDefault === 'function') {
             e.preventDefault();
         }
-        if (processing) return;
+        if (processing || receiptBusy.current) return;
 
         if (!paymentForm.tenant_id) {
             toast.error(t('super_admin.payments.error_select_tenant') || 'الرجاء اختيار العيادة');
@@ -150,6 +152,7 @@ export default function FinancePage() {
             return;
         }
 
+        receiptBusy.current = true;
         setProcessing(true);
         try {
             const payload = {
@@ -158,7 +161,20 @@ export default function FinancePage() {
                 plan_id: parseInt(paymentForm.plan_id, 10),
                 amount: amountNum,
             };
-            await recordSubscriptionPayment(payload);
+            // Retain the operation identity after a lost response, including reload.
+            const serialized = new TextEncoder().encode(JSON.stringify(payload));
+            const fingerprint = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', serialized)), byte => byte.toString(16).padStart(2, '0')).join('');
+            const storedKey = `dentix:manual-receipt:${payload.tenant_id}`;
+            let previous = receiptAttempt.current;
+            if (!previous) {
+                try { previous = JSON.parse(sessionStorage.getItem(storedKey) || 'null'); } catch { /* No saved attempt. */ }
+            }
+            const attempt = previous?.fingerprint === fingerprint ? previous : { fingerprint, key: crypto.randomUUID() };
+            receiptAttempt.current = attempt;
+            sessionStorage.setItem(storedKey, JSON.stringify(attempt));
+            await recordSubscriptionPayment({ ...payload, idempotency_key: attempt.key });
+            sessionStorage.removeItem(storedKey);
+            receiptAttempt.current = null;
             setShowPaymentModal(false);
             setPaymentForm({
                 tenant_id: '',
@@ -175,6 +191,7 @@ export default function FinancePage() {
             const errorMsg = err.response?.data?.detail || err.response?.data?.message || err.message || t('super_admin.payments.error_recording') || 'فشل تسجيل الدفعة';
             toast.error(errorMsg);
         } finally {
+            receiptBusy.current = false;
             setProcessing(false);
         }
     };

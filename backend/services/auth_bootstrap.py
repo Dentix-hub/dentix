@@ -120,7 +120,7 @@ def _identity_stmt(username: str):
         )
         # Login/refresh touch user.tenant right after resolution; eager
         # load so no lazy IO happens outside the bootstrap scope.
-        .options(joinedload(models.User.tenant))
+        .options(joinedload(models.User.tenant).joinedload(models.Tenant.subscription_plan), joinedload(models.User.tenant).joinedload(models.Tenant.future_plan))
     )
 
 

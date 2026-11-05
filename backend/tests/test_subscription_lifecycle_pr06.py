@@ -611,7 +611,7 @@ async def test_suspended_and_cancelled_clinics_reject_renewal(
 
 @pytest.mark.asyncio
 async def test_scheduled_downgrade_enforces_capacity(
-    async_db_session, mock_super_admin, setup_launch_plans
+    async_db_session, mock_super_admin, setup_launch_plans, monkeypatch
 ):
     """Scheduling downgrade requires active accounts <= target cap; enforces pending cap atomically."""
     pro_plan = setup_launch_plans["professional"]  # cap = 5
@@ -671,7 +671,14 @@ async def test_scheduled_downgrade_enforces_capacity(
     with pytest.raises(AccountCapacityExceededError):
         await AccountAdmissionService.admit_active_account(async_db_session, tenant_id=tenant.id)
 
-    # 5. At renewal, the downgrade takes effect cleanly
+    # 5. Advance to the renewal boundary; early payment must preserve the existing term.
+    # Keep the original downgrade assertions, exercising the actual next-period start.
+    renewal_time = now + timedelta(days=20)
+    class RenewalClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return renewal_time.replace(tzinfo=timezone.utc) if tz else renewal_time
+    monkeypatch.setattr("backend.services.subscription_renewal_service.datetime", RenewalClock)
     req_renew = schemas.TenantManualRenewalRequest(
         idempotency_key="downgrd-01",
         extension_days=30,

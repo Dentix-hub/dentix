@@ -114,12 +114,8 @@ class ReconciliationService:
         stmt_ov = select(func.count(models.CommercialTenantOverride.id))
         total_overrides = (await db.execute(stmt_ov)).scalar() or 0
 
-        # 4. Enforcement mode from system settings
-        stmt_mode = select(models.SystemSetting).where(
-            models.SystemSetting.key == "commercial_enforcement_mode"
-        )
-        mode_row = (await db.execute(stmt_mode)).scalar_one_or_none()
-        enforcement_mode = mode_row.value if mode_row else "enforce"
+        from backend.core.config import get_subscription_enforcement_mode
+        enforcement_mode = get_subscription_enforcement_mode()
 
         catalog_plans_summary = [
             {
@@ -215,6 +211,7 @@ class ReconciliationService:
                         "tenant_name": t.name,
                         "current_raw_plan": t.plan,
                         "current_plan_id": t.plan_id,
+                        "policy_revision": t.policy_revision or 1,
                         "proposed_plan_id": target_plan.id if target_plan else None,
                         "proposed_plan_name": target_plan.name
                         if target_plan

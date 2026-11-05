@@ -1,3 +1,4 @@
+import { webcrypto } from 'node:crypto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import FinancePage from './FinancePage';
@@ -38,6 +39,8 @@ vi.mock('@/shared/ui', async () => {
         },
     };
 });
+
+Object.defineProperty(globalThis.crypto, 'subtle', { value: webcrypto.subtle, configurable: true });
 
 describe('Manual Payment Flow MS-13', () => {
     const mockPayments = [
@@ -141,4 +144,30 @@ describe('Manual Payment Flow MS-13', () => {
             expect(toast.success).toHaveBeenCalledWith('super_admin.payments.success_deleted');
         });
     });
+});
+
+it('reuses the manual receipt identity after a lost response and reload', async () => {
+    vi.clearAllMocks();
+    sessionStorage.clear();
+    getSubscriptionPayments.mockResolvedValue({ data: [] });
+    getSubscriptionPlans.mockResolvedValue({ data: [{ id: 1, name: 'professional', price: 400 }] });
+    api.get.mockImplementation(async (url) => ({ data: url.includes('/users') ? { users: [] } : [{ id: 10, name: 'Synthetic retry clinic' }] }));
+    recordSubscriptionPayment.mockRejectedValueOnce(new Error('Lost response')).mockResolvedValueOnce({ data: {} });
+    const page = render(<FinancePage />);
+    await screen.findByText('super_admin.payments.record_button');
+    fireEvent.click(screen.getByText('super_admin.payments.record_button'));
+    fireEvent.change(screen.getByLabelText((label) => label.includes('super_admin.tenants.title') || label.includes('العيادة')), { target: { value: '10' } });
+    fireEvent.click(screen.getByText('super_admin.payments.submit_button'));
+    await waitFor(() => expect(recordSubscriptionPayment).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText('super_admin.payments.submit_button')).not.toBeDisabled());
+    page.unmount();
+    render(<FinancePage />);
+    await screen.findByText('super_admin.payments.record_button');
+    fireEvent.click(screen.getByText('super_admin.payments.record_button'));
+    fireEvent.change(screen.getByLabelText((label) => label.includes('super_admin.tenants.title') || label.includes('العيادة')), { target: { value: '10' } });
+    fireEvent.click(screen.getByText('super_admin.payments.submit_button'));
+    await waitFor(() => expect(recordSubscriptionPayment.mock.calls.length).toBeGreaterThan(1));
+    const calls = recordSubscriptionPayment.mock.calls.slice(-2);
+    expect(calls[0][0].idempotency_key).toBeTruthy();
+    expect(calls[1][0].idempotency_key).toBe(calls[0][0].idempotency_key);
 });

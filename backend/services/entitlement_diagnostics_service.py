@@ -53,7 +53,7 @@ async def build_tenant_entitlement_diagnostics(
     # 1. Fetch Tenant and Plan
     stmt = (
         select(models.Tenant)
-        .options(selectinload(models.Tenant.subscription_plan))
+        .options(selectinload(models.Tenant.subscription_plan), selectinload(models.Tenant.future_plan), selectinload(models.Tenant.scheduled_downgrade_plan))
         .where(models.Tenant.id == tenant_id)
     )
     res = await db.execute(stmt)
@@ -86,23 +86,18 @@ async def build_tenant_entitlement_diagnostics(
 
     # 3. Subscription Status & Timestamps
     raw_status = getattr(tenant, "subscription_status", "trial")
-    norm_status = normalize_state(raw_status)
     sub_end = _as_utc(tenant.subscription_end_date)
     grace_end = _as_utc(tenant.grace_period_until)
 
-    is_past_end = bool(sub_end and sub_end < current_time)
-    is_in_grace = bool(grace_end and current_time <= grace_end)
+    from backend.services.subscription_period import resolve_subscription_period
 
-    effective_status = norm_status
-    if norm_status in {SubscriptionState.ACTIVE.value, SubscriptionState.TRIAL.value}:
-        if is_past_end:
-            effective_status = (
-                SubscriptionState.GRACE.value
-                if is_in_grace
-                else SubscriptionState.EXPIRED_READ_ONLY.value
-            )
-    elif norm_status == SubscriptionState.GRACE.value and not is_in_grace:
-        effective_status = SubscriptionState.EXPIRED_READ_ONLY.value
+    period = resolve_subscription_period(tenant, current_time)
+    effective_status = period.status
+    if period.future_started and tenant.future_plan:
+        plan = tenant.future_plan
+        plan_id, raw_plan_name = plan.id, plan.name
+        plan_display_ar = plan.display_name_ar
+        plan_display_en = plan.name
 
     # 4. Truthful Capacity Measurements
     from backend.services.account_admission_service import AccountAdmissionService
@@ -114,17 +109,8 @@ async def build_tenant_entitlement_diagnostics(
     remaining_seats = max(0, seat_limit - active_users_count) if seat_limit is not None else None
 
     # AI Limits and Historical Diagnostic Count
-    ai_daily_limit = getattr(plan, "ai_daily_limit", None)
-    if ai_daily_limit is None and tier_spec:
-        ai_daily_limit = tier_spec.ai_daily_limit
-    elif ai_daily_limit is None:
-        ai_daily_limit = 0
-
-    is_ai_enabled = getattr(plan, "is_ai_enabled", None)
-    if is_ai_enabled is None and tier_spec:
-        is_ai_enabled = tier_spec.is_ai_enabled
-    elif is_ai_enabled is None:
-        is_ai_enabled = False
+    ai_daily_limit = getattr(plan, "ai_daily_limit", 0) or 0
+    is_ai_enabled = bool(plan and plan.is_ai_enabled)
 
     # Historical AI requests logged today (diagnostic measurement only)
     today_start = current_time.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -134,14 +120,20 @@ async def build_tenant_entitlement_diagnostics(
     )
     historical_ai_log_count = (await db.execute(stmt_ai)).scalar() or 0
 
+    from backend.services.ai_quota_service import AIQuotaService
+    ai_usage = await AIQuotaService.read_window_usage(db, tenant, current_time)
+
     # 5. Capabilities Matrix
     capabilities_matrix: Dict[str, Dict[str, Any]] = {}
     configuration_warnings: List[str] = []
 
-    if not plan and not canon_plan_name:
+    if not plan:
         configuration_warnings.append(
             "Tenant has no recognized subscription plan assigned. All commercial capabilities default to disabled."
         )
+
+    if raw_status == "trial" and tenant.grace_period_until and not tenant.future_plan_id:
+        configuration_warnings.append("Legacy trial has a grace timestamp without an explicit paid-start marker; review its receipts before reconciliation.")
 
     # Active Commercial Overrides for this tenant
     active_overrides: Dict[str, bool] = {}
@@ -216,12 +208,14 @@ async def build_tenant_entitlement_diagnostics(
         "plan_name": raw_plan_name or "trial",
         "plan_display_name_ar": plan_display_ar,
         "plan_display_name_en": plan_display_en,
+        "future_plan_id": tenant.future_plan_id,
+        "future_plan_start_date": tenant.future_plan_start_date.isoformat() + "Z" if tenant.future_plan_start_date else None,
         "raw_subscription_status": raw_status,
         "effective_subscription_status": effective_status,
         "subscription_end_date": sub_end.isoformat() if sub_end else None,
         "grace_period_until": grace_end.isoformat() if grace_end else None,
-        "is_past_end": is_past_end,
-        "is_in_grace": is_in_grace,
+        "is_past_end": period.is_past_end,
+        "is_in_grace": period.is_in_grace,
         "policy_revision": getattr(tenant, "policy_revision", 1) or 1,
 
         # Enforcement & Modes
@@ -255,11 +249,10 @@ async def build_tenant_entitlement_diagnostics(
                 "daily_limit": ai_daily_limit,
                 "historical_diagnostic_count": historical_ai_log_count,
                 "historical_diagnostic_label": "Old AILog request count for today; historical diagnostics only",
-                "quota_ledger_source": "unavailable",
-                "quota_ledger_note": "Authoritative reservation ledger is pending implementation in PR-07; remaining quota is unavailable until then",
-                "remaining_quota": None,  # NOT zero when unavailable!
-                "window_reset": "clinic_local_midnight",
-                "timezone": getattr(tenant, "timezone", "Africa/Cairo") or "Africa/Cairo",
+                **ai_usage,
+                "quota_ledger_source": ai_usage["quota_source"],
+                "quota_ledger_note": "Authoritative clinic-local reservation ledger",
+                "window_reset": ai_usage["end_utc"],
             },
         },
 

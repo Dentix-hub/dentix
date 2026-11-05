@@ -1725,7 +1725,11 @@
       "voice_unsupported": "Voice Recognition Not Supported"
     },
     "quota_status": "Daily remaining: {{remaining}} of {{total}}",
-    "quota_exhausted": "Daily quota fully consumed. Resets automatically at midnight ({{timezone}})"
+    "quota_exhausted": "Daily quota fully consumed. Resets automatically at midnight ({{timezone}})",
+    "quota_unavailable": "Quota temporarily unavailable",
+    "confirm_pending": "Confirm pending action",
+    "cancel_pending": "Cancel pending action",
+    "toggle_assistant": "Toggle assistant"
   },
   "billing": {
     "title": "Billing",

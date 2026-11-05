@@ -115,7 +115,7 @@ class AIAgent:
                 logger.info(
                     f"Bypassing LLM - handling detected intent: {detected.intent}"
                 )
-                return self._handle_detected_intent(detected, user_input)
+                return {**self._handle_detected_intent(detected, user_input), "_provider_dispatched": False}
         except Exception as e:
             logger.error(f"Intent detection failed: {e}", exc_info=True)
 
@@ -125,6 +125,7 @@ class AIAgent:
                 "tool": "response",
                 "message": "عذراً، لقد تجاوزت حد الاستخدام اليومي المسموح به للعيادة.",
                 "error": "quota_exceeded",
+                "_provider_dispatched": False,
             }
 
         # Record attempt
@@ -178,6 +179,7 @@ class AIAgent:
             content_restored = scrubber.restore(content, aliases)
 
             result = self._parse_response(content_restored)
+            result["_provider_dispatched"] = not self.mock_mode
 
             # 6. SECURITY: Scribe Mode Enforcement (Block Write Operations)
             if scribe_mode and "tool" in result and result["tool"] != "response":

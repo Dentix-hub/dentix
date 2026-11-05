@@ -53,9 +53,9 @@ export default function AIChat() {
         speakText
     } = useTextToSpeech(false);
 
-    const handleSend = useCallback(async (overrideInput) => {
+    const handleSend = useCallback(async (overrideInput, confirmationOnly = false) => {
         const messageText = typeof overrideInput === 'string' ? overrideInput.trim() : input.trim();
-        if (!messageText || isLoading || isQuotaExhausted) return;
+        if (!messageText || isLoading || (isQuotaExhausted && !confirmationOnly)) return;
         if (isListening) {
             stopListening();
         }
@@ -96,6 +96,7 @@ export default function AIChat() {
                 useTenantStore.getState().fetchTenant();
             }
         } finally {
+            useTenantStore.getState().fetchTenant();
             setIsLoading(false);
         }
     }, [input, isLoading, isListening, isQuotaExhausted, lastPatientName, messages, scribeMode, speakText, stopListening, t, ttsEnabled]);
@@ -162,6 +163,7 @@ export default function AIChat() {
         <>
             {/* Floating Button */}
             <button
+                aria-label={t("ai_chat.toggle_assistant", { defaultValue: "فتح أو إغلاق المساعد / Toggle assistant" })}
                 onClick={() => setIsOpen(!isOpen)}
                 className={`fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-50 p-0 rounded-full shadow-2xl transition-all duration-300 end-6 ${isOpen
                     ? 'bg-slate-700 hover:bg-slate-800 rotate-90 w-14 h-14 flex items-center justify-center'
@@ -196,7 +198,7 @@ export default function AIChat() {
                         </div>
                         <div className="flex-1">
                             <h3 className="text-white font-bold">{t('ai_chat.title')}</h3>
-                            {aiQuota && aiQuota.daily_limit > 0 ? (
+                            {aiQuota && aiQuota.daily_limit > 0 && aiQuota.remaining_quota != null ? (
                                 <p className="text-cyan-200 text-xs">
                                     {t('ai_chat.quota_status', {
                                         remaining: aiQuota.remaining_quota ?? 0,
@@ -205,7 +207,7 @@ export default function AIChat() {
                                     })}
                                 </p>
                             ) : (
-                                <p className="text-cyan-200 text-xs">{t('ai_chat.subtitle')}</p>
+                                <p className="text-cyan-200 text-xs">{aiQuota && aiQuota.remaining_quota == null ? t('ai_chat.quota_unavailable', { defaultValue: 'Quota unavailable / الحصة غير متاحة' }) : t('ai_chat.subtitle')}</p>
                             )}
                         </div>
                         {isListening && (
@@ -230,6 +232,10 @@ export default function AIChat() {
                                 timezone: aiQuota.timezone || 'Africa/Cairo',
                                 defaultValue: `تم استهلاك الحصة اليومية بالكامل. تتجدد الحصة تلقائياً عند منتصف الليل (${aiQuota.timezone || 'Africa/Cairo'})`
                             })}
+                            <div className="mt-1 flex justify-center gap-3">
+                                <button disabled={isLoading} onClick={() => handleSend('نعم', true)}>{t('ai_chat.confirm_pending', { defaultValue: 'تأكيد الإجراء المعلّق / Confirm pending action' })}</button>
+                                <button disabled={isLoading} onClick={() => handleSend('لا', true)}>{t('ai_chat.cancel_pending', { defaultValue: 'إلغاء الإجراء المعلّق / Cancel pending action' })}</button>
+                            </div>
                         </div>
                     )}
                     {/* Quick Actions */}

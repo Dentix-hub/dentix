@@ -66,6 +66,10 @@ class AIService:
                 except Exception:
                     pass
 
+        if self.tenant and getattr(self.tenant, "future_plan_id", None) and hasattr(self.db, "get"):
+            if "future_plan" not in self.tenant.__dict__:
+                self.tenant.future_plan = await self.db.get(models.SubscriptionPlan, self.tenant.future_plan_id)
+
     async def _reserve_quota(
         self,
         operation: str,
@@ -180,7 +184,7 @@ class AIService:
                 )
 
         if hasattr(self.agent, "mock_mode") and self.agent.mock_mode:
-            await self._finalize_reservation(reservation_id, ReservationStatus.CONSUMED)
+            await self._finalize_reservation(reservation_id, ReservationStatus.RELEASED)
             return AIQueryResponse(
                 success=True,
                 message="⚠️ **وضع المحاكاة (Demo Mode)**\n\nتحليل سريع (Mock):\n1. الإيرادات ممتازة.\n2. التكاليف تحت السيطرة.\n3. يرجى تفعيل مفتاح API للحصول على تحليل حقيقي.",
@@ -349,6 +353,11 @@ class AIService:
                 scribe_mode=scribe_mode,
             )
 
+            completion_status = (
+                ReservationStatus.RELEASED if ai_result.get("_provider_dispatched") is False
+                else ReservationStatus.CONSUMED
+            )
+            ai_result.pop("_provider_dispatched", None)
             if "error" in ai_result:
                 tool_name = ai_result.get("tool", "unknown")
                 final_response_data = {
@@ -359,7 +368,7 @@ class AIService:
                 if reservation:
                     await self._finalize_reservation(
                         reservation.reservation_id,
-                        ReservationStatus.CONSUMED,
+                        completion_status,
                     )
             else:
                 tool_name = ai_result.get("tool")
@@ -375,7 +384,7 @@ class AIService:
                         if reservation:
                             await self._finalize_reservation(
                                 reservation.reservation_id,
-                                ReservationStatus.CONSUMED,
+                                completion_status,
                             )
                     else:
                         params = ai_result.get("parameters", {})
@@ -400,7 +409,7 @@ class AIService:
                             if reservation:
                                 await self._finalize_reservation(
                                     reservation.reservation_id,
-                                    ReservationStatus.CONSUMED,
+                                    completion_status,
                                 )
                             return AIQueryResponse(
                                 success=True,
@@ -421,7 +430,7 @@ class AIService:
                         if reservation:
                             await self._finalize_reservation(
                                 reservation.reservation_id,
-                                ReservationStatus.CONSUMED,
+                                completion_status,
                             )
                         if not tool_result.get("success"):
                             final_response_data = {
@@ -451,7 +460,7 @@ class AIService:
                     if reservation:
                         await self._finalize_reservation(
                             reservation.reservation_id,
-                            ReservationStatus.CONSUMED,
+                            completion_status,
                         )
 
         except AIException as e:

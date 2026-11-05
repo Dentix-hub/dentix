@@ -513,6 +513,39 @@ class AIQuotaService:
         )
 
     @classmethod
+    async def read_window_usage(cls, db: AsyncSession, tenant, now_utc=None) -> Dict[str, Any]:
+        """Read a snapshot without creating a window or committing caller state."""
+        from backend.services.subscription_period import resolve_subscription_period
+
+        now = _as_utc_naive(now_utc)
+        window = (await db.execute(select(AIQuotaWindow).where(
+            AIQuotaWindow.tenant_id == tenant.id,
+            AIQuotaWindow.start_utc <= now, AIQuotaWindow.end_utc > now,
+        ).order_by(AIQuotaWindow.end_utc.desc()))).scalars().first()
+        period = resolve_subscription_period(tenant, now)
+        plan = tenant.__dict__.get("future_plan") if period.future_started else tenant.__dict__.get("subscription_plan")
+        limit = getattr(plan, "ai_daily_limit", 0) or 0
+        limit = max(0, limit) if plan and plan.is_ai_enabled and tenant.plan_id else 0
+        tz = window.timezone if window else (tenant.timezone or DEFAULT_TENANT_TIMEZONE)
+        start, end = (window.start_utc, window.end_utc) if window else tenant_day_utc_bounds_naive(tz, now_utc=now)
+        if not window:
+            latest = (await db.execute(select(AIQuotaWindow).where(
+                AIQuotaWindow.tenant_id == tenant.id,
+            ).order_by(AIQuotaWindow.end_utc.desc()))).scalars().first()
+            if latest and latest.end_utc > start:
+                start = latest.end_utc
+        reserved = window.reserved_count if window else 0
+        consumed = window.consumed_count if window else 0
+        uncertain = window.uncertain_count if window else 0
+        admitted = reserved + consumed + uncertain
+        return {"quota_source": "ai_quota_windows", "reserved_count": reserved,
+                "consumed_count": consumed, "uncertain_count": uncertain,
+                "admitted_count": admitted, "daily_limit": limit,
+                "remaining_quota": max(0, limit - admitted),
+                "start_utc": start.isoformat() + "Z", "end_utc": end.isoformat() + "Z",
+                "timezone": tz, "is_exhausted": admitted >= limit}
+
+    @classmethod
     def get_window_usage(
         cls,
         session: Session,

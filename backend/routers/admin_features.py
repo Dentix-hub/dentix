@@ -152,9 +152,15 @@ async def set_emergency_restriction(
         )
 
     setting_key = f"emergency_restriction_{canon}"
-    stmt = select(models.SystemSetting).where(models.SystemSetting.key == setting_key)
+    # A missing setting has no row to lock. Serialize creation by policy key too.
+    if db.get_bind().dialect.name == "postgresql":
+        from sqlalchemy import text
+        await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:policy_key))"), {"policy_key": setting_key})
+    stmt = select(models.SystemSetting).where(models.SystemSetting.key == setting_key).with_for_update()
     row = (await db.execute(stmt)).scalar_one_or_none()
     old_state = row.value if row else "false"
+    if req.expected_restricted is not None and req.expected_restricted != (old_state == "true"):
+        raise HTTPException(409, "Emergency restriction changed; refresh the preview")
     new_state = "true" if req.is_restricted else "false"
 
     if row:
