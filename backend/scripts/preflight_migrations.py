@@ -980,32 +980,38 @@ def _repair_postgresql_child_tenant_triggers(connection) -> None:
         return
 
     logger.info("[PREFLIGHT] Repairing missing child tenant triggers: %s", sorted(missing))
-    connection.execute(
-        text(
-            """
-            CREATE OR REPLACE FUNCTION dentix_assert_parent_tenant()
-            RETURNS trigger LANGUAGE plpgsql AS $$
-            DECLARE
-                child_parent_id integer;
-                parent_tenant_id integer;
-                allow_null boolean := COALESCE(TG_ARGV[2], 'false')::boolean;
-            BEGIN
-                child_parent_id := NULLIF(to_jsonb(NEW) ->> TG_ARGV[1], '')::integer;
-                IF child_parent_id IS NULL AND allow_null THEN RETURN NEW; END IF;
-                IF child_parent_id IS NULL THEN
-                    RAISE EXCEPTION 'Missing required parent on %', TG_TABLE_NAME;
-                END IF;
-                EXECUTE format('SELECT tenant_id FROM %I WHERE id = $1', TG_ARGV[0])
-                   INTO parent_tenant_id USING child_parent_id;
-                IF parent_tenant_id IS NULL OR NEW.tenant_id IS DISTINCT FROM parent_tenant_id THEN
-                    RAISE EXCEPTION 'Tenant mismatch on %', TG_TABLE_NAME;
-                END IF;
-                RETURN NEW;
-            END;
-            $$;
-            """
-        )
+    func_exists = bool(
+        connection.execute(
+            text("SELECT 1 FROM pg_proc WHERE proname = 'dentix_assert_parent_tenant'")
+        ).scalar()
     )
+    if not func_exists:
+        connection.execute(
+            text(
+                """
+                CREATE OR REPLACE FUNCTION dentix_assert_parent_tenant()
+                RETURNS trigger LANGUAGE plpgsql AS $$
+                DECLARE
+                    child_parent_id integer;
+                    parent_tenant_id integer;
+                    allow_null boolean := COALESCE(TG_ARGV[2], 'false')::boolean;
+                BEGIN
+                    child_parent_id := NULLIF(to_jsonb(NEW) ->> TG_ARGV[1], '')::integer;
+                    IF child_parent_id IS NULL AND allow_null THEN RETURN NEW; END IF;
+                    IF child_parent_id IS NULL THEN
+                        RAISE EXCEPTION 'Missing required parent on %', TG_TABLE_NAME;
+                    END IF;
+                    EXECUTE format('SELECT tenant_id FROM %I WHERE id = $1', TG_ARGV[0])
+                       INTO parent_tenant_id USING child_parent_id;
+                    IF parent_tenant_id IS NULL OR NEW.tenant_id IS DISTINCT FROM parent_tenant_id THEN
+                        RAISE EXCEPTION 'Tenant mismatch on %', TG_TABLE_NAME;
+                    END IF;
+                    RETURN NEW;
+                END;
+                $$;
+                """
+            )
+        )
     for trigger_name in sorted(missing):
         table, child_key, parent, allow_null = expected[trigger_name]
         connection.execute(text(f'DROP TRIGGER IF EXISTS "{trigger_name}" ON "{table}"'))
