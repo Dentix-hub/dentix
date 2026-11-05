@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from backend import models, schemas
+from backend.services.policy_snapshot import tenant_policy_marker
 from fastapi import HTTPException
 from backend.core.commercial_registry import (
     CAPABILITY_REGISTRY,
@@ -304,7 +305,7 @@ class SubscriptionService:
                 performed_by_id=admin_user.id,
                 performed_by_username=admin_user.username,
                 old_value=json.dumps(old_values, ensure_ascii=False),
-                new_value=json.dumps(new_values, ensure_ascii=False),
+                new_value=json.dumps({**new_values, "_policy_revision": plan.policy_revision}, ensure_ascii=False),
                 details=reason,
             )
             db.add(audit)
@@ -587,7 +588,7 @@ class SubscriptionService:
                 performed_by_id=admin_user.id,
                 performed_by_username=admin_user.username,
                 old_value=json.dumps(old_overrides_dict, ensure_ascii=False),
-                new_value=json.dumps(new_overrides_dict, ensure_ascii=False),
+                new_value=json.dumps({**new_overrides_dict, **tenant_policy_marker(tenant)}, ensure_ascii=False),
                 details=update_data.reason,
             )
             db.add(audit)

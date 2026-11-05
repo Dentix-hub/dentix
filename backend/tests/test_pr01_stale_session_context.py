@@ -24,8 +24,12 @@ from backend.utils.patient_search_normalization import (
 
 @pytest.fixture
 def session_fixture(db_session):
-    tenant1 = models.Tenant(name="Session Clinic 1", is_active=True)
-    tenant2 = models.Tenant(name="Session Clinic 2", is_active=True)
+    # Preserve visibility assertions while providing the commercial precondition for AI.
+    plan = models.SubscriptionPlan(name="professional", display_name_ar="Synthetic", price=400, max_users=5, is_ai_enabled=True, ai_daily_limit=10, features='{"clinical":true,"ai_insights":true}')
+    db_session.add(plan)
+    db_session.flush()
+    tenant1 = models.Tenant(name="Session Clinic 1", is_active=True, plan_id=plan.id, plan=plan.name)
+    tenant2 = models.Tenant(name="Session Clinic 2", is_active=True, plan_id=plan.id, plan=plan.name)
     db_session.add_all([tenant1, tenant2])
     db_session.commit()
     for t in (tenant1, tenant2):

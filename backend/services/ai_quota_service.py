@@ -34,7 +34,6 @@ from backend.models.ai_accounting import (
     ALLOWED_TRANSITIONS,
     ReservationStatus,
 )
-from backend.core.commercial_registry import resolve_plan_spec
 from backend.utils.tenant_time import (
     DEFAULT_TENANT_TIMEZONE,
     resolve_timezone,
@@ -131,7 +130,7 @@ class AIQuotaService:
     """Canonical service for clinic-local AI daily quota reservation and accounting."""
 
     @staticmethod
-    def get_effective_ai_daily_limit(session: Session, tenant_id: int) -> int:
+    def get_effective_ai_daily_limit(session: Session, tenant_id: int, now_utc: datetime | None = None) -> int:
         """Resolve the current effective daily AI request limit for the tenant.
 
         Essential: 2, Professional: 10, Business: 30.
@@ -141,55 +140,26 @@ class AIQuotaService:
         if not tenant or not tenant.is_active:
             return 0
 
-        # Commercial override check
-        override = (
-            session.query(models.CommercialTenantOverride)
-            .filter(
-                models.CommercialTenantOverride.tenant_id == tenant_id,
-                models.CommercialTenantOverride.capability_key == "ai_chat",
-            )
-            .first()
-        )
-        if override and override.override_value == "deny":
+        plan_id = tenant.plan_id
+        if tenant.future_plan_id and tenant.future_plan_start_date and _as_utc_naive(tenant.future_plan_start_date) <= _as_utc_naive(now_utc):
+            plan_id = tenant.future_plan_id
+        plan = session.get(models.SubscriptionPlan, plan_id) if plan_id else None
+
+        if plan is None or not plan.is_ai_enabled:
             return 0
+        return max(0, int(plan.ai_daily_limit or 0))
 
-        plan = None
-        if tenant.plan_id:
-            plan = session.get(models.SubscriptionPlan, tenant.plan_id)
-        if not plan and tenant.plan:
-            plan = (
-                session.query(models.SubscriptionPlan)
-                .filter(models.SubscriptionPlan.name == tenant.plan)
-                .first()
-            )
-
-        # 1. Authoritative Persisted Database Plan Configuration
-        if plan is not None:
-            # If the persisted plan has an explicit positive limit configured
-            if plan.ai_daily_limit is not None and plan.ai_daily_limit > 0:
-                if not plan.is_ai_enabled:
-                    return 0
-                return int(plan.ai_daily_limit)
-            # If the persisted plan explicitly enabled AI
-            if plan.is_ai_enabled:
-                return int(plan.ai_daily_limit or 0)
-            # Fallback for unpopulated test/legacy fixtures with standard tier names
-            spec = resolve_plan_spec(tenant.plan or plan.name)
-            if spec and spec.is_ai_enabled and (
-                (tenant.plan and tenant.plan.lower() in ("essential", "professional", "business"))
-                or (plan.name and plan.name.lower() in ("essential", "professional", "business"))
-            ):
-                return spec.ai_daily_limit
-            return 0
-
-        # 2. Hardcoded fallback only when plan is not persisted in database
-        spec = None
-        if tenant.plan:
-            spec = resolve_plan_spec(tenant.plan)
-
-        if not spec or not spec.is_ai_enabled:
-            return 0
-        return spec.ai_daily_limit
+    @staticmethod
+    def cached_analysis(reservation):
+        if reservation.status != ReservationStatus.CONSUMED.value:
+            return None
+        try:
+            payload = json.loads(reservation.reconciliation_notes or "null")
+        except (ValueError, TypeError):
+            return None
+        if isinstance(payload, dict) and payload.get("kind") == "analysis_result_v1" and isinstance(payload.get("message"), str):
+            return payload["message"]
+        return None
 
     @classmethod
     def get_or_create_active_window(
@@ -296,8 +266,28 @@ class AIQuotaService:
         """
         now_naive = _as_utc_naive(now_utc)
         fingerprint = compute_request_fingerprint(payload)
+        if parent_reservation_id:
+            idempotency_key = "child_" + compute_request_fingerprint([parent_reservation_id, user_id, operation, fingerprint])
 
         try:
+            tenant = session.query(models.Tenant).filter(
+                models.Tenant.id == tenant_id
+            ).with_for_update().populate_existing().one_or_none()
+            if tenant is None:
+                raise QuotaStoreUnavailableError("Tenant is unavailable")
+            if idempotency_key:
+                existing = session.query(AIReservation).filter(
+                    AIReservation.tenant_id == tenant_id,
+                    AIReservation.idempotency_key == idempotency_key,
+                ).populate_existing().first()
+                if existing:
+                    if existing.user_id != user_id:
+                        raise ScopeMismatchError("Reservation belongs to another actor")
+                    if existing.operation != operation or existing.request_fingerprint != fingerprint:
+                        raise IdempotencyConflictError("Idempotency key payload or operation changed")
+                    existing.is_replay = True
+                    session.commit()
+                    return existing
             # 1. Parent reservation linkage (confirmation or tool work)
             if parent_reservation_id:
                 parent = (
@@ -305,7 +295,7 @@ class AIQuotaService:
                     .filter(AIReservation.reservation_id == parent_reservation_id)
                     .first()
                 )
-                if parent and parent.tenant_id == tenant_id:
+                if parent and parent.tenant_id == tenant_id and parent.user_id == user_id:
                     # If parent already reserved or consumed, this secondary action adds 0 units
                     if parent.status in (ReservationStatus.RESERVED.value, ReservationStatus.CONSUMED.value):
                         child_reservation = AIReservation(
@@ -317,7 +307,7 @@ class AIQuotaService:
                             request_fingerprint=fingerprint,
                             idempotency_key=idempotency_key,
                             parent_reservation_id=parent_reservation_id,
-                            status=ReservationStatus.CONSUMED.value,
+                            status=ReservationStatus.RESERVED.value,
                             units=0,
                             created_at=now_naive,
                             updated_at=now_naive,
@@ -358,7 +348,7 @@ class AIQuotaService:
             )
 
             # 4. Check Capacity
-            limit = cls.get_effective_ai_daily_limit(session, tenant_id)
+            limit = cls.get_effective_ai_daily_limit(session, tenant_id, now_utc=now_naive)
             total_admitted = locked_window.reserved_count + locked_window.consumed_count + locked_window.uncertain_count
 
             if total_admitted >= limit:
@@ -389,6 +379,7 @@ class AIQuotaService:
             locked_window.updated_at = now_naive
 
             session.commit()
+            reservation.is_replay = False
             return reservation
 
         except (AIQuotaExhaustedError, IdempotencyConflictError, ScopeMismatchError):
@@ -478,7 +469,14 @@ class AIQuotaService:
             if reconciliation_notes:
                 existing_notes = reservation.reconciliation_notes or ""
                 sep = " | " if existing_notes else ""
-                reservation.reconciliation_notes = f"{existing_notes}{sep}{reconciliation_notes}"
+                try:
+                    typed_result = json.loads(reconciliation_notes)
+                except (ValueError, TypeError):
+                    typed_result = None
+                if isinstance(typed_result, dict) and typed_result.get("kind") in {"scribe_result_v1", "analysis_result_v1"}:
+                    reservation.reconciliation_notes = reconciliation_notes
+                else:
+                    reservation.reconciliation_notes = f"{existing_notes}{sep}{reconciliation_notes}"
 
             window.updated_at = now_naive
             session.commit()
@@ -524,7 +522,7 @@ class AIQuotaService:
         """Return truthful billing-grade quota window usage for Super Admin and tenant detail."""
         now_naive = _as_utc_naive(now_utc)
         window = cls.get_or_create_active_window(session, tenant_id=tenant_id, now_utc=now_naive)
-        limit = cls.get_effective_ai_daily_limit(session, tenant_id)
+        limit = cls.get_effective_ai_daily_limit(session, tenant_id, now_utc=now_naive)
 
         admitted = window.admitted_count
         remaining = max(0, limit - admitted)

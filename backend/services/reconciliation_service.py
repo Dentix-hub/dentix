@@ -19,6 +19,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import models, schemas
+from backend.services.policy_snapshot import tenant_policy_marker
 from backend.services.commercial_decision import CAPABILITY_REGISTRY
 from backend.services.subscription_state_machine import SubscriptionState
 
@@ -26,7 +27,6 @@ logger = logging.getLogger(__name__)
 
 
 class ReconciliationService:
-
     @staticmethod
     def _utc_now_naive() -> datetime:
         return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -40,14 +40,16 @@ class ReconciliationService:
         now = cls._utc_now_naive()
 
         # 1. Plans inspection
-        stmt_plans = select(models.SubscriptionPlan).order_by(models.SubscriptionPlan.id.asc())
+        stmt_plans = select(models.SubscriptionPlan).order_by(
+            models.SubscriptionPlan.id.asc()
+        )
         plans = (await db.execute(stmt_plans)).scalars().all()
 
         total_plans = len(plans)
         active_plans = [p for p in plans if p.is_active]
         retired_plans = [p for p in plans if not p.is_active]
 
-        active_plan_ids = {p.id for p in active_plans}
+        active_plan_ids = {p.id for p in plans}
         active_plan_names = {p.name.lower(): p for p in active_plans}
 
         # Check canonical launch tiers
@@ -88,24 +90,34 @@ class ReconciliationService:
             end_date = t.subscription_end_date
             if status == SubscriptionState.ACTIVE.value and end_date and end_date < now:
                 status_date_mismatches += 1
-            elif status == SubscriptionState.EXPIRED_READ_ONLY.value and end_date and end_date > now:
+            elif (
+                status == SubscriptionState.EXPIRED_READ_ONLY.value
+                and end_date
+                and end_date > now
+            ):
                 status_date_mismatches += 1
 
         # Check null or zero limits in active plans
         for p in active_plans:
             if p.max_users is None or p.max_users <= 0:
                 null_or_zero_limits += 1
-                warnings.append(f"Plan '{p.name}' (id={p.id}) has unconstrained or zero max_users.")
+                warnings.append(
+                    f"Plan '{p.name}' (id={p.id}) has unconstrained or zero max_users."
+                )
             if p.is_ai_enabled and (p.ai_daily_limit is None or p.ai_daily_limit <= 0):
                 null_or_zero_limits += 1
-                warnings.append(f"Plan '{p.name}' (id={p.id}) has AI enabled but zero/null ai_daily_limit.")
+                warnings.append(
+                    f"Plan '{p.name}' (id={p.id}) has AI enabled but zero/null ai_daily_limit."
+                )
 
         # 3. Overrides count
         stmt_ov = select(func.count(models.CommercialTenantOverride.id))
         total_overrides = (await db.execute(stmt_ov)).scalar() or 0
 
         # 4. Enforcement mode from system settings
-        stmt_mode = select(models.SystemSetting).where(models.SystemSetting.key == "commercial_enforcement_mode")
+        stmt_mode = select(models.SystemSetting).where(
+            models.SystemSetting.key == "commercial_enforcement_mode"
+        )
         mode_row = (await db.execute(stmt_mode)).scalar_one_or_none()
         enforcement_mode = mode_row.value if mode_row else "enforce"
 
@@ -151,7 +163,9 @@ class ReconciliationService:
         now = cls._utc_now_naive()
 
         # Query active plans for new catalog proposals
-        stmt_plans = select(models.SubscriptionPlan).where(models.SubscriptionPlan.is_active == True)  # noqa: E712
+        stmt_plans = select(models.SubscriptionPlan).where(
+            models.SubscriptionPlan.is_active.is_(True)
+        )
         active_plans = (await db.execute(stmt_plans)).scalars().all()
         plan_by_name = {p.name.lower(): p for p in active_plans}
 
@@ -159,13 +173,6 @@ class ReconciliationService:
         stmt_all_plans = select(models.SubscriptionPlan)
         all_plans = (await db.execute(stmt_all_plans)).scalars().all()
         all_plan_ids = {p.id for p in all_plans}
-
-        # Canonical fallback plans
-        default_canonical = (
-            plan_by_name.get("professional")
-            or plan_by_name.get("essential")
-            or (active_plans[0] if active_plans else None)
-        )
 
         stmt_tenants = select(models.Tenant).order_by(models.Tenant.id.asc())
         tenants = (await db.execute(stmt_tenants)).scalars().all()
@@ -195,40 +202,56 @@ class ReconciliationService:
             else:
                 # Genuinely unanchored or orphan
                 mapped_name = proposed_mappings.get(raw_plan)
-                matched_plan = plan_by_name.get(mapped_name) if mapped_name else plan_by_name.get(raw_plan)
-                target_plan = matched_plan or default_canonical
+                matched_plan = (
+                    plan_by_name.get(mapped_name)
+                    if mapped_name
+                    else plan_by_name.get(raw_plan)
+                )
+                target_plan = matched_plan
 
-                unanchored_tenants.append({
-                    "tenant_id": t.id,
-                    "tenant_name": t.name,
-                    "current_raw_plan": t.plan,
-                    "current_plan_id": t.plan_id,
-                    "proposed_plan_id": target_plan.id if target_plan else None,
-                    "proposed_plan_name": target_plan.name if target_plan else "essential",
-                    "reason": "Missing or orphan plan_id anchor in catalog",
-                })
+                unanchored_tenants.append(
+                    {
+                        "tenant_id": t.id,
+                        "tenant_name": t.name,
+                        "current_raw_plan": t.plan,
+                        "current_plan_id": t.plan_id,
+                        "proposed_plan_id": target_plan.id if target_plan else None,
+                        "proposed_plan_name": target_plan.name
+                        if target_plan
+                        else "essential",
+                        "reason": "Missing or orphan plan_id anchor in catalog",
+                    }
+                )
 
             # 2. Status anomaly check
             status = (t.subscription_status or "trial").lower().strip()
             end_date = t.subscription_end_date
             if status == SubscriptionState.ACTIVE.value and end_date and end_date < now:
-                status_anomalies.append({
-                    "tenant_id": t.id,
-                    "tenant_name": t.name,
-                    "current_status": status,
-                    "subscription_end_date": str(end_date),
-                    "proposed_status": SubscriptionState.EXPIRED_READ_ONLY.value,
-                    "reason": "Active subscription has passed end_date without renewal",
-                })
-            elif status == SubscriptionState.EXPIRED_READ_ONLY.value and end_date and end_date > now:
-                status_anomalies.append({
-                    "tenant_id": t.id,
-                    "tenant_name": t.name,
-                    "current_status": status,
-                    "subscription_end_date": str(end_date),
-                    "proposed_status": SubscriptionState.ACTIVE.value,
-                    "reason": "Expired status is inconsistent with future subscription_end_date",
-                })
+                status_anomalies.append(
+                    {
+                        "tenant_id": t.id,
+                        "tenant_name": t.name,
+                        "current_status": status,
+                        "subscription_end_date": str(end_date),
+                        "proposed_status": SubscriptionState.EXPIRED_READ_ONLY.value,
+                        "reason": "Active subscription has passed end_date without renewal",
+                    }
+                )
+            elif (
+                status == SubscriptionState.EXPIRED_READ_ONLY.value
+                and end_date
+                and end_date > now
+            ):
+                status_anomalies.append(
+                    {
+                        "tenant_id": t.id,
+                        "tenant_name": t.name,
+                        "current_status": status,
+                        "subscription_end_date": str(end_date),
+                        "proposed_status": SubscriptionState.ACTIVE.value,
+                        "reason": "Expired status is inconsistent with future subscription_end_date",
+                    }
+                )
 
         return {
             "safe_migration_summary": {
@@ -248,56 +271,106 @@ class ReconciliationService:
         }
 
     @classmethod
-    async def apply_reconciliation(
-        cls,
-        db: AsyncSession,
-        admin_user: Optional[models.User] = None,
-    ) -> Dict[str, Any]:
-        """
-        Safely anchor unanchored tenants to canonical plans without shortening periods or modifying active users.
-        """
-        preview = await cls.preview_reconciliation(db)
-        unanchored = preview.get("unanchored_tenants", [])
-
-        reconciled_count = 0
-        for item in unanchored:
-            tenant_id = item["tenant_id"]
-            target_plan_id = item["proposed_plan_id"]
-            target_plan_name = item["proposed_plan_name"]
-            if not target_plan_id:
-                continue
-
-            stmt = select(models.Tenant).where(models.Tenant.id == tenant_id).with_for_update()
-            tenant = (await db.execute(stmt)).scalar_one_or_none()
-            if not tenant:
-                continue
-
-            old_plan_val = f"plan={tenant.plan}, plan_id={tenant.plan_id}"
-            new_plan_val = f"plan={target_plan_name}, plan_id={target_plan_id}"
-            tenant.plan_id = target_plan_id
-            tenant.plan = target_plan_name
-            tenant.policy_revision = (tenant.policy_revision or 1) + 1
-
-            if admin_user:
-                audit = models.AuditLog(
-                    action="TENANT_CATALOG_RECONCILE",
-                    entity_type="Tenant",
-                    entity_id=tenant.id,
-                    target_username=tenant.name,
-                    performed_by_id=admin_user.id,
-                    performed_by_username=admin_user.username,
-                    old_value=old_plan_val,
-                    new_value=new_plan_val,
-                    details=f"Automated catalog reconciliation anchored tenant from '{tenant.plan}' to canonical plan '{target_plan_name}'",
-                    tenant_id=tenant.id,
+    async def apply_reconciliation(cls, db, admin_user=None, selection=None):
+        if selection is None:
+            raise HTTPException(
+                status_code=409,
+                detail="Explicit reviewed mappings, revision and reason required",
+            )
+        if admin_user is None:
+            raise HTTPException(status_code=403, detail="Audited platform actor required")
+        ids = [item.tenant_id for item in selection.mappings]
+        if len(set(ids)) != len(ids):
+            raise HTTPException(status_code=422, detail="Duplicate tenant selection")
+        try:
+            # Validate the complete batch under locks before performing any writes.
+            changes = []
+            for item in sorted(selection.mappings, key=lambda x: x.tenant_id):
+                tenant = (
+                    await db.execute(
+                        select(models.Tenant)
+                        .where(models.Tenant.id == item.tenant_id)
+                        .with_for_update()
+                        .execution_options(populate_existing=True)
+                    )
+                ).scalar_one_or_none()
+                if (
+                    tenant is None
+                    or tenant.plan_id != item.expected_plan_id
+                    or (tenant.policy_revision or 1) != item.expected_revision
+                ):
+                    raise HTTPException(
+                        status_code=409, detail="Stale tenant reconciliation selection"
+                    )
+                if tenant.future_plan_id or tenant.scheduled_downgrade_plan_id:
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Scheduled contract requires canonical subscription workflow",
+                    )
+                if tenant.plan_id is not None and await db.get(
+                    models.SubscriptionPlan, tenant.plan_id
+                ):
+                    raise HTTPException(
+                        status_code=409,
+                        detail="Existing contract must use canonical plan-change workflow",
+                    )
+                platform_user = (
+                    await db.execute(
+                        select(models.User.id)
+                        .where(
+                            models.User.tenant_id == tenant.id,
+                            models.User.role == "super_admin",
+                        )
+                        .limit(1)
+                    )
+                ).first()
+                if platform_user:
+                    raise HTTPException(
+                        status_code=409, detail="Platform tenant cannot be reconciled"
+                    )
+                plan = await db.get(models.SubscriptionPlan, item.plan_id)
+                if plan is None or not plan.is_active:
+                    raise HTTPException(
+                        status_code=409, detail="Selected plan is unavailable"
+                    )
+                from backend.services.account_admission_service import (
+                    AccountAdmissionService,
                 )
-                db.add(audit)
 
-            reconciled_count += 1
-
-        await db.commit()
-        return {
-            "success": True,
-            "reconciled_count": reconciled_count,
-            "message": f"Successfully anchored {reconciled_count} tenants to canonical plans.",
-        }
+                count = await AccountAdmissionService.get_active_account_count(
+                    db, tenant.id
+                )
+                if plan.max_users is not None and count > plan.max_users:
+                    raise HTTPException(
+                        status_code=409, detail="Active accounts exceed selected plan"
+                    )
+                changes.append((tenant, plan))
+            for tenant, plan in changes:
+                before = {"plan": tenant.plan, "plan_id": tenant.plan_id}
+                tenant.plan, tenant.plan_id = plan.name, plan.id
+                tenant.policy_revision = (tenant.policy_revision or 1) + 1
+                if admin_user:
+                    db.add(
+                        models.AuditLog(
+                            action="TENANT_CATALOG_RECONCILE",
+                            entity_type="Tenant",
+                            entity_id=tenant.id,
+                            tenant_id=tenant.id,
+                            performed_by_id=admin_user.id,
+                            performed_by_username=admin_user.username,
+                            old_value=json.dumps(before),
+                            new_value=json.dumps(
+                                {
+                                    "plan": plan.name,
+                                    "plan_id": plan.id,
+                                    **tenant_policy_marker(tenant),
+                                }
+                            ),
+                            details=selection.reason,
+                        )
+                    )
+            await db.commit()
+            return {"success": True, "reconciled_count": len(changes)}
+        except Exception:
+            await db.rollback()
+            raise

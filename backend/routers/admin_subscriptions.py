@@ -131,13 +131,14 @@ async def get_reconciliation_preview(
 
 @router.post("/reconcile-tenants", response_model=StandardResponse[dict])
 async def reconcile_tenants(
+    selection: schemas.ReconciliationApplyRequest | None = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
     """
     Safely anchor unanchored tenants to canonical plans without shortening periods or modifying active accounts.
     """
-    data = await ReconciliationService.apply_reconciliation(db, admin_user=current_user)
+    data = await ReconciliationService.apply_reconciliation(db, admin_user=current_user, selection=selection)
     return success_response(data=data, message=data.get("message", "Reconciliation completed"))
 
 

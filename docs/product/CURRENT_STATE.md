@@ -170,3 +170,6 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 - PR-10 (2026-11-04): Gated clinic frontend navigation, feature mounting, and quota warnings on commercial entitlements; enforced fail-closed fallback and Flutter freeze policy.
 - PR-11 (2026-11-05): Super Admin controls, reconciliation preview, policy reversal, and final launch acceptance.
 - Commercial Controls Hardening (2026-11-05): Resolved independent release review findings C1-C6 (idempotency replay ownership, authoritative DB AI limits, retired contract preservation, reversal key-value parsing, async emergency stop, security disable isolation); 8/8 review tests and all regressions pass.
+
+- Commercial C1–C6 completion (2026-11-05): local fixes on c4c7eb5; atomic AI replay across chat/analysis/Scribe, persisted caps, fail-closed policy lookup, explicit reconciliation and causal typed undo. No migrations/live data or remote delivery.
+- Verification: backend 1915 passed / 1 existing TestClient refresh skip; frontend 1184 passed, build/design checks PASS; focused 117 passed including isolated PostgreSQL concurrency. Evidence and compatibility: docs/reports/commercial-controls-completion-2026-11-05.md.

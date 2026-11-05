@@ -619,3 +619,15 @@ class ReconciliationPreviewResponse(BaseModel):
     preservation_guarantees: List[str] = Field(default_factory=list)
 
 
+
+
+class ReconciliationSelection(BaseModel):
+    tenant_id: int = Field(gt=0)
+    plan_id: int = Field(gt=0)
+    expected_revision: int = Field(gt=0)
+    expected_plan_id: Optional[int] = None
+
+
+class ReconciliationApplyRequest(BaseModel):
+    reason: str = Field(min_length=5, max_length=500)
+    mappings: List[ReconciliationSelection] = Field(min_length=1, max_length=100)

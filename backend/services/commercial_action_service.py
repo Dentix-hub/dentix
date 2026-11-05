@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import models, schemas
+from backend.services.policy_snapshot import tenant_policy_marker
 from backend.services.subscription_state_machine import SubscriptionState
 
 logger = logging.getLogger(__name__)
@@ -26,8 +27,6 @@ REVERSIBLE_ACTIONS = {
     "TENANT_COMMERCIAL_SUSPEND",
     "TENANT_SECURITY_DISABLE",
     "TENANT_REACTIVATE",
-    "TENANT_ASSIGN_PLAN",
-    "SUBSCRIPTION_SCHEDULE_DOWNGRADE",
     "TENANT_COMMERCIAL_OVERRIDES_UPDATE",
     "SUBSCRIPTION_PLAN_UPDATE",
     "TENANT_CATALOG_RECONCILE",
@@ -93,7 +92,7 @@ class CommercialActionService:
             performed_by_id=admin_user.id,
             performed_by_username=admin_user.username,
             old_value=json.dumps(previous_state, ensure_ascii=False),
-            new_value=json.dumps(resulting_state, ensure_ascii=False),
+            new_value=json.dumps({**resulting_state, **tenant_policy_marker(tenant)}, ensure_ascii=False),
             details=request.reason,
             tenant_id=tenant.id,
         )
@@ -158,7 +157,7 @@ class CommercialActionService:
             performed_by_id=admin_user.id,
             performed_by_username=admin_user.username,
             old_value=json.dumps(previous_state, ensure_ascii=False),
-            new_value=json.dumps(resulting_state, ensure_ascii=False),
+            new_value=json.dumps({**resulting_state, **tenant_policy_marker(tenant)}, ensure_ascii=False),
             details=request.reason,
             tenant_id=tenant.id,
         )
@@ -232,7 +231,7 @@ class CommercialActionService:
             performed_by_id=admin_user.id,
             performed_by_username=admin_user.username,
             old_value=json.dumps(previous_state, ensure_ascii=False),
-            new_value=json.dumps(resulting_state, ensure_ascii=False),
+            new_value=json.dumps({**resulting_state, **tenant_policy_marker(tenant)}, ensure_ascii=False),
             details=request.reason,
             tenant_id=tenant.id,
         )
@@ -318,6 +317,42 @@ class CommercialActionService:
             if not restored_values:
                 restored_values = {"raw_value": audit_log.old_value}
 
+        # Serialize state changes on the entity, then reject superseded intents.
+        entity_cls = models.Tenant if audit_log.entity_type == "Tenant" else models.SubscriptionPlan if audit_log.entity_type == "SubscriptionPlan" else None
+        if entity_cls is None:
+            raise HTTPException(status_code=409, detail="Unsupported reversal entity")
+        target = (await db.execute(select(entity_cls).where(entity_cls.id == audit_log.entity_id).with_for_update().execution_options(populate_existing=True))).scalar_one_or_none()
+        if target is None:
+            raise HTTPException(status_code=409, detail="Reversal target no longer exists")
+        newer = (await db.execute(select(models.AuditLog.id).where(
+            models.AuditLog.entity_type == audit_log.entity_type,
+            models.AuditLog.entity_id == audit_log.entity_id,
+            models.AuditLog.id > audit_log.id,
+        ).limit(1))).first()
+        if newer:
+            raise HTTPException(status_code=409, detail="Policy action has been superseded or reversed")
+        supported_tenant_actions = {"TENANT_COMMERCIAL_SUSPEND", "TENANT_SECURITY_DISABLE", "TENANT_REACTIVATE", "TENANT_CATALOG_RECONCILE", "TENANT_COMMERCIAL_OVERRIDES_UPDATE"}
+        if audit_log.entity_type == "Tenant" and action not in supported_tenant_actions:
+            raise HTTPException(status_code=409, detail="This action requires the canonical subscription workflow")
+        try:
+            expected = json.loads(audit_log.new_value or "{}")
+        except (ValueError, TypeError):
+            expected = None
+        if not isinstance(expected, dict) or expected.get("_policy_revision") != target.policy_revision or not isinstance(restored_values, dict) or "raw_value" in restored_values:
+            raise HTTPException(status_code=409, detail="Ambiguous legacy snapshot cannot be reversed safely")
+        if audit_log.entity_type == "Tenant":
+            if any(expected.get(key) != value for key, value in tenant_policy_marker(target).items()):
+                raise HTTPException(status_code=409, detail="Subscription contract changed after audited action")
+        if action != "TENANT_COMMERCIAL_OVERRIDES_UPDATE":
+            for key, value in expected.items():
+                if key.startswith("_"):
+                    continue
+                actual = getattr(target, "policy_revision" if key == "_policy_revision" else key, object())
+                if str(actual) != str(value):
+                    raise HTTPException(status_code=409, detail="Current policy no longer matches audited action")
+
+        if action == "SUBSCRIPTION_PLAN_UPDATE" and "is_default" in restored_values:
+            raise HTTPException(status_code=409, detail="Default plan changes require the canonical plan workflow")
         if request.preview:
             return schemas.PolicyReversalResponse(
                 reversal_audit_log_id=None,
@@ -337,16 +372,24 @@ class CommercialActionService:
             if target_tenant:
                 # Security Invariant (C6): Commercial suspension reversal must NEVER reactivate a security-disabled clinic
                 if action == "TENANT_COMMERCIAL_SUSPEND":
-                    target_tenant.subscription_status = "active"
+                    target_tenant.subscription_status = restored_values["subscription_status"]
                     # Do NOT touch target_tenant.is_active!
                 elif action == "TENANT_SECURITY_DISABLE":
-                    target_tenant.is_active = True
+                    target_tenant.is_active = restored_values["is_active"]
                 else:
                     # Generic action: never silently re-enable is_active if tenant was security-disabled
                     if "is_active" in restored_values and target_tenant.is_active:
                         target_tenant.is_active = bool(restored_values["is_active"])
                     if "subscription_status" in restored_values:
                         target_tenant.subscription_status = str(restored_values["subscription_status"])
+
+                if action == "TENANT_COMMERCIAL_OVERRIDES_UPDATE":
+                    current = (await db.execute(select(models.CommercialTenantOverride).where(models.CommercialTenantOverride.tenant_id == target_tenant.id))).scalars().all()
+                    for row in current:
+                        await db.delete(row)
+                    await db.flush()
+                    for capability, data in restored_values.items():
+                        db.add(models.CommercialTenantOverride(tenant_id=target_tenant.id, capability_key=capability, override_value=data["override_value"], reason=data["reason"], expires_at=datetime.fromisoformat(data["expires_at"]) if data.get("expires_at") else None))
 
                 # C4: Plan restoration must restore BOTH plan and plan_id
                 if "plan_id" in restored_values:
