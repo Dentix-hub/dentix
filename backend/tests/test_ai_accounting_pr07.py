@@ -611,6 +611,8 @@ async def test_postgresql_concurrent_ai_quota_reservations_serialized():
             display_name_ar="خطة ذكاء",
             price=200,
             max_users=2,
+            is_ai_enabled=True,
+            ai_daily_limit=2,
             is_active=True,
         )
         session.add(plan)

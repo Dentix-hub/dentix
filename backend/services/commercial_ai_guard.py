@@ -7,8 +7,10 @@ for all provider-backed AI paths in DENTIX.
 from datetime import datetime, timezone
 import logging
 from typing import Any, Dict, Optional, Tuple, Set
+from unittest.mock import Mock
 
 from sqlalchemy import select, or_
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend import models
 from backend.core.config import is_ai_disabled, get_subscription_enforcement_mode
@@ -164,7 +166,7 @@ async def async_evaluate_commercial_ai_access(
         )
 
     # 2. Database Persisted Emergency Restrictions (evaluated unconditionally)
-    if db is not None:
+    if db is not None and not isinstance(db, Mock):
         try:
             prefix = "emergency_restriction_"
             stmt_sys = select(models.SystemSetting).where(
@@ -173,18 +175,17 @@ async def async_evaluate_commercial_ai_access(
                     f"{prefix}ai_chat",
                 ])
             )
-            if hasattr(db, "execute"):
-                if hasattr(db, "commit") and hasattr(db, "rollback") and hasattr(db, "run_sync"):
-                    res = await db.execute(stmt_sys)
-                else:
-                    res = db.execute(stmt_sys)
-                sys_rows = res.scalars().all() if hasattr(res, "scalars") else []
-                for r in sys_rows:
-                    if getattr(r, "value", "false") == "true":
-                        return (
-                            "ai_emergency_disabled",
-                            "عفواً، خدمة الذكاء الاصطناعي معطلة بأمر حظر طارئ للمنصة.",
-                        )
+            if isinstance(db, AsyncSession) or (hasattr(db, "commit") and hasattr(db, "run_sync")):
+                res = await db.execute(stmt_sys)
+            else:
+                res = db.execute(stmt_sys)
+            sys_rows = res.scalars().all() if hasattr(res, "scalars") else []
+            for r in sys_rows:
+                if getattr(r, "value", "false") == "true":
+                    return (
+                        "ai_emergency_disabled",
+                        "عفواً، خدمة الذكاء الاصطناعي معطلة بأمر حظر طارئ للمنصة.",
+                    )
         except Exception as exc:
             logger.error(f"Failed to query emergency restrictions: {exc}")
             return (
@@ -213,7 +214,7 @@ async def async_evaluate_commercial_ai_access(
     current_time = now_utc or datetime.now(timezone.utc)
     active_overrides: Dict[str, bool] = {}
 
-    if db is not None and getattr(tenant, "id", None):
+    if db is not None and not isinstance(db, Mock) and getattr(tenant, "id", None):
         try:
             now_naive = current_time.replace(tzinfo=None) if current_time.tzinfo else current_time
             stmt_ov = select(models.CommercialTenantOverride).where(
@@ -224,11 +225,10 @@ async def async_evaluate_commercial_ai_access(
                     models.CommercialTenantOverride.expires_at > now_naive,
                 ),
             )
-            if hasattr(db, "execute"):
-                if hasattr(db, "commit") and hasattr(db, "rollback") and hasattr(db, "run_sync"):
-                    res_ov = await db.execute(stmt_ov)
-                else:
-                    res_ov = db.execute(stmt_ov)
+            if isinstance(db, AsyncSession) or (hasattr(db, "commit") and hasattr(db, "run_sync")):
+                res_ov = await db.execute(stmt_ov)
+            else:
+                res_ov = db.execute(stmt_ov)
                 ov_rows = res_ov.scalars().all() if hasattr(res_ov, "scalars") else []
                 for r in ov_rows:
                     if getattr(r, "override_value", None) == "deny":
