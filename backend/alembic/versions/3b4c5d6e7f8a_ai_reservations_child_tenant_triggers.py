@@ -26,6 +26,36 @@ def upgrade() -> None:
 
     op.execute(
         r"""
+        DO $do$
+        BEGIN
+            IF NOT EXISTS (
+                SELECT 1 FROM pg_proc WHERE proname = 'dentix_assert_parent_tenant'
+            ) THEN
+                EXECUTE $create_func$
+                    CREATE FUNCTION dentix_assert_parent_tenant()
+                    RETURNS trigger LANGUAGE plpgsql AS $$
+                    DECLARE
+                        child_parent_id integer;
+                        parent_tenant_id integer;
+                        allow_null boolean := COALESCE(TG_ARGV[2], 'false')::boolean;
+                    BEGIN
+                        child_parent_id := NULLIF(to_jsonb(NEW) ->> TG_ARGV[1], '')::integer;
+                        IF child_parent_id IS NULL AND allow_null THEN RETURN NEW; END IF;
+                        IF child_parent_id IS NULL THEN
+                            RAISE EXCEPTION 'Missing required parent on %', TG_TABLE_NAME;
+                        END IF;
+                        EXECUTE format('SELECT tenant_id FROM %I WHERE id = $1', TG_ARGV[0])
+                           INTO parent_tenant_id USING child_parent_id;
+                        IF parent_tenant_id IS NULL OR NEW.tenant_id IS DISTINCT FROM parent_tenant_id THEN
+                            RAISE EXCEPTION 'Tenant mismatch on %', TG_TABLE_NAME;
+                        END IF;
+                        RETURN NEW;
+                    END;
+                    $$;
+                $create_func$;
+            END IF;
+        END $do$;
+
         DROP TRIGGER IF EXISTS "trg_ai_reservations_window_id_parent_tenant" ON "ai_reservations";
         CREATE TRIGGER "trg_ai_reservations_window_id_parent_tenant"
             BEFORE INSERT OR UPDATE OF tenant_id, "window_id" ON "ai_reservations"
