@@ -2,7 +2,7 @@ import { useState } from 'react';
 import logger from '@/utils/logger';
 import { Edit3, Save, X, Users, Activity, PlusCircle, Trash2, CheckSquare, Square, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { createSubscriptionPlan, deleteSubscriptionPlan } from '@/api';
+import { api, createSubscriptionPlan, deleteSubscriptionPlan } from '@/api';
 import { toast, ConfirmDialog } from '@/shared/ui';
 import { KNOWN_PLAN_FEATURES, parseFeatures, serializeFeatures } from './planFeatureUtils';
 
@@ -25,6 +25,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [planToDelete, setPlanToDelete] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [priceConfirmData, setPriceConfirmData] = useState(null);
 
     const [newPlanData, setNewPlanData] = useState({
         name: '',
@@ -195,6 +196,24 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
         };
 
         if (handleSavePlan) {
+            if (Number(payload.price) !== Number(plan.price) && api && typeof api.post === 'function') {
+                try {
+                    const previewRes = await api.post(`/api/v1/admin/subscriptions/plans/${plan.id}/preview`, {
+                        price: payload.price,
+                    });
+                    const affectedCount = previewRes.data?.affected_tenants_count ?? 0;
+                    setPriceConfirmData({
+                        planId: plan.id,
+                        payload,
+                        affectedCount,
+                        oldPrice: plan.price,
+                        newPrice: payload.price,
+                    });
+                    return;
+                } catch (err) {
+                    logger.error('Failed to preview plan price update:', err);
+                }
+            }
             handleSavePlan(plan.id, payload);
         }
     };
@@ -702,12 +721,38 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                 isOpen={Boolean(planToDelete)}
                 onClose={() => setPlanToDelete(null)}
                 onConfirm={handleConfirmDelete}
-                title={t('super_admin.plans.delete_title') || 'حذف الخطة'}
-                message={t('super_admin.plans.delete_confirm', { name: planToDelete ? (isRtl ? planToDelete.display_name_ar : (planToDelete.display_name_en || planToDelete.name)) : '' }) || 'هل أنت متأكد من حذف هذه الخطة؟'}
-                confirmText={t('common.delete') || 'حذف'}
+                title={t('super_admin.plans.delete_title') || 'إيقاف/حذف الخطة من البيع'}
+                message={t('super_admin.plans.delete_confirm', { name: planToDelete ? (isRtl ? planToDelete.display_name_ar : (planToDelete.display_name_en || planToDelete.name)) : '' }) || 'هل أنت متأكد من إيقاف بيع هذه الخطة؟ ستبقى سارية للعيادات المشتركة حالياً ولن تتاح للبيع الجديد.'}
+                confirmText={t('common.delete') || 'إيقاف البيع'}
                 cancelText={t('common.cancel') || 'إلغاء'}
                 variant="danger"
                 isLoading={isDeleting}
+            />
+
+            {/* PR-11 Confirm Dialog for Plan Price Changes (Preserving Historical Receipts) */}
+            <ConfirmDialog
+                isOpen={Boolean(priceConfirmData)}
+                onClose={() => setPriceConfirmData(null)}
+                onConfirm={() => {
+                    if (priceConfirmData && handleSavePlan) {
+                        handleSavePlan(priceConfirmData.planId, priceConfirmData.payload);
+                    }
+                    setPriceConfirmData(null);
+                }}
+                title={t('super_admin.plans.price_change_title', 'تأكيد تعديل سعر الباقة')}
+                message={
+                    priceConfirmData
+                        ? t('super_admin.plans.price_change_notice', {
+                              count: priceConfirmData.affectedCount,
+                              oldPrice: priceConfirmData.oldPrice,
+                              newPrice: priceConfirmData.newPrice,
+                          }) ||
+                          `تعديل سعر الباقة من ${priceConfirmData.oldPrice} إلى ${priceConfirmData.newPrice} EGP سيسري على التجديدات المستقبلية لـ (${priceConfirmData.affectedCount}) عيادة مشتركة. الإيصالات المالية السابقة محفوظة قانونياً ولن يتم تعديلها بأثر رجعي.`
+                        : ''
+                }
+                confirmText={t('common.confirm', 'تأكيد التعديل')}
+                cancelText={t('common.cancel', 'إلغاء')}
+                variant="warning"
             />
         </div>
     );

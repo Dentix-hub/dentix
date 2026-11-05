@@ -2455,7 +2455,16 @@
       "id_label": "ID",
       "system_global": "Global System Audit",
       "export_success": "Audit log exported successfully",
-      "view_details": "View Details"
+      "view_details": "View Details",
+      "reversal_success": "Administrative action reversed successfully",
+      "reversal_failed": "Failed to reverse administrative action",
+      "financial_reversal_notice": "Financial payments cannot be reversed via policy undo; use financial refund process.",
+      "btn_reverse_policy": "Reverse Administrative Action",
+      "reversal_modal_title": "Confirm Administrative Reversal",
+      "reversal_modal_subtitle": "Previous values will be safely restored and recorded in the audit log.",
+      "reversal_reason_label": "Reason for reversal (at least 5 characters):",
+      "reversal_reason_placeholder": "Enter reason for reversal here...",
+      "min_reason": "Minimum 5 characters"
     },
     "security": {
       "title": "Security & Protection Dashboard",
@@ -2866,7 +2875,9 @@
       "error_ai_limit_required": "AI daily limit must be greater than 0 when AI is enabled",
       "error_ai_disabled_zero": "AI daily limit must be 0 when AI is disabled",
       "audit_reason_update": "Subscription plan updated by Super Admin",
-      "error_conflict_revision": "Conflict detected: This plan was updated by another administrator. Please refresh and retry."
+      "error_conflict_revision": "Conflict detected: This plan was updated by another administrator. Please refresh and retry.",
+      "price_change_title": "Confirm Plan Price Change",
+      "price_change_notice": "Plan price changes apply to future renewals and charges only. Past financial receipts are strictly preserved."
     },
     "impersonation": {
       "banner": "Simulation Mode ({{scope}}): Clinic {{tenant}}{{user}}",
@@ -2971,7 +2982,24 @@
       "allowed": "Allowed",
       "denied": "Denied",
       "status_enforced": "Enforced",
-      "status_shadow": "Shadow"
+      "status_shadow": "Shadow",
+      "admin_actions_title": "Commercial & Administrative Controls",
+      "btn_suspend": "Commercial Suspension",
+      "btn_reactivate": "Reactivate",
+      "btn_security_disable": "Security Disable",
+      "schedule_downgrade": "Schedule Downgrade on Renewal",
+      "downgrade_scheduled": "Scheduled",
+      "select_downgrade_plan": "Select target plan...",
+      "schedule_btn": "Schedule",
+      "loading_preview": "Loading predicted impact preview...",
+      "current_status": "Current Status",
+      "resulting_status": "Resulting Status",
+      "invariant_guarantee": "Historical clinical records remain readable and legally protected.",
+      "reason_label": "Reason for administrative action (required for audit):",
+      "reason_min_placeholder": "Enter action reason here (at least 5 characters)...",
+      "action_suspend_title": "Commercial Suspension",
+      "action_security_title": "Security Disable (Emergency)",
+      "action_reactivate_title": "Reactivate Clinic"
     },
     "two_factor": {
       "invalid_setup_payload": "Invalid two-factor setup data",

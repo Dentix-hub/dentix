@@ -74,3 +74,28 @@ async def get_audit_logs(
     res = await db.execute(stmt)
     results = res.scalars().all()
     return success_response(list(results))
+
+
+@router.post("/audit-logs/{log_id}/reversal", response_model=StandardResponse[schemas.PolicyReversalResponse])
+async def reverse_audit_policy_action(
+    log_id: int,
+    reversal_req: schemas.PolicyReversalRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Reverse an eligible policy action recorded in the audit logs.
+    Payments and destructive operations cannot be undone via policy reversal.
+    """
+    from backend.services.commercial_action_service import CommercialActionService
+    if reversal_req.audit_log_id != log_id:
+        reversal_req = schemas.PolicyReversalRequest(
+            audit_log_id=log_id,
+            reason=reversal_req.reason,
+            preview=reversal_req.preview,
+            idempotency_key=reversal_req.idempotency_key,
+        )
+    res = await CommercialActionService.reverse_policy_action(
+        db, request=reversal_req, admin_user=current_user
+    )
+    return success_response(data=res, message=res.message)

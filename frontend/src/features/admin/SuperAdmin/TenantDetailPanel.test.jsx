@@ -167,5 +167,14 @@ describe('TenantDetailPanel impersonation contract and UI safety', () => {
         expect(screen.getByText((_, element) => element?.textContent === '2 / 5')).toBeInTheDocument();
         expect(screen.getByText('السجلات الطبية والمواعيد')).toBeInTheDocument();
     });
+
+    it('renders commercial control buttons for suspension, security disable, and downgrade scheduling', async () => {
+        render(<TenantDetailPanel tenantId={10} onClose={mockOnClose} onImpersonate={mockOnImpersonate} />);
+
+        expect(await screen.findByText('التحكم الإداري والتجاري')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'إيقاف تجاري' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'تعطيل أمني' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'جدولة' })).toBeInTheDocument();
+    });
 });
 

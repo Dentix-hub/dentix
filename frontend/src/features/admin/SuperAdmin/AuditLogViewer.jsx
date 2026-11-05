@@ -22,6 +22,11 @@ const AuditLogViewer = ({ tenants = [] }) => {
     });
 
     const [selectedLog, setSelectedLog] = useState(null);
+    const [reversalState, setReversalState] = useState({
+        open: false,
+        reason: '',
+        loading: false,
+    });
     const filtersRef = useRef(filters);
     filtersRef.current = filters;
 
@@ -140,6 +145,37 @@ const AuditLogViewer = ({ tenants = [] }) => {
             return JSON.stringify(val, null, 2);
         } catch {
             return val;
+        }
+    };
+
+    const REVERSIBLE_ACTIONS = [
+        'TENANT_COMMERCIAL_SUSPEND',
+        'TENANT_SECURITY_DISABLE',
+        'TENANT_REACTIVATE',
+        'TENANT_ASSIGN_PLAN',
+        'SUBSCRIPTION_SCHEDULE_DOWNGRADE',
+        'TENANT_COMMERCIAL_OVERRIDES_UPDATE',
+        'SUBSCRIPTION_PLAN_UPDATE',
+        'TENANT_CATALOG_RECONCILE',
+    ];
+
+    const handleReversalSubmit = async () => {
+        if (!selectedLog || !reversalState.reason || reversalState.reason.trim().length < 5) return;
+        try {
+            setReversalState((prev) => ({ ...prev, loading: true }));
+            const res = await api.post(`/api/v1/admin/audit-logs/${selectedLog.id}/reversal`, {
+                audit_log_id: selectedLog.id,
+                reason: reversalState.reason.trim(),
+                preview: false,
+            });
+            toast.success(res.data?.message || t('super_admin.audit.reversal_success', 'تم التراجع عن الإجراء الإداري بنجاح'));
+            setReversalState({ open: false, reason: '', loading: false });
+            setSelectedLog(null);
+            fetchLogs();
+        } catch (err) {
+            logger.error('Reversal failed:', err);
+            toast.error(err.response?.data?.detail || t('super_admin.audit.reversal_failed', 'فشل التراجع عن الإجراء'));
+            setReversalState((prev) => ({ ...prev, loading: false }));
         }
     };
 
@@ -419,6 +455,77 @@ const AuditLogViewer = ({ tenants = [] }) => {
                                     </div>
                                 </div>
                             )}
+
+                            {/* Financial Notice */}
+                            {(selectedLog.action?.includes('PAYMENT') || selectedLog.action?.includes('CHECKOUT')) && (
+                                <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-2xl text-xs text-amber-800 dark:text-amber-200 font-bold flex items-center gap-2">
+                                    <AlertCircle size={16} className="text-amber-600 shrink-0" />
+                                    <span>{t('super_admin.audit.financial_reversal_notice', 'لا يمكن التراجع عن المعاملات المالية عبر التراجع الإداري؛ استخدم دورة الاسترداد المالي المعتمدة.')}</span>
+                                </div>
+                            )}
+
+                            {/* Reversible Action Trigger */}
+                            {REVERSIBLE_ACTIONS.includes(selectedLog.action) && (
+                                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                                    <button
+                                        type="button"
+                                        onClick={() => setReversalState({ open: true, reason: '', loading: false })}
+                                        className="flex items-center gap-2 px-5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-2xl text-xs font-bold transition-all cursor-pointer"
+                                    >
+                                        <RotateCcw size={16} />
+                                        <span>{t('super_admin.audit.btn_reverse_policy', 'التراجع عن هذا الإجراء الإداري')}</span>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Reversal Reason Modal */}
+            {reversalState.open && selectedLog && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-in fade-in">
+                    <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 w-full max-w-md shadow-2xl border border-slate-100 dark:border-slate-800 space-y-4">
+                        <h3 className="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2">
+                            <RotateCcw size={18} className="text-rose-600" />
+                            <span>{t('super_admin.audit.reversal_modal_title', 'تأكيد التراجع عن القرار الإداري')}</span>
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                            {t('super_admin.audit.reversal_modal_subtitle', 'سيتم استعادة القيم السابقة وتوثيق عملية الإلغاء في سجل التدقيق.')}
+                        </p>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                                {t('super_admin.audit.reversal_reason_label', 'سبب التراجع (5 أحرف على الأقل):')}
+                            </label>
+                            <textarea
+                                value={reversalState.reason}
+                                onChange={(e) => setReversalState((prev) => ({ ...prev, reason: e.target.value }))}
+                                placeholder={t('super_admin.audit.reversal_reason_placeholder', 'اكتب سبب التراجع هنا...')}
+                                rows={3}
+                                className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs outline-none focus:ring-2 focus:ring-rose-500"
+                            />
+                            {reversalState.reason && reversalState.reason.trim().length < 5 && (
+                                <p className="text-[11px] text-rose-500 mt-1">
+                                    {t('super_admin.audit.min_reason', 'الحد الأدنى 5 أحرف')}
+                                </p>
+                            )}
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setReversalState({ open: false, reason: '', loading: false })}
+                                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                            >
+                                {t('common.cancel', 'إلغاء')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleReversalSubmit}
+                                disabled={!reversalState.reason || reversalState.reason.trim().length < 5 || reversalState.loading}
+                                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                            >
+                                {reversalState.loading ? t('common.loading', 'جاري التنفيذ...') : t('common.confirm', 'تأكيد التراجع')}
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -17,6 +17,7 @@ from backend.services.subscription_renewal_service import (
     SubscriptionRenewalError,
     renew_subscription,
 )
+from backend.services.commercial_action_service import CommercialActionService
 from backend.core.permissions import Role, Permission, require_permission
 from backend.core.response import success_response, StandardResponse
 from starlette.requests import Request
@@ -259,6 +260,75 @@ async def schedule_tenant_downgrade(
         },
         message="Downgrade scheduled successfully for next renewal",
     )
+
+
+# Commercial Suspension, Security Disable, Reactivation & Reversal (PR-11)
+@router.post("/{tenant_id}/suspend", response_model=StandardResponse[schemas.TenantCommercialActionResponse])
+async def suspend_tenant(
+    tenant_id: int,
+    action_req: schemas.TenantCommercialActionRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Apply or preview commercial suspension.
+    Preserves read-only clinical history; halts new mutations and provider calls.
+    """
+    res = await CommercialActionService.suspend_tenant(
+        db, tenant_id=tenant_id, request=action_req, admin_user=current_user
+    )
+    return success_response(data=res, message=res.message)
+
+
+@router.post("/{tenant_id}/security-disable", response_model=StandardResponse[schemas.TenantCommercialActionResponse])
+async def security_disable_tenant(
+    tenant_id: int,
+    action_req: schemas.TenantCommercialActionRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Apply or preview emergency security disable.
+    Sets is_active=False, immediately stopping login and access.
+    """
+    res = await CommercialActionService.security_disable_tenant(
+        db, tenant_id=tenant_id, request=action_req, admin_user=current_user
+    )
+    return success_response(data=res, message=res.message)
+
+
+@router.post("/{tenant_id}/reactivate", response_model=StandardResponse[schemas.TenantCommercialActionResponse])
+async def reactivate_tenant(
+    tenant_id: int,
+    action_req: schemas.TenantCommercialActionRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Apply or preview reactivation of a tenant.
+    Restores is_active=True and transitions suspended status back to active.
+    """
+    res = await CommercialActionService.reactivate_tenant(
+        db, tenant_id=tenant_id, request=action_req, admin_user=current_user
+    )
+    return success_response(data=res, message=res.message)
+
+
+@router.post("/{tenant_id}/reversal", response_model=StandardResponse[schemas.PolicyReversalResponse])
+async def reverse_tenant_policy_action(
+    tenant_id: int,
+    reversal_req: schemas.PolicyReversalRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Reverse an eligible policy change recorded in the audit log for this tenant.
+    Payments and destructive operations cannot be reversed via policy undo.
+    """
+    res = await CommercialActionService.reverse_policy_action(
+        db, request=reversal_req, admin_user=current_user
+    )
+    return success_response(data=res, message=res.message)
 
 
 # Extra: Get Tenant Users
