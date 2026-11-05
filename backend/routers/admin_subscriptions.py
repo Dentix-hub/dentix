@@ -175,6 +175,21 @@ async def get_payments(
     return success_response(data=data)
 
 
+@router.post("/payments/preview", response_model=StandardResponse[schemas.SubscriptionPaymentPreview])
+async def preview_payment(
+    payment: schemas.SubscriptionPaymentCreate,
+    idempotency_key: str | None = Header(default=None, alias="X-Idempotency-Key", max_length=100),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    if idempotency_key:
+        if payment.idempotency_key and payment.idempotency_key != idempotency_key:
+            raise HTTPException(409, "Conflicting payment idempotency keys")
+        payment = payment.model_copy(update={"idempotency_key": idempotency_key})
+    data = await SubscriptionService.preview_payment(db, payment)
+    return success_response(data=data)
+
+
 @router.post("/payments", response_model=StandardResponse[schemas.SubscriptionPayment])
 async def record_payment(
     payment: schemas.SubscriptionPaymentCreate,

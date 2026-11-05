@@ -107,6 +107,8 @@ class ClinicRegistration(BaseModel):
 
 
 class TenantManualRenewalRequest(BaseModel):
+    preview_marker: Optional[str] = Field(default=None, min_length=64, max_length=64)
+    preview_at: Optional[datetime] = None
     plan_id: Optional[int] = None
     extension_days: Optional[int] = Field(default=None, gt=0, le=3650)
     new_end_date: Optional[datetime] = None
@@ -394,11 +396,35 @@ class SubscriptionPaymentBase(BaseModel):
 
 
 class SubscriptionPaymentCreate(SubscriptionPaymentBase):
+    preview_marker: Optional[str] = Field(default=None, min_length=64, max_length=64)
+    preview_at: Optional[datetime] = None
     idempotency_key: Optional[str] = Field(default=None, min_length=1, max_length=100)
     tenant_id: int
     plan_id: int
     amount: PositiveMoney
     payment_method: str
+
+
+class SubscriptionPeriodSnapshot(BaseModel):
+    plan_id: Optional[int] = None
+    subscription_status: str
+    subscription_end_date: Optional[datetime] = None
+    grace_period_until: Optional[datetime] = None
+    future_plan_id: Optional[int] = None
+    future_plan_start_date: Optional[datetime] = None
+    scheduled_downgrade_plan_id: Optional[int] = None
+
+
+class SubscriptionPaymentPreview(BaseModel):
+    tenant_id: int
+    amount: PositiveMoney
+    currency: str = "EGP"
+    already_recorded: bool = False
+    payment_id: Optional[int] = None
+    preview_marker: Optional[str] = None
+    preview_at: Optional[datetime] = None
+    before: SubscriptionPeriodSnapshot
+    after: SubscriptionPeriodSnapshot
 
 
 class SubscriptionPayment(SubscriptionPaymentBase):

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import PlansManager from './PlansManager';
 import { parseFeatures, serializeFeatures } from './planFeatureUtils';
-import { createSubscriptionPlan, deleteSubscriptionPlan } from '@/api';
+import { createSubscriptionPlan, deleteSubscriptionPlan, api } from '@/api';
 import { toast } from '@/shared/ui';
 
 vi.mock('react-i18next', () => ({
@@ -20,6 +20,7 @@ vi.mock('@/api', () => ({
     deleteSubscriptionPlan: vi.fn(),
     api: {
         delete: vi.fn(),
+        post: vi.fn(),
     },
 }));
 
@@ -222,4 +223,18 @@ describe('PlansManager MS-14 (features, creation, validation, AI limits, and del
             expect(onRefresh).toHaveBeenCalled();
         });
     });
+});
+
+
+it('refuses to save a price change when the impact preview fails', async () => {
+    api.post.mockRejectedValueOnce(new Error('Synthetic preview unavailable'));
+    const save = vi.fn();
+    render(<PlansManager plans={[{ id: 1, display_name_ar: 'Synthetic', price: 200,
+        duration_days: 30, max_users: 2, is_ai_enabled: true, ai_daily_limit: 2 }]}
+        editingPlan={1} editedPlanData={{ price: 400 }} setEditingPlan={vi.fn()}
+        setEditedPlanData={vi.fn()} handleSavePlan={save} />);
+    fireEvent.click(screen.getByText('super_admin.plans.save_changes'));
+    await waitFor(() => expect(api.post).toHaveBeenCalled());
+    expect(save).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalled();
 });

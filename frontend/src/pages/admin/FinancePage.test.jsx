@@ -6,6 +6,7 @@ import {
     getSubscriptionPayments,
     getSubscriptionPlans,
     recordSubscriptionPayment,
+    previewSubscriptionPayment,
     deleteSubscriptionPayment,
     api,
 } from '@/api';
@@ -25,6 +26,7 @@ vi.mock('@/api', () => ({
     getSubscriptionPayments: vi.fn(),
     getSubscriptionPlans: vi.fn(),
     recordSubscriptionPayment: vi.fn(),
+    previewSubscriptionPayment: vi.fn(),
     deleteSubscriptionPayment: vi.fn(),
     updateSubscriptionPlan: vi.fn(),
 }));
@@ -41,6 +43,14 @@ vi.mock('@/shared/ui', async () => {
 });
 
 Object.defineProperty(globalThis.crypto, 'subtle', { value: webcrypto.subtle, configurable: true });
+
+beforeEach(() => {
+    previewSubscriptionPayment.mockResolvedValue({ data: { data: {
+        amount: '400.00', currency: 'EGP', preview_marker: 'a'.repeat(64),
+        before: { subscription_end_date: '2027-01-31T10:00:00', plan_id: 1 },
+        after: { subscription_end_date: '2027-02-28T10:00:00', plan_id: 1 },
+    } } });
+});
 
 describe('Manual Payment Flow MS-13', () => {
     const mockPayments = [
@@ -94,6 +104,20 @@ describe('Manual Payment Flow MS-13', () => {
         expect(toast.error).toHaveBeenCalledWith('super_admin.payments.error_select_tenant');
     });
 
+    it('previews exact dates and requires confirmation before recording a receipt', async () => {
+        render(<FinancePage />);
+        await screen.findByText('Dental Care Clinic');
+        fireEvent.click(screen.getByText('super_admin.payments.record_button'));
+        fireEvent.change(screen.getByLabelText((label) => label.includes('super_admin.tenants.title') || label.includes('العيادة')), { target: { value: '10' } });
+        fireEvent.click(screen.getByText('super_admin.payments.submit_button'));
+        await waitFor(() => expect(previewSubscriptionPayment).toHaveBeenCalled());
+        expect(recordSubscriptionPayment).not.toHaveBeenCalled();
+        expect(await screen.findByText(/2027-01-31/)).toBeInTheDocument();
+        expect(screen.getByText(/2027-02-28/)).toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'common.confirm' }));
+        await waitFor(() => expect(recordSubscriptionPayment).toHaveBeenCalledWith(expect.objectContaining({ preview_marker: 'a'.repeat(64) })));
+    });
+
     it('submits valid payment and updates data', async () => {
         recordSubscriptionPayment.mockResolvedValueOnce({ data: { success: true } });
 
@@ -111,6 +135,7 @@ describe('Manual Payment Flow MS-13', () => {
         // Submit form
         fireEvent.click(screen.getByText('super_admin.payments.submit_button'));
 
+        fireEvent.click(await screen.findByRole('button', { name: 'common.confirm' }));
         await waitFor(() => {
             expect(recordSubscriptionPayment).toHaveBeenCalledWith(expect.objectContaining({
                 tenant_id: 10,
@@ -121,28 +146,11 @@ describe('Manual Payment Flow MS-13', () => {
         });
     });
 
-    it('opens confirm dialog on delete payment and performs deletion upon confirmation', async () => {
-        deleteSubscriptionPayment.mockResolvedValueOnce({ data: { success: true } });
-
+    it('preserves finalized receipts without offering destructive deletion', async () => {
         render(<FinancePage />);
-
         expect(await screen.findByText('Dental Care Clinic')).toBeInTheDocument();
-
-        // Click delete button on payment row
-        const deleteBtn = screen.getByLabelText('super_admin.payments.delete_title');
-        fireEvent.click(deleteBtn);
-
-        // Confirm Dialog should appear
-        expect(screen.getByText('super_admin.payments.delete_confirm_msg')).toBeInTheDocument();
-
-        // Confirm deletion
-        const confirmBtn = screen.getByRole('button', { name: 'common.delete' });
-        fireEvent.click(confirmBtn);
-
-        await waitFor(() => {
-            expect(deleteSubscriptionPayment).toHaveBeenCalledWith(1);
-            expect(toast.success).toHaveBeenCalledWith('super_admin.payments.success_deleted');
-        });
+        expect(screen.queryByLabelText('super_admin.payments.delete_title')).not.toBeInTheDocument();
+        expect(deleteSubscriptionPayment).not.toHaveBeenCalled();
     });
 });
 
@@ -158,6 +166,7 @@ it('reuses the manual receipt identity after a lost response and reload', async 
     fireEvent.click(screen.getByText('super_admin.payments.record_button'));
     fireEvent.change(screen.getByLabelText((label) => label.includes('super_admin.tenants.title') || label.includes('العيادة')), { target: { value: '10' } });
     fireEvent.click(screen.getByText('super_admin.payments.submit_button'));
+    fireEvent.click(await screen.findByRole('button', { name: 'common.confirm' }));
     await waitFor(() => expect(recordSubscriptionPayment).toHaveBeenCalled());
     await waitFor(() => expect(screen.getByText('super_admin.payments.submit_button')).not.toBeDisabled());
     page.unmount();
@@ -166,6 +175,7 @@ it('reuses the manual receipt identity after a lost response and reload', async 
     fireEvent.click(screen.getByText('super_admin.payments.record_button'));
     fireEvent.change(screen.getByLabelText((label) => label.includes('super_admin.tenants.title') || label.includes('العيادة')), { target: { value: '10' } });
     fireEvent.click(screen.getByText('super_admin.payments.submit_button'));
+    fireEvent.click(await screen.findByRole('button', { name: 'common.confirm' }));
     await waitFor(() => expect(recordSubscriptionPayment.mock.calls.length).toBeGreaterThan(1));
     const calls = recordSubscriptionPayment.mock.calls.slice(-2);
     expect(calls[0][0].idempotency_key).toBeTruthy();

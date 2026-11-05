@@ -5,7 +5,7 @@ Enforces the fundamental clinical invariant:
 - Clinical-history reads (Patient, Dental Chart, Treatment history, Prescriptions) are PERMANENTLY PERMITTED.
 
 PR-02: Extended with typed commercial capability decision engine and shadow evaluation.
-Existing caller contracts, return signatures, and enforcement semantics are 100% preserved.
+Caller signatures are preserved; operational flags derive from canonical decisions.
 """
 
 import logging
@@ -21,6 +21,7 @@ from backend.core.commercial_registry import (
     CAPABILITY_REGISTRY,
     CapabilityKey,
     OperationClass,
+    canonicalize_capability_key,
 )
 from backend.services.commercial_decision import (
     CommercialDecision,
@@ -93,44 +94,23 @@ class EntitlementEvaluation:
             "is_shadow": self.is_shadow,
         }
 
+    def _can_manage(self, capability: str) -> bool:
+        decision = self.commercial_decisions.get(capability)
+        if decision is not None:
+            return not decision.get("emergency_denied", False) and bool(decision.get("allowed", False))
+        return self.mode in {"off", "observe"}
+
     @property
     def can_manage_inventory(self) -> bool:
-        if self.mode == "off":
-            return True
-        if self.status in {
-            SubscriptionState.EXPIRED_READ_ONLY.value,
-            SubscriptionState.CANCELLED.value,
-            SubscriptionState.SUSPENDED_ADMIN.value,
-        }:
-            return False
-        dec = self.commercial_decisions.get(CapabilityKey.INVENTORY.value, {})
-        return bool(dec.get("allowed", True))
+        return self._can_manage(CapabilityKey.INVENTORY.value)
 
     @property
     def can_manage_laboratories(self) -> bool:
-        if self.mode == "off":
-            return True
-        if self.status in {
-            SubscriptionState.EXPIRED_READ_ONLY.value,
-            SubscriptionState.CANCELLED.value,
-            SubscriptionState.SUSPENDED_ADMIN.value,
-        }:
-            return False
-        dec = self.commercial_decisions.get(CapabilityKey.LABORATORIES.value, {})
-        return bool(dec.get("allowed", True))
+        return self._can_manage(CapabilityKey.LABORATORIES.value)
 
     @property
     def can_manage_backups(self) -> bool:
-        if self.mode == "off":
-            return True
-        if self.status in {
-            SubscriptionState.EXPIRED_READ_ONLY.value,
-            SubscriptionState.CANCELLED.value,
-            SubscriptionState.SUSPENDED_ADMIN.value,
-        }:
-            return False
-        dec = self.commercial_decisions.get(CapabilityKey.TENANT_BACKUPS.value, {})
-        return bool(dec.get("allowed", True))
+        return self._can_manage(CapabilityKey.TENANT_BACKUPS.value)
 
 
 class EntitlementService:
@@ -193,6 +173,11 @@ class EntitlementService:
 
         is_shadow = (mode != "enforce")
 
+        clinical_decision = commercial_decisions.get(CapabilityKey.CLINICAL.value, {})
+        billing_decision = commercial_decisions.get(CapabilityKey.BILLING.value, {})
+        clinical_allowed = bool(clinical_decision.get("allowed", False))
+        billing_allowed = bool(billing_decision.get("allowed", False))
+
         # Invariant: Clinical-history read is ALWAYS permitted (enforced in EntitlementEvaluation)
         # In 'off' mode: allow all writes
         if mode == "off":
@@ -201,9 +186,9 @@ class EntitlementService:
                 status=effective_status,
                 mode=mode,
                 can_read_clinical=True,
-                can_write_clinical=True,
-                can_write_billable=True,
-                can_create_appointments=True,
+                can_write_clinical=clinical_allowed,
+                can_write_billable=billing_allowed,
+                can_create_appointments=clinical_allowed,
                 reason="Enforcement mode is OFF.",
                 plan_id=plan_id,
                 plan_name=plan_name,
@@ -225,9 +210,9 @@ class EntitlementService:
                 status=effective_status,
                 mode=mode,
                 can_read_clinical=True,
-                can_write_clinical=True,
-                can_write_billable=True,
-                can_create_appointments=True,
+                can_write_clinical=clinical_allowed,
+                can_write_billable=billing_allowed,
+                can_create_appointments=clinical_allowed,
                 reason="[OBSERVE] Would be blocked in enforce mode." if is_expired else None,
                 plan_id=plan_id,
                 plan_name=plan_name,
@@ -246,16 +231,8 @@ class EntitlementService:
             clinical_decision = commercial_decisions.get(CapabilityKey.CLINICAL.value, {})
             billing_decision = commercial_decisions.get(CapabilityKey.BILLING.value, {})
 
-            has_clinical_denial = bool(
-                clinical_decision.get("emergency_denied")
-                or (plan is not None and not clinical_decision.get("commercial_grant", True))
-                or (getattr(tenant, "is_active", True) is False)
-            )
-            has_billing_denial = bool(
-                billing_decision.get("emergency_denied")
-                or (plan is not None and not billing_decision.get("commercial_grant", True))
-                or (getattr(tenant, "is_active", True) is False)
-            )
+            has_clinical_denial = not clinical_allowed
+            has_billing_denial = not billing_allowed
 
             can_write_clinical = not has_clinical_denial
             can_write_billable = not has_billing_denial
@@ -424,6 +401,17 @@ class EntitlementService:
         if not db or not hasattr(db, "execute") or isinstance(db, Mock):
             return emergency_restrictions, commercial_overrides
 
+        from sqlalchemy.ext.asyncio import AsyncSession
+
+        async def read_policy_rows(statement):
+            if isinstance(db, AsyncSession):
+                # A failed policy query must not poison the clinical-history transaction.
+                async with db.begin_nested():
+                    result = await db.execute(statement)
+                    return result.scalars().all()
+            result = await db.execute(statement)
+            return result.scalars().all() if hasattr(result, "scalars") else []
+
         current_time = _as_utc(now or datetime.now(timezone.utc))
         now_naive = current_time.replace(tzinfo=None) if current_time.tzinfo else current_time
 
@@ -433,14 +421,15 @@ class EntitlementService:
             stmt_sys = select(models.SystemSetting).where(
                 models.SystemSetting.key.startswith(prefix)
             )
-            res_sys = await db.execute(stmt_sys)
-            sys_rows = res_sys.scalars().all() if hasattr(res_sys, "scalars") else []
+            sys_rows = await read_policy_rows(stmt_sys)
             for r in sys_rows:
                 if getattr(r, "value", "false") == "true":
-                    canon_key = r.key[len(prefix):]
-                    emergency_restrictions.add(canon_key)
+                    canon_key = canonicalize_capability_key(r.key[len(prefix):])
+                    if canon_key:
+                        emergency_restrictions.add(canon_key)
         except Exception as exc:
             logger.warning("Failed to query emergency restrictions: %s", exc)
+            return set(CAPABILITY_REGISTRY), {}
 
         if tenant_id:
             try:
@@ -452,11 +441,13 @@ class EntitlementService:
                         models.CommercialTenantOverride.expires_at > now_naive,
                     ),
                 )
-                res_ov = await db.execute(stmt_ov)
-                ov_rows = res_ov.scalars().all() if hasattr(res_ov, "scalars") else []
+                ov_rows = await read_policy_rows(stmt_ov)
                 for r in ov_rows:
-                    commercial_overrides[r.capability_key] = bool(r.is_enabled)
+                    key = canonicalize_capability_key(r.capability_key)
+                    if key and r.override_value != "inherit":
+                        commercial_overrides[key] = r.override_value == "allow"
             except Exception as exc:
                 logger.warning("Failed to query commercial overrides for tenant %s: %s", tenant_id, exc)
+                return set(CAPABILITY_REGISTRY), {}
 
         return emergency_restrictions, commercial_overrides

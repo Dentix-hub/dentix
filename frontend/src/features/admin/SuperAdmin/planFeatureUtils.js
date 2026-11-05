@@ -80,8 +80,8 @@ export function parseFeatures(raw) {
             const customItems = raw.filter(k => !KNOWN_PLAN_FEATURES.some(f => f.key === k));
             return { keys: known, custom: customItems.join(', ') };
         }
-        const known = Object.keys(raw).filter(k => raw[k] && KNOWN_PLAN_FEATURES.some(f => f.key === k));
-        const customItems = Object.keys(raw).filter(k => raw[k] && !KNOWN_PLAN_FEATURES.some(f => f.key === k));
+        const known = Object.keys(raw).filter(k => raw[k] === true && KNOWN_PLAN_FEATURES.some(f => f.key === k));
+        const customItems = Object.keys(raw).filter(k => raw[k] === true && !KNOWN_PLAN_FEATURES.some(f => f.key === k));
         return { keys: known, custom: customItems.join(', ') };
     }
     const str = String(raw).trim();
@@ -94,8 +94,8 @@ export function parseFeatures(raw) {
                 return { keys: known, custom: customItems.join(', ') };
             }
             if (typeof parsed === 'object' && parsed !== null) {
-                const keys = Object.keys(parsed).filter(k => parsed[k] && KNOWN_PLAN_FEATURES.some(f => f.key === k));
-                const customItems = Object.keys(parsed).filter(k => parsed[k] && !KNOWN_PLAN_FEATURES.some(f => f.key === k));
+                const keys = Object.keys(parsed).filter(k => parsed[k] === true && KNOWN_PLAN_FEATURES.some(f => f.key === k));
+                const customItems = Object.keys(parsed).filter(k => parsed[k] === true && !KNOWN_PLAN_FEATURES.some(f => f.key === k));
                 return { keys, custom: customItems.join(', ') };
             }
         } catch {
@@ -108,11 +108,20 @@ export function parseFeatures(raw) {
     return { keys: known, custom };
 }
 
-export function serializeFeatures(keys = [], customText = '') {
+export function serializeFeatures(keys = [], customText = '', originalRaw = null) {
     const list = [...new Set(keys)];
     if (customText && customText.trim()) {
         const customItems = customText.split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
         list.push(...customItems);
+    }
+    let original = originalRaw;
+    if (typeof original === 'string') {
+        try { original = JSON.parse(original); } catch { original = null; }
+    }
+    if (original && typeof original === 'object' && !Array.isArray(original)) {
+        const policy = Object.fromEntries(Object.keys(original).map(key => [key, list.includes(key)]));
+        for (const key of list) policy[key] = true;
+        return JSON.stringify(policy);
     }
     return JSON.stringify(list);
 }

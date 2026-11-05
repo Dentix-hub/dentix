@@ -177,3 +177,6 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 
 - Commercial C1–C6 completion (2026-11-05): local fixes on c4c7eb5; atomic AI replay across chat/analysis/Scribe, persisted caps, fail-closed policy lookup, explicit reconciliation and causal typed undo. No migrations/live data or remote delivery.
 - Verification: backend 1915 passed / 1 existing TestClient refresh skip; frontend 1184 passed, build/design checks PASS; focused 117 passed including isolated PostgreSQL concurrency. Evidence and compatibility: docs/reports/commercial-controls-completion-2026-11-05.md.
+- Final commercial review (2026-11-05): fixed stored override loading, hard emergency/write flags, policy-store fail-closed savepoints, false-feature preservation, immutable receipts and quoted/idempotent payment/support-extension UI. No migrations/live mutations.
+- Verification: final targeted backend 81 passed and restricted-role PostgreSQL isolation 2 passed; full frozen-source verification in progress. Final report: docs/reports/commercial-final-plan-review-2026-11-05.md.
+- Delivery authorized to staging PR only; launch remains PARTIAL pending real catalog/config, exact-revision CI/CD, owner/provider acceptance and cumulative promotion review.

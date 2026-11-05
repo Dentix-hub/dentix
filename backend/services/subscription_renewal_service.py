@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from types import SimpleNamespace
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
@@ -34,7 +35,7 @@ def _utc(value: datetime) -> datetime:
 
 
 def _request_hash(request: schemas.TenantManualRenewalRequest) -> str:
-    payload = request.model_dump(mode="json", exclude={"idempotency_key"})
+    payload = request.model_dump(mode="json", exclude={"idempotency_key", "preview_marker", "preview_at"})
     canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(canonical.encode()).hexdigest()
 
@@ -45,7 +46,10 @@ async def renew_subscription(
     tenant_id: int,
     request: schemas.TenantManualRenewalRequest,
     admin: models.User,
+    preview: bool = False,
 ) -> dict:
+    if (preview or request.preview_at) and not (request.notes or "").strip():
+        raise SubscriptionRenewalError(400, "A documented reason is required for a support extension")
     request_hash = _request_hash(request)
     tenant = (
         await db.execute(
@@ -115,6 +119,26 @@ async def renew_subscription(
         if not plan or (not plan.is_active and plan.id not in {tenant.plan_id, tenant.future_plan_id}):
             raise SubscriptionRenewalError(404, "Subscription plan not found")
 
+    # The same state marker/quote boundary as paid receipt preview; no second grant algorithm.
+    from backend.services.subscription_service import SubscriptionService
+    target = plan
+    if target is None and (tenant.future_plan_id or tenant.plan_id):
+        target = await db.get(models.SubscriptionPlan, tenant.future_plan_id or tenant.plan_id)
+    if target is None:
+        target = SimpleNamespace(id=None, policy_revision=None, price=0, is_active=False, max_users=None, ai_daily_limit=0)
+    server_now = utc_naive(now)
+    quote_time = utc_naive(request.preview_at) if request.preview_at else server_now
+    if request.preview_at and (not request.preview_marker or not 0 <= (server_now - quote_time).total_seconds() <= 300):
+        raise SubscriptionRenewalError(409, "Renewal preview expired; refresh before confirmation")
+    marker = SubscriptionService._payment_preview_marker(tenant, target, quote_time)
+    if request.preview_marker and request.preview_marker != marker:
+        raise SubscriptionRenewalError(409, "Subscription or plan changed; refresh the renewal preview")
+    now = _utc(quote_time)
+    before = tenant.subscription_end_date
+    if preview:
+        tenant = SimpleNamespace(**SubscriptionService._payment_period_snapshot(tenant),
+            id=tenant.id, name=tenant.name, plan=tenant.plan, timezone=tenant.timezone,
+            billing_day_anchor=tenant.billing_day_anchor)
     next_anchor = tenant.billing_day_anchor
     current_end = _utc(tenant.subscription_end_date) if tenant.subscription_end_date else None
     if request.new_end_date:
@@ -156,6 +180,10 @@ async def renew_subscription(
         "subscription_end_date": calculated_end.isoformat(),
         "is_idempotent_duplicate": False,
     }
+    if preview:
+        return {**result, "preview_marker": marker, "preview_at": quote_time.isoformat(),
+                "previous_end_date": before.isoformat() if before else None,
+                "future_plan_start_date": tenant.future_plan_start_date.isoformat() if tenant.future_plan_start_date else None}
     record = models.SubscriptionRenewalRequest(
         tenant_id=tenant.id,
         idempotency_key=request.idempotency_key,

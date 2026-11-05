@@ -255,7 +255,7 @@ class CommercialDecisionEngine:
             reason_code = CommercialReasonCode.EMERGENCY_RESTRICTION_ACTIVE
             explanation_en = f"Capability '{canon_cap}' is disabled under platform emergency restriction."
             explanation_ar = f"الخاصية '{cap_defn.display_name_ar}' معطلة بأمر حظر طارئ للمنصة."
-            allowed = True if mode in {"off", "observe"} else False
+            allowed = False  # Emergency restrictions are hard in every rollout mode.
 
             return CommercialDecision(
                 tenant_id=tenant_id,

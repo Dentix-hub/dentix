@@ -217,6 +217,8 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                     return;
                 } catch (err) {
                     logger.error('Failed to preview plan price update:', err);
+                    toast.error(t('super_admin.plans.error_saving'));
+                    return;
                 }
             }
             handleSavePlan(plan.id, payload);
@@ -235,12 +237,12 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                     const keys = currentFeatures.keys.includes(key)
                         ? currentFeatures.keys.filter(k => k !== key)
                         : [...currentFeatures.keys, key];
-                    const serialized = serializeFeatures(keys, currentFeatures.custom);
+                    const serialized = serializeFeatures(keys, currentFeatures.custom, editedPlanData.features ?? plan.features);
                     setEditedPlanData(prev => ({ ...prev, features: serialized }));
                 };
 
                 const handleEditCustomChange = (text) => {
-                    const serialized = serializeFeatures(currentFeatures.keys, text);
+                    const serialized = serializeFeatures(currentFeatures.keys, text, editedPlanData.features ?? plan.features);
                     setEditedPlanData(prev => ({ ...prev, features: serialized }));
                 };
 

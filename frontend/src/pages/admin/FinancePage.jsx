@@ -3,10 +3,10 @@ import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import {
     api,
-    deleteSubscriptionPayment,
     getSubscriptionPayments,
     getSubscriptionPlans,
     recordSubscriptionPayment,
+    previewSubscriptionPayment,
     updateSubscriptionPlan,
 } from '@/api';
 import PaymentsManager from '@/features/admin/SuperAdmin/PaymentsManager';
@@ -38,15 +38,12 @@ export default function FinancePage() {
     });
     const [tenantUsers, setTenantUsers] = useState([]);
     
-    // Delete payment state
-    const [paymentToDelete, setPaymentToDelete] = useState(null);
-    const [isDeleting, setIsDeleting] = useState(false);
-
     // Plans Editing State
     const [editingPlan, setEditingPlan] = useState(null);
     const [editedPlanData, setEditedPlanData] = useState({});
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
+    const [paymentPreview, setPaymentPreview] = useState(null);
     const receiptAttempt = useRef(null);
     const receiptBusy = useRef(false);
 
@@ -172,43 +169,39 @@ export default function FinancePage() {
             const attempt = previous?.fingerprint === fingerprint ? previous : { fingerprint, key: crypto.randomUUID() };
             receiptAttempt.current = attempt;
             sessionStorage.setItem(storedKey, JSON.stringify(attempt));
-            await recordSubscriptionPayment({ ...payload, idempotency_key: attempt.key });
-            sessionStorage.removeItem(storedKey);
-            receiptAttempt.current = null;
-            setShowPaymentModal(false);
-            setPaymentForm({
-                tenant_id: '',
-                plan_id: '',
-                amount: '',
-                payment_method: 'cash',
-                paid_by: '',
-                payment_date: new Date().toISOString().split('T')[0],
-                notes: ''
-            });
-            fetchData();
-            toast.success(t('super_admin.payments.success_recorded') || 'تم تسجيل الدفعة بنجاح');
+            const requestPayload = { ...payload, idempotency_key: attempt.key };
+            const response = await previewSubscriptionPayment(requestPayload);
+            const preview = response.data?.data || response.data;
+            if (!preview?.before || !preview?.after) throw new Error(t('super_admin.payments.preview_failed'));
+            setPaymentPreview({ ...preview, payload: requestPayload });
         } catch (err) {
-            const errorMsg = err.response?.data?.detail || err.response?.data?.message || err.message || t('super_admin.payments.error_recording') || 'فشل تسجيل الدفعة';
-            toast.error(errorMsg);
+            toast.error(err.response?.data?.detail || err.message || t('super_admin.payments.preview_failed'));
         } finally {
             receiptBusy.current = false;
             setProcessing(false);
         }
     };
 
-    const handleConfirmDeletePayment = async () => {
-        if (!paymentToDelete) return;
-        setIsDeleting(true);
+    const handleConfirmRecordPayment = async () => {
+        if (!paymentPreview || receiptBusy.current) return;
+        receiptBusy.current = true;
+        setProcessing(true);
         try {
-            await deleteSubscriptionPayment(paymentToDelete);
-            setPaymentToDelete(null);
+            await recordSubscriptionPayment({ ...paymentPreview.payload, preview_marker: paymentPreview.preview_marker || undefined, preview_at: paymentPreview.preview_at || undefined });
+            sessionStorage.removeItem(`dentix:manual-receipt:${paymentPreview.payload.tenant_id}`);
+            receiptAttempt.current = null;
+            setPaymentPreview(null);
+            setShowPaymentModal(false);
+            setPaymentForm({ tenant_id: '', plan_id: '', amount: '', payment_method: 'cash',
+                paid_by: '', payment_date: new Date().toISOString().split('T')[0], notes: '' });
             fetchData();
-            toast.success(t('super_admin.payments.success_deleted') || 'تم حذف الدفعة بنجاح');
+            toast.success(t('super_admin.payments.success_recorded') || 'تم تسجيل الدفعة بنجاح');
         } catch (err) {
-            const errorMsg = err.response?.data?.detail || err.message || t('super_admin.payments.error_deleting') || 'فشل حذف الدفعة';
-            toast.error(errorMsg);
+            setPaymentPreview(null);
+            toast.error(err.response?.data?.detail || err.message || t('super_admin.payments.error_recording'));
         } finally {
-            setIsDeleting(false);
+            receiptBusy.current = false;
+            setProcessing(false);
         }
     };
 
@@ -285,7 +278,6 @@ export default function FinancePage() {
                     payments={payments}
                     tenants={tenants}
                     plans={plans}
-                    onDelete={(id) => setPaymentToDelete(id)}
                 />
             ) : activeTab === 'subscriptions' ? (
                 <ActiveSubscriptions
@@ -480,18 +472,27 @@ export default function FinancePage() {
                 </form>
             </Modal>
 
-            {/* Accessible Confirmation Dialog for Payment Deletion */}
             <ConfirmDialog
-                isOpen={Boolean(paymentToDelete)}
-                onClose={() => setPaymentToDelete(null)}
-                onConfirm={handleConfirmDeletePayment}
-                title={t('super_admin.payments.delete_title') || 'حذف الدفعة'}
-                message={t('super_admin.payments.delete_confirm_msg') || 'هل أنت متأكد من حذف هذه الدفعة المالية؟ لا يمكن التراجع عن هذا الإجراء.'}
-                confirmText={t('common.delete') || 'حذف'}
-                cancelText={t('common.cancel') || 'إلغاء'}
-                variant="danger"
-                isLoading={isDeleting}
+                isOpen={Boolean(paymentPreview)}
+                onClose={() => setPaymentPreview(null)}
+                onConfirm={handleConfirmRecordPayment}
+                title={t('super_admin.payments.preview_title')}
+                message={paymentPreview ? (
+                    <>
+                        <span className="block">{paymentPreview.amount} {paymentPreview.currency}</span>
+                        <span className="block">{t('super_admin.payments.preview_before')}: {paymentPreview.before.subscription_end_date || '—'}</span>
+                        <span className="block">{t('super_admin.payments.preview_after')}: {paymentPreview.after.subscription_end_date || '—'}</span>
+                        {paymentPreview.after.future_plan_start_date && <span className="block">{t('super_admin.payments.preview_paid_start')}: {paymentPreview.after.future_plan_start_date}</span>}
+                        {paymentPreview.already_recorded && <span className="block">{t('super_admin.payments.preview_replay')}</span>}
+                    </>
+                ) : ''}
+                confirmText={t('common.confirm')}
+                cancelText={t('common.cancel')}
+                variant="primary"
+                isLoading={processing}
             />
+
+
         </div>
     );
 }
