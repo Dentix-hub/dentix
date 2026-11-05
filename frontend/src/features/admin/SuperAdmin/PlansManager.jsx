@@ -298,11 +298,14 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                         <input
                                             type="number"
                                             min="1"
+                                            disabled
+                                            title={t('super_admin.plans.patient_limit_unenforced')}
                                             value={editedPlanData.max_patients !== undefined ? (editedPlanData.max_patients ?? '') : (plan.max_patients ?? '')}
                                             onChange={(e) => setEditedPlanData(prev => ({ ...prev, max_patients: e.target.value === '' ? null : parseInt(e.target.value, 10) }))}
                                             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none font-bold placeholder-slate-300"
                                             placeholder="∞"
                                         />
+                                        <p className="text-type-caption text-text-secondary">{t('super_admin.plans.patient_limit_unenforced')}</p>
                                     </div>
                                 </div>
 
@@ -475,7 +478,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                                         {t('super_admin.plans.ai_settings') || 'الذكاء الاصطناعي'} <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
                                                     </p>
                                                     <p className="font-bold text-indigo-700 dark:text-indigo-300">
-                                                        {plan.ai_daily_limit > 0 ? `${plan.ai_daily_limit} ${t('super_admin.plans.requests_unit') || 'طلب / يوم'}` : (t('super_admin.plans.unlimited') || 'غير محدود')}
+                                                        {`${Math.max(0, Number(plan.ai_daily_limit) || 0)} ${t('super_admin.plans.requests_unit') || 'طلب / يوم'}`}
                                                     </p>
                                                 </div>
                                             </div>
@@ -575,6 +578,8 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 <label htmlFor="new_plan_patients" className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.patients_label') || 'المرضى'}</label>
                                 <input
                                     id="new_plan_patients"
+                                    disabled
+                                    title={t('super_admin.plans.patient_limit_unenforced')}
                                     type="number"
                                     min="1"
                                     value={newPlanData.max_patients || ''}
@@ -582,6 +587,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold placeholder-slate-300"
                                     placeholder="∞"
                                 />
+                                        <p className="text-type-caption text-text-secondary">{t('super_admin.plans.patient_limit_unenforced')}</p>
                             </div>
                         </div>
 

@@ -1,12 +1,12 @@
 # Commercial controls — final code review and staging handoff
 
-**Code delivery: pending the final verification below. Commercial launch: PARTIAL.** This review covers the cumulative commercial-completion branch against staging `c4c7eb5998039bdadffc23bff31f65d0464d091b`. It does not certify production, an uninspected staging database, or a real AI provider. The owner authorized GitHub delivery to staging; merge, deployment and promotion remain separate decisions.
+**Code implementation/review: DONE locally and ready for staging PR. Commercial launch: PARTIAL.** This review covers the cumulative commercial-completion branch against staging `c4c7eb5998039bdadffc23bff31f65d0464d091b`. It does not certify production, an uninspected staging database, or a real AI provider. The owner authorized GitHub delivery to staging; merge, deployment and promotion remain separate decisions.
 
 ## Approved scope
 
 The November 3 commercial-controls plan and subsequent owner decisions require capacity-first plans: Essential 200 EGP / 2 active login accounts / 2 AI requests per clinic-local day; Professional 400 / 5 / 10; Business 1000 / 15 / 30. Accepted capabilities are shared. Billing is a calendar month; trial is Professional / 14 days / no card; paid grace is seven days and unpaid trial has none. Preserve trial remainder, account/clinical/financial history and security disables. Lower-tier activation requires explicit seat reduction and takes effect at renewal. Collection is manual; do not advertise a live gateway, patient/storage caps, portal, branches, telehealth or custom domains.
 
-The original planning artifact is `/home/ubuntu/dentix-task-artifacts/DENTIX-commercial-controls-plan-2026-11-03.md`. Its PR-01–PR-11 requirements are mapped below so this handoff can be reviewed on GitHub without treating earlier “100% complete” messages as evidence.
+The original planning artifact is `/home/ubuntu/dentix-task-artifacts/DENTIX-commercial-controls-plan-2026-11-03.md`. Its SHA256 is `61e45219072fceb7de3b2e5354e8e4d8d9fb4c67f8c0f8b3b1000f7903c918e2`; its PR-01–PR-11 requirements are mapped below so this handoff can be reviewed on GitHub without treating earlier “100% complete” messages as evidence.
 
 ## Final review: Spec axis
 
@@ -22,6 +22,7 @@ These defects were reproduced before correction. Each is closed by code and regr
 | F06 MEDIUM | A required price-impact preview must not silently fall through to saving when its request fails. | Keep the form and refuse save on preview failure. PlansManager regression proves the mutation callback is not called. |
 | F07 HIGH | PR-11 task 5 prohibits delete-to-undo financial history. Subscription receipt DELETE still removed the row, leaving renewal replay pointing at a missing receipt. | Retain guarded route and missing-record 404, refuse finalized receipt deletion with 409, remove the destructive clinic-subscription receipt button. No new refund behavior is invented. PostgreSQL test verifies receipt, period and retry survive the attempted delete. This intentionally supersedes the old UI test that expected destructive receipt deletion; replacement asserts preservation, not a weakened financial check. |
 | F08 HIGH | PR-06/PR-11 also apply to the older manual-extension adapter. Its browser generated a new key on every retry and did not preview, making a lost response capable of granting a second extension. | Add read-only preview to the existing guarded renewal adapter, reuse canonical grant/state quote logic, preserve identity across retry/reload, and require a documented reason for the new quoted support-extension flow. The UI distinguishes free support days from paid calendar-month collection. `subscription_renewal_service.py`, TenantsPage; PostgreSQL preview/replay test and `TenantsPageRenewal.test.jsx`. Legacy unquoted dated/day API adapters stay compatible and audited; they are not presented as paid receipts. |
+| F09 MEDIUM | PR-11 task 4 requires truthful controls for unenforced settings. Patient-limit metadata was still editable as a cap, and an enabled legacy AI plan with zero limit displayed “unlimited.” | Disable both patient-limit editors with a visible not-enforced/not-sold explanation, preserve legacy stored values, and render zero AI as zero requests/day. No patient quota or unlimited AI product is invented. PlansManager and its new regression, plus AR/EN resource checks. |
 
 ## Final review: Standards axis
 
@@ -29,7 +30,9 @@ These defects were reproduced before correction. Each is closed by code and regr
 |---|---|---|
 | T01 HIGH | AGENTS.md §2 server authorization and clinical integrity: emergency/override lookup exceptions silently became an empty policy, allowing new operations. A PostgreSQL query error can also poison subsequent history reads in the same transaction. | Fail closed for new capabilities. Each real async policy read has a savepoint so a failed SELECT does not abort the history transaction. SQLite fault tests and actual PostgreSQL invalid-cast injections prove denial plus a usable subsequent tenant-scoped read. `test_commercial_final_review.py::test_postgres_policy_failure_does_not_poison_history_transaction`. |
 
-**Finding count: Spec 8 (worst HIGH), Standards 1 (worst HIGH); all nine corrected locally.** No unresolved reproduced code finding from this final pass is intentionally hidden as a runtime-only item.
+**Finding count: Spec 9 (worst HIGH), Standards 1 (worst HIGH); all ten corrected locally.** No unresolved reproduced code finding from this final pass is intentionally hidden as a runtime-only item.
+
+Exact source anchors for the new corrections: [override resolution and savepoints](../../backend/services/entitlement_service.py#L388), [canonical write flags](../../backend/services/entitlement_service.py#L178), [hard emergency decision](../../backend/services/commercial_decision.py#L258), [receipt quote](../../backend/services/subscription_service.py#L886), [receipt deletion refusal](../../backend/services/subscription_service.py#L1163), [manual extension preview](../../backend/services/subscription_renewal_service.py#L43), [false-feature preservation](../../frontend/src/features/admin/SuperAdmin/planFeatureUtils.js#L111).
 
 ## Whole-plan coverage and remaining acceptance
 
@@ -53,7 +56,20 @@ No fresh migration/schema change, plan seeding into live databases, bulk clinic 
 
 ## Executed verification
 
-The first delivery full pass found one existing grace unit fixture with no linked plan expecting an allowed write. This is the fail-open behavior F03 removes. Its positive grace assertions are unchanged; it now supplies a valid plan, and a new paired grace/missing-plan regression asserts denial. The initial frontend full run had 1,201 passes and one i18n parity test timeout at five seconds while build/tests competed for resources; isolated i18n passed without changing its timeout/assertions. Final command results and source boundaries are recorded below after execution. Logs/JUnit/coverage live outside Git in `/home/ubuntu/dentix-task-artifacts/plan-recheck-20261105/`. Overlapping suites are not added together. Earlier full results and their exact code boundary remain in `commercial-plan-gap-fixes-2026-11-05.md`.
+The first delivery full pass found one existing grace unit fixture with no linked plan expecting an allowed write. This is the fail-open behavior F03 removes. Its positive grace assertions are unchanged; it now supplies a valid plan, and a new paired grace/missing-plan regression asserts denial. The initial frontend full run had 1,201 passes and one i18n parity test timeout at five seconds while build/tests competed for resources; isolated i18n passed without changing its timeout/assertions. Final command results and source boundaries are recorded below. Logs/JUnit/coverage live outside Git in `/home/ubuntu/dentix-task-artifacts/plan-recheck-20261105/`. Overlapping suites are not added together. Earlier full results and their exact code boundary remain in `commercial-plan-gap-fixes-2026-11-05.md`.
+
+| Verification gate | Executed result / provenance |
+|---|---|
+| Full backend, code `2c972b0043d154725b0a867502b9dc73ab54666f` | **1,966 passed / 1 existing skip / 0 failures or errors** in JUnit; coverage **81.92%**, threshold 52%. `backend-delivery-final-full.log/xml`, `coverage-delivery-final.xml`. No backend code changed afterward. |
+| Final policy/payment/renewal/Super Admin/grace/webhook target | **81 passed**, exit 0; `final-completion.log/xml`. |
+| Broader changed engine and PR-09A/B/C follow-up | **85 passed**, exit 0; `delivery-final-focused.log/xml`. Overlaps the other gates. |
+| PostgreSQL restricted NOBYPASSRLS role / concurrent pool isolation | **2 passed**, exit 0; `rls-delivery.log/xml`. Local synthetic database only. |
+| Final affected frontend, including the actual renewal consistency test, reason/quote confirmation and reload retry | **32 passed** across seven files, exit 0 after the final patient-metadata/zero-AI correction; `frontend-final-controls.log/.exit`. Prior renewal-only follow-up: 31 passed in `frontend-handoff-targeted.log/.exit`. Original tenant/plan/day/key-format assertions remain intact. |
+| Full frontend on source `0a18660453e9cc2773d9659df82f8191022c9c41` | **1,203 passed** across 182 files, exit 0; `frontend-handoff-full.log/.exit`. The subsequent metadata-editor/zero-badge UI change has its own focused gate below. |
+| Build / PWA / marketing output | PASS, exit 0; `build-final-controls.log/.exit`. |
+| Ruff / affected ESLint / whitespace / design diff | PASS; Ruff whole backend, affected ESLint exit 0, `git diff --check`, zero new guarded design violations (`eslint-final-controls` and `design-final-controls` logs/exit files). Legacy report-only debt is not claimed fixed. |
+
+The sole existing backend skip is `test_auth_refresh_token`: TestClient does not provide request.client.host required by session tracking. No skip/exemption/timeout was added. The final backend run used real isolated `TEST_DATABASE_URL` for PostgreSQL-only completion tests and SQLite for ordinary fixtures. Frontend test setup now enters the documented support reason and confirms the server preview; the former timestamp-prefixed operation identity format is retained, while the same identity persists through retry/reload. This is a new required workflow step, not removal of the original test assertions. PR CI remains the integration authority.
 
 ## Owner staging path (under 15 minutes, synthetic data)
 
@@ -69,6 +85,10 @@ The first delivery full pass found one existing grace unit fixture with no linke
 ## Manual collection and recovery procedure
 
 Before charging, confirm the actual clinic, target plan, amount/currency, payer, collection date, receipt reference and reason in the form/notes. Preview before committing. The application retains the operation identity across interrupted attempts in the same browser session/reload without storing form PII. Retry that same operation after a lost response; never invent a new receipt to test whether the first succeeded. If browser operation identity is unavailable, inspect recorded receipts/audit first and reconcile through support before submitting a distinct new operation. A changed real receipt is a new deliberate transaction. A stale/expired quote requires a fresh preview. A final receipt is immutable; refunds and financial corrections need their separately approved process and must not be simulated with DELETE, date edits, archive restore or generic policy undo. Never remove clinical history to resolve a seat/cap/payment problem.
+
+## Retained limitation
+
+Clinic-wide `/analyze-clinic` still accepts client-supplied `ClinicStats`. Its AI_CHAT AND REPORT_READ/data-access/quota gates are enforced, but this work does not redesign the financial input contract or certify AI output as ledger truth. This retains the PR-01 owner's explicit report-only boundary.
 
 ## Remaining launch gates — UNVERIFIED until actually executed
 

@@ -2842,6 +2842,7 @@
       "view_all": "View all logs"
     },
     "plans": {
+            "patient_limit_unenforced": "Legacy display metadata only; patient limits are not enforced or sold.",
       "title": "Plans Management",
       "edit_plan": "Edit Plan",
       "add_plan": "Add New Plan",
