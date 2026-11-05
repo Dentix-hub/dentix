@@ -74,6 +74,7 @@ async def update_tenant(
 async def renew_tenant_subscription(
     tenant_id: int,
     renewal_req: schemas.TenantManualRenewalRequest,
+    preview: bool = False,
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
@@ -83,6 +84,7 @@ async def renew_tenant_subscription(
             tenant_id=tenant_id,
             request=renewal_req,
             admin=current_user,
+            preview=preview,
         )
     except SubscriptionRenewalError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc

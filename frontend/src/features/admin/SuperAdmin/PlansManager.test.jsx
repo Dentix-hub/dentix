@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import PlansManager from './PlansManager';
 import { parseFeatures, serializeFeatures } from './planFeatureUtils';
-import { createSubscriptionPlan, deleteSubscriptionPlan } from '@/api';
+import { createSubscriptionPlan, deleteSubscriptionPlan, api } from '@/api';
 import { toast } from '@/shared/ui';
 
 vi.mock('react-i18next', () => ({
@@ -20,6 +20,7 @@ vi.mock('@/api', () => ({
     deleteSubscriptionPlan: vi.fn(),
     api: {
         delete: vi.fn(),
+        post: vi.fn(),
     },
 }));
 
@@ -222,4 +223,30 @@ describe('PlansManager MS-14 (features, creation, validation, AI limits, and del
             expect(onRefresh).toHaveBeenCalled();
         });
     });
+});
+
+
+it('refuses to save a price change when the impact preview fails', async () => {
+    api.post.mockRejectedValueOnce(new Error('Synthetic preview unavailable'));
+    const save = vi.fn();
+    render(<PlansManager plans={[{ id: 1, display_name_ar: 'Synthetic', price: 200,
+        duration_days: 30, max_users: 2, is_ai_enabled: true, ai_daily_limit: 2 }]}
+        editingPlan={1} editedPlanData={{ price: 400 }} setEditingPlan={vi.fn()}
+        setEditedPlanData={vi.fn()} handleSavePlan={save} />);
+    fireEvent.click(screen.getByText('super_admin.plans.save_changes'));
+    await waitFor(() => expect(api.post).toHaveBeenCalled());
+    expect(save).not.toHaveBeenCalled();
+    expect(toast.error).toHaveBeenCalled();
+});
+
+it('keeps unenforced patient metadata read-only and does not call zero AI unlimited', () => {
+    const plan = { id: 1, display_name_ar: 'Synthetic legacy', price: 200, duration_days: 30,
+        max_users: 2, max_patients: 42, is_ai_enabled: true, ai_daily_limit: 0 };
+    const props = { plans: [plan], setEditingPlan: vi.fn(), editedPlanData: {},
+        setEditedPlanData: vi.fn(), handleSavePlan: vi.fn() };
+    const page = render(<PlansManager {...props} editingPlan={1} />);
+    const patientField = screen.getAllByRole('spinbutton').find(input => input.value === '42');
+    expect(patientField).toBeDisabled();
+    page.rerender(<PlansManager {...props} editingPlan={null} />);
+    expect(screen.getByText('0 super_admin.plans.requests_unit')).toBeInTheDocument();
 });

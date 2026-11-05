@@ -43,8 +43,8 @@ async def check_expired_subscriptions(db: AsyncSession):
     now_naive = now.replace(tzinfo=None)
 
     stmt = select(Tenant).where(
-        Tenant.is_active == True,
-        Tenant.is_deleted == False,
+        Tenant.is_active.is_(True),
+        Tenant.is_deleted.is_(False),
         Tenant.subscription_status.notin_(
             [
                 SubscriptionState.SUSPENDED_ADMIN.value,
@@ -52,15 +52,14 @@ async def check_expired_subscriptions(db: AsyncSession):
             ]
         ),
         or_(
-            Tenant.subscription_end_date < now,
-            Tenant.subscription_end_date < now_naive,
+            Tenant.subscription_end_date <= now_naive,
             and_(
-                Tenant.future_plan_id != None,
+                Tenant.future_plan_id.is_not(None),
                 Tenant.future_plan_start_date <= now_naive,
             ),
         ),
     )
-    result = await db.execute(stmt)
+    result = await db.execute(stmt.with_for_update(skip_locked=True))
     expired_tenants = result.scalars().all()
 
     if not expired_tenants:
@@ -76,44 +75,18 @@ async def check_expired_subscriptions(db: AsyncSession):
         }:
             continue
 
-        # Check if a future plan (e.g. bought during trial) starts now
-        if tenant.future_plan_id and tenant.future_plan_start_date:
-            f_start = tenant.future_plan_start_date
-            if f_start.tzinfo is None:
-                f_start = f_start.replace(tzinfo=timezone.utc)
-            if now >= f_start:
-                if mode == "enforce":
-                    future_plan = await db.get(models.SubscriptionPlan, tenant.future_plan_id)
-                    if future_plan:
-                        tenant.plan_id = future_plan.id
-                        tenant.plan = future_plan.name
-                    tenant.future_plan_id = None
-                    tenant.future_plan_start_date = None
-                    tenant.subscription_status = SubscriptionState.ACTIVE.value
-                    logger.info(
-                        f"[ENFORCE] Tenant {tenant.id} activated future paid plan {tenant.plan}."
-                    )
-                    count += 1
-                continue
+        from backend.services.subscription_period import resolve_subscription_period
 
-        # Otherwise evaluate expiry / grace
-        sub_end = tenant.subscription_end_date
-        if sub_end and sub_end.tzinfo is None:
-            sub_end = sub_end.replace(tzinfo=timezone.utc)
-
-        grace_end = tenant.grace_period_until
-        if grace_end and grace_end.tzinfo is None:
-            grace_end = grace_end.replace(tzinfo=timezone.utc)
-
-        if curr_status == SubscriptionState.TRIAL.value:
-            # Trial has no grace period
-            target_status = SubscriptionState.EXPIRED_READ_ONLY.value
-        else:
-            # Paid subscription: allow 7 grace days
-            if grace_end and now <= grace_end:
-                target_status = SubscriptionState.GRACE.value
-            else:
-                target_status = SubscriptionState.EXPIRED_READ_ONLY.value
+        period = resolve_subscription_period(tenant, now)
+        target_status = period.status
+        if period.future_started and mode == "enforce":
+            future_plan = await db.get(models.SubscriptionPlan, tenant.future_plan_id)
+            if future_plan:
+                tenant.plan_id, tenant.plan = future_plan.id, future_plan.name
+                tenant.future_plan_id = None
+                tenant.future_plan_start_date = None
+                tenant.scheduled_downgrade_plan_id = None
+                count += 1
 
         if target_status != curr_status:
             if mode == "observe":
@@ -121,6 +94,9 @@ async def check_expired_subscriptions(db: AsyncSession):
                     f"[OBSERVE] Tenant {tenant.id} ({tenant.name}) status transition: {curr_status} -> {target_status}."
                 )
             elif mode == "enforce":
+                if curr_status == SubscriptionState.TRIAL.value and period.future_started:
+                    validate_transition(curr_status, SubscriptionState.ACTIVE.value)
+                    curr_status = SubscriptionState.ACTIVE.value
                 new_status = validate_transition(curr_status, target_status)
                 tenant.subscription_status = new_status
                 logger.info(

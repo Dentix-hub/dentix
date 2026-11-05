@@ -317,7 +317,7 @@ async def get_current_user(
     if get_current_tenant_id() is not None:
         # Tenant bound from the signed request token/cookie by middleware:
         # the identity read stays fully tenant-scoped (FORCE RLS enforced).
-        stmt = select(models.User).where(models.User.username == token_data.username).options(joinedload(models.User.tenant).joinedload(models.Tenant.subscription_plan))
+        stmt = select(models.User).where(models.User.username == token_data.username).options(joinedload(models.User.tenant).joinedload(models.Tenant.subscription_plan), joinedload(models.User.tenant).joinedload(models.Tenant.future_plan))
         result = await db.execute(stmt)
         user = result.scalars().first()
     else:

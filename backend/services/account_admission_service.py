@@ -75,6 +75,10 @@ class AccountAdmissionService:
             except Exception:
                 pass
 
+        from backend.services.subscription_period import resolve_subscription_period
+        if resolve_subscription_period(tenant).future_started:
+            plan = tenant.__dict__.get("future_plan")
+
         base_max: Optional[int] = None
         if plan is not None and plan.max_users is not None:
             base_max = plan.max_users
@@ -118,6 +122,7 @@ class AccountAdmissionService:
             select(models.Tenant)
             .options(
                 selectinload(models.Tenant.subscription_plan),
+                selectinload(models.Tenant.future_plan),
                 selectinload(models.Tenant.scheduled_downgrade_plan),
             )
             .where(models.Tenant.id == tenant_id)
@@ -173,6 +178,7 @@ class AccountAdmissionService:
             select(models.Tenant)
             .options(
                 selectinload(models.Tenant.subscription_plan),
+                selectinload(models.Tenant.future_plan),
                 selectinload(models.Tenant.scheduled_downgrade_plan),
             )
             .where(models.Tenant.id == tenant_id)

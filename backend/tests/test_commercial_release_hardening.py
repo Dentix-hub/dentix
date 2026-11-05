@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock
 import pytest
 from sqlalchemy import select
 
+from fastapi import HTTPException
 from backend import models, schemas
 from backend.services.ai_quota_service import AIQuotaService
 from backend.services.ai_service import AIService
@@ -128,7 +129,9 @@ async def test_reconcile_must_preserve_valid_retired_paid_contract(db_session,as
     sample.tenant.plan_id=old_id
     sample.tenant.plan=retired.name
     db_session.commit()
-    await ReconciliationService.apply_reconciliation(async_db_session,admin_user=sample.admin)
+    with pytest.raises(HTTPException) as rejected:
+        await ReconciliationService.apply_reconciliation(async_db_session,admin_user=sample.admin)
+    assert rejected.value.status_code == 409
     db_session.expire_all()
     actual=db_session.get(models.Tenant,sample.tenant.id)
     assert actual.plan_id==old_id, f'Valid retired paid contract {old_id} overwritten by active fallback plan {actual.plan_id}'
@@ -140,7 +143,8 @@ async def test_reconciliation_reversal_restores_real_plan_anchor(db_session,asyn
     sample.tenant.plan_id=None
     sample.tenant.plan='unmapped_synthetic_contract'
     db_session.commit()
-    await ReconciliationService.apply_reconciliation(async_db_session,admin_user=sample.admin)
+    selection=schemas.ReconciliationApplyRequest(reason="Explicit reviewed test mapping", mappings=[schemas.ReconciliationSelection(tenant_id=sample.tenant.id,plan_id=sample.plan.id,expected_revision=sample.tenant.policy_revision,expected_plan_id=None)])
+    await ReconciliationService.apply_reconciliation(async_db_session,admin_user=sample.admin,selection=selection)
     audit=(await async_db_session.execute(select(models.AuditLog).where(models.AuditLog.tenant_id==sample.tenant.id,models.AuditLog.action=='TENANT_CATALOG_RECONCILE'))).scalar_one()
     before=sample.plan.name,sample.plan.id
     try:

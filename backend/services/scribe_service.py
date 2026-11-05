@@ -98,23 +98,26 @@ RULES:
                         parent_reservation_id=parent_reservation_id,
                     )
 
+        if reservation is not None and getattr(reservation, "is_replay", False):
+            if reservation.status == ReservationStatus.CONSUMED.value:
+                try:
+                    cached = json.loads(reservation.reconciliation_notes or "null")
+                    if isinstance(cached, dict) and cached.get("kind") == "scribe_result_v1" and isinstance(cached.get("procedures"), list):
+                        return cached["procedures"]
+                except (ValueError, TypeError):
+                    pass
+            # Re-execution is unsafe even when a previous provider result was lost.
+            raise ValueError("request_already_processed" if reservation.status == ReservationStatus.CONSUMED.value else "request_pending")
+
         if not self.client:
             if reservation:
                 if session is not None:
-                    AIQuotaService.finalize_reservation(
-                        session,
-                        reservation_id=reservation.reservation_id,
-                        status=ReservationStatus.UNCERTAIN,
-                        error_reason="Groq API Key not configured",
-                    )
+                    AIQuotaService.finalize_reservation(session, reservation.reservation_id,
+                        ReservationStatus.RELEASED, error_reason="Provider client unavailable before dispatch")
                 else:
                     with isolated_accounting_session() as acct_session:
-                        AIQuotaService.finalize_reservation(
-                            acct_session,
-                            reservation_id=reservation.reservation_id,
-                            status=ReservationStatus.UNCERTAIN,
-                            error_reason="Groq API Key not configured",
-                        )
+                        AIQuotaService.finalize_reservation(acct_session, reservation.reservation_id,
+                            ReservationStatus.RELEASED, error_reason="Provider client unavailable before dispatch")
             raise ValueError("Groq API Key not configured")
 
         try:
@@ -135,6 +138,7 @@ RULES:
                         session,
                         reservation_id=reservation.reservation_id,
                         status=ReservationStatus.CONSUMED,
+                        reconciliation_notes=json.dumps({"kind": "scribe_result_v1", "procedures": procedures}),
                     )
                 else:
                     with isolated_accounting_session() as acct_session:
@@ -142,6 +146,7 @@ RULES:
                             acct_session,
                             reservation_id=reservation.reservation_id,
                             status=ReservationStatus.CONSUMED,
+                        reconciliation_notes=json.dumps({"kind": "scribe_result_v1", "procedures": procedures}),
                         )
 
             return procedures

@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -650,12 +651,13 @@ async def analyze_clinic(
             detail=str(exc),
         )
 
-    # Replay protection: if request was already consumed or in-flight, return cached result without redispatching provider
-    if getattr(reservation, "is_replay", False) or reservation.status == ReservationStatus.CONSUMED.value:
-        cached_insights = reservation.reconciliation_notes or "تحليل العيادة مكتمل مسبقاً لهذا الطلب."
+    if getattr(reservation, "is_replay", False):
+        if reservation.status != ReservationStatus.CONSUMED.value:
+            raise HTTPException(status_code=409, detail="request_pending")
+        cached_insights = AIQuotaService.cached_analysis(reservation)
+        if not cached_insights:
+            raise HTTPException(status_code=409, detail="result_unavailable")
         return success_response(data={"insights": cached_insights})
-    elif getattr(reservation, "is_replay", False) and reservation.status == ReservationStatus.UNCERTAIN.value:
-        raise HTTPException(status_code=409, detail="طلب سابق قيد المعالجة أو لم تكتمل نتيجته.")
 
     service = AIService(db, current_user)
 
@@ -709,7 +711,7 @@ async def analyze_clinic(
         bind=db,
         reservation_id=reservation.reservation_id,
         status=ReservationStatus.CONSUMED,
-        reconciliation_notes=response.message,
+        reconciliation_notes=json.dumps({"kind": "analysis_result_v1", "message": response.message}),
     )
 
     return success_response(data={"insights": response.message})

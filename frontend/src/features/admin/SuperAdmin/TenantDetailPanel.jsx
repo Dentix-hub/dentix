@@ -1,4 +1,5 @@
-import { memo, useEffect, useState } from 'react';
+import TenantCommercialOverrides from './TenantCommercialOverrides';
+import { memo, useEffect, useState, useRef } from 'react';
 import logger from '@/utils/logger';
 import {
     Users,
@@ -31,6 +32,8 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
     const isRtl = i18n.language === 'ar';
     const dateLocale = isRtl ? ar : enUS;
     const [data, setData] = useState(null);
+    const activeTenant = useRef(tenantId);
+    activeTenant.current = tenantId;
     const [users, setUsers] = useState([]);
     const [selectedUser, setSelectedUser] = useState('');
     const [reason, setReason] = useState('');
@@ -528,13 +531,21 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                                                 {t('super_admin.tenant_detail.per_day', 'طلب / يوم')}
                                             </span>
                                         </div>
-                                        <div className="text-[11px] text-slate-400 truncate" title={entitlements.capacities?.ai?.historical_diagnostic_label}>
-                                            {t('super_admin.tenant_detail.diagnostic_count', 'سجل تشخيص اليوم')}:{' '}
-                                            {entitlements.capacities?.ai?.historical_diagnostic_count ?? 0}
+                                        <div className="text-xs text-slate-500 space-y-1">
+                                            <p>{isRtl ? 'المستهلك / المحجوز / غير محسوم' : 'Consumed / reserved / uncertain'}: {entitlements.capacities?.ai?.consumed_count ?? '—'} / {entitlements.capacities?.ai?.reserved_count ?? '—'} / {entitlements.capacities?.ai?.uncertain_count ?? '—'}</p>
+                                            <p>{isRtl ? 'المتبقي' : 'Remaining'}: {entitlements.capacities?.ai?.remaining_quota ?? unavailable}</p>
+                                            <p>{isRtl ? 'موعد التجديد اليومي' : 'Daily reset'}: {entitlements.capacities?.ai?.end_utc || unavailable} ({entitlements.capacities?.ai?.timezone || '—'})</p>
                                         </div>
                                     </div>
                                 </div>
 
+                                <TenantCommercialOverrides tenantId={tenantId} onSaved={async () => {
+                                    const res = await api.get(`/api/v1/admin/tenants/${tenantId}/entitlements`).catch(() => ({ data: null }));
+                                    if (activeTenant.current === tenantId) setEntitlements(res.data?.data ?? res.data);
+                                }} />
+                                {entitlements.future_plan_id && <p className="rounded border border-sky-200 p-3 text-sm dark:border-sky-700">
+                                    {isRtl ? 'الباقة المدفوعة التالية' : 'Next paid plan'}: {availablePlans.find(p => p.id === entitlements.future_plan_id)?.display_name_ar || `#${entitlements.future_plan_id}`} · {isRtl ? 'تبدأ' : 'Starts'}: {entitlements.future_plan_start_date}
+                                </p>}
                                 {/* Capabilities Access Table */}
                                 <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-2.5">
                                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">

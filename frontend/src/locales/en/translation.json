@@ -1725,7 +1725,11 @@
       "voice_unsupported": "Voice Recognition Not Supported"
     },
     "quota_status": "Daily remaining: {{remaining}} of {{total}}",
-    "quota_exhausted": "Daily quota fully consumed. Resets automatically at midnight ({{timezone}})"
+    "quota_exhausted": "Daily quota fully consumed. Resets automatically at midnight ({{timezone}})",
+    "quota_unavailable": "Quota temporarily unavailable",
+    "confirm_pending": "Confirm pending action",
+    "cancel_pending": "Cancel pending action",
+    "toggle_assistant": "Toggle assistant"
   },
   "billing": {
     "title": "Billing",
@@ -2685,6 +2689,8 @@
       "error_deleting": "Failed to delete message"
     },
     "tenants": {
+            "extension_reason_required": "Document the reason for the free support extension.",
+            "extension_help": "This grants a documented free support extension. Record paid collection through Finance.",
       "title": "Clinic",
       "plan": "Subscription Plan",
       "status": "Subscription Status",
@@ -2777,6 +2783,12 @@
       "subtitle": "Users Subtitle"
     },
     "payments": {
+            "preview_failed": "Payment preview could not load. Nothing was saved.",
+            "preview_title": "Preview payment and subscription period",
+            "preview_before": "Current subscription end (UTC)",
+            "preview_after": "Subscription end after payment (UTC)",
+            "preview_paid_start": "Paid plan starts (UTC)",
+            "preview_replay": "This receipt is already recorded. Confirming retrieves it without adding another period.",
       "title": "Payment History",
       "record_button": "Record Payment",
       "date_col": "Date",
@@ -2830,6 +2842,7 @@
       "view_all": "View all logs"
     },
     "plans": {
+            "patient_limit_unenforced": "Legacy display metadata only; patient limits are not enforced or sold.",
       "title": "Plans Management",
       "edit_plan": "Edit Plan",
       "add_plan": "Add New Plan",

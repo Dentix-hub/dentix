@@ -215,16 +215,16 @@ class ToolExecutor:
     async def _commercial_capability_error(self, tool_name: str) -> Dict[str, Any] | None:
         """PR-08: Enforce commercial per-plan capability in executor as an additional AND condition."""
         req_cap = _TOOL_CAPABILITY_MAP.get(tool_name)
-        if not req_cap or not self.tenant_id:
+        if not self.tenant_id:
             return None
 
         # Avoid async lazy-loading relationship error on self.user.tenant
         tenant = self.user.__dict__.get("tenant")
-        if (tenant is None or tenant.__dict__.get("subscription_plan") is None) and self.tenant_id and self.db is not None:
+        if (tenant is None or tenant.__dict__.get("subscription_plan") is None or (getattr(tenant, "future_plan_id", None) and "future_plan" not in tenant.__dict__)) and self.tenant_id and self.db is not None:
             try:
                 stmt = (
                     select(models.Tenant)
-                    .options(selectinload(models.Tenant.subscription_plan))
+                    .options(selectinload(models.Tenant.subscription_plan), selectinload(models.Tenant.future_plan))
                     .where(models.Tenant.id == self.tenant_id)
                 )
                 res = await self.db.execute(stmt)
@@ -237,7 +237,24 @@ class ToolExecutor:
         if not tenant:
             return None
 
+        from backend.core.ai_tool_policy import normalize_ai_tool_policy
+        from backend.services.subscription_period import resolve_subscription_period
+
+        period = resolve_subscription_period(tenant)
+        plan = tenant.__dict__.get("future_plan") if period.future_started else tenant.__dict__.get("subscription_plan")
+        try:
+            allowed_tools = normalize_ai_tool_policy(getattr(plan, "ai_features", None))
+            tool_denied = allowed_tools is not None and tool_name not in allowed_tools
+        except (ValueError, TypeError):
+            tool_denied = True
         from backend.core.config import get_subscription_enforcement_mode
+        if tool_denied and get_subscription_enforcement_mode() == "enforce":
+            return {"success": False, "error_code": "tool_not_in_plan",
+                    "message": "الأداة غير متاحة وفق سياسة أدوات الباقة.", "risk_level": "BLOCKED"}
+
+        if not req_cap:
+            return None
+
         from backend.services.entitlement_service import EntitlementService
 
         mode = get_subscription_enforcement_mode()

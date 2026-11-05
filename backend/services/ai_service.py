@@ -66,6 +66,10 @@ class AIService:
                 except Exception:
                     pass
 
+        if self.tenant and getattr(self.tenant, "future_plan_id", None) and hasattr(self.db, "get"):
+            if "future_plan" not in self.tenant.__dict__:
+                self.tenant.future_plan = await self.db.get(models.SubscriptionPlan, self.tenant.future_plan_id)
+
     async def _reserve_quota(
         self,
         operation: str,
@@ -116,7 +120,7 @@ class AIService:
         if not reservation_id or not hasattr(self.db, "execute") or isinstance(self.db, Mock):
             return None
         try:
-            stmt = select(models.AIReservation).where(models.AIReservation.reservation_id == reservation_id)
+            stmt = select(models.AIReservation).where(models.AIReservation.reservation_id == reservation_id, models.AIReservation.tenant_id == self.user.tenant_id, models.AIReservation.user_id == self.user.id)
             res = await self.db.execute(stmt)
             return res.scalar_one_or_none()
         except Exception:
@@ -129,23 +133,25 @@ class AIService:
         idempotency_key: Optional[str] = None,
     ) -> AIQueryResponse:
         """Direct simplified analysis skipping the full agent loop."""
-        # Commercial access & quota reservation if not already reserved by caller
+        await self._ensure_tenant_and_plan()
+        denial = await async_evaluate_commercial_ai_access(self.tenant, db=self.db)
+        if denial:
+            err_code, err_msg = denial
+            return AIQueryResponse(success=False, error=err_code, message=err_msg)
+        # A server-supplied reservation never bypasses current policy.
         if reservation_id is None:
-            await self._ensure_tenant_and_plan()
-            denial = await async_evaluate_commercial_ai_access(self.tenant, db=self.db)
-            if denial:
-                err_code, err_msg = denial
-                return AIQueryResponse(success=False, error=err_code, message=err_msg)
             try:
                 res = await self._reserve_quota(
                     operation="analyze_direct",
                     payload={"prompt": prompt},
                     idempotency_key=idempotency_key,
                 )
+                if getattr(res, "is_replay", False) and res.status != ReservationStatus.CONSUMED.value:
+                    return AIQueryResponse(success=False, error="request_pending", message="الطلب السابق قيد المعالجة أو نتيجته غير مؤكدة.")
                 if getattr(res, "is_replay", False) or getattr(res, "status", None) == ReservationStatus.CONSUMED.value:
                     return AIQueryResponse(
-                        success=True,
-                        message=getattr(res, "reconciliation_notes", None) or "تحليل العيادة مكتمل مسبقاً لهذا الطلب.",
+                        success=AIQuotaService.cached_analysis(res) is not None,
+                        message=AIQuotaService.cached_analysis(res) or "النتيجة السابقة غير متاحة؛ لن يتكرر التنفيذ.",
                         tool="response",
                         risk_level="SAFE",
                     )
@@ -165,16 +171,20 @@ class AIService:
         else:
             # Caller supplied reservation_id: check if already CONSUMED on a replay
             res_obj = await self._get_reservation(reservation_id)
+            if not isinstance(self.db, Mock) and (res_obj is None or res_obj.operation not in {"analyze_clinic", "analyze_direct"}):
+                return AIQueryResponse(success=False, error="reservation_scope_mismatch", message="حجز غير صالح لهذا الطلب.")
+            if res_obj and res_obj.status in {ReservationStatus.UNCERTAIN.value, ReservationStatus.RELEASED.value}:
+                return AIQueryResponse(success=False, error="request_pending", message="لا يمكن إعادة تنفيذ هذا الحجز.")
             if res_obj and (res_obj.status == ReservationStatus.CONSUMED.value or getattr(res_obj, "is_replay", False)):
                 return AIQueryResponse(
-                    success=True,
-                    message=res_obj.reconciliation_notes or "تحليل العيادة مكتمل مسبقاً لهذا الطلب.",
+                    success=AIQuotaService.cached_analysis(res_obj) is not None,
+                    message=AIQuotaService.cached_analysis(res_obj) or "النتيجة السابقة غير متاحة؛ لن يتكرر التنفيذ.",
                     tool="response",
                     risk_level="SAFE",
                 )
 
         if hasattr(self.agent, "mock_mode") and self.agent.mock_mode:
-            await self._finalize_reservation(reservation_id, ReservationStatus.CONSUMED)
+            await self._finalize_reservation(reservation_id, ReservationStatus.RELEASED)
             return AIQueryResponse(
                 success=True,
                 message="⚠️ **وضع المحاكاة (Demo Mode)**\n\nتحليل سريع (Mock):\n1. الإيرادات ممتازة.\n2. التكاليف تحت السيطرة.\n3. يرجى تفعيل مفتاح API للحصول على تحليل حقيقي.",
@@ -206,7 +216,7 @@ class AIService:
                 tenant_id=self.user.tenant_id,
             )
             content = response.choices[0].message.content
-            await self._finalize_reservation(reservation_id, ReservationStatus.CONSUMED, reconciliation_notes=content)
+            await self._finalize_reservation(reservation_id, ReservationStatus.CONSUMED, reconciliation_notes=json.dumps({"kind": "analysis_result_v1", "message": content}))
             return AIQueryResponse(
                 success=True, message=content, tool="response", risk_level="SAFE"
             )
@@ -265,6 +275,14 @@ class AIService:
                     payload={"text": safe_text, "context": context},
                     idempotency_key=idempotency_key,
                 )
+                if getattr(reservation, "is_replay", False):
+                    completed = reservation.status == ReservationStatus.CONSUMED.value
+                    return AIQueryResponse(
+                        success=completed,
+                        message="تمت معالجة هذا الطلب بالفعل." if completed else "الطلب السابق قيد المعالجة أو نتيجته غير مؤكدة.",
+                        error=None if completed else "request_pending",
+                        data={"request_status": reservation.status, "replayed": True},
+                    )
             except AIQuotaExhaustedError:
                 return AIQueryResponse(
                     success=False,
@@ -335,6 +353,11 @@ class AIService:
                 scribe_mode=scribe_mode,
             )
 
+            completion_status = (
+                ReservationStatus.RELEASED if ai_result.get("_provider_dispatched") is False
+                else ReservationStatus.CONSUMED
+            )
+            ai_result.pop("_provider_dispatched", None)
             if "error" in ai_result:
                 tool_name = ai_result.get("tool", "unknown")
                 final_response_data = {
@@ -345,7 +368,7 @@ class AIService:
                 if reservation:
                     await self._finalize_reservation(
                         reservation.reservation_id,
-                        ReservationStatus.CONSUMED,
+                        completion_status,
                     )
             else:
                 tool_name = ai_result.get("tool")
@@ -361,7 +384,7 @@ class AIService:
                         if reservation:
                             await self._finalize_reservation(
                                 reservation.reservation_id,
-                                ReservationStatus.CONSUMED,
+                                completion_status,
                             )
                     else:
                         params = ai_result.get("parameters", {})
@@ -386,7 +409,7 @@ class AIService:
                             if reservation:
                                 await self._finalize_reservation(
                                     reservation.reservation_id,
-                                    ReservationStatus.CONSUMED,
+                                    completion_status,
                                 )
                             return AIQueryResponse(
                                 success=True,
@@ -407,7 +430,7 @@ class AIService:
                         if reservation:
                             await self._finalize_reservation(
                                 reservation.reservation_id,
-                                ReservationStatus.CONSUMED,
+                                completion_status,
                             )
                         if not tool_result.get("success"):
                             final_response_data = {
@@ -437,7 +460,7 @@ class AIService:
                     if reservation:
                         await self._finalize_reservation(
                             reservation.reservation_id,
-                            ReservationStatus.CONSUMED,
+                            completion_status,
                         )
 
         except AIException as e:

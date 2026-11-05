@@ -127,7 +127,7 @@ def evaluate_commercial_ai_access(
                     elif getattr(r, "override_value", None) == "allow":
                         active_overrides[CapabilityKey.AI_INSIGHTS.value] = True
         except Exception:
-            pass
+            return ("policy_unavailable", "تعذر التحقق من صلاحيات الباقة. حاول لاحقاً.")
 
     decision = CommercialDecisionEngine.evaluate_capability(
         tenant=tenant,
@@ -237,6 +237,7 @@ async def async_evaluate_commercial_ai_access(
                         active_overrides[CapabilityKey.AI_INSIGHTS.value] = True
         except Exception as exc:
             logger.warning(f"Error querying tenant overrides: {exc}")
+            return ("policy_unavailable", "تعذر التحقق من صلاحيات الباقة. حاول لاحقاً.")
 
     decision = CommercialDecisionEngine.evaluate_capability(
         tenant=tenant,

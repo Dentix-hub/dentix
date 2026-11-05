@@ -24,7 +24,11 @@ from backend.ai.executor import ToolExecutor
 
 @pytest.fixture
 def f2_setup(db_session):
-    tenant = models.Tenant(name="Finance Clinic", is_active=True)
+    # Authorization tests require a valid paid-AI configuration, not missing-plan fallback.
+    plan = models.SubscriptionPlan(name="professional", display_name_ar="Synthetic", price=400, max_users=5, is_ai_enabled=True, ai_daily_limit=10, features='{"clinical":true,"billing":true,"ai_insights":true}')
+    db_session.add(plan)
+    db_session.flush()
+    tenant = models.Tenant(name="Finance Clinic", is_active=True, plan_id=plan.id, plan=plan.name)
     db_session.add(tenant)
     db_session.commit()
     db_session.refresh(tenant)

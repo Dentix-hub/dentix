@@ -107,6 +107,8 @@ class ClinicRegistration(BaseModel):
 
 
 class TenantManualRenewalRequest(BaseModel):
+    preview_marker: Optional[str] = Field(default=None, min_length=64, max_length=64)
+    preview_at: Optional[datetime] = None
     plan_id: Optional[int] = None
     extension_days: Optional[int] = Field(default=None, gt=0, le=3650)
     new_end_date: Optional[datetime] = None
@@ -183,6 +185,13 @@ class SubscriptionPlanBase(BaseModel):
     policy_revision: int = 1
     billing_cycle_unit: str = "month"
 
+    @field_validator("ai_features")
+    @classmethod
+    def validate_ai_tools(cls, value):
+        from backend.core.ai_tool_policy import normalize_ai_tool_policy
+        normalize_ai_tool_policy(value)
+        return value
+
     @field_validator("billing_cycle_unit")
     @classmethod
     def check_billing_cycle_unit(cls, v: str) -> str:
@@ -222,6 +231,13 @@ class SubscriptionPlanUpdate(BaseModel):
     billing_cycle_unit: Optional[str] = None
     expected_revision: Optional[int] = None
     reason: Optional[str] = Field(default=None, max_length=500)
+
+    @field_validator("ai_features")
+    @classmethod
+    def validate_ai_tools(cls, value):
+        from backend.core.ai_tool_policy import normalize_ai_tool_policy
+        normalize_ai_tool_policy(value)
+        return value
 
     @field_validator("features")
     @classmethod
@@ -339,12 +355,15 @@ class TrialPolicyResponse(BaseModel):
 
 
 class TrialPolicyUpdateRequest(BaseModel):
+    expected_trial_plan_id: Optional[int] = None
+    expected_trial_duration_days: Optional[int] = None
     trial_plan_name: str
     trial_duration_days: int = Field(ge=1, le=90)
     reason: str = Field(min_length=3, max_length=500)
 
 
 class EmergencyRestrictionUpdateRequest(BaseModel):
+    expected_restricted: Optional[bool] = None
     capability_key: str
     is_restricted: bool
     reason: str = Field(min_length=3, max_length=500)
@@ -377,10 +396,35 @@ class SubscriptionPaymentBase(BaseModel):
 
 
 class SubscriptionPaymentCreate(SubscriptionPaymentBase):
+    preview_marker: Optional[str] = Field(default=None, min_length=64, max_length=64)
+    preview_at: Optional[datetime] = None
+    idempotency_key: Optional[str] = Field(default=None, min_length=1, max_length=100)
     tenant_id: int
     plan_id: int
     amount: PositiveMoney
     payment_method: str
+
+
+class SubscriptionPeriodSnapshot(BaseModel):
+    plan_id: Optional[int] = None
+    subscription_status: str
+    subscription_end_date: Optional[datetime] = None
+    grace_period_until: Optional[datetime] = None
+    future_plan_id: Optional[int] = None
+    future_plan_start_date: Optional[datetime] = None
+    scheduled_downgrade_plan_id: Optional[int] = None
+
+
+class SubscriptionPaymentPreview(BaseModel):
+    tenant_id: int
+    amount: PositiveMoney
+    currency: str = "EGP"
+    already_recorded: bool = False
+    payment_id: Optional[int] = None
+    preview_marker: Optional[str] = None
+    preview_at: Optional[datetime] = None
+    before: SubscriptionPeriodSnapshot
+    after: SubscriptionPeriodSnapshot
 
 
 class SubscriptionPayment(SubscriptionPaymentBase):
@@ -505,6 +549,14 @@ class CapacitySeatsDiagnostics(BaseModel):
 
 
 class CapacityAIDiagnostics(BaseModel):
+    reserved_count: Optional[int] = None
+    consumed_count: Optional[int] = None
+    uncertain_count: Optional[int] = None
+    admitted_count: Optional[int] = None
+    quota_source: str = "unavailable"
+    start_utc: Optional[str] = None
+    end_utc: Optional[str] = None
+    is_exhausted: bool = False
     is_enabled: bool = False
     daily_limit: int = 0
     historical_diagnostic_count: int = 0
@@ -549,6 +601,8 @@ class TenantEntitlementDiagnosticsResponse(BaseModel):
     plan_name: str
     plan_display_name_ar: str
     plan_display_name_en: str
+    future_plan_id: Optional[int] = None
+    future_plan_start_date: Optional[str] = None
     raw_subscription_status: str
     effective_subscription_status: str
     subscription_end_date: Optional[str] = None
@@ -619,3 +673,15 @@ class ReconciliationPreviewResponse(BaseModel):
     preservation_guarantees: List[str] = Field(default_factory=list)
 
 
+
+
+class ReconciliationSelection(BaseModel):
+    tenant_id: int = Field(gt=0)
+    plan_id: int = Field(gt=0)
+    expected_revision: int = Field(gt=0)
+    expected_plan_id: Optional[int] = None
+
+
+class ReconciliationApplyRequest(BaseModel):
+    reason: str = Field(min_length=5, max_length=500)
+    mappings: List[ReconciliationSelection] = Field(min_length=1, max_length=100)

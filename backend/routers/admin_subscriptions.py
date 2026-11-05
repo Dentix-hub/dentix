@@ -131,13 +131,14 @@ async def get_reconciliation_preview(
 
 @router.post("/reconcile-tenants", response_model=StandardResponse[dict])
 async def reconcile_tenants(
+    selection: schemas.ReconciliationApplyRequest | None = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
     """
     Safely anchor unanchored tenants to canonical plans without shortening periods or modifying active accounts.
     """
-    data = await ReconciliationService.apply_reconciliation(db, admin_user=current_user)
+    data = await ReconciliationService.apply_reconciliation(db, admin_user=current_user, selection=selection)
     return success_response(data=data, message=data.get("message", "Reconciliation completed"))
 
 
@@ -174,12 +175,35 @@ async def get_payments(
     return success_response(data=data)
 
 
-@router.post("/payments", response_model=StandardResponse[schemas.SubscriptionPayment])
-async def record_payment(
+@router.post("/payments/preview", response_model=StandardResponse[schemas.SubscriptionPaymentPreview])
+async def preview_payment(
     payment: schemas.SubscriptionPaymentCreate,
+    idempotency_key: str | None = Header(default=None, alias="X-Idempotency-Key", max_length=100),
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
+    if idempotency_key:
+        if payment.idempotency_key and payment.idempotency_key != idempotency_key:
+            raise HTTPException(409, "Conflicting payment idempotency keys")
+        payment = payment.model_copy(update={"idempotency_key": idempotency_key})
+    data = await SubscriptionService.preview_payment(db, payment)
+    return success_response(data=data)
+
+
+@router.post("/payments", response_model=StandardResponse[schemas.SubscriptionPayment])
+async def record_payment(
+    payment: schemas.SubscriptionPaymentCreate,
+    idempotency_key: str | None = Header(default=None, alias="X-Idempotency-Key", max_length=100),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    if idempotency_key:
+        if payment.idempotency_key and payment.idempotency_key != idempotency_key:
+            raise HTTPException(409, "Conflicting payment idempotency keys")
+        payment = payment.model_copy(update={"idempotency_key": idempotency_key})
+    from backend.core.config import get_subscription_enforcement_mode
+    if get_subscription_enforcement_mode() == "enforce" and not (payment.idempotency_key or payment.provider_payment_id):
+        raise HTTPException(400, "A stable idempotency key or receipt reference is required for a paid operation")
     data = await SubscriptionService.record_payment(db, payment, current_user.username)
     return success_response(data=data, message="Payment recorded successfully")
 

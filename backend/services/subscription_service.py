@@ -1,15 +1,18 @@
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 import json
+import hashlib
 import logging
 import os
 from uuid import uuid4
+from types import SimpleNamespace
 from typing import Any, Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from backend import models, schemas
+from backend.services.policy_snapshot import tenant_policy_marker
 from fastapi import HTTPException
 from backend.core.commercial_registry import (
     CAPABILITY_REGISTRY,
@@ -304,7 +307,7 @@ class SubscriptionService:
                 performed_by_id=admin_user.id,
                 performed_by_username=admin_user.username,
                 old_value=json.dumps(old_values, ensure_ascii=False),
-                new_value=json.dumps(new_values, ensure_ascii=False),
+                new_value=json.dumps({**new_values, "_policy_revision": plan.policy_revision}, ensure_ascii=False),
                 details=reason,
             )
             db.add(audit)
@@ -587,7 +590,7 @@ class SubscriptionService:
                 performed_by_id=admin_user.id,
                 performed_by_username=admin_user.username,
                 old_value=json.dumps(old_overrides_dict, ensure_ascii=False),
-                new_value=json.dumps(new_overrides_dict, ensure_ascii=False),
+                new_value=json.dumps({**new_overrides_dict, **tenant_policy_marker(tenant)}, ensure_ascii=False),
                 details=update_data.reason,
             )
             db.add(audit)
@@ -609,7 +612,9 @@ class SubscriptionService:
             select(models.SystemSetting).where(models.SystemSetting.key == "system_trial_duration_days")
         )
         row_days = res_days.scalar_one_or_none()
-        trial_days = int(row_days.value) if (row_days and row_days.value.isdigit()) else 14
+        if row_days and (not row_days.value.isdigit() or not 1 <= int(row_days.value) <= 90):
+            raise HTTPException(409, "Invalid saved trial duration; review the trial policy")
+        trial_days = int(row_days.value) if row_days else 14
 
         res_plans = await db.execute(
             select(models.SubscriptionPlan).where(models.SubscriptionPlan.is_active == True)  # noqa: E712
@@ -617,10 +622,10 @@ class SubscriptionService:
         active_plans = res_plans.scalars().all()
         eligible_list = [
             {"id": p.id, "name": p.name, "display_name_ar": p.display_name_ar}
-            for p in active_plans
+            for p in active_plans if canonicalize_plan_name(p.name) == "professional"
         ]
 
-        target_plan = next((p for p in active_plans if p.name == trial_plan_name), None)
+        target_plan = next((p for p in active_plans if p.name == trial_plan_name and canonicalize_plan_name(p.name) == "professional"), None)
 
         return schemas.TrialPolicyResponse(
             trial_plan_name=trial_plan_name,
@@ -637,6 +642,13 @@ class SubscriptionService:
         admin_user: Optional[models.User] = None,
     ) -> schemas.TrialPolicyResponse:
         """Update future signup trial policy with transactional audit."""
+        await db.execute(select(models.SubscriptionPlan).where(
+            models.SubscriptionPlan.name.in_(["professional", "pro"])
+        ).order_by(models.SubscriptionPlan.id).with_for_update())
+        current = await SubscriptionService.get_trial_policy(db)
+        if (("expected_trial_plan_id" in update_data.model_fields_set and update_data.expected_trial_plan_id != current.trial_plan_id)
+                or (update_data.expected_trial_duration_days is not None and update_data.expected_trial_duration_days != current.trial_duration_days)):
+            raise HTTPException(409, "Trial policy changed; refresh the preview")
         res_p = await db.execute(
             select(models.SubscriptionPlan).where(
                 models.SubscriptionPlan.name == update_data.trial_plan_name,
@@ -649,6 +661,8 @@ class SubscriptionService:
                 status_code=400,
                 detail=f"Active plan '{update_data.trial_plan_name}' not found",
             )
+        if canonicalize_plan_name(plan.name) != "professional":
+            raise HTTPException(422, "The approved trial must use an eligible Professional plan")
 
         res_s1 = await db.execute(
             select(models.SystemSetting).where(models.SystemSetting.key == "system_trial_plan_name")
@@ -805,13 +819,53 @@ class SubscriptionService:
         return list(res.scalars().all())
 
     @staticmethod
-    async def record_payment(
-        db: AsyncSession,
-        payment_data: schemas.SubscriptionPaymentCreate,
-        created_by: str,
-        *,
-        commit: bool = True,
-    ):
+    def _payment_period_snapshot(tenant):
+        return {key: getattr(tenant, key) for key in (
+            "plan_id", "subscription_status", "subscription_end_date", "grace_period_until",
+            "future_plan_id", "future_plan_start_date", "scheduled_downgrade_plan_id",
+        )}
+
+    @staticmethod
+    def _payment_preview_marker(tenant, plan, preview_at):
+        state = dict(SubscriptionService._payment_period_snapshot(tenant))
+        state.update(policy_revision=tenant.policy_revision, is_active=tenant.is_active,
+                     timezone=tenant.timezone, billing_day_anchor=tenant.billing_day_anchor,
+                     target_plan_id=plan.id, target_revision=plan.policy_revision,
+                     target_price=str(plan.price), target_active=plan.is_active,
+                     target_seats=plan.max_users, target_ai_limit=plan.ai_daily_limit,
+                     preview_at=preview_at.isoformat())
+        return hashlib.sha256(json.dumps(state, sort_keys=True, default=str).encode()).hexdigest()
+
+    @staticmethod
+    async def _find_payment_replay(db, tenant, payment_data):
+        operation_key = payment_data.idempotency_key
+        operation_hash = hashlib.sha256(json.dumps(
+            payment_data.model_dump(mode="json", exclude={"idempotency_key", "preview_marker", "preview_at"}),
+            sort_keys=True, separators=(",", ":"),
+        ).encode()).hexdigest()
+        ledger_key = "receipt:" + hashlib.sha256(operation_key.encode()).hexdigest() if operation_key else None
+        if operation_key:
+            renewal = (await db.execute(select(models.SubscriptionRenewalRequest).where(
+                models.SubscriptionRenewalRequest.tenant_id == tenant.id,
+                models.SubscriptionRenewalRequest.idempotency_key == operation_key,
+            ))).scalar_one_or_none()
+            if renewal:
+                raise HTTPException(409, "This operation key already granted a manual renewal; record a distinct receipt explicitly")
+        if ledger_key:
+            previous = (await db.execute(select(models.SubscriptionRenewalRequest).where(
+                models.SubscriptionRenewalRequest.tenant_id == tenant.id,
+                models.SubscriptionRenewalRequest.idempotency_key == ledger_key,
+            ))).scalar_one_or_none()
+            if previous:
+                if previous.request_hash != operation_hash:
+                    raise HTTPException(409, "Idempotency key was already used for a different payment")
+                receipt_id = json.loads(previous.response_json)["payment_id"]
+                receipt = (await db.execute(select(models.SubscriptionPayment).where(
+                    models.SubscriptionPayment.id == receipt_id,
+                    models.SubscriptionPayment.tenant_id == tenant.id,
+                ))).scalar_one()
+                return receipt, operation_hash, ledger_key
+
         if payment_data.provider_payment_id:
             stmt = select(models.SubscriptionPayment).where(
                 models.SubscriptionPayment.provider == payment_data.provider,
@@ -819,81 +873,109 @@ class SubscriptionService:
             )
             existing = (await db.execute(stmt)).scalar_one_or_none()
             if existing:
-                return existing
+                if operation_key:
+                    raise HTTPException(409, "Receipt already recorded; reuse its original operation identity")
+                if (existing.tenant_id != payment_data.tenant_id or existing.plan_id != payment_data.plan_id
+                        or existing.amount != payment_data.amount):
+                    raise HTTPException(409, "Provider receipt identity conflicts with the payment payload")
+                return existing, operation_hash, ledger_key
 
+        return None, operation_hash, ledger_key
+
+    @staticmethod
+    async def _propose_payment_period(db, tenant, payment_data):
+        """Run the real grant against a detached projection; never mutate ORM rows."""
+        curr_state = normalize_state(tenant.subscription_status or "trial")
+        if curr_state in {SubscriptionState.SUSPENDED_ADMIN.value, SubscriptionState.CANCELLED.value}:
+            raise HTTPException(409, f"Cannot record payment for tenant in '{curr_state}' state. Explicit reactivation is required.")
+        plan = await db.get(models.SubscriptionPlan, payment_data.plan_id)
+        if not plan:
+            raise HTTPException(404, "Plan not found")
+        from backend.services.subscription_period import utc_naive
+        server_now = SubscriptionService._utc_now_naive()
+        now = utc_naive(payment_data.preview_at) if payment_data.preview_at else server_now
+        if payment_data.preview_at and (not payment_data.preview_marker or not 0 <= (server_now - now).total_seconds() <= 300):
+            raise HTTPException(409, "Payment preview expired; refresh before confirmation")
+        marker = SubscriptionService._payment_preview_marker(tenant, plan, now)
+        if payment_data.preview_marker and payment_data.preview_marker != marker:
+            raise HTTPException(409, "Subscription or plan changed; refresh the payment preview")
+        before = SubscriptionService._payment_period_snapshot(tenant)
+        proposal = SimpleNamespace(**before, id=tenant.id, plan=tenant.plan,
+                                   timezone=tenant.timezone, billing_day_anchor=tenant.billing_day_anchor)
+        from backend.services.subscription_grant import grant_subscription_period, paid_billing_anchor
+        end = utc_naive(tenant.subscription_end_date) if tenant.subscription_end_date else now
+        end, anchor = add_calendar_months(max(now, end), months=1,
+            anchor_day=paid_billing_anchor(tenant), tz_name=tenant.timezone or "Africa/Cairo")
+        await grant_subscription_period(db, proposal, plan, end, now=now)
+        proposal.billing_day_anchor = anchor
+        return proposal, plan, marker, now
+
+    @staticmethod
+    async def preview_payment(db, payment_data):
+        tenant = await db.get(models.Tenant, payment_data.tenant_id)
+        if not tenant:
+            raise HTTPException(404, "Tenant not found")
+        receipt, _, _ = await SubscriptionService._find_payment_replay(db, tenant, payment_data)
+        before = SubscriptionService._payment_period_snapshot(tenant)
+        if receipt:
+            return dict(tenant_id=tenant.id, amount=receipt.amount, already_recorded=True,
+                        payment_id=receipt.id, before=before, after=before)
+        proposal, _, marker, quoted_at = await SubscriptionService._propose_payment_period(db, tenant, payment_data)
+        return dict(tenant_id=tenant.id, amount=payment_data.amount, preview_marker=marker, preview_at=quoted_at,
+                    before=before, after=SubscriptionService._payment_period_snapshot(proposal))
+
+    @staticmethod
+    async def record_payment(
+        db: AsyncSession,
+        payment_data: schemas.SubscriptionPaymentCreate,
+        created_by: str,
+        *,
+        commit: bool = True,
+    ):
         stmt = (
             select(models.Tenant)
             .where(models.Tenant.id == payment_data.tenant_id)
-            .with_for_update()
+            .with_for_update().execution_options(populate_existing=True)
         )
         tenant = (await db.execute(stmt)).scalar_one_or_none()
         if not tenant:
             raise HTTPException(status_code=404, detail="Tenant not found")
 
-        curr_state = normalize_state(tenant.subscription_status or "trial")
-        if curr_state in {
-            SubscriptionState.SUSPENDED_ADMIN.value,
-            SubscriptionState.CANCELLED.value,
-        }:
-            raise HTTPException(
-                status_code=409,
-                detail=f"Cannot record payment for tenant in '{curr_state}' state. Explicit reactivation is required.",
-            )
-
-        stmt = select(models.SubscriptionPlan).where(models.SubscriptionPlan.id == payment_data.plan_id)
-        plan = (await db.execute(stmt)).scalar_one_or_none()
-        if not plan:
-            raise HTTPException(status_code=404, detail="Plan not found")
-
+        previous, operation_hash, ledger_key = await SubscriptionService._find_payment_replay(db, tenant, payment_data)
+        if previous:
+            return previous
+        proposal, plan, _, _ = await SubscriptionService._propose_payment_period(db, tenant, payment_data)
+        actor = (await db.execute(select(models.User).where(models.User.username == created_by))).scalar_one_or_none()
+        if ledger_key and not actor:
+            raise HTTPException(409, "Authenticated payment actor is required")
+        for field in (*SubscriptionService._payment_period_snapshot(proposal), "plan", "billing_day_anchor"):
+            setattr(tenant, field, getattr(proposal, field))
         payment = models.SubscriptionPayment(
-            **payment_data.model_dump(exclude={"payment_date"}),
+            **payment_data.model_dump(exclude={"payment_date", "idempotency_key", "preview_marker", "preview_at"}),
             payment_date=payment_data.payment_date or SubscriptionService._utc_now_naive(),
             created_by=created_by,
         )
         db.add(payment)
 
         # Update tenant subscription with calendar months and preserved anchor
-        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
-        sub_end = tenant.subscription_end_date
-        if sub_end and sub_end.tzinfo:
-            sub_end = sub_end.astimezone(timezone.utc).replace(tzinfo=None)
-
-        # Task 6: Payment during trial preserves remaining trial days
-        if curr_state == SubscriptionState.TRIAL.value and sub_end and sub_end > now_utc:
-            # Paid period begins when trial ends
-            calc_end, anchor = add_calendar_months(
-                sub_end,
-                months=1,
-                anchor_day=tenant.billing_day_anchor,
-                tz_name=tenant.timezone or "Africa/Cairo",
-            )
-            tenant.subscription_end_date = calc_end
-            tenant.billing_day_anchor = anchor
-            tenant.grace_period_until = calculate_grace_period(calc_end)
-
-            # If paid plan differs from current trial plan, store as future assignment
-            if canonicalize_plan_name(plan.name) != canonicalize_plan_name(tenant.plan):
-                tenant.future_plan_id = plan.id
-                tenant.future_plan_start_date = sub_end
-            else:
-                tenant.plan_id = plan.id
-                tenant.plan = plan.name
-        else:
-            base = sub_end if (sub_end and sub_end > now_utc) else now_utc
-            calc_end, anchor = add_calendar_months(
-                base,
-                months=1,
-                anchor_day=tenant.billing_day_anchor,
-                tz_name=tenant.timezone or "Africa/Cairo",
-            )
-            tenant.subscription_end_date = calc_end
-            tenant.billing_day_anchor = anchor
-            tenant.grace_period_until = calculate_grace_period(calc_end)
-            tenant.plan = plan.name
-            tenant.plan_id = plan.id
-            tenant.subscription_status = "active"
-
-        # Security disable is independent. NEVER mutate is_active on payment!
+        await db.flush()
+        if ledger_key:
+            db.add(models.SubscriptionRenewalRequest(
+                tenant_id=tenant.id, idempotency_key=ledger_key,
+                request_hash=operation_hash,
+                response_json=json.dumps({"payment_id": payment.id}),
+                created_by_id=actor.id,
+            ))
+        db.add(models.AuditLog(
+            action="SUBSCRIPTION_PAYMENT_RECORDED", entity_type="SubscriptionPayment",
+            entity_id=payment.id, tenant_id=tenant.id,
+            performed_by_id=actor.id if actor else None,
+            performed_by_username=created_by,
+            new_value=json.dumps({"payment_id": payment.id, "amount": str(payment.amount),
+                                  "plan_id": plan.id, "end": tenant.subscription_end_date.isoformat()}),
+            details=payment_data.notes or "Manual subscription receipt and period grant",
+        ))
+        # Security disable is independent; never mutate is_active here.
 
         await db.flush()
         if commit:
@@ -1084,5 +1166,4 @@ class SubscriptionService:
         if not payment:
             raise HTTPException(status_code=404, detail="Payment not found")
 
-        await db.delete(payment)
-        await db.commit()
+        raise HTTPException(409, "Finalized receipts are immutable; use a separately audited financial correction, not deletion")

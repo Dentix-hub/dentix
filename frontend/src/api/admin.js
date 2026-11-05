@@ -21,6 +21,7 @@ export const createSubscriptionPlan = (data) => api.post('/api/v1/admin/subscrip
 export const updateSubscriptionPlan = (id, data) => api.put(`/api/v1/admin/subscriptions/plans/${id}`, data);
 export const deleteSubscriptionPlan = (id) => api.delete(`/api/v1/admin/subscriptions/plans/${id}`);
 export const getSubscriptionPayments = () => api.get('/api/v1/admin/subscriptions/payments');
+export const previewSubscriptionPayment = (data) => api.post('/api/v1/admin/subscriptions/payments/preview', data);
 export const recordSubscriptionPayment = (data) => api.post('/api/v1/admin/subscriptions/payments', data);
 export const deleteSubscriptionPayment = (id) => api.delete(`/api/v1/admin/subscriptions/payments/${id}`);
 

@@ -186,37 +186,13 @@ class CommercialDecisionEngine:
 
         cap_defn = CAPABILITY_REGISTRY[canon_cap]
 
-        # Subscription status & timestamps resolution
-        raw_status = getattr(tenant, "subscription_status", "trial")
-        if not isinstance(raw_status, str):
-            raw_status = "trial"
-        norm_status = normalize_state(raw_status)
-        sub_end = _as_utc(getattr(tenant, "subscription_end_date", None))
-        grace_end = _as_utc(getattr(tenant, "grace_period_until", None))
-        future_start = _as_utc(getattr(tenant, "future_plan_start_date", None))
-        future_plan_id = getattr(tenant, "future_plan_id", None)
+        from backend.services.subscription_period import resolve_subscription_period
 
-        is_past_end = bool(sub_end and sub_end < current_time)
-        is_in_grace = bool(grace_end and current_time <= grace_end)
-        has_future_started = bool(
-            future_plan_id and future_start and current_time >= future_start
-        )
-
-        effective_status = norm_status
-        if norm_status == SubscriptionState.TRIAL.value:
-            if has_future_started:
-                effective_status = SubscriptionState.ACTIVE.value
-            elif is_past_end:
-                effective_status = SubscriptionState.EXPIRED_READ_ONLY.value
-        elif norm_status == SubscriptionState.ACTIVE.value:
-            if is_past_end:
-                effective_status = (
-                    SubscriptionState.GRACE.value
-                    if is_in_grace
-                    else SubscriptionState.EXPIRED_READ_ONLY.value
-                )
-        elif norm_status == SubscriptionState.GRACE.value and not is_in_grace:
-            effective_status = SubscriptionState.EXPIRED_READ_ONLY.value
+        period = resolve_subscription_period(tenant, current_time)
+        effective_status = period.status
+        has_future_started = period.future_started
+        is_past_end = period.is_past_end
+        is_in_grace = period.is_in_grace
 
         try:
             plan = getattr(tenant, "subscription_plan", None)
@@ -279,7 +255,7 @@ class CommercialDecisionEngine:
             reason_code = CommercialReasonCode.EMERGENCY_RESTRICTION_ACTIVE
             explanation_en = f"Capability '{canon_cap}' is disabled under platform emergency restriction."
             explanation_ar = f"الخاصية '{cap_defn.display_name_ar}' معطلة بأمر حظر طارئ للمنصة."
-            allowed = True if mode in {"off", "observe"} else False
+            allowed = False  # Emergency restrictions are hard in every rollout mode.
 
             return CommercialDecision(
                 tenant_id=tenant_id,

@@ -72,21 +72,14 @@ async def register_clinic(
                 )
                 raise HTTPException(status_code=400, detail="Email already registered")
 
-            # Look up the approved Professional trial plan
-            stmt_pro = select(models.SubscriptionPlan).where(
-                models.SubscriptionPlan.name.in_(["professional", "pro"]),
-                models.SubscriptionPlan.is_active == True,  # noqa: E712
-            )
-            trial_plan = (await registration_db.execute(stmt_pro)).scalars().first()
-            if not trial_plan:
-                logger.error("Registration aborted: Professional trial plan is not configured in catalog.")
-                raise HTTPException(
-                    status_code=500,
-                    detail="فشل تسجيل العيادة: باقة التجربة المجانية غير مهيأة في النظام. يرجى التواصل مع الدعم.",
-                )
+            from backend.services.subscription_service import SubscriptionService
 
+            policy = await SubscriptionService.get_trial_policy(registration_db)
+            trial_plan = await registration_db.get(models.SubscriptionPlan, policy.trial_plan_id) if policy.trial_plan_id else None
+            if not trial_plan or not trial_plan.is_active:
+                raise HTTPException(status_code=500, detail="باقة التجربة المجانية غير مهيأة في النظام")
             now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
-            trial_end_utc = now_utc + timedelta(days=14)
+            trial_end_utc = now_utc + timedelta(days=policy.trial_duration_days)
 
             new_tenant = models.Tenant(
                 name=clinic_name,

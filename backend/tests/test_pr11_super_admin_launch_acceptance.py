@@ -183,7 +183,8 @@ async def test_reconciliation_preview_and_safe_application(
 
     # 2. Apply safe reconciliation
     result = await ReconciliationService.apply_reconciliation(
-        async_db_session, admin_user=mock_admin_user
+        async_db_session, admin_user=mock_admin_user,
+        selection=schemas.ReconciliationApplyRequest(reason="Reviewed Essential mapping", mappings=[schemas.ReconciliationSelection(tenant_id=unanchored_tenant.id,plan_id=setup_pr11_plans[0].id,expected_revision=unanchored_tenant.policy_revision,expected_plan_id=None)])
     )
     assert result["success"] is True
     assert result["reconciled_count"] >= 1
@@ -199,7 +200,7 @@ async def test_reconciliation_preview_and_safe_application(
     )
     audit = (await async_db_session.execute(stmt_audit)).scalar_one_or_none()
     assert audit is not None
-    assert "plan_id=" in audit.new_value
+    assert json.loads(audit.new_value)["plan_id"] == setup_pr11_plans[0].id
 
 
 @pytest.mark.asyncio

@@ -15,7 +15,7 @@ Validates all PR-03 acceptance criteria:
    - Seat limit matches plan; used count reflects active non-deleted login accounts.
    - Inactive/deleted accounts are excluded from used count.
    - AI daily limit matches plan/spec.
-   - AI quota_ledger_source is "unavailable" and remaining_quota is None (not 0).
+   - AI quota comes from the reservation ledger; historical logs never reduce the budget.
 4. Permanent clinical history read invariant:
    - can_read_clinical is True regardless of subscription status.
 5. Zero PII leakage:
@@ -236,7 +236,7 @@ def test_settings_entitlements_truthful_capacities(client, pr03_seed_data):
     - Limit is 5 (from clinic plan). Remaining is 3. is_exhausted is False.
     - AI daily limit is 20.
     - AI historical count today is 3 (ignoring yesterday's 2).
-    - Quota ledger source is 'unavailable' and remaining_quota is None (not 0).
+    - Quota ledger is authoritative after PR-07: no reservations means all 20 units remain.
     """
     user_a = pr03_seed_data["user_a1"]
     res = client.get("/api/v1/settings/entitlements", headers=_token_headers(user_a))
@@ -253,8 +253,14 @@ def test_settings_entitlements_truthful_capacities(client, pr03_seed_data):
     assert ai["daily_limit"] == 20
     assert ai["is_enabled"] is True
     assert ai["historical_diagnostic_count"] == 3
-    assert ai["quota_ledger_source"] == "unavailable"
-    assert ai["remaining_quota"] is None
+    # PR-03's temporary unavailable source is superseded by PR-07 integration.
+    # Three historical log rows are diagnostics, not three billable reservations.
+    assert ai["quota_ledger_source"] == "ai_quota_windows"
+    assert ai["remaining_quota"] == 20
+    assert ai["consumed_count"] == 0
+    assert ai["reserved_count"] == 0
+    assert ai["uncertain_count"] == 0
+    assert ai["end_utc"].endswith("Z")
 
 
 def test_settings_entitlements_pii_free(client, pr03_seed_data):
