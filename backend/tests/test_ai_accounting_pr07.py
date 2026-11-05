@@ -72,6 +72,8 @@ def accounting_plans(db_session):
         display_name_ar="الأساسية",
         price=200,
         max_users=2,
+        is_ai_enabled=True,
+        ai_daily_limit=2,
         is_active=True,
     )
     p_pro = models.SubscriptionPlan(
@@ -80,6 +82,8 @@ def accounting_plans(db_session):
         display_name_ar="المتقدمة",
         price=400,
         max_users=5,
+        is_ai_enabled=True,
+        ai_daily_limit=10,
         is_active=True,
     )
     p_biz = models.SubscriptionPlan(
@@ -88,6 +92,8 @@ def accounting_plans(db_session):
         display_name_ar="المؤسسات",
         price=1000,
         max_users=15,
+        is_ai_enabled=True,
+        ai_daily_limit=30,
         is_active=True,
     )
     for p in (p_ess, p_pro, p_biz):
@@ -605,6 +611,8 @@ async def test_postgresql_concurrent_ai_quota_reservations_serialized():
             display_name_ar="خطة ذكاء",
             price=200,
             max_users=2,
+            is_ai_enabled=True,
+            ai_daily_limit=2,
             is_active=True,
         )
         session.add(plan)

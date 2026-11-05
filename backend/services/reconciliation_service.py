@@ -150,11 +150,15 @@ class ReconciliationService:
         """
         now = cls._utc_now_naive()
 
-        # Query active plans
+        # Query active plans for new catalog proposals
         stmt_plans = select(models.SubscriptionPlan).where(models.SubscriptionPlan.is_active == True)  # noqa: E712
         active_plans = (await db.execute(stmt_plans)).scalars().all()
         plan_by_name = {p.name.lower(): p for p in active_plans}
-        active_plan_ids = {p.id for p in active_plans}
+
+        # Query all existing plans (including retired contracts) to preserve valid historical/retired anchors
+        stmt_all_plans = select(models.SubscriptionPlan)
+        all_plans = (await db.execute(stmt_all_plans)).scalars().all()
+        all_plan_ids = {p.id for p in all_plans}
 
         # Canonical fallback plans
         default_canonical = (
@@ -183,9 +187,13 @@ class ReconciliationService:
 
         for t in tenants:
             raw_plan = (t.plan or "").lower().strip()
-            # 1. Unanchored or orphan check
-            if t.plan_id is None or t.plan_id not in active_plan_ids:
-                # Determine proposed mapping
+            # 1. Unanchored or orphan check:
+            # Preserves valid current paid anchors, including retired catalog records
+            if t.plan_id is not None and t.plan_id in all_plan_ids:
+                # Tenant is already anchored to a valid catalog plan contract (active or retired)
+                pass
+            else:
+                # Genuinely unanchored or orphan
                 mapped_name = proposed_mappings.get(raw_plan)
                 matched_plan = plan_by_name.get(mapped_name) if mapped_name else plan_by_name.get(raw_plan)
                 target_plan = matched_plan or default_canonical
@@ -197,7 +205,7 @@ class ReconciliationService:
                     "current_plan_id": t.plan_id,
                     "proposed_plan_id": target_plan.id if target_plan else None,
                     "proposed_plan_name": target_plan.name if target_plan else "essential",
-                    "reason": "Missing or inactive plan_id anchor in active catalog",
+                    "reason": "Missing or orphan plan_id anchor in catalog",
                 })
 
             # 2. Status anomaly check
@@ -265,6 +273,7 @@ class ReconciliationService:
                 continue
 
             old_plan_val = f"plan={tenant.plan}, plan_id={tenant.plan_id}"
+            new_plan_val = f"plan={target_plan_name}, plan_id={target_plan_id}"
             tenant.plan_id = target_plan_id
             tenant.plan = target_plan_name
             tenant.policy_revision = (tenant.policy_revision or 1) + 1
@@ -278,8 +287,8 @@ class ReconciliationService:
                     performed_by_id=admin_user.id,
                     performed_by_username=admin_user.username,
                     old_value=old_plan_val,
-                    new_value=f"plan={target_plan_name}, plan_id={target_plan_id}",
-                    details="Automated catalog reconciliation anchored tenant to canonical plan",
+                    new_value=new_plan_val,
+                    details=f"Automated catalog reconciliation anchored tenant from '{tenant.plan}' to canonical plan '{target_plan_name}'",
                     tenant_id=tenant.id,
                 )
                 db.add(audit)

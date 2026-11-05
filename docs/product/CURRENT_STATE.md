@@ -169,3 +169,4 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 - CD Child Triggers Fix (2026-11-04): Added missing child tenant triggers for ai_reservations and additive auto-repair in preflight upgrade.
 - PR-10 (2026-11-04): Gated clinic frontend navigation, feature mounting, and quota warnings on commercial entitlements; enforced fail-closed fallback and Flutter freeze policy.
 - PR-11 (2026-11-05): Super Admin controls, reconciliation preview, policy reversal, and final launch acceptance.
+- Commercial Controls Hardening (2026-11-05): Resolved independent release review findings C1-C6 (idempotency replay ownership, authoritative DB AI limits, retired contract preservation, reversal key-value parsing, async emergency stop, security disable isolation); 8/8 review tests and all regressions pass.

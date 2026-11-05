@@ -13,13 +13,17 @@ from ..core.permissions import Permission, Role, require_permission, require_all
 from backend.services.cost_engine import CostEngine
 from backend.services.ai_learning_service import get_ai_learning_service
 from backend.models.inventory import Material
-from backend.services.commercial_ai_guard import evaluate_commercial_ai_access
+from backend.services.commercial_ai_guard import (
+    evaluate_commercial_ai_access,
+    async_evaluate_commercial_ai_access,
+)
 from backend.services.ai_quota_service import (
     AIQuotaService,
     AIQuotaExhaustedError,
     IdempotencyConflictError,
     ScopeMismatchError,
 )
+from backend.models.ai_accounting import ReservationStatus
 
 logger = logging.getLogger(__name__)
 
@@ -615,8 +619,8 @@ async def analyze_clinic(
     Enforces AI_CHAT and REPORT_READ, then evaluates commercial AI access and reserves quota
     BEFORE collecting protected data.
     """
-    # 1. Commercial AI access evaluation
-    denial = evaluate_commercial_ai_access(current_user.tenant)
+    # 1. Commercial AI access evaluation (including emergency restrictions)
+    denial = await async_evaluate_commercial_ai_access(current_user.tenant, db=db)
     if denial:
         err_code, err_msg = denial
         raise HTTPException(
@@ -645,6 +649,13 @@ async def analyze_clinic(
             status_code=409,
             detail=str(exc),
         )
+
+    # Replay protection: if request was already consumed or in-flight, return cached result without redispatching provider
+    if getattr(reservation, "is_replay", False) or reservation.status == ReservationStatus.CONSUMED.value:
+        cached_insights = reservation.reconciliation_notes or "تحليل العيادة مكتمل مسبقاً لهذا الطلب."
+        return success_response(data={"insights": cached_insights})
+    elif getattr(reservation, "is_replay", False) and reservation.status == ReservationStatus.UNCERTAIN.value:
+        raise HTTPException(status_code=409, detail="طلب سابق قيد المعالجة أو لم تكتمل نتيجته.")
 
     service = AIService(db, current_user)
 
@@ -693,5 +704,12 @@ async def analyze_clinic(
             status_code=500,
             detail=response.error or response.message,
         )
+
+    await AIQuotaService.async_finalize_reservation(
+        bind=db,
+        reservation_id=reservation.reservation_id,
+        status=ReservationStatus.CONSUMED,
+        reconciliation_notes=response.message,
+    )
 
     return success_response(data={"insights": response.message})

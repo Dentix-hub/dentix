@@ -298,11 +298,24 @@ class CommercialActionService:
         try:
             restored_values = json.loads(audit_log.old_value)
         except Exception:
-            # Handle plain string format e.g. "plan=Essential"
-            if "=" in audit_log.old_value:
-                parts = audit_log.old_value.split("=")
-                restored_values = {parts[0].strip(): parts[1].strip()}
-            else:
+            # Handle plain string format e.g. "plan=Essential" or comma-separated pairs
+            restored_values = {}
+            for chunk in audit_log.old_value.split(","):
+                if "=" in chunk:
+                    k, v = chunk.split("=", 1)
+                    k = k.strip()
+                    v = v.strip()
+                    if v.lower() in ("none", "null"):
+                        restored_values[k] = None
+                    elif v.isdigit():
+                        restored_values[k] = int(v)
+                    elif v.lower() == "true":
+                        restored_values[k] = True
+                    elif v.lower() == "false":
+                        restored_values[k] = False
+                    else:
+                        restored_values[k] = v
+            if not restored_values:
                 restored_values = {"raw_value": audit_log.old_value}
 
         if request.preview:
@@ -322,12 +335,25 @@ class CommercialActionService:
             stmt_t = select(models.Tenant).where(models.Tenant.id == audit_log.entity_id).with_for_update()
             target_tenant = (await db.execute(stmt_t)).scalar_one_or_none()
             if target_tenant:
-                if "is_active" in restored_values:
-                    target_tenant.is_active = bool(restored_values["is_active"])
-                if "subscription_status" in restored_values:
-                    target_tenant.subscription_status = str(restored_values["subscription_status"])
+                # Security Invariant (C6): Commercial suspension reversal must NEVER reactivate a security-disabled clinic
+                if action == "TENANT_COMMERCIAL_SUSPEND":
+                    target_tenant.subscription_status = "active"
+                    # Do NOT touch target_tenant.is_active!
+                elif action == "TENANT_SECURITY_DISABLE":
+                    target_tenant.is_active = True
+                else:
+                    # Generic action: never silently re-enable is_active if tenant was security-disabled
+                    if "is_active" in restored_values and target_tenant.is_active:
+                        target_tenant.is_active = bool(restored_values["is_active"])
+                    if "subscription_status" in restored_values:
+                        target_tenant.subscription_status = str(restored_values["subscription_status"])
+
+                # C4: Plan restoration must restore BOTH plan and plan_id
+                if "plan_id" in restored_values:
+                    target_tenant.plan_id = restored_values["plan_id"]
                 if "plan" in restored_values:
-                    target_tenant.plan = str(restored_values["plan"])
+                    target_tenant.plan = str(restored_values["plan"]) if restored_values["plan"] is not None else None
+
                 if action == "SUBSCRIPTION_SCHEDULE_DOWNGRADE":
                     target_tenant.scheduled_downgrade_plan_id = None
                 target_tenant.policy_revision = (target_tenant.policy_revision or 1) + 1
