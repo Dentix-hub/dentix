@@ -188,7 +188,7 @@ export default function TenantsPage() {
             const storageKey = `dentix:manual-extension:${renewalModalTenant.id}`;
             let previous;
             try { previous = JSON.parse(sessionStorage.getItem(storageKey) || 'null'); } catch { /* Start a new attempt. */ }
-            const attempt = previous?.fingerprint === fingerprint ? previous : { fingerprint, key: crypto.randomUUID() };
+            const attempt = previous?.fingerprint === fingerprint ? previous : { fingerprint, key: `manual_renew_${renewalModalTenant.id}_${Date.now()}_${crypto.randomUUID()}` };
             sessionStorage.setItem(storageKey, JSON.stringify(attempt));
             const request = { ...payload, idempotency_key: attempt.key };
             const url = `/api/v1/admin/tenants/${renewalModalTenant.id}/renew`;
