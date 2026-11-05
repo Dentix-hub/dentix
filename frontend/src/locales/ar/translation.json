@@ -2435,7 +2435,16 @@
       "id_label": "معرف",
       "system_global": "سجل عام للنظام",
       "export_success": "تم تصدير سجل التدقيق بنجاح",
-      "view_details": "عرض التفاصيل"
+      "view_details": "عرض التفاصيل",
+      "reversal_success": "تم التراجع عن الإجراء الإداري بنجاح",
+      "reversal_failed": "فشل التراجع عن الإجراء",
+      "financial_reversal_notice": "لا يمكن التراجع عن المعاملات المالية عبر التراجع الإداري؛ استخدم دورة الاسترداد المالي المعتمدة.",
+      "btn_reverse_policy": "التراجع عن هذا الإجراء الإداري",
+      "reversal_modal_title": "تأكيد التراجع عن القرار الإداري",
+      "reversal_modal_subtitle": "سيتم استعادة القيم السابقة وتوثيق عملية الإلغاء في سجل التدقيق.",
+      "reversal_reason_label": "سبب التراجع (5 أحرف على الأقل):",
+      "reversal_reason_placeholder": "اكتب سبب التراجع هنا...",
+      "min_reason": "الحد الأدنى 5 أحرف"
     },
     "security": {
       "title": "لوحة الأمن والحماية",
@@ -2846,7 +2855,9 @@
       "error_ai_limit_required": "يجب تحديد حد يومي أكبر من الصفر لطلبات الذكاء الاصطناعي عند تفعيله",
       "error_ai_disabled_zero": "الحد اليومي يجب أن يكون 0 عند تعطيل المساعد الذكي",
       "audit_reason_update": "تحديث الخطة بواسطة المدير العام",
-      "error_conflict_revision": "حدث تعارض في التعديل: تم تحديث الخطة بواسطة مسؤول آخر. يرجى إعادة تحميل الصفحة والمحاولة مجدداً."
+      "error_conflict_revision": "حدث تعارض في التعديل: تم تحديث الخطة بواسطة مسؤول آخر. يرجى إعادة تحميل الصفحة والمحاولة مجدداً.",
+      "price_change_title": "تأكيد تعديل سعر الباقة",
+      "price_change_notice": "تعديل سعر الباقة يسري على عمليات التجديد والشحن المستقبلية فقط ولا يقوم بتعديل أو إعادة كتابة الإيصالات المالية السابقة."
     },
     "impersonation": {
       "banner": "وضع المحاكاة ({{scope}}): عيادة {{tenant}}{{user}}",
@@ -2951,7 +2962,24 @@
       "allowed": "متاح",
       "denied": "محجوب",
       "status_enforced": "مطبق",
-      "status_shadow": "ظل"
+      "status_shadow": "ظل",
+      "admin_actions_title": "التحكم الإداري والتجاري",
+      "btn_suspend": "إيقاف تجاري",
+      "btn_reactivate": "إعادة التفعيل",
+      "btn_security_disable": "تعطيل أمني",
+      "schedule_downgrade": "جدولة تخفيض عند التجديد",
+      "downgrade_scheduled": "مجدول",
+      "select_downgrade_plan": "اختر الباقة المستهدفة...",
+      "schedule_btn": "جدولة",
+      "loading_preview": "جاري جلب معاينة الأثر...",
+      "current_status": "الحالة الحالية",
+      "resulting_status": "الحالة الناتجة",
+      "invariant_guarantee": "قراءة السجلات السريرية السابقة تظل متاحة ومحمية قانونياً.",
+      "reason_label": "سبب القرار الإداري (مطلوب - للتوثيق الأمني):",
+      "reason_min_placeholder": "اكتب سبب الإجراء هنا (5 أحرف على الأقل)...",
+      "action_suspend_title": "إيقاف الاشتراك تجارياً",
+      "action_security_title": "تعطيل العيادة أمنياً (طوارئ)",
+      "action_reactivate_title": "إعادة تفعيل العيادة"
     },
     "two_factor": {
       "invalid_setup_payload": "بيانات إعداد المصادقة الثنائية غير صحيحة",

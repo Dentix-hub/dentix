@@ -15,12 +15,16 @@ import {
     AlertTriangle,
     Cpu,
     Lock,
+    PauseCircle,
+    PlayCircle,
+    PowerOff,
+    ArrowDownCircle,
 } from 'lucide-react';
 import { api } from '@/api';
 import { format } from 'date-fns';
 import { ar, enUS } from 'date-fns/locale';
 import { useTranslation } from 'react-i18next';
-import { DentixDrawer } from '@/shared/ui';
+import { DentixDrawer, Modal } from '@/shared/ui';
 
 const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, onImpersonate }) {
     const { t, i18n } = useTranslation();
@@ -34,24 +38,40 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
     const [onboardingFeature, setOnboardingFeature] = useState(null);
     const [entitlements, setEntitlements] = useState(null);
     const [overrideLoading, setOverrideLoading] = useState(false);
+    const [availablePlans, setAvailablePlans] = useState([]);
+    const [selectedDowngradePlan, setSelectedDowngradePlan] = useState('');
+    const [downgradeLoading, setDowngradeLoading] = useState(false);
+    const [actionModal, setActionModal] = useState({
+        open: false,
+        type: null,
+        title: '',
+        preview: null,
+        reason: '',
+        loading: false,
+    });
 
     useEffect(() => {
         if (!tenantId) return;
         const fetchDetails = async () => {
             try {
                 setLoading(true);
-                const [detailsRes, usersRes, entitlementsRes] = await Promise.all([
+                const [detailsRes, usersRes, entitlementsRes, plansRes] = await Promise.all([
                     api.get(`/api/v1/admin/tenants/${tenantId}/details`),
                     api.get(`/api/v1/admin/tenants/${tenantId}/users`),
                     api.get(`/api/v1/admin/tenants/${tenantId}/entitlements`).catch((err) => {
                         logger.error('Failed to load entitlements:', err);
                         return { data: null };
                     }),
+                    api.get('/api/v1/admin/subscriptions/plans').catch((err) => {
+                        logger.error('Failed to load plans:', err);
+                        return { data: [] };
+                    }),
                 ]);
                 setData(detailsRes.data);
                 setOnboardingFeature(detailsRes.data?.tenant?.onboarding_feature || null);
                 setUsers(usersRes.data.users || []);
                 setEntitlements(entitlementsRes.data || null);
+                setAvailablePlans(Array.isArray(plansRes?.data) ? plansRes.data : []);
                 setSelectedUser('');
                 setReason('');
             } catch (error) {
@@ -60,6 +80,7 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                 setOnboardingFeature(null);
                 setUsers([]);
                 setEntitlements(null);
+                setAvailablePlans([]);
             } finally {
                 setLoading(false);
             }
@@ -68,6 +89,93 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
     }, [tenantId]);
 
     if (!tenantId) return null;
+
+    const handleOpenAction = async (type) => {
+        const titleMap = {
+            suspend: t('super_admin.tenant_detail.action_suspend_title', 'إيقاف الاشتراك تجارياً'),
+            security_disable: t('super_admin.tenant_detail.action_security_title', 'تعطيل العيادة أمنياً (طوارئ)'),
+            reactivate: t('super_admin.tenant_detail.action_reactivate_title', 'إعادة تفعيل العيادة'),
+        };
+        const endpointMap = {
+            suspend: `/api/v1/admin/tenants/${tenantId}/suspend`,
+            security_disable: `/api/v1/admin/tenants/${tenantId}/security-disable`,
+            reactivate: `/api/v1/admin/tenants/${tenantId}/reactivate`,
+        };
+        setActionModal({
+            open: true,
+            type,
+            title: titleMap[type] || '',
+            preview: null,
+            reason: '',
+            loading: true,
+        });
+        try {
+            const res = await api.post(endpointMap[type], {
+                reason: 'Super Admin Preview Inspection',
+                preview: true,
+            });
+            setActionModal((prev) => ({
+                ...prev,
+                preview: res.data || null,
+                loading: false,
+            }));
+        } catch (err) {
+            logger.error('Action preview failed:', err);
+            setActionModal((prev) => ({ ...prev, loading: false }));
+        }
+    };
+
+    const handleConfirmAction = async () => {
+        if (!actionModal.reason || actionModal.reason.trim().length < 5) return;
+        const endpointMap = {
+            suspend: `/api/v1/admin/tenants/${tenantId}/suspend`,
+            security_disable: `/api/v1/admin/tenants/${tenantId}/security-disable`,
+            reactivate: `/api/v1/admin/tenants/${tenantId}/reactivate`,
+        };
+        try {
+            setActionModal((prev) => ({ ...prev, loading: true }));
+            const res = await api.post(endpointMap[actionModal.type], {
+                reason: actionModal.reason.trim(),
+                preview: false,
+            });
+            if (res.data?.resulting_state) {
+                setData((prev) => (prev ? {
+                    ...prev,
+                    tenant: {
+                        ...prev.tenant,
+                        ...res.data.resulting_state,
+                    },
+                } : prev));
+            }
+            const entRes = await api.get(`/api/v1/admin/tenants/${tenantId}/entitlements`).catch(() => ({ data: null }));
+            if (entRes.data) setEntitlements(entRes.data);
+
+            setActionModal({ open: false, type: null, title: '', preview: null, reason: '', loading: false });
+        } catch (err) {
+            logger.error('Action execute failed:', err);
+            setActionModal((prev) => ({ ...prev, loading: false }));
+        }
+    };
+
+    const handleScheduleDowngrade = async () => {
+        if (!selectedDowngradePlan) return;
+        try {
+            setDowngradeLoading(true);
+            await api.post(`/api/v1/admin/tenants/${tenantId}/schedule-downgrade?plan_id=${selectedDowngradePlan}`);
+            setData((prev) => (prev ? {
+                ...prev,
+                tenant: {
+                    ...prev.tenant,
+                    scheduled_downgrade_plan_id: Number(selectedDowngradePlan),
+                },
+            } : prev));
+            setSelectedDowngradePlan('');
+        } catch (err) {
+            logger.error('Schedule downgrade failed:', err);
+        } finally {
+            setDowngradeLoading(false);
+        }
+    };
 
     const handleStartImpersonation = () => {
         if (!reason || reason.trim().length < 5) return;
@@ -472,6 +580,95 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                             </div>
                         )}
 
+                        {/* PR-11 Commercial & Security Lifecycle Actions */}
+                        <div className="space-y-4">
+                            <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
+                                {t('super_admin.tenant_detail.admin_actions_title', 'التحكم الإداري والتجاري')}
+                            </h4>
+                            <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 space-y-3">
+                                <div className="grid grid-cols-2 gap-2 text-xs font-bold">
+                                    {data.tenant?.subscription_status !== 'suspended_admin' ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenAction('suspend')}
+                                            className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 rounded-xl transition-all cursor-pointer"
+                                        >
+                                            <PauseCircle size={15} />
+                                            <span>{t('super_admin.tenant_detail.btn_suspend', 'إيقاف تجاري')}</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenAction('reactivate')}
+                                            className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl transition-all cursor-pointer"
+                                        >
+                                            <PlayCircle size={15} />
+                                            <span>{t('super_admin.tenant_detail.btn_reactivate', 'إعادة التفعيل')}</span>
+                                        </button>
+                                    )}
+
+                                    {data.tenant?.is_active !== false ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenAction('security_disable')}
+                                            className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800 rounded-xl transition-all cursor-pointer"
+                                        >
+                                            <PowerOff size={15} />
+                                            <span>{t('super_admin.tenant_detail.btn_security_disable', 'تعطيل أمني')}</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={() => handleOpenAction('reactivate')}
+                                            className="flex items-center justify-center gap-1.5 py-2.5 px-3 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 rounded-xl transition-all cursor-pointer"
+                                        >
+                                            <PlayCircle size={15} />
+                                            <span>{t('super_admin.tenant_detail.btn_reactivate', 'إعادة التفعيل')}</span>
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* Scheduled Downgrade Section */}
+                                <div className="pt-3 border-t border-slate-100 dark:border-slate-700/60 space-y-2">
+                                    <div className="flex items-center justify-between text-xs">
+                                        <span className="font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1.5">
+                                            <ArrowDownCircle size={14} className="text-slate-400" />
+                                            {t('super_admin.tenant_detail.schedule_downgrade', 'جدولة تخفيض عند التجديد')}
+                                        </span>
+                                        {data.tenant?.scheduled_downgrade_plan_id && (
+                                            <span className="text-[11px] font-bold text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
+                                                {t('super_admin.tenant_detail.downgrade_scheduled', 'مجدول')}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <select
+                                            value={selectedDowngradePlan}
+                                            onChange={(e) => setSelectedDowngradePlan(e.target.value)}
+                                            className="flex-1 bg-slate-50 dark:bg-slate-700/60 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-xs rounded-xl px-3 py-2 outline-none"
+                                        >
+                                            <option value="">{t('super_admin.tenant_detail.select_downgrade_plan', 'اختر الباقة المستهدفة...')}</option>
+                                            {(Array.isArray(availablePlans) ? availablePlans : [])
+                                                .filter((p) => p && p.is_active && p.id !== data.tenant?.plan_id)
+                                                .map((p) => (
+                                                    <option key={p.id} value={p.id}>
+                                                        {isRtl ? (p.display_name_ar || p.name) : (p.display_name_en || p.name)} ({p.price} EGP)
+                                                    </option>
+                                                ))}
+                                        </select>
+                                        <button
+                                            type="button"
+                                            onClick={handleScheduleDowngrade}
+                                            disabled={!selectedDowngradePlan || downgradeLoading}
+                                            className="px-3 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white text-xs font-bold rounded-xl transition-all shrink-0 cursor-pointer"
+                                        >
+                                            {t('super_admin.tenant_detail.schedule_btn', 'جدولة')}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div className="space-y-4">
                             <h4 className="text-sm font-bold text-slate-400 uppercase tracking-wider">
                                 {t('super_admin.tenant_detail.features_title', 'ميزات العيادة ومسار البداية')}
@@ -544,6 +741,83 @@ const TenantDetailPanel = memo(function TenantDetailPanel({ tenantId, onClose, o
                         {t('super_admin.tenant_detail.close')}
                     </button>
                 </div>
+
+                {/* PR-11 Action Confirmation & Preview Modal */}
+                <Modal
+                    isOpen={actionModal.open}
+                    onClose={() => setActionModal({ open: false, type: null, title: '', preview: null, reason: '', loading: false })}
+                    title={actionModal.title}
+                    maxWidth="max-w-md"
+                >
+                    <div className="space-y-4 pt-2">
+                        {actionModal.loading && !actionModal.preview ? (
+                            <div className="p-4 text-center text-xs text-slate-500 animate-pulse">
+                                {t('super_admin.tenant_detail.loading_preview', 'جاري جلب معاينة الأثر...')}
+                            </div>
+                        ) : (
+                            <>
+                                {actionModal.preview && (
+                                    <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl space-y-2 text-xs border border-slate-100 dark:border-slate-700/60">
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-400">{t('super_admin.tenant_detail.current_status', 'الحالة الحالية')}:</span>
+                                            <span className="font-bold text-slate-700 dark:text-slate-300">
+                                                {String(actionModal.preview.previous_state?.subscription_status || '')}
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-slate-400">{t('super_admin.tenant_detail.resulting_status', 'الحالة الناتجة')}:</span>
+                                            <span className="font-bold text-indigo-600 dark:text-indigo-400">
+                                                {String(actionModal.preview.resulting_state?.subscription_status || '')}
+                                            </span>
+                                        </div>
+                                        {actionModal.preview.clinical_history_preserved && (
+                                            <div className="pt-2 border-t border-slate-200 dark:border-slate-700 text-[11px] text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                                                <Lock size={12} className="shrink-0" />
+                                                <span>{t('super_admin.tenant_detail.invariant_guarantee', 'قراءة السجلات السريرية السابقة تظل متاحة ومحمية قانونياً.')}</span>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                                        {t('super_admin.tenant_detail.reason_label', 'سبب القرار الإداري (مطلوب - للتوثيق الأمني):')}
+                                    </label>
+                                    <textarea
+                                        value={actionModal.reason}
+                                        onChange={(e) => setActionModal((prev) => ({ ...prev, reason: e.target.value }))}
+                                        placeholder={t('super_admin.tenant_detail.reason_min_placeholder', 'اكتب سبب الإجراء هنا (5 أحرف على الأقل)...')}
+                                        rows={3}
+                                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-xs outline-none focus:ring-2 focus:ring-indigo-500"
+                                    />
+                                    {actionModal.reason && actionModal.reason.trim().length < 5 && (
+                                        <p className="text-[11px] text-rose-500 mt-1">
+                                            {t('super_admin.tenant_detail.min_reason', 'الحد الأدنى 5 أحرف')}
+                                        </p>
+                                    )}
+                                </div>
+                            </>
+                        )}
+
+                        <div className="flex gap-2 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setActionModal({ open: false, type: null, title: '', preview: null, reason: '', loading: false })}
+                                className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl transition-all cursor-pointer"
+                            >
+                                {t('common.cancel', 'إلغاء')}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleConfirmAction}
+                                disabled={!actionModal.reason || actionModal.reason.trim().length < 5 || actionModal.loading}
+                                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                            >
+                                {actionModal.loading ? t('common.loading', 'جاري التنفيذ...') : t('common.confirm', 'تأكيد التنفيذ')}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
             </div>
         </DentixDrawer>
     );

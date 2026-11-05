@@ -567,3 +567,55 @@ class TenantEntitlementDiagnosticsResponse(BaseModel):
     configuration_warnings: list[str] = Field(default_factory=list)
 
 
+# --- PR-11 Super Admin Commercial Control & Reconciliation Schemas ---
+
+class TenantCommercialActionRequest(BaseModel):
+    reason: str = Field(..., min_length=5, description="Reason for the commercial/security action")
+    preview: bool = Field(False, description="If true, returns predicted changes without persisting")
+    idempotency_key: Optional[str] = Field(None, max_length=64, description="Optional client idempotency key")
+
+
+class TenantCommercialActionResponse(BaseModel):
+    tenant_id: int
+    action: str
+    is_preview: bool
+    previous_state: Dict[str, Any]
+    resulting_state: Dict[str, Any]
+    clinical_history_preserved: bool = True
+    message: str
+
+
+class PolicyReversalRequest(BaseModel):
+    audit_log_id: int = Field(..., description="Audit log entry ID representing the policy action to reverse")
+    reason: str = Field(..., min_length=5, description="Audited explanation for this policy reversal")
+    preview: bool = Field(False, description="If true, returns predicted restored state without persisting")
+    idempotency_key: Optional[str] = Field(None, max_length=64)
+
+
+class PolicyReversalResponse(BaseModel):
+    reversal_audit_log_id: Optional[int] = None
+    original_audit_log_id: int
+    action_reversed: str
+    is_preview: bool
+    entity_type: str
+    entity_id: int
+    restored_values: Dict[str, Any]
+    message: str
+
+
+class CatalogInventoryResponse(BaseModel):
+    counts: Dict[str, int]
+    canonical_plans_status: Dict[str, Any]
+    enforcement_mode: str
+    catalog_plans: List[Dict[str, Any]]
+    warnings: List[str] = Field(default_factory=list)
+
+
+class ReconciliationPreviewResponse(BaseModel):
+    safe_migration_summary: Dict[str, int]
+    unanchored_tenants: List[Dict[str, Any]]
+    status_anomalies: List[Dict[str, Any]]
+    proposed_canonical_mappings: Dict[str, str]
+    preservation_guarantees: List[str] = Field(default_factory=list)
+
+

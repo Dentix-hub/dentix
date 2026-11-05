@@ -270,6 +270,12 @@ from .tenant import (
     TrialPolicyUpdateRequest,
     EmergencyRestrictionUpdateRequest,
     EmergencyRestrictionResponse,
+    TenantCommercialActionRequest,
+    TenantCommercialActionResponse,
+    PolicyReversalRequest,
+    PolicyReversalResponse,
+    CatalogInventoryResponse,
+    ReconciliationPreviewResponse,
 )
 
 # Laboratory

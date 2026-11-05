@@ -4,6 +4,7 @@ from typing import List
 from backend import models, schemas
 from backend.database import get_async_db
 from backend.services.subscription_service import SubscriptionService
+from backend.services.reconciliation_service import ReconciliationService
 from backend.core.permissions import Role, Permission, require_permission
 from backend.core.response import success_response, StandardResponse
 
@@ -98,6 +99,46 @@ async def seed_launch_catalog(
 ):
     data = await SubscriptionService.seed_launch_catalog(db, admin_user=current_user)
     return success_response(data=data, message=data.get("message", "Seeded launch plans"))
+
+
+# Catalog Inventory & Reconciliation Preview (PR-11)
+@router.get("/catalog-inventory", response_model=StandardResponse[schemas.CatalogInventoryResponse])
+async def get_catalog_inventory(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    """
+    Authoritative read-only catalog and tenant configuration inventory.
+    Provides counts, launch tier status, and anomaly warnings. Zero PII or secrets.
+    """
+    data = await ReconciliationService.get_catalog_inventory(db)
+    return success_response(data=data)
+
+
+@router.get("/reconciliation-preview", response_model=StandardResponse[schemas.ReconciliationPreviewResponse])
+async def get_reconciliation_preview(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    """
+    Pure preview of catalog and tenant reconciliation.
+    Identifies unanchored plans, status anomalies, and proposes mappings.
+    Zero mutations.
+    """
+    data = await ReconciliationService.preview_reconciliation(db)
+    return success_response(data=data)
+
+
+@router.post("/reconcile-tenants", response_model=StandardResponse[dict])
+async def reconcile_tenants(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    """
+    Safely anchor unanchored tenants to canonical plans without shortening periods or modifying active accounts.
+    """
+    data = await ReconciliationService.apply_reconciliation(db, admin_user=current_user)
+    return success_response(data=data, message=data.get("message", "Reconciliation completed"))
 
 
 # Trial Policy
