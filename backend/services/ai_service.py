@@ -20,6 +20,7 @@ from backend.ai.errors import AIException
 from backend.ai.policy.execution_policy import policy_engine
 from backend.ai.agent.state_manager import state_manager
 from backend.services.visibility_service import get_visibility_service
+from backend.services.ai_egress_policy import AIEgressDenied
 from backend.services.commercial_ai_guard import (
     evaluate_commercial_ai_access,
     async_evaluate_commercial_ai_access,
@@ -220,6 +221,15 @@ class AIService:
             await self._finalize_reservation(reservation_id, ReservationStatus.CONSUMED, reconciliation_notes=json.dumps({"kind": "analysis_result_v1", "message": content}))
             return AIQueryResponse(
                 success=True, message=content, tool="response", risk_level="SAFE"
+            )
+        except AIEgressDenied as exc:
+            await self._finalize_reservation(
+                reservation_id,
+                ReservationStatus.RELEASED,
+                error_reason=str(exc),
+            )
+            return AIQueryResponse(
+                success=False, error="ai_egress_denied", message=str(exc)
             )
         except Exception as e:
             logger.error(f"Direct Analysis Failed: {e}")

@@ -16,7 +16,7 @@ from .router import SmartModelRouter
 from ...rag.store import knowledge_store
 from .circuit_breaker import ai_circuit_breaker
 from backend.ai.privacy.scrubber import scrubber
-from backend.services.ai_egress_policy import prepare_ai_messages
+from backend.services.ai_egress_policy import AIEgressDenied, prepare_ai_messages
 
 # Logger Setup
 logger = logging.getLogger(__name__)
@@ -217,6 +217,14 @@ class AIAgent:
 
             return result
 
+        except AIEgressDenied as exc:
+            logger.info("External AI request rejected before dispatch", extra={"tenant_id": tenant_id})
+            return {
+                "tool": "response",
+                "message": str(exc),
+                "error": "ai_egress_denied",
+                "_provider_dispatched": False,
+            }
         except Exception as e:
             root_cause = getattr(e, "__cause__", None)
             cause_str = f" | Cause: {str(root_cause)}" if root_cause else ""

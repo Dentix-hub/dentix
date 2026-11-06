@@ -2,6 +2,9 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- AI privacy-denial accounting (2026-11-06): typed pre-dispatch denial now releases chat/direct/preallocated analysis reservations; Scribe's existing deny-before-reserve ordering verified. Privacy settings, generic provider accounting and historical rows preserved.
+- Verification: 74 focused backend tests PASS (18 new PostgreSQL cases), plus overlapping final denial-audit acceptance; Ruff/whitespace PASS. Hosted acceptance/paid launch remain PARTIAL; staging mode OFF and real-provider approval unchanged. Report: docs/reports/ai-pre-dispatch-accounting-2026-11-06.md.
+
 - Readiness recheck (2026-11-06): a34d282 staging CD/smoke PASS; synthetic signup Professional/14 days, deployed mode OFF, AI failed before provider because isolated accounting omitted RLS tenant binding.
 - Local fixes: async AI overrides, per-transaction accounting tenant scope, safe client errors, renewal-only downgrade/future-assignment guards and accurate scheduling audit; no migrations/hosted fixes/production changes.
 - Verification: focused backend 67 PASS (13 new PostgreSQL regressions), independent RBAC/AI finance 27 PASS, frontend 11 PASS; build/PWA/marketing, Ruff/changed ESLint/whitespace PASS. Release PARTIAL pending correction CI/staging/provider/owner acceptance. Report: docs/reports/production-readiness-commercial-2026-11-06.md.
