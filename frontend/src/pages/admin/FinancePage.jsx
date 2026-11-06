@@ -1,3 +1,4 @@
+import CommercialLaunchControls from '@/features/admin/SuperAdmin/CommercialLaunchControls';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
@@ -229,7 +230,8 @@ export default function FinancePage() {
                         <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">{t('super_admin.finance.subtitle') || 'المدفوعات وخطط الاشتراك'}</p>
                     </div>
                 </div>
-                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                <div className="flex flex-wrap bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                    <button type="button" onClick={() => setActiveTab('commercial')} className="px-4 py-2 rounded-lg font-bold">{isRtl ? 'التهيئة والضوابط' : 'Setup & controls'}</button>
                     <button
                         onClick={() => setActiveTab('payments')}
                         className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'payments' ? 'bg-white dark:bg-slate-700 shadow text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}
@@ -273,7 +275,7 @@ export default function FinancePage() {
                 </button>
             </div>
 
-            {activeTab === 'payments' ? (
+            {activeTab === 'commercial' ? (<CommercialLaunchControls onCatalogApplied={fetchData} />) : activeTab === 'payments' ? (
                 <PaymentsManager
                     payments={payments}
                     tenants={tenants}
