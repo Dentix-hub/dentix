@@ -709,6 +709,7 @@ async def analyze_clinic(
 
     await AIQuotaService.async_finalize_reservation(
         bind=db,
+        tenant_id=current_user.tenant_id,
         reservation_id=reservation.reservation_id,
         status=ReservationStatus.CONSUMED,
         reconciliation_notes=json.dumps({"kind": "analysis_result_v1", "message": response.message}),

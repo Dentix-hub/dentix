@@ -83,7 +83,7 @@ RULES:
                     parent_reservation_id=parent_reservation_id,
                 )
             else:
-                with isolated_accounting_session() as acct_session:
+                with isolated_accounting_session(tenant_id=tenant_id) as acct_session:
                     tenant = acct_session.get(models.Tenant, tenant_id)
                     denial = evaluate_commercial_ai_access(tenant, db_session=acct_session)
                     if denial:
@@ -115,7 +115,7 @@ RULES:
                     AIQuotaService.finalize_reservation(session, reservation.reservation_id,
                         ReservationStatus.RELEASED, error_reason="Provider client unavailable before dispatch")
                 else:
-                    with isolated_accounting_session() as acct_session:
+                    with isolated_accounting_session(tenant_id=tenant_id) as acct_session:
                         AIQuotaService.finalize_reservation(acct_session, reservation.reservation_id,
                             ReservationStatus.RELEASED, error_reason="Provider client unavailable before dispatch")
             raise ValueError("Groq API Key not configured")
@@ -141,7 +141,7 @@ RULES:
                         reconciliation_notes=json.dumps({"kind": "scribe_result_v1", "procedures": procedures}),
                     )
                 else:
-                    with isolated_accounting_session() as acct_session:
+                    with isolated_accounting_session(tenant_id=tenant_id) as acct_session:
                         AIQuotaService.finalize_reservation(
                             acct_session,
                             reservation_id=reservation.reservation_id,
@@ -163,7 +163,7 @@ RULES:
                             error_reason=str(e),
                         )
                     else:
-                        with isolated_accounting_session() as acct_session:
+                        with isolated_accounting_session(tenant_id=tenant_id) as acct_session:
                             AIQuotaService.finalize_reservation(
                                 acct_session,
                                 reservation_id=reservation.reservation_id,

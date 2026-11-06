@@ -108,6 +108,7 @@ class AIService:
         try:
             await AIQuotaService.async_finalize_reservation(
                 bind=self.db,
+                tenant_id=self.user.tenant_id,
                 reservation_id=reservation_id,
                 status=status,
                 error_reason=error_reason,
@@ -228,7 +229,7 @@ class AIService:
                 error_reason=str(e),
             )
             return AIQueryResponse(
-                success=False, error="analysis_failed", message=f"فشل التحليل: {str(e)}"
+                success=False, error="analysis_failed", message="تعذر إكمال التحليل. يرجى المحاولة لاحقاً."
             )
 
     async def process_query(
@@ -482,7 +483,7 @@ class AIService:
             final_response_data = {
                 "success": False,
                 "error": "internal_server_error",
-                "message": f"حدث خطأ داخلي غير متوقع: {str(e)}",
+                "message": "تعذر إكمال الطلب الذكي بسبب خطأ داخلي. يرجى المحاولة لاحقاً.",
             }
             if reservation:
                 await self._finalize_reservation(
