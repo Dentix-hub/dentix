@@ -20,6 +20,20 @@ def paid_billing_anchor(tenant):
     return tenant.billing_day_anchor
 
 
+def is_plan_downgrade(current, target) -> bool:
+    """Use the same capacity/price definition for receipt grants and admin assignment."""
+    return bool(
+        current
+        and current.id != target.id
+        and (
+            (target.max_users is not None
+             and (current.max_users is None or target.max_users < current.max_users))
+            or target.ai_daily_limit < current.ai_daily_limit
+            or target.price < current.price
+        )
+    )
+
+
 async def grant_subscription_period(
     db, tenant, plan, end: datetime, *, now=None, allow_unassigned=False
 ):
@@ -74,18 +88,7 @@ async def grant_subscription_period(
                 409,
                 f"Deactivate accounts explicitly before selecting this plan: {used} active, limit {plan.max_users}",
             )
-    lower = bool(
-        current
-        and changed
-        and (
-            (
-                plan.max_users is not None
-                and (current.max_users is None or plan.max_users < current.max_users)
-            )
-            or plan.ai_daily_limit < current.ai_daily_limit
-            or plan.price < current.price
-        )
-    )
+    lower = is_plan_downgrade(current, plan)
     pending = tenant.future_plan_id and not period.future_started
     if pending and plan.id != tenant.future_plan_id:
         raise HTTPException(

@@ -150,8 +150,9 @@ export default function TenantsPage() {
                     });
                     toast.success(t('super_admin.tenants.plan_changed_success', 'تم تغيير الباقة بنجاح'));
                     fetchData();
-                } catch {
-                    toast.error(t('super_admin.tenants.plan_change_failed', 'فشل تغيير الخطة'));
+                } catch (error) {
+                    const detail = error.response?.data?.detail;
+                    toast.error(typeof detail === 'string' ? detail : t('super_admin.tenants.plan_change_failed', 'فشل تغيير الخطة'));
                 } finally {
                     setConfirmState(prev => ({ ...prev, isOpen: false }));
                 }

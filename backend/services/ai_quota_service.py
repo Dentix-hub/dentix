@@ -19,13 +19,14 @@ import json
 from typing import Any, Dict, Generator, Optional
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, event, text
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.database import async_engine, engine
 from backend import models
+from backend.core.tenancy import get_current_tenant_id
 
 _SyncSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 from backend.models.ai_accounting import (
@@ -109,8 +110,38 @@ def compute_request_fingerprint(payload: Any) -> str:
     return hashlib.sha256(raw).hexdigest()
 
 
+def _accounting_tenant(bind=None, tenant_id=None):
+    """Keep isolated accounting inside the authenticated tenant boundary."""
+    context = getattr(bind, "_context", None)
+    bound_tenant = getattr(context, "tenant_id", None)
+    if bound_tenant is None:
+        bound_tenant = get_current_tenant_id()
+    if tenant_id is not None and bound_tenant is not None and tenant_id != bound_tenant:
+        raise ScopeMismatchError("Accounting tenant differs from authenticated tenant")
+    return tenant_id if tenant_id is not None else bound_tenant
+
+
+def _bind_accounting_rls(session: Session, tenant_id: int | None):
+    """Bind SET LOCAL on every transaction, including run_sync commits/restarts.
+
+    This uses the existing rls.tenant_id policy contract, never a bypass role.
+    The listener belongs only to this isolated Session; pooled connections retain
+    no tenant setting after commit/rollback.
+    """
+    if session.get_bind().dialect.name != "postgresql":
+        return
+
+    def set_tenant(db_session, transaction, connection):
+        connection.execute(
+            text("SELECT set_config('rls.tenant_id', :tenant_id, true)"),
+            {"tenant_id": str(tenant_id) if tenant_id is not None else ""},
+        )
+
+    event.listen(session, "after_begin", set_tenant)
+
+
 @contextmanager
-def isolated_accounting_session() -> Generator[Session, None, None]:
+def isolated_accounting_session(tenant_id=None) -> Generator[Session, None, None]:
     """Provide a dedicated, isolated database session for accounting transactions.
 
     This ensures accounting mutations never hold database locks over provider network
@@ -118,6 +149,7 @@ def isolated_accounting_session() -> Generator[Session, None, None]:
     """
     session = _SyncSessionLocal()
     try:
+        _bind_accounting_rls(session, _accounting_tenant(tenant_id=tenant_id))
         yield session
     except Exception:
         session.rollback()
@@ -592,6 +624,7 @@ class AIQuotaService:
         """Reserve quota asynchronously in an isolated session."""
         target_bind = bind.bind if hasattr(bind, "bind") else (bind or async_engine)
         async with AsyncSession(bind=target_bind, expire_on_commit=False) as session:
+            _bind_accounting_rls(session.sync_session, _accounting_tenant(bind, tenant_id))
             return await session.run_sync(
                 lambda s: cls.reserve_quota(
                     session=s,
@@ -614,10 +647,12 @@ class AIQuotaService:
         error_reason: Optional[str] = None,
         reconciliation_notes: Optional[str] = None,
         now_utc: Optional[datetime] = None,
+        tenant_id: Optional[int] = None,
     ) -> AIReservation:
         """Finalize reservation asynchronously in an isolated session."""
         target_bind = bind.bind if hasattr(bind, "bind") else (bind or async_engine)
         async with AsyncSession(bind=target_bind, expire_on_commit=False) as session:
+            _bind_accounting_rls(session.sync_session, _accounting_tenant(bind, tenant_id))
             return await session.run_sync(
                 lambda s: cls.finalize_reservation(
                     session=s,

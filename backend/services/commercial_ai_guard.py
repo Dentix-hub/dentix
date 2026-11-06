@@ -229,12 +229,12 @@ async def async_evaluate_commercial_ai_access(
                 res_ov = await db.execute(stmt_ov)
             else:
                 res_ov = db.execute(stmt_ov)
-                ov_rows = res_ov.scalars().all() if hasattr(res_ov, "scalars") else []
-                for r in ov_rows:
-                    if getattr(r, "override_value", None) == "deny":
-                        active_overrides[CapabilityKey.AI_INSIGHTS.value] = False
-                    elif getattr(r, "override_value", None) == "allow":
-                        active_overrides[CapabilityKey.AI_INSIGHTS.value] = True
+            ov_rows = res_ov.scalars().all() if hasattr(res_ov, "scalars") else []
+            for r in ov_rows:
+                if getattr(r, "override_value", None) == "deny":
+                    active_overrides[CapabilityKey.AI_INSIGHTS.value] = False
+                elif getattr(r, "override_value", None) == "allow":
+                    active_overrides[CapabilityKey.AI_INSIGHTS.value] = True
         except Exception as exc:
             logger.warning(f"Error querying tenant overrides: {exc}")
             return ("policy_unavailable", "تعذر التحقق من صلاحيات الباقة. حاول لاحقاً.")

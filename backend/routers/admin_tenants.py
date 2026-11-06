@@ -18,6 +18,8 @@ from backend.services.subscription_renewal_service import (
     renew_subscription,
 )
 from backend.services.commercial_action_service import CommercialActionService
+from backend.services.subscription_grant import is_plan_downgrade
+from backend.services.subscription_period import resolve_subscription_period, utc_naive
 from backend.core.permissions import Role, Permission, require_permission
 from backend.core.response import success_response, StandardResponse
 from starlette.requests import Request
@@ -159,6 +161,19 @@ async def assign_plan_to_tenant(
     if not plan or not plan.is_active:
         raise HTTPException(status_code=404, detail="Subscription plan not found")
 
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    period = resolve_subscription_period(tenant, now)
+    effective_plan_id = tenant.future_plan_id if period.future_started else tenant.plan_id
+    current_plan = await db.get(models.SubscriptionPlan, effective_plan_id) if effective_plan_id else None
+    if tenant.future_plan_id and plan.id != effective_plan_id:
+        raise HTTPException(409, "Resolve the existing future paid assignment before changing it")
+    if is_plan_downgrade(current_plan, plan) and (
+        tenant.subscription_end_date is None or utc_naive(tenant.subscription_end_date) > now
+    ):
+        raise HTTPException(
+            409, "Downgrades take effect at renewal; use schedule-downgrade after reducing active accounts"
+        )
+
     # Lower-cap assignment cannot bypass capacity rules (Task 2):
     active_count = await AccountAdmissionService.get_active_account_count(db, tenant.id)
     if plan.max_users is not None and active_count > plan.max_users:
@@ -234,6 +249,7 @@ async def schedule_tenant_downgrade(
             ),
         )
 
+    previous_downgrade_id = tenant.scheduled_downgrade_plan_id
     tenant.scheduled_downgrade_plan_id = target_plan.id
 
     db.add(
@@ -244,7 +260,7 @@ async def schedule_tenant_downgrade(
             target_username=tenant.name,
             performed_by_id=current_user.id,
             performed_by_username=current_user.username,
-            old_value=f"scheduled_downgrade={tenant.scheduled_downgrade_plan_id}",
+            old_value=f"scheduled_downgrade={previous_downgrade_id}",
             new_value=f"scheduled_downgrade={target_plan.id} ({target_plan.name})",
             details=f"Downgrade scheduled for next renewal. Active accounts: {active_count}/{target_plan.max_users}",
             tenant_id=tenant.id,

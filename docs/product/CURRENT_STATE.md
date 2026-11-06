@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Readiness recheck (2026-11-06): a34d282 staging CD/smoke PASS; synthetic signup Professional/14 days, deployed mode OFF, AI failed before provider because isolated accounting omitted RLS tenant binding.
+- Local fixes: async AI overrides, per-transaction accounting tenant scope, safe client errors, renewal-only downgrade/future-assignment guards and accurate scheduling audit; no migrations/hosted fixes/production changes.
+- Verification: focused backend 67 PASS (13 new PostgreSQL regressions), independent RBAC/AI finance 27 PASS, frontend 11 PASS; build/PWA/marketing, Ruff/changed ESLint/whitespace PASS. Release PARTIAL pending correction CI/staging/provider/owner acceptance. Report: docs/reports/production-readiness-commercial-2026-11-06.md.
+
 - Commercial plan gap fixes (2026-11-05): S01–S10/T01 plus first-paid-month anchor corrected locally; unified period/grant, durable receipt replay, safe downgrade/retired-contract handling, real AI ledger/tool policy, typed Super Admin controls. No DB schema changes or live mutations.
 - Verification: final full backend 1943 PASS / 1 existing TestClient refresh skip, coverage 81.82%; full frontend 1195 PASS across 180 files, both exit 0 on frozen code 136fde2. Affected backend 140 PASS + financial/policy 61 PASS; AI executor 21 PASS; UI/resources/recovery/reload PASS (overlapping gates). Ruff, ESLint, production/PWA build and committed design-diff gate PASS (0 new violations).
 - Status: DONE locally for code fixes; PR CI, authorized staging catalog/provider/browser acceptance and cumulative promotion review remain pending. No push/PR/merge/deploy. Evidence: docs/reports/commercial-plan-gap-fixes-2026-11-05.md.
