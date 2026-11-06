@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { webcrypto } from 'node:crypto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -180,4 +181,14 @@ it('reuses the manual receipt identity after a lost response and reload', async 
     const calls = recordSubscriptionPayment.mock.calls.slice(-2);
     expect(calls[0][0].idempotency_key).toBeTruthy();
     expect(calls[1][0].idempotency_key).toBe(calls[0][0].idempotency_key);
+});
+
+
+it('opens the commercial setup controls directly from Finance', async () => {
+    getSubscriptionPayments.mockResolvedValue({data:[]});
+    getSubscriptionPlans.mockResolvedValue({data:[]});
+    api.get.mockResolvedValue({data:{}});
+    render(<QueryClientProvider client={new QueryClient({defaultOptions:{queries:{retry:false}}})}><FinancePage /></QueryClientProvider>);
+    fireEvent.click(await screen.findByRole('button',{name:'التهيئة والضوابط'}));
+    expect(await screen.findByRole('button',{name:'معاينة تهيئة الباقات المعتمدة'})).toBeInTheDocument();
 });

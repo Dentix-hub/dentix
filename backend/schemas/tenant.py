@@ -685,3 +685,15 @@ class ReconciliationSelection(BaseModel):
 class ReconciliationApplyRequest(BaseModel):
     reason: str = Field(min_length=5, max_length=500)
     mappings: List[ReconciliationSelection] = Field(min_length=1, max_length=100)
+
+
+class CatalogSetupRequest(BaseModel):
+    expected_snapshot: str = Field(min_length=64, max_length=64)
+    reason: str = Field(min_length=5, max_length=500)
+
+    @field_validator('reason')
+    @classmethod
+    def clean_reason(cls, value):
+        if len(value.strip()) < 5:
+            raise ValueError('A documented setup reason is required')
+        return value.strip()

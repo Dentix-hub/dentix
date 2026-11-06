@@ -1,3 +1,4 @@
+import CatalogSetupControl from './CatalogSetupControl';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -10,7 +11,11 @@ const unwrap = (response) => response.data?.data ?? response.data;
 const field = 'w-full rounded-lg border border-slate-300 bg-white p-2 text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white';
 const button = 'rounded-lg bg-sky-700 px-4 py-2 font-bold text-white disabled:opacity-50';
 
-export default function CommercialLaunchControls() {
+export default function CommercialLaunchControls({ onCatalogApplied }) {
+    return <div className="space-y-6"><CatalogSetupControl onApplied={onCatalogApplied} /><CommercialPolicyControls /></div>;
+}
+
+function CommercialPolicyControls() {
     const { i18n } = useTranslation();
     const ar = i18n.language.startsWith('ar');
     const text = (arabic, english) => ar ? arabic : english;

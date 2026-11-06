@@ -102,6 +102,18 @@ async def seed_launch_catalog(
 
 
 # Catalog Inventory & Reconciliation Preview (PR-11)
+@router.get('/catalog-setup-preview', response_model=StandardResponse[dict])
+async def preview_catalog_setup(db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_super_admin)):
+    from backend.services.catalog_setup_service import preview_catalog_setup as preview
+    return success_response(data=await preview(db))
+
+
+@router.post('/catalog-setup', response_model=StandardResponse[dict])
+async def apply_catalog_setup(request: schemas.CatalogSetupRequest, db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_super_admin)):
+    from backend.services.catalog_setup_service import apply_catalog_setup as apply
+    return success_response(data=await apply(db,request,current_user))
+
+
 @router.get("/catalog-inventory", response_model=StandardResponse[schemas.CatalogInventoryResponse])
 async def get_catalog_inventory(
     db: AsyncSession = Depends(get_async_db),

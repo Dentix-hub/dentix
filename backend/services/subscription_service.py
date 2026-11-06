@@ -640,6 +640,8 @@ class SubscriptionService:
         db: AsyncSession,
         update_data: schemas.TrialPolicyUpdateRequest,
         admin_user: Optional[models.User] = None,
+        *,
+        commit: bool = True,
     ) -> schemas.TrialPolicyResponse:
         """Update future signup trial policy with transactional audit."""
         await db.execute(select(models.SubscriptionPlan).where(
@@ -699,7 +701,10 @@ class SubscriptionService:
             )
             db.add(audit)
 
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
         return await SubscriptionService.get_trial_policy(db)
 
     @staticmethod
