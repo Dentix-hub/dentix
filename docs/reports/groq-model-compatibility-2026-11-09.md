@@ -1,6 +1,6 @@
 # Groq model compatibility preparation — 2026-11-09
 
-**Status: local implementation, genuine provider compatibility and local accounting/replay DONE; hosted delivery and clinical activation PARTIAL.** Base: protected Staging `86f80c1481c977d2c3e318034a914568f7657812`. Three fixed nonclinical Groq completions were executed with the owner-supplied test credential. No push, PR, deployment, hosted Dentix request or hosted policy change was performed. Legacy offers remain in their current state as explicitly requested by the owner.
+**Status: local implementation, genuine provider compatibility and local accounting/replay DONE; remote delivery authorized; hosted delivery and clinical activation PARTIAL.** Base: protected Staging `86f80c1481c977d2c3e318034a914568f7657812`. Three fixed nonclinical Groq completions were executed with the owner-supplied test credential. The owner authorized pushing this branch and opening its Staging PR. No deployment, hosted Dentix request or hosted policy change was performed. Legacy offers remain in their current state as explicitly requested by the owner.
 
 ## Confirmed compatibility gap
 
@@ -48,7 +48,7 @@ Private result certificates are `groq-nonclinical-provider-result.json` and `gro
 
 ## Remaining hosted/clinical acceptance
 
-1. Deliver the reviewed source fix through an authorized PR to Staging. Local bundles are verified; no remote delivery has been requested or performed yet.
+1. Deliver the reviewed source fix through its owner-authorized PR to Staging. Local bundles are verified. CI, merge and deployed-Staging acceptance follow the repository workflow; production promotion is not included in this authorization.
 2. Hosted end-to-end success, exactly one quota consumption and free replay remain separate acceptance checks after authorized delivery and approved runtime egress configuration. Neither local mocks nor the real local service probe are relabelled as hosted acceptance.
 3. Before clinical activation, establish the appropriate approved privacy arrangement. Current de-identification is regex-based and has no recorded comprehensive Arabic/English clinical anonymity benchmark here. Fixing a static-label false positive does not establish anonymity of arbitrary clinical text. Do not set `EXTERNAL_AI_CONTRACT_APPROVED=true` without actual approval. Groq's [data-control documentation](https://console.groq.com/docs/your-data) describes ZDR availability; a provider setting alone does not certify the application's entire clinical data flow.
 
