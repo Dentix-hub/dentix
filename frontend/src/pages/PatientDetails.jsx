@@ -43,11 +43,12 @@ import TreatmentPlansCard from '@/features/clinical-plans/TreatmentPlansCard';
 import {
     CareSessionActiveBanner,
     ContinueTreatmentCard,
-    RctStructuredCard,
+    GenericVisitWorkspace,
     FinishCareSessionSheet,
+    useCareSessionDraft,
 } from '@/features/care-sessions';
 import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
-import { Baby, Sparkles } from 'lucide-react';
+import { Baby, Sparkles, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 import { getTodayStr } from '../utils/toothUtils';
 import {
@@ -165,7 +166,7 @@ export default function PatientDetails() {
         refetch: refetchWorkspace,
     } = usePatientClinicalWorkspace(id, { enabled: activeTab === 'chart' || isToothSelectModalOpen });
 
-    const { data: tenantFeatures = [] } = useTenantFeatures();
+    const { data: tenantFeatures = [], refetch: refetchTenantFeatures } = useTenantFeatures();
     const isTreatmentPlansEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_treatment_plans');
     const isNativeWritesEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_vnext_native_writes');
 
@@ -252,6 +253,58 @@ export default function PatientDetails() {
     const applyCareSessionTemplateMutation = useApplyCareSessionTemplate();
     const recordCareObservationMutation = useRecordCareObservation();
 
+    const {
+        draftData: careSessionDraftData,
+        updateDraft: updateCareSessionDraft,
+        discardDraft: discardCareSessionDraft,
+        status: careSessionDraftStatus,
+        resolveConflict: resolveCareSessionDraftConflict,
+        saveNow: flushCareSessionDraft,
+    } = useCareSessionDraft({
+        patientId: id ? Number(id) : null,
+        careSessionId: activeCareSession?.id || null,
+        enabled: Boolean(activeCareSession?.id && isNativeWritesEnabled),
+    });
+
+    const autosaveIndicator = useMemo(() => {
+        if (!activeCareSession || careSessionDraftStatus === 'idle') return null;
+        return (
+            <div data-testid="care-session-autosave-indicator" className="inline-flex items-center gap-1.5 text-xs">
+                {careSessionDraftStatus === 'saving' && (
+                    <span className="flex items-center gap-1 text-slate-500 font-medium">
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <span>{t('care_session.saving_draft', 'Saving draft...')}</span>
+                    </span>
+                )}
+                {careSessionDraftStatus === 'saved' && (
+                    <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                        <CheckCircle2 className="h-3 w-3" />
+                        <span>{t('care_session.draft_saved', 'Draft autosaved')}</span>
+                    </span>
+                )}
+                {careSessionDraftStatus === 'conflict' && (
+                    <span className="flex items-center gap-1 text-amber-600 font-bold">
+                        <AlertTriangle className="h-3 w-3" />
+                        <span>{t('care_session.draft_conflict', 'Draft conflict')}</span>
+                        <button
+                            type="button"
+                            onClick={() => resolveCareSessionDraftConflict({ overwrite: true })}
+                            className="underline text-[10px] ml-1 text-amber-700 hover:text-amber-900"
+                        >
+                            {t('common.overwrite', 'Overwrite')}
+                        </button>
+                    </span>
+                )}
+                {careSessionDraftStatus === 'error' && (
+                    <span className="flex items-center gap-1 text-red-500 font-medium">
+                        <AlertTriangle className="h-3 w-3" />
+                        <span>{t('care_session.draft_error', 'Sync error')}</span>
+                    </span>
+                )}
+            </div>
+        );
+    }, [activeCareSession, careSessionDraftStatus, resolveCareSessionDraftConflict, t]);
+
     const [isRctWorkflowOpen, setIsRctWorkflowOpen] = useState(false);
     const [isFinishSheetOpen, setIsFinishSheetOpen] = useState(false);
     const [careSessionDisabledNotice, setCareSessionDisabledNotice] = useState(null);
@@ -286,7 +339,7 @@ export default function PatientDetails() {
         }
     }, [id, resolvedActiveTooth, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
 
-    const handleResumeTreatment = useCallback(async ({ workItemId, sessionId, isPaused, toothKey }) => {
+    const handleResumeTreatment = useCallback(async ({ workItemId, workItemIds, sessionId, isPaused, toothKey, procedureCode }) => {
         try {
             if (isPaused && sessionId) {
                 await transitionCareSessionMutation.mutateAsync({
@@ -295,21 +348,48 @@ export default function PatientDetails() {
                     data: { to_status: 'in_progress' },
                 });
             } else {
+                const effectiveWorkItemIds = (workItemIds && workItemIds.length > 0)
+                    ? workItemIds
+                    : (workItemId ? [workItemId] : undefined);
+
                 const sessionRes = await startCareSessionMutation.mutateAsync({
                     patientId: id,
                     data: {
-                        resume_work_item_id: workItemId || undefined,
+                        resume_work_item_id: effectiveWorkItemIds?.[0] || workItemId || undefined,
+                        resume_work_item_ids: effectiveWorkItemIds,
                         resume_from_session_id: sessionId || undefined,
                         notes: toothKey ? `Resumed treatment on tooth ${toothKey}` : undefined,
                     },
                 });
                 const createdSession = sessionRes.data;
-                if (createdSession?.id && (!createdSession.steps || createdSession.steps.length === 0)) {
-                    await applyCareSessionTemplateMutation.mutateAsync({
-                        patientId: id,
-                        sessionId: createdSession.id,
-                        data: { template_code: 'ENDO_RCT', work_item_id: workItemId || undefined },
-                    });
+                if (createdSession?.id) {
+                    const existingWorkItemIdsWithSteps = new Set(
+                        (createdSession.steps || []).map((s) => s.work_item_id).filter(Boolean)
+                    );
+
+                    const itemsToApply = (resumableCareSession?.items || []).filter(
+                        (it) => !effectiveWorkItemIds || effectiveWorkItemIds.includes(it.work_item_id)
+                    );
+
+                    if (itemsToApply.length > 0) {
+                        for (const it of itemsToApply) {
+                            if (!existingWorkItemIdsWithSteps.has(it.work_item_id)) {
+                                const templateCode = it.procedure_code || 'ENDO_RCT';
+                                await applyCareSessionTemplateMutation.mutateAsync({
+                                    patientId: id,
+                                    sessionId: createdSession.id,
+                                    data: { template_code: templateCode, work_item_id: it.work_item_id },
+                                });
+                            }
+                        }
+                    } else if (workItemId && !existingWorkItemIdsWithSteps.has(workItemId)) {
+                        const templateCode = procedureCode || 'ENDO_RCT';
+                        await applyCareSessionTemplateMutation.mutateAsync({
+                            patientId: id,
+                            sessionId: createdSession.id,
+                            data: { template_code: templateCode, work_item_id: workItemId },
+                        });
+                    }
                 }
             }
             await refetchActiveSession();
@@ -325,7 +405,7 @@ export default function PatientDetails() {
             }
             toast.error(err?.response?.data?.detail?.message || err?.response?.data?.detail || t('care_session.resume_error', 'Failed to resume treatment'));
         }
-    }, [id, transitionCareSessionMutation, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
+    }, [id, resumableCareSession?.items, transitionCareSessionMutation, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
 
     const handleUpdateStepStatus = useCallback(async (stepId, updateData) => {
         if (!activeCareSession?.id) return;
@@ -342,50 +422,63 @@ export default function PatientDetails() {
         }
     }, [id, activeCareSession?.id, updateCareSessionStepMutation, refetchActiveSession]);
 
-    const handleSaveObservation = useCallback(async (obsData) => {
+    const handleSaveObservation = useCallback(async (obsData, { batch = false } = {}) => {
         if (!activeCareSession?.id) return;
         try {
+            const lengthMm = obsData.structured_value?.length_mm ?? obsData.length_mm;
+            const refPoint = obsData.structured_value?.reference_point ?? obsData.reference_point;
+            const maf = obsData.structured_value?.maf ?? obsData.maf;
             await recordCareObservationMutation.mutateAsync({
                 patientId: id,
                 sessionId: activeCareSession.id,
                 data: {
-                    observation_code: 'working_length',
+                    observation_code: obsData.observation_code || 'working_length',
+                    work_item_id: obsData.work_item_id,
                     tooth_key: String(obsData.tooth_key),
                     root_id: obsData.root_id,
                     canal_id: obsData.canal_id,
-                    structured_value: {
-                        length_mm: obsData.length_mm,
-                        reference_point: obsData.reference_point,
-                        maf: obsData.maf,
+                    structured_value: obsData.structured_value || {
+                        length_mm: lengthMm != null ? Number(lengthMm) : undefined,
+                        reference_point: refPoint,
+                        maf: maf,
+                        ...(obsData.taper != null ? { taper: obsData.taper } : {}),
                     },
                     notes: obsData.notes,
                 },
             });
             await refetchActiveSession();
-            toast.success(t('care_session.length_saved', `Saved ${obsData.canal_id} length: ${obsData.length_mm} mm`));
+            if (!batch) toast.success(t('care_session.length_saved', `Saved ${obsData.canal_id} length: ${lengthMm} mm`));
+            return true;
         } catch (err) {
-            toast.error(err?.response?.data?.detail || 'Failed to record measurement');
+            if (!batch) toast.error(err?.response?.data?.detail || 'Failed to record measurement');
+            return false;
         }
     }, [id, activeCareSession?.id, recordCareObservationMutation, refetchActiveSession, t]);
 
     const handleFinishSession = useCallback(async ({ notes, next_visit_request } = {}) => {
         if (!activeCareSession?.id) return;
         try {
+            if (flushCareSessionDraft) {
+                await flushCareSessionDraft();
+            }
             await finishCareSessionMutation.mutateAsync({
                 patientId: id,
                 sessionId: activeCareSession.id,
                 data: { notes, next_visit_request },
             });
+            await discardCareSessionDraft();
             await refetchActiveSession();
             await refetchResumableSession();
             refetchWorkspace();
             setIsRctWorkflowOpen(false);
             setIsFinishSheetOpen(false);
             toast.success(t('care_session.finished_success', 'Care session completed successfully'));
+            return true;
         } catch (err) {
-            toast.error(err?.response?.data?.detail || 'Failed to finish care session');
+            toast.error(err?.response?.data?.detail || err?.message || 'Failed to finish care session');
+            return false;
         }
-    }, [id, activeCareSession?.id, finishCareSessionMutation, refetchActiveSession, refetchResumableSession, refetchWorkspace, t]);
+    }, [id, activeCareSession?.id, finishCareSessionMutation, discardCareSessionDraft, flushCareSessionDraft, refetchActiveSession, refetchResumableSession, refetchWorkspace, t]);
 
     const adaptedChart = useMemo(() => {
         return adaptWorkspaceSnapshotToRenderer(effectiveSnapshot, {
@@ -751,7 +844,7 @@ export default function PatientDetails() {
                                         </div>
                                         <p className="mt-1 break-words text-xs text-slate-500 dark:text-slate-400">{t('patient_details.chart.subtitle')}</p>
                                     </div>
-                                    <div className="flex flex-wrap items-center gap-2 md:w-auto">
+                                    <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
                                         <button
                                             type="button"
                                             onClick={() => setIsPediatric(value => !value)}
@@ -820,7 +913,7 @@ export default function PatientDetails() {
                                         {careSessionDisabledNotice && (
                                             <div
                                                 data-testid="care-session-disabled-notice"
-                                                className="mb-3 p-3.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-900 flex items-center justify-between text-sm shadow-sm"
+                                                className="mb-3 flex min-w-0 items-start justify-between gap-3 rounded-card border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 shadow-low"
                                                 role="alert"
                                             >
                                                 <span className="font-medium">{careSessionDisabledNotice}</span>
@@ -841,6 +934,7 @@ export default function PatientDetails() {
                                                     onOpenWorkflow={() => setIsRctWorkflowOpen(true)}
                                                     onOpenFinishSheet={() => setIsFinishSheetOpen(true)}
                                                     patientId={id}
+                                                    autosaveIndicator={autosaveIndicator}
                                                     t={t}
                                                 />
                                             </div>
@@ -960,6 +1054,12 @@ export default function PatientDetails() {
                         {activeTab === 'history' && (
                             <TreatmentHistory
                                 history={history}
+                                patientId={id}
+                                nativeWritesEnabled={isNativeWritesEnabled}
+                                onRecheckNativeWrites={async () => {
+                                    const result = await refetchTenantFeatures();
+                                    return !result.isError && Array.isArray(result.data) && result.data.includes('clinical_vnext_native_writes');
+                                }}
                                 onAdd={openManualTreatment}
                                 onEdit={handleEditTreatment}
                                 onDelete={handleDeleteTreatment}
@@ -1012,6 +1112,29 @@ export default function PatientDetails() {
                 }}
                 onSave={handleSaveTreatment}
                 onRefetch={refetchClinicalData}
+                onOpenCareSessions={async () => {
+                    setIsTreatmentSheetOpen(false);
+                    const item = (workspaceSnapshot?.work_items || []).find((candidate) => candidate.id === newTreatment.work_item_id);
+                    if (!item) {
+                        setActiveTab('history');
+                        return;
+                    }
+                    if (activeCareSession) {
+                        if (!(activeCareSession.procedures || []).some((procedure) => procedure.work_item_id === item.id)) {
+                            try {
+                                const { addCareSessionProcedure } = await import('@/api/patients');
+                                await addCareSessionProcedure(id, activeCareSession.id, item.id);
+                                await refetchActiveSession();
+                            } catch (error) {
+                                toast.error(error?.response?.data?.detail || t('care_session.start_error'));
+                                return;
+                            }
+                        }
+                        setIsRctWorkflowOpen(true);
+                    } else {
+                        await handleResumeTreatment({ workItemId: item.id, procedureCode: item.code });
+                    }
+                }}
                 initialData={newTreatment}
                 isEditing={Boolean(editingTreatmentId)}
                 isNativeWritesEnabled={isNativeWritesEnabled}
@@ -1065,26 +1188,25 @@ export default function PatientDetails() {
             </Modal>
 
             {isRctWorkflowOpen && activeCareSession && (
-                <Modal
+                <GenericVisitWorkspace
+                    session={activeCareSession}
+                    patient={patient}
+                    patientWorkItems={workspaceSnapshot?.work_items || []}
                     isOpen={isRctWorkflowOpen}
                     onClose={() => setIsRctWorkflowOpen(false)}
-                    title={t('care_session.rct_modal_title', 'Root Canal Treatment (RCT) Workflow')}
-                    size="xl"
-                >
-                    <RctStructuredCard
-                        session={activeCareSession}
-                        toothKey={resolvedActiveTooth || '46'}
-                        onUpdateStepStatus={handleUpdateStepStatus}
-                        onSaveObservation={handleSaveObservation}
-                        onFinishSession={handleFinishSession}
-                        isUpdatingStep={updateCareSessionStepMutation.isPending}
-                        isSavingObservation={recordCareObservationMutation.isPending}
-                        isFinishingSession={finishCareSessionMutation.isPending}
-                        patientId={id}
-                        attachments={attachments}
-                        t={t}
-                    />
-                </Modal>
+                    onUpdateStepStatus={handleUpdateStepStatus}
+                    onSaveObservation={handleSaveObservation}
+                    onOpenFinishSheet={() => {
+                        setIsRctWorkflowOpen(false);
+                        setIsFinishSheetOpen(true);
+                    }}
+                    draftData={careSessionDraftData}
+                    onDraftChange={updateCareSessionDraft}
+                    careSessionDraftStatus={careSessionDraftStatus}
+                    resolveConflict={resolveCareSessionDraftConflict}
+                    refetchSession={refetchActiveSession}
+                    t={t}
+                />
             )}
 
             {isFinishSheetOpen && activeCareSession && (
@@ -1094,6 +1216,8 @@ export default function PatientDetails() {
                     session={activeCareSession}
                     onFinishSession={handleFinishSession}
                     isFinishing={finishCareSessionMutation.isPending}
+                    draftData={careSessionDraftData}
+                    onDraftChange={updateCareSessionDraft}
                     t={t}
                 />
             )}

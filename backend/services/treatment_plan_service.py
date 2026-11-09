@@ -130,6 +130,41 @@ class TreatmentPlanService:
                 detail="Treatment plans feature is disabled",
             )
 
+    async def ensure_commercial_writes_enabled(self) -> None:
+        """Enforce commercial entitlement for treatment plan writes."""
+        from backend.core.config import get_subscription_enforcement_mode
+        from backend.services.entitlement_service import EntitlementService
+
+        mode = get_subscription_enforcement_mode()
+        if mode in {"off", "observe"}:
+            return
+        if not self.tenant_id or not hasattr(self.db, "get"):
+            return
+        stmt = (
+            select(models.Tenant)
+            .options(selectinload(models.Tenant.subscription_plan))
+            .where(models.Tenant.id == self.tenant_id)
+        )
+        res = await self.db.execute(stmt)
+        tenant = res.scalar_one_or_none()
+        if tenant:
+            emergency_restrictions, commercial_overrides = (
+                await EntitlementService.async_resolve_restrictions_and_overrides(
+                    self.db, self.tenant_id
+                )
+            )
+            eval_res = EntitlementService.evaluate_tenant_entitlements(
+                tenant,
+                override_mode=mode,
+                emergency_restrictions=emergency_restrictions,
+                commercial_overrides=commercial_overrides,
+            )
+            if not eval_res.can_write_clinical:
+                raise HTTPException(
+                    status_code=403,
+                    detail=eval_res.reason or "انتهت صلاحية الاشتراك أو الباقة لا تتضمن السجلات الطبية. يرجى التجديد للتمكن من الإضافة أو التعديل.",
+                )
+
     async def _verify_patient(self, patient_id: int) -> None:
         """Validate patient exists within tenant and is visible to current user."""
         user = await self._get_active_current_user()
@@ -506,6 +541,7 @@ class TreatmentPlanService:
         patient_id: int,
         plan_data: schemas.ClinicalTreatmentPlanCreate,
     ) -> models.ClinicalTreatmentPlan:
+        await self.ensure_commercial_writes_enabled()
         await self.ensure_enabled()
         await self._verify_patient(patient_id)
 

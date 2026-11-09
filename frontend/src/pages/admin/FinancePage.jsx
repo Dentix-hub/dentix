@@ -1,12 +1,13 @@
-import { useEffect, useState, useCallback } from 'react';
+import CommercialLaunchControls from '@/features/admin/SuperAdmin/CommercialLaunchControls';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import {
     api,
-    deleteSubscriptionPayment,
     getSubscriptionPayments,
     getSubscriptionPlans,
     recordSubscriptionPayment,
+    previewSubscriptionPayment,
     updateSubscriptionPlan,
 } from '@/api';
 import PaymentsManager from '@/features/admin/SuperAdmin/PaymentsManager';
@@ -38,15 +39,14 @@ export default function FinancePage() {
     });
     const [tenantUsers, setTenantUsers] = useState([]);
     
-    // Delete payment state
-    const [paymentToDelete, setPaymentToDelete] = useState(null);
-    const [isDeleting, setIsDeleting] = useState(false);
-
     // Plans Editing State
     const [editingPlan, setEditingPlan] = useState(null);
     const [editedPlanData, setEditedPlanData] = useState({});
     const [loading, setLoading] = useState(true);
     const [processing, setProcessing] = useState(false);
+    const [paymentPreview, setPaymentPreview] = useState(null);
+    const receiptAttempt = useRef(null);
+    const receiptBusy = useRef(false);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -87,16 +87,24 @@ export default function FinancePage() {
         fetchData();
     }, [fetchData]);
 
-    const handleSavePlan = async (planId) => {
+    const handleSavePlan = async (planId, payload) => {
         try {
-            await updateSubscriptionPlan(planId, editedPlanData);
+            await updateSubscriptionPlan(planId, payload || editedPlanData);
             setEditingPlan(null);
             setEditedPlanData({});
             fetchData();
             toast.success(t('super_admin.plans.save_success') || 'تم حفظ الخطة بنجاح');
         } catch (err) {
-            const errorMsg = err.response?.data?.detail || err.message || t('super_admin.plans.error_saving') || 'فشل التعديل';
-            toast.error(errorMsg);
+            const status = err.response?.status;
+            if (status === 409) {
+                toast.error(
+                    t('super_admin.plans.error_conflict_revision') ||
+                    'حدث تعارض في التعديل: تم تحديث الخطة بواسطة مسؤول آخر. يرجى إعادة تحميل الصفحة والمحاولة مجدداً.'
+                );
+            } else {
+                const errorMsg = err.response?.data?.detail || err.message || t('super_admin.plans.error_saving') || 'فشل التعديل';
+                toast.error(errorMsg);
+            }
         }
     };
 
@@ -120,7 +128,7 @@ export default function FinancePage() {
         if (e && typeof e.preventDefault === 'function') {
             e.preventDefault();
         }
-        if (processing) return;
+        if (processing || receiptBusy.current) return;
 
         if (!paymentForm.tenant_id) {
             toast.error(t('super_admin.payments.error_select_tenant') || 'الرجاء اختيار العيادة');
@@ -142,6 +150,7 @@ export default function FinancePage() {
             return;
         }
 
+        receiptBusy.current = true;
         setProcessing(true);
         try {
             const payload = {
@@ -150,40 +159,50 @@ export default function FinancePage() {
                 plan_id: parseInt(paymentForm.plan_id, 10),
                 amount: amountNum,
             };
-            await recordSubscriptionPayment(payload);
-            setShowPaymentModal(false);
-            setPaymentForm({
-                tenant_id: '',
-                plan_id: '',
-                amount: '',
-                payment_method: 'cash',
-                paid_by: '',
-                payment_date: new Date().toISOString().split('T')[0],
-                notes: ''
-            });
-            fetchData();
-            toast.success(t('super_admin.payments.success_recorded') || 'تم تسجيل الدفعة بنجاح');
+            // Retain the operation identity after a lost response, including reload.
+            const serialized = new TextEncoder().encode(JSON.stringify(payload));
+            const fingerprint = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', serialized)), byte => byte.toString(16).padStart(2, '0')).join('');
+            const storedKey = `dentix:manual-receipt:${payload.tenant_id}`;
+            let previous = receiptAttempt.current;
+            if (!previous) {
+                try { previous = JSON.parse(sessionStorage.getItem(storedKey) || 'null'); } catch { /* No saved attempt. */ }
+            }
+            const attempt = previous?.fingerprint === fingerprint ? previous : { fingerprint, key: crypto.randomUUID() };
+            receiptAttempt.current = attempt;
+            sessionStorage.setItem(storedKey, JSON.stringify(attempt));
+            const requestPayload = { ...payload, idempotency_key: attempt.key };
+            const response = await previewSubscriptionPayment(requestPayload);
+            const preview = response.data?.data || response.data;
+            if (!preview?.before || !preview?.after) throw new Error(t('super_admin.payments.preview_failed'));
+            setPaymentPreview({ ...preview, payload: requestPayload });
         } catch (err) {
-            const errorMsg = err.response?.data?.detail || err.response?.data?.message || err.message || t('super_admin.payments.error_recording') || 'فشل تسجيل الدفعة';
-            toast.error(errorMsg);
+            toast.error(err.response?.data?.detail || err.message || t('super_admin.payments.preview_failed'));
         } finally {
+            receiptBusy.current = false;
             setProcessing(false);
         }
     };
 
-    const handleConfirmDeletePayment = async () => {
-        if (!paymentToDelete) return;
-        setIsDeleting(true);
+    const handleConfirmRecordPayment = async () => {
+        if (!paymentPreview || receiptBusy.current) return;
+        receiptBusy.current = true;
+        setProcessing(true);
         try {
-            await deleteSubscriptionPayment(paymentToDelete);
-            setPaymentToDelete(null);
+            await recordSubscriptionPayment({ ...paymentPreview.payload, preview_marker: paymentPreview.preview_marker || undefined, preview_at: paymentPreview.preview_at || undefined });
+            sessionStorage.removeItem(`dentix:manual-receipt:${paymentPreview.payload.tenant_id}`);
+            receiptAttempt.current = null;
+            setPaymentPreview(null);
+            setShowPaymentModal(false);
+            setPaymentForm({ tenant_id: '', plan_id: '', amount: '', payment_method: 'cash',
+                paid_by: '', payment_date: new Date().toISOString().split('T')[0], notes: '' });
             fetchData();
-            toast.success(t('super_admin.payments.success_deleted') || 'تم حذف الدفعة بنجاح');
+            toast.success(t('super_admin.payments.success_recorded') || 'تم تسجيل الدفعة بنجاح');
         } catch (err) {
-            const errorMsg = err.response?.data?.detail || err.message || t('super_admin.payments.error_deleting') || 'فشل حذف الدفعة';
-            toast.error(errorMsg);
+            setPaymentPreview(null);
+            toast.error(err.response?.data?.detail || err.message || t('super_admin.payments.error_recording'));
         } finally {
-            setIsDeleting(false);
+            receiptBusy.current = false;
+            setProcessing(false);
         }
     };
 
@@ -211,7 +230,8 @@ export default function FinancePage() {
                         <p className="text-slate-500 dark:text-slate-400 font-medium mt-1">{t('super_admin.finance.subtitle') || 'المدفوعات وخطط الاشتراك'}</p>
                     </div>
                 </div>
-                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                <div className="flex flex-wrap bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                    <button type="button" onClick={() => setActiveTab('commercial')} className="px-4 py-2 rounded-lg font-bold">{isRtl ? 'التهيئة والضوابط' : 'Setup & controls'}</button>
                     <button
                         onClick={() => setActiveTab('payments')}
                         className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'payments' ? 'bg-white dark:bg-slate-700 shadow text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400'}`}
@@ -255,12 +275,11 @@ export default function FinancePage() {
                 </button>
             </div>
 
-            {activeTab === 'payments' ? (
+            {activeTab === 'commercial' ? (<CommercialLaunchControls onCatalogApplied={fetchData} />) : activeTab === 'payments' ? (
                 <PaymentsManager
                     payments={payments}
                     tenants={tenants}
                     plans={plans}
-                    onDelete={(id) => setPaymentToDelete(id)}
                 />
             ) : activeTab === 'subscriptions' ? (
                 <ActiveSubscriptions
@@ -455,18 +474,27 @@ export default function FinancePage() {
                 </form>
             </Modal>
 
-            {/* Accessible Confirmation Dialog for Payment Deletion */}
             <ConfirmDialog
-                isOpen={Boolean(paymentToDelete)}
-                onClose={() => setPaymentToDelete(null)}
-                onConfirm={handleConfirmDeletePayment}
-                title={t('super_admin.payments.delete_title') || 'حذف الدفعة'}
-                message={t('super_admin.payments.delete_confirm_msg') || 'هل أنت متأكد من حذف هذه الدفعة المالية؟ لا يمكن التراجع عن هذا الإجراء.'}
-                confirmText={t('common.delete') || 'حذف'}
-                cancelText={t('common.cancel') || 'إلغاء'}
-                variant="danger"
-                isLoading={isDeleting}
+                isOpen={Boolean(paymentPreview)}
+                onClose={() => setPaymentPreview(null)}
+                onConfirm={handleConfirmRecordPayment}
+                title={t('super_admin.payments.preview_title')}
+                message={paymentPreview ? (
+                    <>
+                        <span className="block">{paymentPreview.amount} {paymentPreview.currency}</span>
+                        <span className="block">{t('super_admin.payments.preview_before')}: {paymentPreview.before.subscription_end_date || '—'}</span>
+                        <span className="block">{t('super_admin.payments.preview_after')}: {paymentPreview.after.subscription_end_date || '—'}</span>
+                        {paymentPreview.after.future_plan_start_date && <span className="block">{t('super_admin.payments.preview_paid_start')}: {paymentPreview.after.future_plan_start_date}</span>}
+                        {paymentPreview.already_recorded && <span className="block">{t('super_admin.payments.preview_replay')}</span>}
+                    </>
+                ) : ''}
+                confirmText={t('common.confirm')}
+                cancelText={t('common.cancel')}
+                variant="primary"
+                isLoading={processing}
             />
+
+
         </div>
     );
 }

@@ -345,23 +345,11 @@ async def assign_tenant_plan(
     if current_user.role != Role.SUPER_ADMIN.value:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    service = AdminService(db)
+    from backend.services.subscription_assignment_service import assign_plan
 
-    res = await db.execute(
-        select(models.SubscriptionPlan)
-        .where(models.SubscriptionPlan.id == plan_id)
-    )
-    plan = res.scalar_one_or_none()
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
-
-    tenant = await service.update_tenant(tenant_id, plan=plan.name, plan_id=plan.id)
-    if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant not found")
-
-    return success_response(
-        data={"tenant": tenant.name}, message="Plan updated successfully"
-    )
+    tenant = await assign_plan(db, tenant_id, plan_id, current_user)
+    return success_response(data={"tenant": tenant.name, "plan": tenant.plan},
+        message="Plan updated successfully")
 
 
 # --- User Management (Super Admin) ---
@@ -449,7 +437,6 @@ async def reset_user_password(
     user.failed_login_attempts = 0
     user.account_locked_until = None
     user.last_failed_login = None
-    user.is_active = True
 
     await db.commit()
 

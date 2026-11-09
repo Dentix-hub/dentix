@@ -11,6 +11,8 @@
     <meta name="keywords" content="dentist, clinic management, dental health, patient records, RTL dental app" />
     <!-- Canonical production PWA origin (apex 308-redirects here; see docs/pwa/canonical-origin.md) -->
     <link rel="canonical" href="https://www.dentixs.app/" />
+    <!-- Application Shell is noindexed to protect clinical/application space while public marketing is indexed at /ar and /en -->
+    <meta name="robots" content="noindex, follow" />
     <meta property="og:site_name" content="DENTIX" />
     <meta property="og:locale" content="ar_SA" />
     <meta property="og:url" content="https://www.dentixs.app/" />
@@ -27,7 +29,23 @@
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <noscript>
+        <div style="font-family: Cairo, system-ui, -apple-system, sans-serif; text-align: center; padding: 40px 20px; line-height: 1.6; background: #0f172a; color: #f8fafc; min-height: 100vh;">
+          <h1 style="font-size: 28px; margin-bottom: 8px;">Dentix</h1>
+          <p style="color: #94a3b8; margin-bottom: 24px;">Dentix — برنامج إدارة عيادات الأسنان &bull; Dental Clinic Management Software</p>
+          <nav style="display: flex; gap: 16px; justify-content: center; flex-wrap: wrap;">
+            <a href="/ar" style="color: #0ea5e9; font-weight: 600; text-decoration: none;">العربية (الرئيسية)</a>
+            <span style="color: #475569;">|</span>
+            <a href="/en" style="color: #0ea5e9; font-weight: 600; text-decoration: none;">English (Home)</a>
+            <span style="color: #475569;">|</span>
+            <a href="/ar/terms" style="color: #94a3b8; text-decoration: none;">الشروط والأحكام</a>
+            <span style="color: #475569;">|</span>
+            <a href="/ar/privacy" style="color: #94a3b8; text-decoration: none;">سياسة الخصوصية</a>
+          </nav>
+        </div>
+      </noscript>
+    </div>
     <script>
       // Script load error recovery for stale PWA cache generations
       window.addEventListener('error', function(event) {

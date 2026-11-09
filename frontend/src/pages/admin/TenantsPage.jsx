@@ -1,5 +1,5 @@
 import { passwordPolicyError } from '@/auth/passwordPolicy';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import logger from '@/utils/logger';
 import { api } from '@/api';
@@ -69,6 +69,7 @@ export default function TenantsPage() {
         notes: '',
     });
     const [renewing, setRenewing] = useState(false);
+    const renewalBusy = useRef(false);
 
     const fetchData = useCallback(async () => {
         setLoading(true);
@@ -149,8 +150,9 @@ export default function TenantsPage() {
                     });
                     toast.success(t('super_admin.tenants.plan_changed_success', 'تم تغيير الباقة بنجاح'));
                     fetchData();
-                } catch {
-                    toast.error(t('super_admin.tenants.plan_change_failed', 'فشل تغيير الخطة'));
+                } catch (error) {
+                    const detail = error.response?.data?.detail;
+                    toast.error(typeof detail === 'string' ? detail : t('super_admin.tenants.plan_change_failed', 'فشل تغيير الخطة'));
                 } finally {
                     setConfirmState(prev => ({ ...prev, isOpen: false }));
                 }
@@ -169,24 +171,59 @@ export default function TenantsPage() {
 
     const handleManualRenewalSubmit = async (e) => {
         e?.preventDefault();
-        if (!renewalModalTenant) return;
+        if (!renewalModalTenant || renewalBusy.current) return;
+        if (!renewalForm.notes?.trim()) {
+            toast.error(t('super_admin.tenants.extension_reason_required'));
+            return;
+        }
+        renewalBusy.current = true;
         setRenewing(true);
         try {
-            const generatedIdempotencyKey = `manual_renew_${renewalModalTenant.id}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
             const payload = {
                 plan_id: renewalForm.plan_id ? parseInt(renewalForm.plan_id, 10) : undefined,
                 extension_days: parseInt(renewalForm.extension_days, 10) || 30,
-                notes: renewalForm.notes?.trim() || undefined,
-                idempotency_key: generatedIdempotencyKey,
+                notes: renewalForm.notes.trim(),
             };
-            const res = await api.post(`/api/v1/admin/tenants/${renewalModalTenant.id}/renew`, payload);
-            toast.success(res.message || 'تم تجديد الاشتراك يدوياً بنجاح');
-            setRenewalModalTenant(null);
-            fetchData();
+            const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(payload)));
+            const fingerprint = Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, '0')).join('');
+            const storageKey = `dentix:manual-extension:${renewalModalTenant.id}`;
+            let previous;
+            try { previous = JSON.parse(sessionStorage.getItem(storageKey) || 'null'); } catch { /* Start a new attempt. */ }
+            const attempt = previous?.fingerprint === fingerprint ? previous : { fingerprint, key: `manual_renew_${renewalModalTenant.id}_${Date.now()}_${crypto.randomUUID()}` };
+            sessionStorage.setItem(storageKey, JSON.stringify(attempt));
+            const request = { ...payload, idempotency_key: attempt.key };
+            const url = `/api/v1/admin/tenants/${renewalModalTenant.id}/renew`;
+            const response = await api.post(url, request, { params: { preview: true } });
+            const preview = response.data?.data || response.data || response;
+            if (!preview?.subscription_end_date) throw new Error(t('super_admin.payments.preview_failed'));
+            setConfirmState({
+                isOpen: true, title: t('super_admin.tenants.manual_renewal_title'),
+                message: `${preview.previous_end_date || renewalModalTenant.subscription_end_date || '—'} → ${preview.subscription_end_date} (UTC)`,
+                confirmText: t('common.confirm'), variant: 'primary',
+                onConfirm: async () => {
+                    if (renewalBusy.current) return;
+                    renewalBusy.current = true;
+                    setRenewing(true);
+                    try {
+                        await api.post(url, { ...request, preview_marker: preview.preview_marker, preview_at: preview.preview_at });
+                        sessionStorage.removeItem(storageKey);
+                        toast.success(t('super_admin.tenants.plan_changed_success'));
+                        setRenewalModalTenant(null);
+                        fetchData();
+                    } catch (err) {
+                        toast.error(err.response?.data?.detail || err.message);
+                    } finally {
+                        renewalBusy.current = false;
+                        setRenewing(false);
+                        setConfirmState(prev => ({ ...prev, isOpen: false }));
+                    }
+                },
+            });
         } catch (err) {
-            logger.error('Error renewing subscription:', err);
-            toast.error('فشل تجديد الاشتراك: ' + (err.response?.data?.detail || err.message));
+            logger.error('Error previewing subscription extension:', err);
+            toast.error(err.response?.data?.detail || err.message);
         } finally {
+            renewalBusy.current = false;
             setRenewing(false);
         }
     };
@@ -350,6 +387,7 @@ export default function TenantsPage() {
                 >
                     <div className="space-y-6">
                         <p className="text-slate-500 dark:text-slate-400 text-sm font-bold">{renewalModalTenant.name}</p>
+                        <p>{t('super_admin.tenants.extension_help')}</p>
                         <form onSubmit={handleManualRenewalSubmit} className="space-y-4">
                             <div>
                                 <label className="block text-sm font-bold text-slate-500 mb-1.5">{t('super_admin.tenants.plan_label', 'باقة الاشتراك')}</label>
@@ -361,7 +399,7 @@ export default function TenantsPage() {
                                     <option value="">{t('super_admin.tenants.current_plan', 'الباقة الحالية')} ({renewalModalTenant.plan || 'بدون تغيير'})</option>
                                     {(plans || []).map(p => (
                                         <option key={p.id} value={p.id}>
-                                            {p.display_name_ar || p.name} ({p.duration_days} {t('common.days', 'يوم')})
+                                            {p.display_name_ar || p.name}
                                         </option>
                                     ))}
                                 </select>
@@ -384,9 +422,10 @@ export default function TenantsPage() {
                                 <label className="block text-sm font-bold text-slate-500 mb-1.5">{t('super_admin.tenants.renewal_notes', 'ملاحظات التجديد / سبب التمديد')}</label>
                                 <textarea
                                     rows={2}
+                                    required
                                     value={renewalForm.notes}
                                     onChange={(e) => setRenewalForm({ ...renewalForm, notes: e.target.value })}
-                                    placeholder={t('super_admin.tenants.notes_placeholder', 'مثال: تم سداد الاشتراك نقداً أو بموجب إيصال بنكي رقم ...')}
+                                    placeholder={t('super_admin.tenants.extension_reason_required')}
                                     className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-emerald-500 outline-none text-sm"
                                 />
                             </div>

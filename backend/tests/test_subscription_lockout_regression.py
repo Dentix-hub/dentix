@@ -42,7 +42,7 @@ async def test_subscription_worker_enforce_mode_preserves_is_active(monkeypatch)
 
     count = await check_expired_subscriptions.fn(db)
     assert count == 1
-    assert tenant.subscription_status == "expired"
+    assert tenant.subscription_status in {"expired", "expired_read_only"}
     assert tenant.is_active is True, "CRITICAL: tenant.is_active must remain True to preserve clinical reads!"
 
 

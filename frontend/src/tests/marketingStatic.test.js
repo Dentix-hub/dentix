@@ -26,7 +26,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(html).toMatch(/<html[^>]*dir=["']rtl["']/);
 
             // Title and description
-            expect(html).toContain('<title>Dentix | برنامج إدارة عيادات الأسنان في مصر</title>');
+            expect(html).toContain('<title>Dentix — برنامج إدارة عيادات الأسنان</title>');
             expect(html).toContain('<meta name="description" content="نظّم ملفات المرضى والمواعيد ومخطط الأسنان وتقارير العيادة مع Dentix، نظام سحابي لإدارة عيادات الأسنان بواجهة عربية وإنجليزية.">');
 
             // H1 and Core headings
@@ -41,7 +41,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(html).toContain('<link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar">');
 
             // Open Graph
-            expect(html).toContain('<meta property="og:title" content="Dentix | برنامج إدارة عيادات الأسنان في مصر">');
+            expect(html).toContain('<meta property="og:title" content="Dentix — برنامج إدارة عيادات الأسنان">');
             expect(html).toContain('<meta property="og:description" content="نظّم ملفات المرضى والمواعيد ومخطط الأسنان وتقارير العيادة مع Dentix، نظام سحابي لإدارة عيادات الأسنان بواجهة عربية وإنجليزية.">');
             expect(html).toContain('<meta property="og:url" content="https://www.dentixs.app/ar">');
             expect(html).toContain('<meta property="og:site_name" content="Dentix">');
@@ -51,7 +51,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
 
             // Twitter Card
             expect(html).toContain('<meta name="twitter:card" content="summary">');
-            expect(html).toContain('<meta name="twitter:title" content="Dentix | برنامج إدارة عيادات الأسنان في مصر">');
+            expect(html).toContain('<meta name="twitter:title" content="Dentix — برنامج إدارة عيادات الأسنان">');
             expect(html).toContain('<meta name="twitter:image" content="https://www.dentixs.app/logo.webp">');
 
             // Local CSS reference
@@ -87,8 +87,8 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             }
 
             expect(html).toContain('href="/register"');
-            expect(html).toContain('href="/terms"');
-            expect(html).toContain('href="/privacy"');
+            expect(html).toContain('href="/ar/terms"');
+            expect(html).toContain('href="/ar/privacy"');
 
             // Language switcher
             expect(html).toContain('href="/en"');
@@ -128,7 +128,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(html).toMatch(/<html[^>]*dir=["']ltr["']/);
 
             // Title and description
-            expect(html).toContain('<title>Dentix | Dental Clinic Management Software in Egypt</title>');
+            expect(html).toContain('<title>Dentix — Dental Clinic Management Software</title>');
             expect(html).toContain('<meta name="description" content="Manage patient records, appointments, dental charts, and clinic finances with Dentix — cloud-based dental practice management software with bilingual Arabic and English support.">');
 
             // H1 and Core headings
@@ -143,7 +143,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(html).toContain('<link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar">');
 
             // Open Graph
-            expect(html).toContain('<meta property="og:title" content="Dentix | Dental Clinic Management Software in Egypt">');
+            expect(html).toContain('<meta property="og:title" content="Dentix — Dental Clinic Management Software">');
             expect(html).toContain('<meta property="og:description" content="Manage patient records, appointments, dental charts, and clinic finances with Dentix — cloud-based dental practice management software with bilingual Arabic and English support.">');
             expect(html).toContain('<meta property="og:url" content="https://www.dentixs.app/en">');
             expect(html).toContain('<meta property="og:site_name" content="Dentix">');
@@ -153,7 +153,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
 
             // Twitter Card
             expect(html).toContain('<meta name="twitter:card" content="summary">');
-            expect(html).toContain('<meta name="twitter:title" content="Dentix | Dental Clinic Management Software in Egypt">');
+            expect(html).toContain('<meta name="twitter:title" content="Dentix — Dental Clinic Management Software">');
             expect(html).toContain('<meta name="twitter:image" content="https://www.dentixs.app/logo.webp">');
 
             // Local CSS reference
@@ -189,8 +189,8 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             }
 
             expect(html).toContain('href="/register"');
-            expect(html).toContain('href="/terms"');
-            expect(html).toContain('href="/privacy"');
+            expect(html).toContain('href="/en/terms"');
+            expect(html).toContain('href="/en/privacy"');
 
             // Language switcher
             expect(html).toContain('href="/ar"');
@@ -220,6 +220,169 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
         });
     });
 
+    describe('Application Shell Indexing Contract', () => {
+        it('guarantees /index.html has raw noindex directive and public discovery navigation', () => {
+            const indexHtmlPath = path.resolve('index.html');
+            expect(existsSync(indexHtmlPath)).toBe(true);
+            const html = readFileSync(indexHtmlPath, 'utf8');
+
+            expect(html).toContain('<meta name="robots" content="noindex, follow" />');
+            expect(html).toContain('href="/ar"');
+            expect(html).toContain('href="/en"');
+            expect(html).toContain('<link rel="canonical" href="https://www.dentixs.app/" />');
+        });
+    });
+
+    describe('Static Legal Pages (Privacy & Terms) Contract', () => {
+        const arPrivacyPath = path.resolve('public/ar/privacy/index.html');
+        const enPrivacyPath = path.resolve('public/en/privacy/index.html');
+        const arTermsPath = path.resolve('public/ar/terms/index.html');
+        const enTermsPath = path.resolve('public/en/terms/index.html');
+
+        it('verifies Arabic and English Privacy Policy static pages exist with valid metadata and zero JS', () => {
+            expect(existsSync(arPrivacyPath)).toBe(true);
+            expect(existsSync(enPrivacyPath)).toBe(true);
+
+            const arHtml = readFileSync(arPrivacyPath, 'utf8');
+            expect(arHtml).toContain('<title>Dentix — سياسة الخصوصية</title>');
+            expect(arHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/ar/privacy">');
+            expect(arHtml).toContain('<link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar/privacy">');
+            expect(arHtml).toContain('<link rel="alternate" hreflang="en" href="https://www.dentixs.app/en/privacy">');
+            expect(arHtml).toContain('<link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar/privacy">');
+            expect(arHtml).not.toContain('<script src=');
+            expect(arHtml).toContain('href="/"');
+
+            const enHtml = readFileSync(enPrivacyPath, 'utf8');
+            expect(enHtml).toContain('<title>Dentix — Privacy Policy</title>');
+            expect(enHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/en/privacy">');
+            expect(enHtml).toContain('<link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar/privacy">');
+            expect(enHtml).toContain('<link rel="alternate" hreflang="en" href="https://www.dentixs.app/en/privacy">');
+            expect(enHtml).toContain('<link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar/privacy">');
+            expect(enHtml).not.toContain('<script src=');
+            expect(enHtml).toContain('href="/"');
+        });
+
+        it('verifies Arabic and English Terms of Service static pages exist with valid metadata and zero JS', () => {
+            expect(existsSync(arTermsPath)).toBe(true);
+            expect(existsSync(enTermsPath)).toBe(true);
+
+            const arHtml = readFileSync(arTermsPath, 'utf8');
+            expect(arHtml).toContain('<title>Dentix — الشروط والأحكام</title>');
+            expect(arHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/ar/terms">');
+            expect(arHtml).toContain('<link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar/terms">');
+            expect(arHtml).toContain('<link rel="alternate" hreflang="en" href="https://www.dentixs.app/en/terms">');
+            expect(arHtml).toContain('<link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar/terms">');
+            expect(arHtml).not.toContain('<script src=');
+            expect(arHtml).toContain('href="/"');
+
+            const enHtml = readFileSync(enTermsPath, 'utf8');
+            expect(enHtml).toContain('<title>Dentix — Terms of Service</title>');
+            expect(enHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/en/terms">');
+            expect(enHtml).toContain('<link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar/terms">');
+            expect(enHtml).toContain('<link rel="alternate" hreflang="en" href="https://www.dentixs.app/en/terms">');
+            expect(enHtml).toContain('<link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar/terms">');
+            expect(enHtml).not.toContain('<script src=');
+            expect(enHtml).toContain('href="/"');
+        });
+    });
+
+    describe('Trust & Content Pages (PR-B) Contract', () => {
+        const arAboutPath = path.resolve('public/ar/about/index.html');
+        const enAboutPath = path.resolve('public/en/about/index.html');
+        const arContactPath = path.resolve('public/ar/contact/index.html');
+        const enContactPath = path.resolve('public/en/contact/index.html');
+        const arPlansPath = path.resolve('public/ar/plans/index.html');
+        const enPlansPath = path.resolve('public/en/plans/index.html');
+        const arClinicGuidePath = path.resolve('public/ar/dental-clinic-management-software/index.html');
+        const enClinicGuidePath = path.resolve('public/en/dental-clinic-management-software/index.html');
+        const arPatientRecordsPath = path.resolve('public/ar/dental-patient-records/index.html');
+        const enPatientRecordsPath = path.resolve('public/en/dental-patient-records/index.html');
+        const arApptFinancePath = path.resolve('public/ar/appointments-finance/index.html');
+        const enApptFinancePath = path.resolve('public/en/appointments-finance/index.html');
+
+        it('verifies About pages exist with valid metadata and bidirectional reciprocal hreflangs', () => {
+            expect(existsSync(arAboutPath)).toBe(true);
+            expect(existsSync(enAboutPath)).toBe(true);
+
+            const arHtml = readFileSync(arAboutPath, 'utf8');
+            expect(arHtml).toContain('<title>Dentix — عن البرنامج ومميزات إدارة عيادات الأسنان</title>');
+            expect(arHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/ar/about">');
+            expect(arHtml).toContain('<link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar/about">');
+            expect(arHtml).toContain('<link rel="alternate" hreflang="en" href="https://www.dentixs.app/en/about">');
+            expect(arHtml).toContain('<link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar/about">');
+            expect(arHtml).not.toContain('<script src=');
+
+            const enHtml = readFileSync(enAboutPath, 'utf8');
+            expect(enHtml).toContain('<title>Dentix — About Dentix Dental Clinic Management Software</title>');
+            expect(enHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/en/about">');
+            expect(enHtml).toContain('<link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar/about">');
+            expect(enHtml).toContain('<link rel="alternate" hreflang="en" href="https://www.dentixs.app/en/about">');
+            expect(enHtml).toContain('<link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar/about">');
+            expect(enHtml).not.toContain('<script src=');
+        });
+
+        it('verifies Contact pages contain approved email and WhatsApp links with zero fake details', () => {
+            expect(existsSync(arContactPath)).toBe(true);
+            expect(existsSync(enContactPath)).toBe(true);
+
+            const arHtml = readFileSync(arContactPath, 'utf8');
+            expect(arHtml).toContain('mailto:smartsentalclinicapp@gmail.com');
+            expect(arHtml).toContain('https://wa.me/201010285288');
+            expect(arHtml).toContain('+201010285288');
+            expect(arHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/ar/contact">');
+
+            const enHtml = readFileSync(enContactPath, 'utf8');
+            expect(enHtml).toContain('mailto:smartsentalclinicapp@gmail.com');
+            expect(enHtml).toContain('https://wa.me/201010285288');
+            expect(enHtml).toContain('+201010285288');
+            expect(enHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/en/contact">');
+        });
+
+        // Task 10 requires active billing evidence before publishing offers.
+        // Owner-approved amounts alone are not proof of active subscription records.
+        it('verifies bilingual subscription inquiries without publishing unverified plan prices', () => {
+            expect(existsSync(arPlansPath)).toBe(true);
+            expect(existsSync(enPlansPath)).toBe(true);
+
+            const arHtml = readFileSync(arPlansPath, 'utf8');
+            expect(arHtml).toContain('خيارات الاشتراك في Dentix');
+            expect(arHtml).toContain('mailto:smartsentalclinicapp@gmail.com');
+            expect(arHtml).toContain('https://wa.me/201010285288');
+            expect(arHtml).not.toContain('class="plan-price"');
+            expect(arHtml).not.toContain('الاحترافية (Professional)');
+            expect(arHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/ar/plans">');
+
+            const enHtml = readFileSync(enPlansPath, 'utf8');
+            expect(enHtml).toContain('Dentix Subscription Plans');
+            expect(enHtml).toContain('mailto:smartsentalclinicapp@gmail.com');
+            expect(enHtml).toContain('https://wa.me/201010285288');
+            expect(enHtml).not.toContain('class="plan-price"');
+            expect(enHtml).not.toContain('Most Popular');
+            expect(enHtml).toContain('<link rel="canonical" href="https://www.dentixs.app/en/plans">');
+        });
+
+        it('verifies the 3 targeted content pages exist with valid canonicals, reciprocal hreflangs, and screenshots', () => {
+            expect(existsSync(arClinicGuidePath)).toBe(true);
+            expect(existsSync(enClinicGuidePath)).toBe(true);
+            expect(existsSync(arPatientRecordsPath)).toBe(true);
+            expect(existsSync(enPatientRecordsPath)).toBe(true);
+            expect(existsSync(arApptFinancePath)).toBe(true);
+            expect(existsSync(enApptFinancePath)).toBe(true);
+
+            const arClinic = readFileSync(arClinicGuidePath, 'utf8');
+            expect(arClinic).toContain('<link rel="canonical" href="https://www.dentixs.app/ar/dental-clinic-management-software">');
+            expect(arClinic).toContain('/marketing/screens/dashboard-ar.webp');
+
+            const arPatient = readFileSync(arPatientRecordsPath, 'utf8');
+            expect(arPatient).toContain('<link rel="canonical" href="https://www.dentixs.app/ar/dental-patient-records">');
+            expect(arPatient).toContain('/marketing/screens/chart-ar.webp');
+
+            const arAppt = readFileSync(arApptFinancePath, 'utf8');
+            expect(arAppt).toContain('<link rel="canonical" href="https://www.dentixs.app/ar/appointments-finance">');
+            expect(arAppt).toContain('/marketing/screens/dashboard-ar.webp');
+        });
+    });
+
     describe('Robots and Sitemap Contracts', () => {
         it('verifies public/robots.txt content', () => {
             expect(existsSync(robotsPath)).toBe(true);
@@ -233,12 +396,28 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(robots).not.toContain('<!DOCTYPE');
         });
 
-        it('verifies public/sitemap.xml content includes both /ar and /en', () => {
+        it('verifies public/sitemap.xml content includes all authoritative public indexable routes', () => {
             expect(existsSync(sitemapPath)).toBe(true);
             const sitemap = readFileSync(sitemapPath, 'utf8');
             expect(sitemap).toContain('<urlset');
             expect(sitemap).toContain('<loc>https://www.dentixs.app/ar</loc>');
             expect(sitemap).toContain('<loc>https://www.dentixs.app/en</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/ar/privacy</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/en/privacy</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/ar/terms</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/en/terms</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/ar/about</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/en/about</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/ar/contact</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/en/contact</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/ar/plans</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/en/plans</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/ar/dental-clinic-management-software</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/en/dental-clinic-management-software</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/ar/dental-patient-records</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/en/dental-patient-records</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/ar/appointments-finance</loc>');
+            expect(sitemap).toContain('<loc>https://www.dentixs.app/en/appointments-finance</loc>');
             expect(sitemap).not.toContain('/login');
             expect(sitemap).not.toContain('/register');
             expect(sitemap).not.toContain('/api');
@@ -265,6 +444,22 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
 
             // Redirects
             expect(config.redirects).toBeDefined();
+
+            // Legal legacy and clean redirects
+            const privacyRedirect = config.redirects.find((r) => r.source === '/privacy');
+            expect(privacyRedirect).toEqual({
+                source: '/privacy',
+                destination: '/ar/privacy',
+                permanent: true,
+            });
+
+            const termsRedirect = config.redirects.find((r) => r.source === '/terms');
+            expect(termsRedirect).toEqual({
+                source: '/terms',
+                destination: '/ar/terms',
+                permanent: true,
+            });
+
             const arTrailingRedirect = config.redirects.find((r) => r.source === '/ar/');
             expect(arTrailingRedirect).toEqual({
                 source: '/ar/',
@@ -301,10 +496,22 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
                 destination: '/ar/index.html',
             });
 
+            const arPrivacyRewrite = config.rewrites.find((r) => r.source === '/ar/privacy');
+            expect(arPrivacyRewrite).toEqual({
+                source: '/ar/privacy',
+                destination: '/ar/privacy/index.html',
+            });
+
             const enRewrite = config.rewrites.find((r) => r.source === '/en');
             expect(enRewrite).toEqual({
                 source: '/en',
                 destination: '/en/index.html',
+            });
+
+            const enPrivacyRewrite = config.rewrites.find((r) => r.source === '/en/privacy');
+            expect(enPrivacyRewrite).toEqual({
+                source: '/en/privacy',
+                destination: '/en/privacy/index.html',
             });
 
             const fallback = config.rewrites.find((r) => r.destination === '/index.html');
@@ -325,9 +532,13 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(pattern.test('/ar')).toBe(false);
             expect(pattern.test('/ar/')).toBe(false);
             expect(pattern.test('/ar/unknown')).toBe(false);
+            expect(pattern.test('/ar/privacy')).toBe(false);
+            expect(pattern.test('/ar/terms')).toBe(false);
             expect(pattern.test('/en')).toBe(false);
             expect(pattern.test('/en/')).toBe(false);
             expect(pattern.test('/en/unknown')).toBe(false);
+            expect(pattern.test('/en/privacy')).toBe(false);
+            expect(pattern.test('/en/terms')).toBe(false);
             expect(pattern.test('/marketing/marketing.css')).toBe(false);
             expect(pattern.test('/marketing/unknown.css')).toBe(false);
             expect(pattern.test('/robots.txt')).toBe(false);

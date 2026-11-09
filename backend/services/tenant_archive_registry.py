@@ -8,9 +8,11 @@ ARCHIVE_COLUMNS = {
     'appointments': frozenset('id patient_id doctor_id price_list_id date_time duration_minutes status notes is_deleted deleted_at tenant_id version_id'.split()),
     'attachments': frozenset('id tenant_id patient_id file_path filename file_type note created_at storage_provider storage_uuid drive_original_id drive_thumbnail_id original_size original_sha256 thumbnail_sha256 google_account_sub connection_generation storage_status'.split()),
     'batches': frozenset('id material_id tenant_id batch_number expiry_date supplier cost_per_unit created_at'.split()),
-    'care_observations': frozenset('id tenant_id patient_id care_session_id step_id work_item_id observation_code tooth_key structured_value notes recorded_at recorded_by_user_id created_at'.split()),
-    'care_session_steps': frozenset('id tenant_id care_session_id work_item_id step_order step_code title status started_at completed_at notes version_id created_at updated_at'.split()),
-    'care_sessions': frozenset('id tenant_id patient_id appointment_id provider_user_id status started_at finished_at notes version_id created_at updated_at'.split()),
+    'care_observations': frozenset('id tenant_id patient_id care_session_id step_id work_item_id observation_code tooth_key structured_value notes recorded_at recorded_by_user_id is_superseded superseded_by_id amendment_reason reference_source_session_id reference_source_date reference_source_observation_id created_at'.split()),
+    'care_session_drafts': frozenset('id tenant_id patient_id care_session_id author_user_id draft_payload version_id created_at updated_at'.split()),
+    'care_session_procedures': frozenset('id tenant_id care_session_id work_item_id procedure_notes next_action next_action_reason_omitted template_snapshot template_version performing_user_id created_at updated_at'.split()),
+    'care_session_steps': frozenset('id tenant_id care_session_id work_item_id step_order step_code logical_step_code occurrence_number template_step_id is_repeat repeat_reason title status started_at completed_at notes version_id created_at updated_at'.split()),
+    'care_sessions': frozenset('id tenant_id patient_id appointment_id provider_user_id status started_at finished_at notes actual_visit_date recorded_by_user_id is_historical amends_session_id amendment_reason version_id created_at updated_at'.split()),
     'clinical_attachment_links': frozenset('id tenant_id attachment_id patient_id work_item_id care_session_id clinical_event_id tooth_key purpose_code notes created_at'.split()),
     'clinical_charges': frozenset('id tenant_id patient_id work_item_id care_session_id doctor_id legacy_treatment_id amount discount status notes version_id created_at updated_at'.split()),
     'clinical_event_targets': frozenset('id tenant_id event_id target_kind tooth_key surface_code root_id canal_id created_at'.split()),
@@ -29,7 +31,7 @@ ARCHIVE_COLUMNS = {
     'material_learning_logs': frozenset('id tenant_id session_id material_id total_consumed calculation_data created_at'.split()),
     'material_sessions': frozenset('id tenant_id stock_item_id patient_id opened_at status is_disposed disposal_reason remaining_est current_uses doctor_id closed_at total_amount_consumed'.split()),
     'materials': frozenset('id tenant_id name type base_unit alert_threshold standard_price max_uses category_id brand packaging_ratio is_deleted deleted_at'.split()),
-    'next_visit_requests': frozenset('id tenant_id patient_id care_session_id work_item_id requested_by_user_id reason suggested_duration_minutes preferred_time_window_start preferred_time_window_end status notes created_at updated_at'.split()),
+    'next_visit_requests': frozenset('id tenant_id patient_id care_session_id work_item_id requested_by_user_id reason suggested_duration_minutes preferred_time_window_start preferred_time_window_end status notes associated_work_item_ids assigned_doctor_id stopped_at stopped_reason stopped_by_user_id postponed_to_date postponed_reason postponed_by_user_id handoff_at handoff_reason handoff_by_user_id handoff_to_user_id created_at updated_at'.split()),
     'patients': frozenset('id name age phone email address medical_history notes created_at date_of_birth date_of_birth_precision age_recorded_at is_deleted deleted_at tenant_id assigned_doctor_id default_price_list_id'.split()),
     'payments': frozenset('id patient_id doctor_id amount date notes tenant_id'.split()),
     'prescriptions': frozenset('id tenant_id patient_id medications notes date'.split()),
@@ -44,7 +46,7 @@ ARCHIVE_COLUMNS = {
     'stock_movements': frozenset('id tenant_id stock_item_id change_amount reason reference_id created_at performed_by'.split()),
     'tooth_status': frozenset('id tenant_id patient_id tooth_number condition notes'.split()),
     'treatment_material_usages': frozenset('id treatment_id care_session_id work_item_id material_id session_id weight_score quantity_used cost_calculated is_manual_override tenant_id created_at'.split()),
-    'treatment_sessions': frozenset('id treatment_id session_date notes tenant_id'.split()),
+    'treatment_sessions': frozenset('id treatment_id session_date next_session_date notes tenant_id'.split()),
     'treatments': frozenset('id patient_id tooth_number diagnosis procedure lab_choice doctor_id cost discount date canal_count canal_lengths sessions complications notes status tenant_id is_deleted deleted_at price_list_id unit_price price_snapshot'.split()),
     'warehouses': frozenset('id tenant_id name type'.split()),
     'workflow_templates': frozenset('id tenant_id template_code version title description is_active definition created_at updated_at'.split()),
@@ -52,6 +54,30 @@ ARCHIVE_COLUMNS = {
 
 STAFF_REFERENCE_SECTION = "staff_references"
 STAFF_REFERENCE_COLUMNS = frozenset({"id", "username", "full_name", "email", "commission_percent", "fixed_salary", "per_appointment_fee", "hire_date"})
+
+# Clinical references stored without SQL foreign keys still need the same
+# validation and ID remapping as declared foreign keys during recovery.
+CLINICAL_REFERENCE_COLUMNS = {
+    'care_sessions': {
+        'recorded_by_user_id': 'users',
+        'amends_session_id': 'care_sessions',
+    },
+    'care_observations': {
+        'superseded_by_id': 'care_observations',
+        'reference_source_observation_id': 'care_observations',
+        'reference_source_session_id': 'care_sessions',
+    },
+    'next_visit_requests': {
+        'assigned_doctor_id': 'users',
+        'stopped_by_user_id': 'users',
+        'postponed_by_user_id': 'users',
+        'handoff_by_user_id': 'users',
+        'handoff_to_user_id': 'users',
+    },
+}
+CLINICAL_REFERENCE_LIST_COLUMNS = {
+    'next_visit_requests': {'associated_work_item_ids': 'clinical_work_items'},
+}
 
 def validate_archive_sections(payload, *, tenant_id, require_complete=True):
     """Reject unrecognized sections, columns, ownership and duplicate row IDs.
@@ -136,6 +162,52 @@ def validate_archive_references(data, *, tenant_id, external_ids=None):
                         f'تحتوي النسخة الاحتياطية على مرجع غير صالح ({name}.{column.name})',
                         section=name, field=column.name, referenced_section=referenced,
                         category='invalid_reference', counts=invalid_ref_count,
+                    )
+        explicit_refs = CLINICAL_REFERENCE_COLUMNS.get(name, {})
+        for col_name, referenced in explicit_refs.items():
+            if col_name not in ARCHIVE_COLUMNS.get(name, ()):
+                continue
+            allowed = ids.get(referenced, set()) | set(external_ids.get(referenced, ()))
+            type_mismatch_count = 0
+            invalid_ref_count = 0
+            for row in rows:
+                value = row.get(col_name)
+                if value is not None:
+                    if not isinstance(value, int) or isinstance(value, bool):
+                        type_mismatch_count += 1
+                    elif value not in allowed:
+                        invalid_ref_count += 1
+            if type_mismatch_count > 0:
+                raise ArchiveError(
+                    f'نوع أو قيمة غير صالحة في النسخة الاحتياطية ({name}.{col_name})',
+                    section=name, field=col_name, referenced_section=referenced,
+                    category='invalid_reference_type', counts=type_mismatch_count,
+                )
+            if invalid_ref_count > 0:
+                raise ArchiveError(
+                    f'تحتوي النسخة الاحتياطية على مرجع غير صالح ({name}.{col_name})',
+                    section=name, field=col_name, referenced_section=referenced,
+                    category='invalid_reference', counts=invalid_ref_count,
+                )
+        for column, referenced in CLINICAL_REFERENCE_LIST_COLUMNS.get(name, {}).items():
+            allowed = ids.get(referenced, set())
+            for row in rows:
+                values = row.get(column)
+                if values is None:
+                    continue
+                if not isinstance(values, list) or any(
+                    not isinstance(value, int) or isinstance(value, bool) for value in values
+                ):
+                    raise ArchiveError(
+                        f'نوع أو قيمة غير صالحة في النسخة الاحتياطية ({name}.{column})',
+                        section=name, field=column, referenced_section=referenced,
+                        category='invalid_reference_type', counts=1,
+                    )
+                if any(value not in allowed for value in values):
+                    raise ArchiveError(
+                        f'تحتوي النسخة الاحتياطية على مرجع غير صالح ({name}.{column})',
+                        section=name, field=column, referenced_section=referenced,
+                        category='invalid_reference', counts=1,
                     )
 
 

@@ -322,6 +322,7 @@ class TreatmentSessionBase(BaseModel):
     treatment_id: int
     notes: Optional[str] = None
     session_date: Optional[datetime] = None
+    next_session_date: Optional[datetime] = None
 
 
 class TreatmentSessionCreate(TreatmentSessionBase):
@@ -340,6 +341,8 @@ class Treatment(TreatmentBase):
     date: Optional[datetime] = None
     consumedMaterials: Optional[list[ConsumedMaterialItem]] = None
     treatment_sessions: Optional[list[TreatmentSession]] = None
+    work_item_id: Optional[int] = None
+    work_item_version_id: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -307,3 +307,37 @@ class ClinicalToothDetailRead(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class ClinicalWorkItemStatusUpdate(BaseModel):
+    status: Literal["active", "completed"]
+    expected_version_id: Optional[int] = None
+    intent: Literal["transition", "reopen_correction"] = "transition"
+    reason: Optional[str] = Field(None, max_length=500)
+    override_reason: Optional[str] = Field(None, max_length=500)
+    idempotency_key: Optional[str] = Field(None, max_length=128)
+
+    model_config = ConfigDict(extra="forbid")
+
+    @model_validator(mode="after")
+    def validate_intent_and_reason(self) -> "ClinicalWorkItemStatusUpdate":
+        if self.intent == "reopen_correction":
+            if self.status != "active":
+                raise ValueError("reopen_correction intent requires status to be 'active'")
+            if not self.reason or not self.reason.strip():
+                raise ValueError("reopen_correction requires a non-empty reason")
+        return self
+
+
+class ClinicalWorkItemStatusResponse(BaseModel):
+    work_item: ClinicalWorkItemRead
+    previous_status: str
+    effective_status: str
+    version_id: int
+    event_id: int
+    legacy_treatment_id: Optional[int] = None
+    legacy_treatment_status: Optional[str] = None
+    warnings: List[ClinicalWorkItemCorrectionWarning] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+

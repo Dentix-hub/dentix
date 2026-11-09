@@ -4,6 +4,7 @@ import { api } from '@/api';
 
 export const useTenantStore = create((set, get) => ({
     tenant: null,
+    entitlements: null,
     loading: false,
     error: null,
     features: {},
@@ -14,61 +15,84 @@ export const useTenantStore = create((set, get) => ({
         set({ tenant: data, features });
     },
 
+    setEntitlements: (entitlementsData) => {
+        if (!entitlementsData || typeof entitlementsData !== 'object') {
+            set({ entitlements: null, features: {} });
+            return;
+        }
+
+        const features = {};
+        if (entitlementsData.capabilities) {
+            for (const [key, cap] of Object.entries(entitlementsData.capabilities)) {
+                features[key] = !!cap.effective_allowed;
+            }
+        }
+
+        // Direct clinical/appointment/billing operational capabilities
+        if (entitlementsData.can_read_clinical || entitlementsData.can_write_clinical) {
+            features['PATIENTS'] = true;
+        }
+        if (entitlementsData.can_create_appointments || entitlementsData.can_read_clinical) {
+            features['APPOINTMENTS'] = true;
+        }
+        if (entitlementsData.can_write_billable || entitlementsData.capabilities?.BILLING?.effective_allowed) {
+            features['BILLING'] = true;
+        }
+        if (entitlementsData.capabilities?.LABORATORIES?.effective_allowed) {
+            features['LABORATORIES'] = true;
+            features['LAB_INTEGRATION'] = true;
+        }
+        if (entitlementsData.capabilities?.INVENTORY?.effective_allowed) {
+            features['INVENTORY'] = true;
+        }
+        if (entitlementsData.capabilities?.AI_ASSISTANT?.effective_allowed) {
+            features['AI_ASSISTANT'] = !!entitlementsData.capacities?.ai?.is_enabled;
+        }
+        if (entitlementsData.capabilities?.EXPORT_REPORTS?.effective_allowed) {
+            features['EXPORT_REPORTS'] = true;
+        }
+        if (entitlementsData.capabilities?.TENANT_BACKUPS?.effective_allowed) {
+            features['TENANT_BACKUPS'] = true;
+        }
+
+        set({ entitlements: entitlementsData, features });
+    },
+
     clearTenant: () => set({
         tenant: null,
+        entitlements: null,
         loading: false,
         error: null,
         features: {},
     }),
 
     fetchTenant: async () => {
-        set({ loading: true });
+        set({ loading: true, error: null });
         try {
-            // Fetching from /users/me is safer as it guarantees context
             const res = await api.get('/api/v1/users/me');
-            const tenantData = res.data.tenant;
+            const tenantData = res.data?.tenant || res.data;
 
-            // PRIORITY: Check for DB-configured features first
-            let features = {};
-            if (tenantData?.subscription_plan?.features) {
-                try {
-                    // It assumes features is a JSON string or array, we need to handle format
-                    // Backend returns string usually, check Plan definition. 
-                    // schemas/tenant.py says features: Optional[str]
-                    const rawFeatures = tenantData.subscription_plan.features;
-                    let parsed = rawFeatures;
-                    
-                    if (typeof rawFeatures === 'string' && (rawFeatures.startsWith('[') || rawFeatures.startsWith('{'))) {
-                        try {
-                            parsed = JSON.parse(rawFeatures);
-                        } catch (e) {
-                            logger.warn("Invalid JSON in features string, using as-is:", e);
-                        }
-                    }
+            // Strict, fail-closed feature set: unknown plan NEVER grants commercial features
+            let features = deriveFeatures(tenantData?.plan);
 
-                    if (Array.isArray(parsed)) {
-                        // Convert array ["BILLING", "LABS"] to object { BILLING: true, LABS: true }
-                        features = parsed.reduce((acc, feat) => ({ ...acc, [feat]: true }), {});
-                        // Ensure base features are present
-                        features = { ...features, 'PATIENTS': true, 'APPOINTMENTS': true, 'DASHBOARD': true };
-                    } else if (typeof parsed === 'object' && parsed !== null) {
-                        features = parsed;
-                    } else {
-                        // If it's a plain string or something else, use legacy derivation
-                        features = deriveFeatures(tenantData?.plan);
-                    }
-                } catch (err) {
-                    logger.error("Critical error parsing features:", err);
-                    features = deriveFeatures(tenantData?.plan);
+            // Attempt to fetch canonical entitlements snapshot
+            try {
+                const entRes = await api.get('/api/v1/settings/entitlements');
+                const entData = entRes.data?.data || entRes.data;
+                if (entData && typeof entData === 'object') {
+                    get().setEntitlements(entData);
+                    set({ tenant: tenantData, loading: false });
+                    return;
                 }
-            } else {
-                features = deriveFeatures(tenantData?.plan);
+            } catch (entErr) {
+                logger.warn("[TenantStore] Entitlements endpoint unavailable or failed; maintaining strict fail-closed state:", entErr);
             }
 
             set({ tenant: tenantData, features, loading: false });
         } catch (err) {
             logger.error("Failed to fetch tenant settings", err);
-            set({ error: err, loading: false });
+            // Snapshot error is NOT an all-access state: fail-closed with empty features
+            set({ error: err, features: {}, loading: false });
         }
     },
 
@@ -88,52 +112,68 @@ export const useTenantStore = create((set, get) => ({
     hasFeature: (featureKey) => {
         const { features } = get();
         return !!features[featureKey];
-    }
+    },
+
+    getAIQuota: () => {
+        const { entitlements } = get();
+        return entitlements?.capacities?.ai || null;
+    },
+
+    getSeatsQuota: () => {
+        const { entitlements } = get();
+        return entitlements?.capacities?.seats || null;
+    },
+
+    getEffectiveStatus: () => {
+        const { entitlements, tenant } = get();
+        return entitlements?.effective_subscription_status || (tenant?.plan ? 'UNKNOWN' : 'NONE');
+    },
 }));
 
-// Helper to derive features from plan
-// In a real app, this should come from the backend's Plan definition
+// Helper to derive baseline features for offline/pre-snapshot states
+// Strictly fail-closed: unknown plans or missing plans NEVER grant commercial access
 const deriveFeatures = (planName) => {
-    // Defines features available to all plans
-    const baseFeatures = {
+    // Only non-commercial clinical viewing/entry is allowed offline without snapshot
+    const baseline = {
         'PATIENTS': true,
         'APPOINTMENTS': true,
         'DASHBOARD': true,
-        'BILLING': true,          // Always Enabled
-        'LAB_INTEGRATION': true,  // Always Enabled
-    };
-
-    // Default "Full Access" set (used for Premium, Enterprise, Trial, and Unknown plans)
-    const fullAccess = {
-        ...baseFeatures,
-        'AI_ASSISTANT': true,
-        'REPORTS_ADVANCED': true,
-        'MULTI_USER': true,
+        'BILLING': false,
+        'INVENTORY': false,
+        'LAB_INTEGRATION': false,
+        'LABORATORIES': false,
+        'AI_ASSISTANT': false,
+        'REPORTS_ADVANCED': false,
+        'EXPORT_REPORTS': false,
+        'TENANT_BACKUPS': false,
     };
 
     if (!planName) {
-        logger.warn("[TenantStore] No plan name found, defaulting to Full Access (Trial Mode)");
-        return fullAccess;
+        return baseline;
     }
 
     const normalizedPlan = planName.toLowerCase();
-
-    // Restricted Plans
+    // Only known verified plans can receive initial baseline hints prior to snapshot
     if (normalizedPlan === 'basic' || normalizedPlan === 'starter') {
         return {
-            ...baseFeatures,
-            'BILLING': true, // Basic billing allowed
-            'REPORTS_BASIC': true,
-            'LAB_INTEGRATION': false, // Explicitly false for basic
-            'AI_ASSISTANT': false,    // Explicitly false for basic
+            ...baseline,
+            'BILLING': true,
+        };
+    }
+    if (normalizedPlan === 'premium' || normalizedPlan === 'enterprise' || normalizedPlan === 'professional') {
+        return {
+            ...baseline,
+            'BILLING': true,
+            'INVENTORY': true,
+            'LAB_INTEGRATION': true,
+            'LABORATORIES': true,
+            'AI_ASSISTANT': true,
+            'REPORTS_ADVANCED': true,
+            'EXPORT_REPORTS': true,
+            'TENANT_BACKUPS': true,
         };
     }
 
-    // Known Premium Plans
-    if (normalizedPlan === 'premium' || normalizedPlan === 'enterprise' || normalizedPlan === 'gold' || normalizedPlan === 'platinum') {
-        return fullAccess;
-    }
-
-    // Default Fallback (Unknown Plan Name -> Full Access)
-    return fullAccess;
+    // Default Fallback: STRICTLY FAIL-CLOSED (Unknown Plan Name -> Baseline Only)
+    return baseline;
 };

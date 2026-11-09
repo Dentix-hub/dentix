@@ -70,6 +70,8 @@ EXPECTED_TENANT_MODELS = {
     "ClinicalEvent",
     "ClinicalEventTarget",
     "CareSession",
+    "CareSessionDraft",
+    "CareSessionProcedure",
     "CareSessionStep",
     "CareObservation",
     "WorkflowTemplate",
@@ -84,6 +86,9 @@ EXPECTED_TENANT_MODELS = {
     "UserOnboardingState",
     "TenantDataOperation",
     "GoogleOAuthAttempt",
+    "CommercialTenantOverride",
+    "AIQuotaWindow",
+    "AIReservation",
 }
 
 # Models filtered via parent FK join (no own tenant_id column needed)

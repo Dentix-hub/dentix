@@ -4,7 +4,13 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from backend.database import system_session_scope
 from backend.models.tenant import Tenant
-from sqlalchemy import select, or_
+from backend import models
+from backend.services.subscription_state_machine import (
+    SubscriptionState,
+    normalize_state,
+    validate_transition,
+)
+from sqlalchemy import select, or_, and_
 import traceback
 
 from prefect import task, flow
@@ -34,13 +40,26 @@ async def check_expired_subscriptions(db: AsyncSession):
         return 0
 
     now = datetime.now(timezone.utc)
+    now_naive = now.replace(tzinfo=None)
+
     stmt = select(Tenant).where(
-        Tenant.is_active == True,
-        Tenant.subscription_end_date != None,
-        Tenant.subscription_end_date < now,
-        or_(Tenant.grace_period_until == None, Tenant.grace_period_until < now),
+        Tenant.is_active.is_(True),
+        Tenant.is_deleted.is_(False),
+        Tenant.subscription_status.notin_(
+            [
+                SubscriptionState.SUSPENDED_ADMIN.value,
+                SubscriptionState.CANCELLED.value,
+            ]
+        ),
+        or_(
+            Tenant.subscription_end_date <= now_naive,
+            and_(
+                Tenant.future_plan_id.is_not(None),
+                Tenant.future_plan_start_date <= now_naive,
+            ),
+        ),
     )
-    result = await db.execute(stmt)
+    result = await db.execute(stmt.with_for_update(skip_locked=True))
     expired_tenants = result.scalars().all()
 
     if not expired_tenants:
@@ -48,17 +67,42 @@ async def check_expired_subscriptions(db: AsyncSession):
 
     count = 0
     for tenant in expired_tenants:
-        if mode == "observe":
-            logger.info(
-                f"[OBSERVE] Tenant {tenant.id} ({tenant.name}) subscription is past expiry date."
-            )
-        elif mode == "enforce":
-            # Update subscription status, but NEVER set is_active = False!
-            tenant.subscription_status = "expired"
-            logger.info(
-                f"[ENFORCE] Tenant {tenant.id} ({tenant.name}) subscription marked expired (read-only clinical history preserved)."
-            )
-            count += 1
+        curr_status = normalize_state(tenant.subscription_status or "trial")
+        # Defensive check: worker never overwrites security suspension or cancellation
+        if curr_status in {
+            SubscriptionState.SUSPENDED_ADMIN.value,
+            SubscriptionState.CANCELLED.value,
+        }:
+            continue
+
+        from backend.services.subscription_period import resolve_subscription_period
+
+        period = resolve_subscription_period(tenant, now)
+        target_status = period.status
+        if period.future_started and mode == "enforce":
+            future_plan = await db.get(models.SubscriptionPlan, tenant.future_plan_id)
+            if future_plan:
+                tenant.plan_id, tenant.plan = future_plan.id, future_plan.name
+                tenant.future_plan_id = None
+                tenant.future_plan_start_date = None
+                tenant.scheduled_downgrade_plan_id = None
+                count += 1
+
+        if target_status != curr_status:
+            if mode == "observe":
+                logger.info(
+                    f"[OBSERVE] Tenant {tenant.id} ({tenant.name}) status transition: {curr_status} -> {target_status}."
+                )
+            elif mode == "enforce":
+                if curr_status == SubscriptionState.TRIAL.value and period.future_started:
+                    validate_transition(curr_status, SubscriptionState.ACTIVE.value)
+                    curr_status = SubscriptionState.ACTIVE.value
+                new_status = validate_transition(curr_status, target_status)
+                tenant.subscription_status = new_status
+                logger.info(
+                    f"[ENFORCE] Tenant {tenant.id} ({tenant.name}) transitioned from '{curr_status}' to '{new_status}' (read-only clinical history preserved, is_active unmodified)."
+                )
+                count += 1
 
     if mode == "enforce" and count > 0:
         await db.commit()

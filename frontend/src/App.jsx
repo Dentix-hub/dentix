@@ -69,6 +69,7 @@ const AdminSystem = lazy(() => import('./pages/admin/SystemPage'));
 const SystemLogs = lazy(() => import('./pages/admin/SystemLogs'));
 const PriceLists = lazy(() => import('./pages/admin/PriceLists'));
 const InsuranceProviders = lazy(() => import('./pages/admin/InsuranceProviders'));
+const WorkflowTemplateList = lazy(() => import('@/features/templates/WorkflowTemplateList'));
 // Stores
 import { useUIStore } from '@/store/ui.store';
 import ImpersonationBar from '@/components/common/ImpersonationBar';
@@ -164,6 +165,8 @@ function AppRoutes() {
                             <Route path="/patients" element={<Patients />} />
                             <Route path="/patients/:id" element={<PatientDetails />} />
                             <Route path="/appointments" element={<Appointments />} />
+                            <Route path="/appointments/follow-ups" element={<Navigate to="/appointments?view=follow-ups" replace />} />
+                            <Route path="/follow-ups" element={<Navigate to="/appointments?view=follow-ups" replace />} />
                             <Route path="/inventory" element={<Inventory />} />
 
                             {/* Legacy top-level Finance links remain compatibility-only. */}
@@ -245,6 +248,11 @@ function AppRoutes() {
                             <Route path="/settings/insurance" element={
                                 <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
                                     <InsuranceProviders />
+                                </ProtectedRoute>
+                            } />
+                            <Route path="/settings/workflow-templates" element={
+                                <ProtectedRoute allowedRoles={['admin', 'super_admin', 'doctor']}>
+                                    <WorkflowTemplateList />
                                 </ProtectedRoute>
                             } />
                             <Route path="/admin" element={

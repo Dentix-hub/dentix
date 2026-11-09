@@ -161,6 +161,9 @@ class AdminService:
             return None
 
         user.is_active = False
+        from backend.services.auth_service import AuthService
+
+        await AuthService.revoke_all_user_sessions(self.db, user.id, commit=False)
         await self.db.commit()
         return user
 
@@ -171,6 +174,13 @@ class AdminService:
         user = res.scalar_one_or_none()
         if not user:
             return None
+
+        if user.tenant_id and not user.is_active:
+            from backend.services.account_admission_service import AccountAdmissionService
+
+            await AccountAdmissionService.admit_active_account(
+                self.db, tenant_id=user.tenant_id, target_user_id=user.id
+            )
 
         user.is_active = True
         await self.db.commit()

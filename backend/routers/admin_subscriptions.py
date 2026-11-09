@@ -4,6 +4,7 @@ from typing import List
 from backend import models, schemas
 from backend.database import get_async_db
 from backend.services.subscription_service import SubscriptionService
+from backend.services.reconciliation_service import ReconciliationService
 from backend.core.permissions import Role, Permission, require_permission
 from backend.core.response import success_response, StandardResponse
 
@@ -38,8 +39,19 @@ async def create_plan(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = await SubscriptionService.create_plan(db, plan)
+    data = await SubscriptionService.create_plan(db, plan, admin_user=current_user)
     return success_response(data=data, message="Plan created successfully")
+
+
+@router.post("/plans/{plan_id}/preview", response_model=StandardResponse[schemas.SubscriptionPlanPreviewResponse])
+async def preview_plan_update(
+    plan_id: int,
+    preview_req: schemas.SubscriptionPlanPreviewRequest,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = await SubscriptionService.preview_plan_update(db, plan_id, preview_req)
+    return success_response(data=data)
 
 
 @router.put("/plans/{plan_id}", response_model=StandardResponse[schemas.SubscriptionPlan])
@@ -49,7 +61,7 @@ async def update_plan(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = await SubscriptionService.update_plan(db, plan_id, plan_update)
+    data = await SubscriptionService.update_plan(db, plan_id, plan_update, admin_user=current_user)
     return success_response(data=data, message="Plan updated successfully")
 
 
@@ -59,8 +71,108 @@ async def delete_plan(
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
-    data = await SubscriptionService.delete_plan(db, plan_id)
+    data = await SubscriptionService.delete_plan(db, plan_id, admin_user=current_user)
     return success_response(data=data, message="Plan deleted successfully")
+
+
+@router.post("/plans/reconcile-duplicates", response_model=StandardResponse[dict])
+async def reconcile_duplicate_plans(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = await SubscriptionService.reconcile_duplicate_plans(db)
+    return success_response(data=data, message="Duplicate plans reconciled successfully")
+
+
+@router.get("/plans/catalog-template", response_model=StandardResponse[List[dict]])
+async def get_launch_catalog_template(
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = SubscriptionService.get_launch_catalog_template()
+    return success_response(data=data)
+
+
+@router.post("/plans/seed-catalog", response_model=StandardResponse[dict])
+async def seed_launch_catalog(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = await SubscriptionService.seed_launch_catalog(db, admin_user=current_user)
+    return success_response(data=data, message=data.get("message", "Seeded launch plans"))
+
+
+# Catalog Inventory & Reconciliation Preview (PR-11)
+@router.get('/catalog-setup-preview', response_model=StandardResponse[dict])
+async def preview_catalog_setup(db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_super_admin)):
+    from backend.services.catalog_setup_service import preview_catalog_setup as preview
+    return success_response(data=await preview(db))
+
+
+@router.post('/catalog-setup', response_model=StandardResponse[dict])
+async def apply_catalog_setup(request: schemas.CatalogSetupRequest, db: AsyncSession = Depends(get_async_db), current_user: models.User = Depends(require_super_admin)):
+    from backend.services.catalog_setup_service import apply_catalog_setup as apply
+    return success_response(data=await apply(db,request,current_user))
+
+
+@router.get("/catalog-inventory", response_model=StandardResponse[schemas.CatalogInventoryResponse])
+async def get_catalog_inventory(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    """
+    Authoritative read-only catalog and tenant configuration inventory.
+    Provides counts, launch tier status, and anomaly warnings. Zero PII or secrets.
+    """
+    data = await ReconciliationService.get_catalog_inventory(db)
+    return success_response(data=data)
+
+
+@router.get("/reconciliation-preview", response_model=StandardResponse[schemas.ReconciliationPreviewResponse])
+async def get_reconciliation_preview(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    """
+    Pure preview of catalog and tenant reconciliation.
+    Identifies unanchored plans, status anomalies, and proposes mappings.
+    Zero mutations.
+    """
+    data = await ReconciliationService.preview_reconciliation(db)
+    return success_response(data=data)
+
+
+@router.post("/reconcile-tenants", response_model=StandardResponse[dict])
+async def reconcile_tenants(
+    selection: schemas.ReconciliationApplyRequest | None = None,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    """
+    Safely anchor unanchored tenants to canonical plans without shortening periods or modifying active accounts.
+    """
+    data = await ReconciliationService.apply_reconciliation(db, admin_user=current_user, selection=selection)
+    return success_response(data=data, message=data.get("message", "Reconciliation completed"))
+
+
+# Trial Policy
+@router.get("/trial-policy", response_model=StandardResponse[schemas.TrialPolicyResponse])
+async def get_trial_policy(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = await SubscriptionService.get_trial_policy(db)
+    return success_response(data=data)
+
+
+@router.put("/trial-policy", response_model=StandardResponse[schemas.TrialPolicyResponse])
+async def update_trial_policy(
+    update_data: schemas.TrialPolicyUpdateRequest,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    data = await SubscriptionService.update_trial_policy(db, update_data, admin_user=current_user)
+    return success_response(data=data, message="Trial policy updated successfully")
+
 
 
 # Payments
@@ -75,12 +187,35 @@ async def get_payments(
     return success_response(data=data)
 
 
-@router.post("/payments", response_model=StandardResponse[schemas.SubscriptionPayment])
-async def record_payment(
+@router.post("/payments/preview", response_model=StandardResponse[schemas.SubscriptionPaymentPreview])
+async def preview_payment(
     payment: schemas.SubscriptionPaymentCreate,
+    idempotency_key: str | None = Header(default=None, alias="X-Idempotency-Key", max_length=100),
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_super_admin),
 ):
+    if idempotency_key:
+        if payment.idempotency_key and payment.idempotency_key != idempotency_key:
+            raise HTTPException(409, "Conflicting payment idempotency keys")
+        payment = payment.model_copy(update={"idempotency_key": idempotency_key})
+    data = await SubscriptionService.preview_payment(db, payment)
+    return success_response(data=data)
+
+
+@router.post("/payments", response_model=StandardResponse[schemas.SubscriptionPayment])
+async def record_payment(
+    payment: schemas.SubscriptionPaymentCreate,
+    idempotency_key: str | None = Header(default=None, alias="X-Idempotency-Key", max_length=100),
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_super_admin),
+):
+    if idempotency_key:
+        if payment.idempotency_key and payment.idempotency_key != idempotency_key:
+            raise HTTPException(409, "Conflicting payment idempotency keys")
+        payment = payment.model_copy(update={"idempotency_key": idempotency_key})
+    from backend.core.config import get_subscription_enforcement_mode
+    if get_subscription_enforcement_mode() == "enforce" and not (payment.idempotency_key or payment.provider_payment_id):
+        raise HTTPException(400, "A stable idempotency key or receipt reference is required for a paid operation")
     data = await SubscriptionService.record_payment(db, payment, current_user.username)
     return success_response(data=data, message="Payment recorded successfully")
 

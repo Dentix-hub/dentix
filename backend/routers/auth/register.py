@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta, timezone
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status, Form, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
@@ -8,7 +10,6 @@ from backend.core.limiter import limiter
 from backend.core.response import success_response, StandardResponse
 from backend.services.auth_bootstrap import clinic_registration_scope
 from .dependencies import get_async_db, validate_password
-import logging
 
 logger = logging.getLogger("smart_clinic")
 
@@ -71,26 +72,25 @@ async def register_clinic(
                 )
                 raise HTTPException(status_code=400, detail="Email already registered")
 
-            # Get Default Plan (Basic)
-            stmt_plan = select(models.SubscriptionPlan).where(
-                models.SubscriptionPlan.is_default
-            )
-            result_plan = await registration_db.execute(stmt_plan)
-            default_plan = result_plan.scalars().first()
-            # Fallback if no default plan
-            if not default_plan:
-                stmt_plan_fallback = select(models.SubscriptionPlan)
-                result_plan_fallback = await registration_db.execute(
-                    stmt_plan_fallback
-                )
-                default_plan = result_plan_fallback.scalars().first()
+            from backend.services.subscription_service import SubscriptionService
 
-            plan_id = default_plan.id if default_plan else None
+            policy = await SubscriptionService.get_trial_policy(registration_db)
+            trial_plan = await registration_db.get(models.SubscriptionPlan, policy.trial_plan_id) if policy.trial_plan_id else None
+            if not trial_plan or not trial_plan.is_active:
+                raise HTTPException(status_code=500, detail="باقة التجربة المجانية غير مهيأة في النظام")
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            trial_end_utc = now_utc + timedelta(days=policy.trial_duration_days)
 
             new_tenant = models.Tenant(
                 name=clinic_name,
                 is_active=True,
-                plan_id=plan_id,
+                plan_id=trial_plan.id,
+                plan=trial_plan.name,
+                subscription_status="trial",
+                subscription_start_date=now_utc,
+                subscription_end_date=trial_end_utc,
+                grace_period_until=None,  # No grace period for trial
+                billing_day_anchor=now_utc.day,
                 contact_phone=contact_phone,
             )
             registration_db.add(new_tenant)
@@ -100,6 +100,12 @@ async def register_clinic(
             await crud.seed_tenant_default_procedures(registration_db, new_tenant.id)
 
             # Create the clinic's first admin user in the same transaction.
+            from backend.services.account_admission_service import AccountAdmissionService
+
+            await AccountAdmissionService.admit_active_account(
+                registration_db, tenant_id=new_tenant.id
+            )
+
             hashed_password = auth_utils.get_password_hash(admin_password)
             new_user = models.User(
                 username=admin_username,

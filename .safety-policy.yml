@@ -52,4 +52,14 @@ security:
         passes algorithms=[ALGORITHM] (HS256) on every jwt.decode call across
         the codebase, preventing algorithm confusion.
       expires: '2026-11-30'
+    SFTY-20261005-32026:
+      reason: >-
+        CVE-2026-102991 affects Windows drive designators in Mako template paths.
+        DENTIX deploys strictly on Linux and does not accept user-controlled template paths.
+      expires: '2026-11-30'
+    SFTY-20261005-09094:
+      reason: >-
+        SFTY-20261005-09094 affects reflected union/subtraction operators on multidict
+        items views. DENTIX does not invoke set operations on multidict items.
+      expires: '2026-11-30'
   continue-on-vulnerability-error: false

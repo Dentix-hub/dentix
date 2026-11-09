@@ -6,6 +6,7 @@ from log records, exception traces, and persisted SystemError rows. Enforces str
 
 import logging
 import re
+from decimal import Decimal
 from typing import Any, Dict, Optional
 
 # Regular expressions for sensitive patterns
@@ -81,9 +82,12 @@ def sanitize_dict(data: Dict[str, Any], *, _depth: int = 0) -> Dict[str, Any]:
             sanitized[k] = [
                 sanitize_text(item) if isinstance(item, str)
                 else sanitize_dict(item, _depth=_depth + 1) if isinstance(item, dict)
+                else float(item) if isinstance(item, Decimal)
                 else item
                 for item in v[:100]
             ]
+        elif isinstance(v, Decimal):
+            sanitized[k] = float(v)
         elif isinstance(v, Exception):
             sanitized[k] = str(v)
         else:

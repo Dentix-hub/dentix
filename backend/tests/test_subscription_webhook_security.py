@@ -142,7 +142,8 @@ async def test_signed_webhook_is_bound_to_checkout_and_idempotent(
     assert replay.id == payment.id
     assert payment_count == 1
     assert tenant.subscription_end_date == first_end_date
-    assert tenant.is_active is True
+    # PR-06: payment / webhook never mutates tenant.is_active (hard-disable independence)
+    assert tenant.is_active is False
 
 
 @pytest.mark.asyncio

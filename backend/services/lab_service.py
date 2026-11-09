@@ -170,6 +170,48 @@ class LabService:
         self.db = db
         self.tenant_id = tenant_id
 
+    async def ensure_commercial_writes_enabled(self) -> None:
+        """Enforce commercial entitlement for laboratory mutations."""
+        from fastapi import HTTPException
+        from sqlalchemy.orm import selectinload
+        from backend.core.config import get_subscription_enforcement_mode
+        from backend.core.commercial_registry import CapabilityKey
+        from backend.services.entitlement_service import EntitlementService
+
+        mode = get_subscription_enforcement_mode()
+        if mode in {"off", "observe"}:
+            return
+        if not self.tenant_id or not hasattr(self.db, "execute"):
+            return
+        stmt = (
+            select(models.Tenant)
+            .options(selectinload(models.Tenant.subscription_plan))
+            .where(models.Tenant.id == self.tenant_id)
+        )
+        res = await self.db.execute(stmt)
+        tenant = res.scalar_one_or_none()
+        if tenant:
+            emergency_restrictions, commercial_overrides = (
+                await EntitlementService.async_resolve_restrictions_and_overrides(
+                    self.db, self.tenant_id
+                )
+            )
+            eval_res = EntitlementService.evaluate_tenant_entitlements(
+                tenant,
+                override_mode=mode,
+                emergency_restrictions=emergency_restrictions,
+                commercial_overrides=commercial_overrides,
+            )
+            lab_dec = eval_res.commercial_decisions.get(CapabilityKey.LABORATORIES.value, {})
+            if not lab_dec.get("allowed", True):
+                detail_msg = (
+                    lab_dec.get("explanation_ar")
+                    or lab_dec.get("explanation_en")
+                    or eval_res.reason
+                    or "خاصية إدارة المعامل غير مفعلة في باقة اشتراك العيادة."
+                )
+                raise HTTPException(status_code=403, detail=detail_msg)
+
     # --- Laboratory CRUD ---
 
     async def get_laboratories(self) -> List[models.Laboratory]:
@@ -190,6 +232,7 @@ class LabService:
         return result.scalars().first()
 
     async def create_laboratory(self, data: schemas.LaboratoryCreate) -> models.Laboratory:
+        await self.ensure_commercial_writes_enabled()
         lab = models.Laboratory(**data.model_dump(), tenant_id=self.tenant_id)
         self.db.add(lab)
         await self.db.commit()
@@ -199,6 +242,7 @@ class LabService:
     async def update_laboratory(
         self, lab_id: int, data: schemas.LaboratoryUpdate
     ) -> models.Laboratory:
+        await self.ensure_commercial_writes_enabled()
         lab = await self.get_laboratory(lab_id)
         if not lab:
             raise ValueError("Laboratory not found")
@@ -212,6 +256,7 @@ class LabService:
         return lab
 
     async def delete_laboratory(self, lab_id: int) -> bool:
+        await self.ensure_commercial_writes_enabled()
         lab = await self.get_laboratory(lab_id)
         if not lab:
             raise ValueError("Laboratory not found")
@@ -252,6 +297,7 @@ class LabService:
         self, data: schemas.LabOrderCreate, doctor_id: int, *, commit: bool = True
     ) -> models.LabOrder:
         """Create a lab order and its billable treatment atomically."""
+        await self.ensure_commercial_writes_enabled()
         stmt_patient = select(models.Patient).where(
             models.Patient.id == data.patient_id,
             models.Patient.tenant_id == self.tenant_id,
@@ -373,6 +419,7 @@ class LabService:
         self, order_id: int, data: schemas.LabOrderUpdate
     ) -> models.LabOrder:
         """Update lab order and sync linked treatment."""
+        await self.ensure_commercial_writes_enabled()
         order = await self.get_lab_order(order_id, for_update=True)
         if not order:
             raise ValueError("Lab order not found")
@@ -437,6 +484,7 @@ class LabService:
 
     async def delete_lab_order(self, order_id: int, *, current_user=None) -> bool:
         """Delete one lab order and only its exact linked treatment."""
+        await self.ensure_commercial_writes_enabled()
         order = await self.get_lab_order(order_id)
         if not order:
             raise ValueError("Lab order not found")
@@ -694,6 +742,7 @@ class LabService:
     async def create_lab_payment(
         self, lab_id: int, data: schemas.LabPaymentCreate
     ) -> models.LabPayment:
+        await self.ensure_commercial_writes_enabled()
         lab = await self.get_laboratory(lab_id)
         if not lab:
             raise ValueError("Laboratory not found")
@@ -748,6 +797,7 @@ class LabService:
     async def allocate_payment(
         self, lab_id: int, payment_id: int, lab_order_id: int
     ) -> models.LabPayment:
+        await self.ensure_commercial_writes_enabled()
         lab = await self.get_laboratory(lab_id)
         if not lab:
             raise ValueError("Laboratory not found")
@@ -799,6 +849,7 @@ class LabService:
     async def deallocate_payment(
         self, lab_id: int, payment_id: int
     ) -> models.LabPayment:
+        await self.ensure_commercial_writes_enabled()
         lab = await self.get_laboratory(lab_id)
         if not lab:
             raise ValueError("Laboratory not found")

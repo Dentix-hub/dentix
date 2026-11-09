@@ -4,7 +4,7 @@ Decides which model to use based on query intent and complexity.
 """
 
 from typing import Optional
-from ..config import DEFAULT_MODEL, COMPLEX_MODEL, COMPLEX_KEYWORDS, COMPLEX_TOOLS
+from ..config import get_fast_model, get_complex_model, COMPLEX_KEYWORDS, COMPLEX_TOOLS
 
 
 class SmartModelRouter:
@@ -24,21 +24,21 @@ class SmartModelRouter:
 
         # 1. Force complex model for specific tools
         if tool_name and tool_name in COMPLEX_TOOLS:
-            return COMPLEX_MODEL
+            return get_complex_model()
 
         # 2. Check for complexity keywords in user input
         query_lower = query.lower()
         for keyword in COMPLEX_KEYWORDS:
             if keyword in query_lower:
-                return COMPLEX_MODEL
+                return get_complex_model()
 
         # 3. Check for specific "Command" patterns that need accuracy
         if "detailed" in query_lower or "تفاصيل" in query_lower:
-            return COMPLEX_MODEL
+            return get_complex_model()
 
         # 4. Long context heuristic
         if len(query.split()) > 30:  # If input is very long
-            return COMPLEX_MODEL
+            return get_complex_model()
 
         # Default to faster/cheaper model
-        return DEFAULT_MODEL
+        return get_fast_model()

@@ -178,6 +178,76 @@ async def list_care_session_steps(
 
 
 # ---------------------------------------------------------------------------
+# Care Session Procedures & Workspace Operations (Requirement 1 & 3)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{patient_id}/care-sessions/{session_id}/procedures/{work_item_id}",
+    response_model=StandardResponse[schemas.CareSessionProcedureRead],
+    status_code=status.HTTP_201_CREATED,
+    summary="Add procedure to active care session",
+    description="Associate an active procedure with an in-progress care session and populate its template snapshot.",
+)
+async def add_procedure_to_care_session(
+    patient_id: int,
+    session_id: int,
+    work_item_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    proc = await service.add_procedure_to_session(patient_id, session_id, work_item_id)
+    return success_response(
+        data=schemas.CareSessionProcedureRead.model_validate(proc),
+        message="Procedure associated with care session successfully",
+    )
+
+
+@router.delete(
+    "/{patient_id}/care-sessions/{session_id}/procedures/{work_item_id}",
+    response_model=StandardResponse[bool],
+    summary="Remove procedure from care session",
+    description="Remove an unworked procedure selected accidentally from the visit without deleting the procedure itself.",
+)
+async def remove_procedure_from_care_session(
+    patient_id: int,
+    session_id: int,
+    work_item_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    removed = await service.remove_procedure_from_session(patient_id, session_id, work_item_id)
+    return success_response(
+        data=removed,
+        message="Procedure removed from care session",
+    )
+
+
+@router.patch(
+    "/{patient_id}/care-sessions/{session_id}/procedures/{work_item_id}",
+    response_model=StandardResponse[schemas.CareSessionProcedureRead],
+    summary="Update care session procedure notes and next action",
+    description="Save procedure-specific notes and next action within the active visit.",
+)
+async def update_care_session_procedure(
+    patient_id: int,
+    session_id: int,
+    work_item_id: int,
+    payload: schemas.CareSessionProcedureUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    proc = await service.update_session_procedure(patient_id, session_id, work_item_id, payload)
+    return success_response(
+        data=schemas.CareSessionProcedureRead.model_validate(proc),
+        message="Procedure details updated successfully",
+    )
+
+
+# ---------------------------------------------------------------------------
 # Care Observation Endpoints (Slice S19 / G10-M07, G10-M15)
 # ---------------------------------------------------------------------------
 
@@ -214,11 +284,14 @@ async def list_care_observations(
     patient_id: int,
     session_id: int,
     step_id: Optional[int] = Query(None, description="Optional step ID filter"),
+    include_superseded: bool = Query(False, description="Whether to include superseded observation amendments"),
     db: AsyncSession = Depends(get_async_db),
     current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
 ):
     service = CareSessionService(db, current_user.tenant_id, current_user)
-    observations = await service.list_observations(patient_id, session_id, step_id=step_id)
+    observations = await service.list_observations(
+        patient_id, session_id, step_id=step_id, include_superseded=include_superseded
+    )
     return success_response(
         data=[schemas.CareObservationRead.model_validate(o) for o in observations],
         message="Care observations retrieved successfully",
@@ -265,6 +338,69 @@ async def get_active_care_session(
     return success_response(
         data=schemas.CareSessionRead.model_validate(session) if session else None,
         message="Active care session retrieved" if session else "No active care session",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Server Drafts Endpoints (Section 2.6 - declared before dynamic {session_id} to avoid route shadowing)
+# ---------------------------------------------------------------------------
+
+
+@router.put(
+    "/{patient_id}/care-sessions/draft",
+    response_model=StandardResponse[schemas.CareSessionDraftRead],
+    summary="Save care session draft",
+    description="Autosave chairside visit documentation draft with optimistic concurrency control.",
+)
+async def save_care_session_draft(
+    patient_id: int,
+    payload: schemas.CareSessionDraftSave,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    draft = await service.save_draft(patient_id, payload)
+    return success_response(
+        data=schemas.CareSessionDraftRead.model_validate(draft),
+        message="Care session draft saved successfully",
+    )
+
+
+@router.get(
+    "/{patient_id}/care-sessions/draft",
+    response_model=StandardResponse[Optional[schemas.CareSessionDraftRead]],
+    summary="Recover care session draft",
+    description="Recover editable documentation draft for current author on this patient.",
+)
+async def get_care_session_draft(
+    patient_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_READ)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    draft = await service.get_draft(patient_id)
+    return success_response(
+        data=schemas.CareSessionDraftRead.model_validate(draft) if draft else None,
+        message="Care session draft recovered" if draft else "No draft found",
+    )
+
+
+@router.delete(
+    "/{patient_id}/care-sessions/draft",
+    response_model=StandardResponse[bool],
+    summary="Discard care session draft",
+    description="Clear saved draft after successful finalization or author discard.",
+)
+async def delete_care_session_draft(
+    patient_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    deleted = await service.delete_draft(patient_id)
+    return success_response(
+        data=deleted,
+        message="Draft discarded successfully" if deleted else "No draft to discard",
     )
 
 
@@ -435,6 +571,139 @@ async def list_patient_next_visit_requests(
         data=[schemas.NextVisitRequestRead.model_validate(r) for r in requests],
         message="Patient next-visit requests retrieved successfully",
     )
+
+
+@router.post(
+    "/{patient_id}/next-visit-requests/{request_id}/stop",
+    response_model=StandardResponse[schemas.NextVisitRequestRead],
+    summary="Stop next-visit follow-up",
+    description="Stop active next-visit reminders with an explicit recorded reason (audited).",
+)
+async def stop_patient_next_visit_request(
+    patient_id: int,
+    request_id: int,
+    payload: schemas.NextVisitRequestStop,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    req = await service.stop_next_visit_request(request_id, payload.reason, patient_id=patient_id)
+    return success_response(
+        data=schemas.NextVisitRequestRead.model_validate(req),
+        message="Next-visit follow-up stopped successfully",
+    )
+
+
+@router.post(
+    "/{patient_id}/next-visit-requests/{request_id}/postpone",
+    response_model=StandardResponse[schemas.NextVisitRequestRead],
+    summary="Postpone next-visit follow-up",
+    description="Postpone a next-visit reminder with a reason and new target date (audited).",
+)
+async def postpone_patient_next_visit_request(
+    patient_id: int,
+    request_id: int,
+    payload: schemas.NextVisitRequestPostpone,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    req = await service.postpone_next_visit_request(
+        request_id, payload.postponed_to_date, payload.reason, patient_id=patient_id
+    )
+    return success_response(
+        data=schemas.NextVisitRequestRead.model_validate(req),
+        message="Next-visit follow-up postponed successfully",
+    )
+
+
+@router.post(
+    "/{patient_id}/next-visit-requests/{request_id}/resume",
+    response_model=StandardResponse[schemas.NextVisitRequestRead],
+    summary="Resume next-visit follow-up",
+    description="Resume follow-up reminders that were previously stopped or postponed (audited).",
+)
+async def resume_patient_next_visit_request(
+    patient_id: int,
+    request_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    req = await service.resume_next_visit_request(request_id, patient_id=patient_id)
+    return success_response(
+        data=schemas.NextVisitRequestRead.model_validate(req),
+        message="Next-visit follow-up resumed successfully",
+    )
+
+
+@router.post(
+    "/{patient_id}/next-visit-requests/{request_id}/handoff",
+    response_model=StandardResponse[schemas.NextVisitRequestRead],
+    summary="Handoff next-visit follow-up",
+    description="Transfer follow-up responsibility to another clinic doctor (audited).",
+)
+async def handoff_patient_next_visit_request(
+    patient_id: int,
+    request_id: int,
+    payload: schemas.NextVisitRequestHandoff,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    req = await service.handoff_next_visit_request(
+        request_id, payload.handoff_to_user_id, payload.reason, payload.notes, patient_id=patient_id
+    )
+    return success_response(
+        data=schemas.NextVisitRequestRead.model_validate(req),
+        message="Next-visit follow-up handed off successfully",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Observation Amendments (Section 2.7)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{patient_id}/care-sessions/{session_id}/observations/{observation_id}/amend",
+    response_model=StandardResponse[schemas.CareObservationRead],
+    summary="Amend care observation",
+    description="Traceably amend a chairside observation / measurement, preserving the original record and recording audit event.",
+)
+async def amend_care_observation(
+    patient_id: int,
+    session_id: int,
+    observation_id: int,
+    payload: schemas.CareObservationAmend,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    new_obs = await service.amend_observation(patient_id, observation_id, payload, session_id=session_id)
+    return success_response(
+        data=schemas.CareObservationRead.model_validate(new_obs),
+        message="Observation amended successfully",
+    )
+
+
+
+@router.post(
+    "/{patient_id}/care-sessions/{session_id}/addenda",
+    response_model=StandardResponse[schemas.CareSessionRead],
+    status_code=status.HTTP_201_CREATED,
+    summary="Append a traceable correction to completed visit notes",
+)
+async def add_care_session_addendum(
+    patient_id: int,
+    session_id: int,
+    payload: schemas.CareSessionAddendumCreate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
+):
+    service = CareSessionService(db, current_user.tenant_id, current_user)
+    result = await service.add_session_addendum(patient_id, session_id, payload)
+    return success_response(data=schemas.CareSessionRead.model_validate(result), message="Visit addendum recorded")
 
 
 # ---------------------------------------------------------------------------

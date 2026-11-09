@@ -26,6 +26,7 @@ export default function LinkClinicalAttachmentModal({
     workItems = [],
     initialToothKey = null,
     initialSessionId = null,
+    initialWorkItemId = null,
     initialPurposeCode = 'PRE_OP_XRAY',
     existingLinks = [],
     onLinkCreated,
@@ -42,7 +43,7 @@ export default function LinkClinicalAttachmentModal({
     const [careSessionId, setCareSessionId] = useState(
         initialSessionId ? String(initialSessionId) : (activeCareSession?.id ? String(activeCareSession.id) : '')
     );
-    const [workItemId, setWorkItemId] = useState('');
+    const [workItemId, setWorkItemId] = useState(initialWorkItemId ? String(initialWorkItemId) : '');
     const [purposeCode, setPurposeCode] = useState(initialPurposeCode || 'PRE_OP_XRAY');
     const [notes, setNotes] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -363,6 +364,7 @@ LinkClinicalAttachmentModal.propTypes = {
     workItems: PropTypes.array,
     initialToothKey: PropTypes.string,
     initialSessionId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    initialWorkItemId: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
     initialPurposeCode: PropTypes.string,
     existingLinks: PropTypes.array,
     onLinkCreated: PropTypes.func,

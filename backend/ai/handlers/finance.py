@@ -4,11 +4,16 @@ from __future__ import annotations
 
 from typing import Dict
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from backend import models
 from backend.schemas.billing import PaymentCreate
 from backend.services.billing_service import BillingService
+from backend.services.visibility_service import get_visibility_service
+from backend.utils.patient_search_normalization import (
+    escaped_like_pattern,
+    normalize_patient_name_for_search,
+)
 
 from ..tools.security import RiskLevel, risk_level
 from .finance_legacy import FinanceHandler as LegacyFinanceHandler
@@ -23,7 +28,24 @@ class FinanceHandler(LegacyFinanceHandler):
         if not name:
             return {"error": "اسم المريض مطلوب"}
 
-        patients = await self.patient_service.search_patients_by_name(name)
+        visibility_service = get_visibility_service(self.db, self.user, self.tenant_id)
+        vis_query = await visibility_service.get_visible_patient_query()
+        normalized_name = normalize_patient_name_for_search(name.strip())
+        pattern = escaped_like_pattern(normalized_name)
+        stmt = (
+            vis_query.where(
+                or_(
+                    models.Patient.name_search_normalized.ilike(pattern, escape="\\"),
+                    (
+                        models.Patient.name_search_normalized.is_(None)
+                        & models.Patient.name.ilike(f"%{name.strip()}%")
+                    ),
+                )
+            ).limit(20)
+        )
+        res = await self.db.execute(stmt)
+        patients = res.scalars().all()
+
         if not patients:
             return {"message": f"لم يتم العثور على مريض باسم '{name}'"}
         if len(patients) > 1:
@@ -91,7 +113,24 @@ class FinanceHandler(LegacyFinanceHandler):
         except (ValueError, TypeError):
             return {"error": "invalid_amount", "message": "المبلغ غير صالح"}
 
-        patients = await self.patient_service.search_patients_by_name(patient_name)
+        visibility_service = get_visibility_service(self.db, self.user, self.tenant_id)
+        vis_query = await visibility_service.get_visible_patient_query()
+        normalized_name = normalize_patient_name_for_search(patient_name.strip())
+        pattern = escaped_like_pattern(normalized_name)
+        stmt = (
+            vis_query.where(
+                or_(
+                    models.Patient.name_search_normalized.ilike(pattern, escape="\\"),
+                    (
+                        models.Patient.name_search_normalized.is_(None)
+                        & models.Patient.name.ilike(f"%{patient_name.strip()}%")
+                    ),
+                )
+            ).limit(20)
+        )
+        res = await self.db.execute(stmt)
+        patients = res.scalars().all()
+
         if not patients:
             return {
                 "error": "patient_not_found",

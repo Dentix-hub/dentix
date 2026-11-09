@@ -159,32 +159,32 @@ async def register_user(
     raw_username = (
         payload.username
         if (payload is not None and payload.username is not None)
-        else username
+        else (username if isinstance(username, str) else None)
     )
     raw_password = (
         payload.password
         if (payload is not None and payload.password is not None)
-        else password
+        else (password if isinstance(password, str) else None)
     )
     effective_full_name = (
         payload.full_name
         if (payload is not None and payload.full_name is not None)
-        else full_name
+        else (full_name if isinstance(full_name, str) else None)
     )
     effective_role = (
         payload.role
         if (payload is not None and payload.role is not None)
-        else role
+        else (role if isinstance(role, str) else None)
     ) or "doctor"
     effective_permissions = (
         payload.permissions
         if (payload is not None and payload.permissions is not None)
-        else permissions
+        else (permissions if isinstance(permissions, str) else None)
     )
     effective_visibility_mode = (
         payload.patient_visibility_mode
         if (payload is not None and payload.patient_visibility_mode is not None)
-        else patient_visibility_mode
+        else (patient_visibility_mode if isinstance(patient_visibility_mode, str) else None)
     ) or "all_assigned"
 
     _validate_tenant_role(effective_role)
@@ -197,20 +197,9 @@ async def register_user(
     if await crud.get_user_by_email(db, new_email):
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    stmt = select(models.Tenant).where(models.Tenant.id == tenant_id)
-    result = await db.execute(stmt)
-    tenant = result.scalars().first()
-    if tenant and tenant.subscription_plan:
-        max_users = tenant.subscription_plan.max_users
-        if max_users is not None:
-            stmt_count = select(func.count()).select_from(models.User).where(models.User.tenant_id == tenant_id)
-            res_count = await db.execute(stmt_count)
-            current_user_count = res_count.scalar() or 0
-            if current_user_count >= max_users:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"لقد وصلت للحد الأقصى من المستخدمين ({max_users}) في خطتك الحالية. يرجى الترقية لإضافة المزيد.",
-                )
+    from backend.services.account_admission_service import AccountAdmissionService
+
+    await AccountAdmissionService.admit_active_account(db, tenant_id=tenant_id)
 
     validate_password(raw_password or "", username=clean_display_username)
 
@@ -257,6 +246,20 @@ async def update_user(
         email_owner = await crud.get_user_by_email(db, user_update.email)
         if email_owner and email_owner.id != user_id:
             raise HTTPException(status_code=400, detail="Email already registered")
+
+    if user_update.is_active is not None:
+        if user_id == current_user.id and not user_update.is_active:
+            raise HTTPException(
+                status_code=400, detail="You cannot disable your own active account"
+            )
+        if user_update.is_active and not user.is_active:
+            from backend.services.account_admission_service import AccountAdmissionService
+
+            await AccountAdmissionService.admit_active_account(
+                db, tenant_id=tenant_id, target_user_id=user.id
+            )
+        elif not user_update.is_active and user.is_active:
+            await AuthService.revoke_all_user_sessions(db, user_id, commit=False)
 
     password_changed = False
     if user_update.password:

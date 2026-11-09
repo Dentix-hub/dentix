@@ -98,18 +98,18 @@ const PatientInfoCard = ({ patient, onEdit, onPrescription, onNewAppointment }) 
                 </div>
             </div>
 
-            <div className="grid w-full min-w-0 grid-cols-1 gap-2 min-[420px]:grid-cols-3 lg:w-auto lg:min-w-fit">
+            <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:w-auto lg:min-w-fit">
                 <button type="button" onClick={onPrescription} className={`${actionClass} border border-teal-100 bg-teal-50 text-teal-700 hover:bg-teal-100 focus:ring-teal-400/40 dark:border-teal-800/50 dark:bg-teal-900/30 dark:text-teal-300 dark:hover:bg-teal-900/50`}>
                     <FileText size={18} className="shrink-0" aria-hidden="true" />
-                    <span className="min-w-0 truncate">{t('patientDetails.info_card.prescription')}</span>
+                    <span className="min-w-0 break-words">{t('patientDetails.info_card.prescription')}</span>
                 </button>
                 <button type="button" onClick={onEdit} className={`${actionClass} border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 focus:ring-primary/30 dark:border-slate-600/50 dark:bg-slate-700/50 dark:text-slate-200 dark:hover:bg-slate-700`}>
                     <Edit2 size={18} className="shrink-0" aria-hidden="true" />
-                    <span className="min-w-0 truncate">{t('patientDetails.info_card.edit_data')}</span>
+                    <span className="min-w-0 break-words">{t('patientDetails.info_card.edit_data')}</span>
                 </button>
-                <button type="button" onClick={onNewAppointment} className={`${actionClass} bg-primary text-white shadow-medium hover:bg-primary-hover focus:ring-primary/40 focus:ring-offset-2`}>
+                <button type="button" onClick={onNewAppointment} className={`${actionClass} col-span-2 sm:col-span-1 bg-primary text-white shadow-medium hover:bg-primary-hover focus:ring-primary/40 focus:ring-offset-2`}>
                     <Plus size={18} className="shrink-0" aria-hidden="true" />
-                    <span className="min-w-0 truncate">{t('patientDetails.info_card.new_appointment')}</span>
+                    <span className="min-w-0 break-words">{t('patientDetails.info_card.new_appointment')}</span>
                 </button>
             </div>
         </section>

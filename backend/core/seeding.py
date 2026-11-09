@@ -18,6 +18,16 @@ def is_connection_error(e: Exception) -> bool:
     )
 
 
+def _launch_plan_rows():
+    """Reuse the approved catalog; never revive a second set of legacy defaults."""
+    from backend.services.subscription_service import SubscriptionService
+
+    return [
+        models.SubscriptionPlan(**spec, is_active=True)
+        for spec in SubscriptionService.get_launch_catalog_template()
+    ]
+
+
 async def seed_default_data(db) -> None:
     """
     Seed database with initial subscription plans and default admin.
@@ -45,48 +55,7 @@ async def seed_default_data(db) -> None:
     res = await db.execute(select(models.SubscriptionPlan))
     if not res.scalars().first():
         logger.info('[SEED] No subscription plans found. Seeding defaults...')
-        plans = [
-            models.SubscriptionPlan(
-                name='trial',
-                display_name_ar='تجريبي',
-                price=0.0,
-                duration_days=14,
-                max_users=1,
-                max_patients=50,
-                features='["TRIAL", "BASIC_REPORTING"]',
-                is_active=True
-            ),
-            models.SubscriptionPlan(
-                name='basic',
-                display_name_ar='أساسي',
-                price=29.99,
-                duration_days=30,
-                max_users=2,
-                max_patients=500,
-                features='["BILLING", "REPORTS_BASIC"]',
-                is_active=True
-            ),
-            models.SubscriptionPlan(
-                name='pro',
-                display_name_ar='محترف',
-                price=79.99,
-                duration_days=30,
-                max_users=5,
-                max_patients=2000,
-                features='["BILLING", "REPORTS_ADVANCED", "LAB_INTEGRATION", "MULTI_USER"]',
-                is_active=True
-            ),
-            models.SubscriptionPlan(
-                name='enterprise',
-                display_name_ar='مؤسسات',
-                price=199.99,
-                duration_days=30,
-                max_users=None,
-                max_patients=None,
-                features='["BILLING", "REPORTS_ADVANCED", "LAB_INTEGRATION", "MULTI_USER", "AI_ASSISTANT"]',
-                is_active=True
-            )
-        ]
+        plans = _launch_plan_rows()
         db.add_all(plans)
         await db.flush()
         logger.info('[SEED] Subscription plans seeded successfully.')
@@ -186,48 +155,11 @@ async def seed_subscription_plans():
         async with database.system_session_scope() as db:
                 res = await db.execute(select(models.SubscriptionPlan))
                 if not res.scalars().first():
-                    logger.info('[SEED] No subscription plans found. Seeding defaults...')
-                    plans = [
-                        models.SubscriptionPlan(
-                            name='trial',
-                            display_name_ar='تجريبي',
-                            price=0.0,
-                            duration_days=7,
-                            features='["TRIAL", "BASIC_REPORTING"]',
-                            max_users=1,
-                            max_patients=10
-                        ),
-                        models.SubscriptionPlan(
-                            name='basic',
-                            display_name_ar='أساسي',
-                            price=500.0,
-                            duration_days=30,
-                            features='["BILLING", "REPORTS_BASIC"]',
-                            max_users=1,
-                            max_patients=100
-                        ),
-                        models.SubscriptionPlan(
-                            name='pro',
-                            display_name_ar='محترف',
-                            price=1000.0,
-                            duration_days=30,
-                            features='["BILLING", "REPORTS_ADVANCED", "LAB_INTEGRATION", "MULTI_USER"]',
-                            max_users=5,
-                            max_patients=None
-                        ),
-                        models.SubscriptionPlan(
-                            name='enterprise',
-                            display_name_ar='مؤسسات',
-                            price=2500.0,
-                            duration_days=30,
-                            features='["BILLING", "REPORTS_ADVANCED", "LAB_INTEGRATION", "MULTI_USER", "AI_ASSISTANT"]',
-                            max_users=None,
-                            max_patients=None
-                        )
-                    ]
+                    logger.info('[SEED] No subscription plans found. Seeding canonical launch defaults...')
+                    plans = _launch_plan_rows()
                     db.add_all(plans)
                     await db.commit()
-                    logger.info('[SEED] Subscription plans seeded successfully.')
+                    logger.info('[SEED] Canonical launch subscription plans seeded successfully.')
                 else:
                     logger.info('[SEED] Subscription plans already exist. Skipping.')
     except Exception as e:

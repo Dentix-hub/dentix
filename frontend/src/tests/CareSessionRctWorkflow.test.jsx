@@ -84,6 +84,21 @@ describe('Slice S20: Chairside RCT Structured UI & Canal Targeting', () => {
                 rootId: 'mesial',
             });
         });
+
+        it('adds a custom canal inside a visit form without nesting or submitting forms', () => {
+            const onSubmit = vi.fn((event) => event.preventDefault());
+            const onToggle = vi.fn();
+            const { container } = render(
+                <form onSubmit={onSubmit}>
+                    <CanalTargetSelector toothKey="46" selectedCanals={[]} onToggleCanal={onToggle} />
+                </form>
+            );
+            expect(container.querySelectorAll('form')).toHaveLength(1);
+            fireEvent.change(screen.getByTestId('custom-canal-input'), { target: { value: 'MM' } });
+            fireEvent.keyDown(screen.getByTestId('custom-canal-input'), { key: 'Enter' });
+            expect(onToggle).toHaveBeenCalledWith({ canalId: 'MM', rootId: 'mesial' });
+            expect(onSubmit).not.toHaveBeenCalled();
+        });
     });
 
     describe('G10-M10: WorkingLengthEntryTable', () => {
@@ -138,14 +153,16 @@ describe('Slice S20: Chairside RCT Structured UI & Canal Targeting', () => {
 
             // Choose MAF size
             const mafSelect = screen.getByTestId('select-maf-MB');
-            fireEvent.change(mafSelect, { target: { value: '#25 / .04' } });
+            fireEvent.change(mafSelect, { target: { value: '#25' } });
+
+            fireEvent.change(screen.getByTestId('input-taper-MB'), { target: { value: '0.04' } });
 
             // Enter notes
             const notesInput = screen.getByTestId('input-notes-MB');
             fireEvent.change(notesInput, { target: { value: 'Definite apical stop' } });
 
             // Click save
-            const saveBtn = screen.getByTestId('btn-save-measurement-MB');
+            const saveBtn = screen.getByTestId('save-canal-measurements');
             fireEvent.click(saveBtn);
 
             expect(onSave).toHaveBeenCalledWith({
@@ -154,9 +171,10 @@ describe('Slice S20: Chairside RCT Structured UI & Canal Targeting', () => {
                 tooth_key: '46',
                 length_mm: 21.5,
                 reference_point: 'MB cusp',
-                maf: '#25 / .04',
+                maf: '#25',
+                taper: 0.04,
                 notes: 'Definite apical stop',
-            });
+            }, { batch: true });
         });
 
         it('renders previously recorded canal measurements badge', () => {
@@ -182,9 +200,12 @@ describe('Slice S20: Chairside RCT Structured UI & Canal Targeting', () => {
                 />
             );
 
-            expect(screen.getByTestId('latest-measurement-MB')).toBeInTheDocument();
-            expect(screen.getByTestId('latest-measurement-MB')).toHaveTextContent('21.5 mm');
-            expect(screen.getByTestId('latest-measurement-MB')).toHaveTextContent('MB cusp');
+            const saved = screen.getByTestId('observation-101');
+            expect(saved).toHaveTextContent('MB');
+            expect(saved).toHaveTextContent('21.5');
+            expect(saved).toHaveTextContent('#25');
+            expect(saved).toHaveTextContent('0.04');
+            expect(saved).toHaveTextContent('MB cusp');
         });
     });
 

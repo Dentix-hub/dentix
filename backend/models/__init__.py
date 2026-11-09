@@ -17,6 +17,7 @@ from .tenant import (
     SubscriptionPayment,
     SubscriptionCheckout,
     SubscriptionRenewalRequest,
+    CommercialTenantOverride,
 )
 from .user import User, PasswordResetToken, LoginHistory, UserSession
 from .push_subscription import PushSubscription
@@ -73,6 +74,8 @@ from .clinical_core import (
     ClinicalEvent,
     ClinicalEventTarget,
     CareSession,
+    CareSessionProcedure,
+    CareSessionDraft,
     CareSessionStep,
     CareObservation,
     WorkflowTemplate,
@@ -90,3 +93,4 @@ from .clinical_core import (
 )
 from .tenant_data_operation import TenantDataOperation
 from .google_oauth_attempt import GoogleOAuthAttempt
+from .ai_accounting import AIQuotaWindow, AIReservation, ReservationStatus

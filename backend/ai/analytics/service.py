@@ -10,7 +10,7 @@ from typing import Dict, Any, List
 from fastapi import HTTPException
 
 from backend import models
-from backend.ai.config import MODEL_CARDS, DEFAULT_MODEL
+from backend.ai.config import MODEL_CARDS, LEGACY_ESTIMATION_MODEL
 
 VALID_PERIODS = {"today", "week", "month"}
 
@@ -68,8 +68,8 @@ class AIAnalyticsService:
         else:
             blended_cost_per_request = (
                 (
-                    MODEL_CARDS[DEFAULT_MODEL]["input_cost"]
-                    + MODEL_CARDS[DEFAULT_MODEL]["output_cost"]
+                    MODEL_CARDS[LEGACY_ESTIMATION_MODEL]["input_cost"]
+                    + MODEL_CARDS[LEGACY_ESTIMATION_MODEL]["output_cost"]
                 )
                 / 1000
                 / 2

@@ -22,8 +22,16 @@ def test_alembic_single_head_and_linear_lineage():
 
     heads = script_dir.get_heads()
     assert len(heads) == 1, f"Expected exactly 1 Alembic head revision, found {heads}"
-    assert heads[0] == "f3c4d5e6a7b8", f"Expected current head revision, got {heads[0]}"
+    assert heads[0] == "3b4c5d6e7f8a", f"Expected current head revision, got {heads[0]}"
 
+    assert script_dir.get_revision("3b4c5d6e7f8a").down_revision == "2a3b4c5d6e7f"
+    assert script_dir.get_revision("2a3b4c5d6e7f").down_revision == "1f2e3d4c5b6a"
+    assert script_dir.get_revision("1f2e3d4c5b6a").down_revision == "f5b6c7d8e9f0"
+    assert script_dir.get_revision("f5b6c7d8e9f0").down_revision == "e4a5b6c7d8e9"
+    assert script_dir.get_revision("e4a5b6c7d8e9").down_revision == "d3e4f5a6b7c8"
+    assert script_dir.get_revision("d3e4f5a6b7c8").down_revision == "c2d3e4f5a6b7"
+    assert script_dir.get_revision("c2d3e4f5a6b7").down_revision == "b1c2d3e4f5a6"
+    assert script_dir.get_revision("b1c2d3e4f5a6").down_revision == "f3c4d5e6a7b8"
     assert script_dir.get_revision("f3c4d5e6a7b8").down_revision == "e2b3c4d5e6f7"
     assert script_dir.get_revision("e2b3c4d5e6f7").down_revision == "bc78a10d932e"
     assert script_dir.get_revision("bc78a10d932e").down_revision == "ab52d9c807a1"

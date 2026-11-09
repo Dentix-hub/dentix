@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 # remain restrictive. Delete dependent aggregates in leaf-to-root order before
 # removing the patient; every statement is tenant scoped as a second guard.
 PATIENT_CLINICAL_DELETE_ORDER = (
+    models.CareSessionDraft,
     models.ClinicalCharge,
     models.ClinicalAttachmentLink,
     models.NextVisitRequest,
@@ -24,6 +25,8 @@ PATIENT_CLINICAL_DELETE_ORDER = (
 )
 
 TENANT_CLINICAL_DELETE_ORDER = (
+    models.CareSessionDraft,
+    models.CareSessionProcedure,
     models.ClinicalCharge,
     models.ClinicalAttachmentLink,
     models.NextVisitRequest,

@@ -243,7 +243,13 @@ async def login_for_access_token(
                 # If system_settings table is missing, skip maintenance check
                 pass
 
-        # Check for Account Deactivation
+        # Check for Account Deletion / Deactivation
+        if getattr(user, "is_deleted", False):
+            raise HTTPException(
+                status_code=403,
+                detail="Your account has been deleted.",
+            )
+
         if hasattr(user, "is_active") and not user.is_active:
             raise HTTPException(
                 status_code=403,

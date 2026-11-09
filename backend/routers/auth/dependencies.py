@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend import models, schemas, crud, auth
 from backend.database import get_async_db
 from backend.core.permissions import Role
+from backend.core.commercial_registry import CapabilityKey
 from backend.services.auth_service import AuthService
 from backend.services.entitlement_service import EntitlementService
 
@@ -316,7 +317,7 @@ async def get_current_user(
     if get_current_tenant_id() is not None:
         # Tenant bound from the signed request token/cookie by middleware:
         # the identity read stays fully tenant-scoped (FORCE RLS enforced).
-        stmt = select(models.User).where(models.User.username == token_data.username).options(joinedload(models.User.tenant).joinedload(models.Tenant.subscription_plan))
+        stmt = select(models.User).where(models.User.username == token_data.username).options(joinedload(models.User.tenant).joinedload(models.Tenant.subscription_plan), joinedload(models.User.tenant).joinedload(models.Tenant.future_plan))
         result = await db.execute(stmt)
         user = result.scalars().first()
     else:
@@ -357,15 +358,171 @@ async def get_current_user(
                 detail="تم إيقاف حساب العيادة مؤقتاً. يرجى التواصل مع الدعم الفني.",
             )
 
-        entitlements = EntitlementService.evaluate_tenant_entitlements(user.tenant)
-        if (
-            request.method.upper() not in SAFE_IMPERSONATION_METHODS
-            and not entitlements.can_write_clinical
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="انتهت صلاحية الاشتراك. يرجى التجديد للتمكن من الإضافة أو التعديل.",
+        emergency_restrictions, commercial_overrides = (
+            await EntitlementService.async_resolve_restrictions_and_overrides(
+                db, user.tenant_id
             )
+        )
+        entitlements = EntitlementService.evaluate_tenant_entitlements(
+            user.tenant,
+            emergency_restrictions=emergency_restrictions,
+            commercial_overrides=commercial_overrides,
+        )
+        path = request.url.path
+        is_auth_endpoint = path.startswith("/api/v1/auth") or path.startswith("/auth")
+        clinical_prefixes = (
+            "/api/v1/patients",
+            "/patients",
+            "/api/v1/appointments",
+            "/appointments",
+            "/api/v1/treatments",
+            "/treatments",
+            "/api/v1/prescriptions",
+            "/prescriptions",
+            "/api/v1/medications",
+            "/medications",
+            "/api/v1/procedures",
+            "/procedures",
+            "/api/v1/procedure-chart-styles",
+            "/procedure-chart-styles",
+            "/api/v1/next-visit-requests",
+            "/next-visit-requests",
+            "/api/v1/workflow-templates",
+            "/workflow-templates",
+            "/api/v1/clinical",
+            "/clinical",
+        )
+        is_clinical_path = any(path.startswith(p) for p in clinical_prefixes)
+
+        financial_write_prefixes = (
+            "/api/v1/payments",
+            "/payments",
+            "/api/v1/expenses",
+            "/expenses",
+            "/api/v1/accounting",
+            "/accounting",
+            "/api/v1/financials",
+            "/financials",
+            "/api/v1/clinical-charges",
+            "/clinical-charges",
+            "/api/v1/price-lists",
+            "/price-lists",
+            "/api/v1/insurance",
+            "/insurance",
+        )
+        is_financial_write_path = any(path.startswith(p) for p in financial_write_prefixes)
+
+        export_report_prefixes = (
+            "/api/v1/reports",
+            "/reports",
+        )
+        is_export_report_path = (
+            any(path.startswith(p) for p in export_report_prefixes)
+            or path.endswith("/export.csv")
+        )
+
+        inventory_prefixes = (
+            "/api/v1/inventory",
+            "/inventory",
+        )
+        is_inventory_write_path = any(path.startswith(p) for p in inventory_prefixes)
+
+        lab_prefixes = (
+            "/api/v1/laboratories",
+            "/laboratories",
+            "/api/v1/lab-orders",
+            "/lab-orders",
+        )
+        is_lab_write_path = any(path.startswith(p) for p in lab_prefixes)
+
+        backup_prefixes = (
+            "/api/v1/settings/backup",
+            "/settings/backup",
+            "/api/v1/settings/drive",
+            "/settings/drive",
+            "/api/v1/tenant-backups",
+            "/tenant-backups",
+            "/api/v1/clinic-google",
+            "/clinic-google",
+        )
+        is_backup_path = any(path.startswith(p) for p in backup_prefixes)
+
+        if not is_auth_endpoint:
+            if request.method.upper() not in SAFE_IMPERSONATION_METHODS:
+                if not entitlements.can_write_clinical and not entitlements.can_write_billable:
+                    detail_msg = "انتهت صلاحية الاشتراك. يرجى التجديد للتمكن من الإضافة أو التعديل."
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=detail_msg,
+                    )
+                elif not entitlements.can_write_clinical and is_clinical_path:
+                    detail_msg = entitlements.reason or "الخاصية السريرية غير مفعلة في باقة اشتراك العيادة."
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=detail_msg,
+                    )
+                elif not entitlements.can_write_billable and is_financial_write_path:
+                    billing_dec = entitlements.commercial_decisions.get(CapabilityKey.BILLING.value, {})
+                    detail_msg = (
+                        billing_dec.get("explanation_ar")
+                        or billing_dec.get("explanation_en")
+                        or entitlements.reason
+                        or "خاصية الفواتير والمدفوعات غير مفعلة في باقة اشتراك العيادة."
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=detail_msg,
+                    )
+                elif is_inventory_write_path:
+                    inv_dec = entitlements.commercial_decisions.get(CapabilityKey.INVENTORY.value, {})
+                    if not inv_dec.get("allowed", True):
+                        detail_msg = (
+                            inv_dec.get("explanation_ar")
+                            or inv_dec.get("explanation_en")
+                            or "خاصية المخزون والمواد الطبية غير مفعلة في باقة اشتراك العيادة."
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=detail_msg,
+                        )
+                elif is_lab_write_path:
+                    lab_dec = entitlements.commercial_decisions.get(CapabilityKey.LABORATORIES.value, {})
+                    if not lab_dec.get("allowed", True):
+                        detail_msg = (
+                            lab_dec.get("explanation_ar")
+                            or lab_dec.get("explanation_en")
+                            or "خاصية إدارة المعامل غير مفعلة في باقة اشتراك العيادة."
+                        )
+                        raise HTTPException(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            detail=detail_msg,
+                        )
+
+            if is_export_report_path:
+                export_dec = entitlements.commercial_decisions.get(CapabilityKey.EXPORT_REPORTS.value, {})
+                if not export_dec.get("allowed", True):
+                    detail_msg = (
+                        export_dec.get("explanation_ar")
+                        or export_dec.get("explanation_en")
+                        or "خاصية تصدير التقارير غير مفعلة في باقة اشتراك العيادة."
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=detail_msg,
+                    )
+
+            if is_backup_path:
+                backup_dec = entitlements.commercial_decisions.get(CapabilityKey.TENANT_BACKUPS.value, {})
+                if not backup_dec.get("allowed", True):
+                    detail_msg = (
+                        backup_dec.get("explanation_ar")
+                        or backup_dec.get("explanation_en")
+                        or "خاصية النسخ الاحتياطي وأرشفة بيانات العيادة غير مفعلة في باقة اشتراك العيادة."
+                    )
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail=detail_msg,
+                    )
 
     from backend.core.tenancy import set_current_tenant_id, set_super_admin_bypass
 

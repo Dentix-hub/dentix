@@ -1,3 +1,4 @@
+import { webcrypto } from 'node:crypto';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -21,6 +22,8 @@ vi.mock('@/api', () => ({
 }));
 
 vi.mock('@/utils/logger', () => ({ default: { error: vi.fn(), log: vi.fn() } }));
+
+Object.defineProperty(globalThis.crypto, 'subtle', { value: webcrypto.subtle, configurable: true });
 
 describe('Tenants and Users UI Consistency MS-30', () => {
     beforeEach(() => {
@@ -107,9 +110,11 @@ describe('Tenants and Users UI Consistency MS-30', () => {
             // Verify idempotency key input is NOT shown to the user
             expect(screen.queryByText('مفتاح عدم التكرار (Idempotency Key)')).not.toBeInTheDocument();
 
-            api.post.mockResolvedValue({ message: 'Renewed successfully' });
+            api.post.mockResolvedValueOnce({ data: { previous_end_date: '2027-01-31T10:00:00', subscription_end_date: '2027-03-02T10:00:00', preview_marker: 'a'.repeat(64), preview_at: '2027-01-30T10:00:00' } }).mockResolvedValueOnce({ message: 'Renewed successfully' });
+            fireEvent.change(screen.getByPlaceholderText('super_admin.tenants.extension_reason_required'), { target: { value: 'Synthetic support reason' } });
             const submitBtn = screen.getByRole('button', { name: 'تأكيد وتوثيق التجديد' });
             fireEvent.click(submitBtn);
+            fireEvent.click(await screen.findByRole('button', { name: 'common.confirm' }));
 
             await waitFor(() => {
                 expect(api.post).toHaveBeenCalledWith(

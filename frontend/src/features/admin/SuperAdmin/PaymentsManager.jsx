@@ -1,7 +1,7 @@
-import { Banknote, Landmark, CreditCard, Check, Trash2 } from 'lucide-react';
+import { Banknote, Landmark, CreditCard, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-const PaymentsManager = ({ payments, tenants, plans, onDelete }) => {
+const PaymentsManager = ({ payments, tenants, plans }) => {
     const { t, i18n } = useTranslation();
     const isRtl = i18n.language === 'ar';
 
@@ -18,7 +18,6 @@ const PaymentsManager = ({ payments, tenants, plans, onDelete }) => {
                             <th className="p-6 whitespace-nowrap">{t('super_admin.payments.paid_by_col')}</th>
                             <th className="p-6 whitespace-nowrap">{t('super_admin.payments.method_col')}</th>
                             <th className="p-6 whitespace-nowrap">{t('super_admin.payments.status_col')}</th>
-                            <th className="p-6 whitespace-nowrap">{t('super_admin.payments.actions_col')}</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -65,21 +64,11 @@ const PaymentsManager = ({ payments, tenants, plans, onDelete }) => {
                                             <Check size={16} /> {t('super_admin.payments.completed')}
                                         </div>
                                     </td>
-                                    <td className="p-6 whitespace-nowrap">
-                                        <button
-                                            onClick={() => onDelete && onDelete(payment.id)}
-                                            className="p-2 text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                                            title={t('super_admin.payments.delete_title')}
-                                            aria-label={t('super_admin.payments.delete_title') || 'Delete Payment'}
-                                        >
-                                            <Trash2 size={18} />
-                                        </button>
-                                    </td>
                                 </tr>
                             );
                         }) : (
                             <tr>
-                                <td colSpan="8" className="p-10 text-center text-slate-500">{t('super_admin.payments.no_payments')}</td>
+                                <td colSpan="7" className="p-10 text-center text-slate-500">{t('super_admin.payments.no_payments')}</td>
                             </tr>
                         )}
                     </tbody>

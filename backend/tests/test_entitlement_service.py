@@ -4,7 +4,7 @@ Unit tests for backend/services/entitlement_service.py
 
 from datetime import datetime, timezone, timedelta
 import pytest
-from backend.models.tenant import Tenant
+from backend.models.tenant import Tenant, SubscriptionPlan
 from backend.services.entitlement_service import EntitlementService
 
 
@@ -66,6 +66,13 @@ def test_grace_period_entitlements():
         subscription_end_date=past,
         grace_period_until=future,
     )
+    # Grace preserves a valid purchased entitlement; it cannot create a missing plan.
+    tenant.is_active = True
+    tenant.plan_id = 1
+    tenant.subscription_plan = SubscriptionPlan(
+        id=1, name="professional", display_name_ar="Synthetic", price=400,
+        features='{"clinical":true,"billing":true}', is_active=True,
+    )
     eval_res = EntitlementService.evaluate_tenant_entitlements(tenant, now=now, override_mode="enforce")
     assert eval_res.status == "grace"
     assert eval_res.can_read_clinical is True
@@ -99,3 +106,14 @@ def test_active_subscription_past_end_without_grace_is_expired_read_only(
     assert eval_res.status == "expired_read_only"
     assert eval_res.can_read_clinical is True
     assert eval_res.can_write_clinical is False
+
+
+def test_grace_state_does_not_create_missing_plan_rights():
+    now = datetime.now(timezone.utc)
+    tenant = Tenant(id=106, name="Synthetic missing contract", is_active=True,
+                    subscription_status="active", subscription_end_date=now - timedelta(days=2),
+                    grace_period_until=now + timedelta(days=5))
+    result = EntitlementService.evaluate_tenant_entitlements(tenant, now=now, override_mode="enforce")
+    assert result.status == "grace"
+    assert result.can_read_clinical is True
+    assert result.can_write_billable is False
