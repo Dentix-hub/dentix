@@ -54,4 +54,22 @@ Private result certificates are `groq-nonclinical-provider-result.json` and `gro
 
 ## Review
 
+### PR #371 dependency security follow-up
+
+The [initial CI run](https://github.com/Dentix-hub/dentix/actions/runs/42568649379) passed its backend test step and the frontend, concurrency/isolation, responsive, stale-asset and frozen-dependency jobs. The backend job failed later at Safety with exit 64: `SFTY-20261008-90293` flags unsigned pickle deserialization in APScheduler 3.11.3 persistent job stores. This is an existing dependency exposure, not a failing Groq test. The unchanged Safety command reproduced the same finding locally, exit 64.
+
+APScheduler has no imports, configuration or dynamic references in current executable repository files; the only other references are historical project-analysis prose. Backup scheduling uses DENTIX's own database/outbox scheduler and Prefect worker. Removed the unused direct dependency and its lock entry rather than retaining the vulnerable package. PyPI and the [upstream version history](https://apscheduler.readthedocs.io/en/3.x/versionhistory.html) listed 3.11.3 as the latest stable release at inspection; a fixed 3.12 release was not available. All remaining third-party lock entries are identical when parsed as TOML. No test assertions, workflow, Safety wrapper or vulnerability-exception policy changed.
+
+Executed in a fresh worktree-local virtual environment after the removal:
+
+```text
+uv lock --offline
+uv sync --frozen
+uv lock --check --offline
+PATH=$PWD/.venv/bin:$PATH python .github/scripts/run_safety_check.py
+.venv/bin/python -m pytest backend/tests/test_backup_scheduler.py backend/tests/test_runtime_package_and_worker_smoke.py backend/tests/test_safe_config_modes.py backend/tests/test_safety_check_runner.py backend/tests/test_http_dependency_security.py backend/tests/test_oauth_dependency_compatibility.py backend/tests/test_groq_model_compatibility.py backend/tests/test_ai_prompt_egress_compatibility.py -q --tb=short
+```
+
+All commands exited 0. Safety reported zero unignored findings; its nine existing policy exceptions remain unchanged. **46 tests passed, 0 failed / 0 skipped**, including scheduled backup behavior, packaged runtime imports, outbox resilience, unchanged fail-closed Safety handling and AI compatibility. An executed assertion confirmed APScheduler is absent from the installed environment and that only APScheduler was removed from the locked dependency graph. The exact CI dependency compatibility smoke also passed (existing Chroma telemetry warnings did not affect its assertions). Private before/after scanner, frozen-sync and test logs are under the same task artifact directory. The earlier 44-test PostgreSQL/provider evidence remains separate; it was not rerun or counted as these 46 tests. Remote correction CI is pending; no merge or deployment is claimed.
+
 Spec: model/key/JSON transport and one real service/quota/replay flow now pass locally; hosted acceptance and clinical output quality remain open. Standards: no new schema/migration, clinic reassignment, plan retirement, tenant/RBAC bypass, privacy weakening or quota/ledger change. Recorded costs and the legacy fallback estimate remain unchanged. No new actionable issue identified in this focused diff; this is not the stronger-model cumulative release review.
