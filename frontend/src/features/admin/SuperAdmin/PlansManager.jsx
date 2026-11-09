@@ -7,6 +7,12 @@ import { api, createSubscriptionPlan, deleteSubscriptionPlan } from '@/api';
 import { toast, ConfirmDialog } from '@/shared/ui';
 import { KNOWN_PLAN_FEATURES, parseFeatures, serializeFeatures } from './planFeatureUtils';
 
+const billingTerm = (plan, isRtl) => {
+    if (plan.billing_cycle_unit === 'day') return isRtl ? `${plan.duration_days} يومًا` : `${plan.duration_days} days`;
+    if (plan.billing_cycle_unit === 'year') return isRtl ? 'سنة تقويمية' : 'Calendar year';
+    return isRtl ? 'شهر تقويمي' : 'Calendar month';
+};
+
 const sanitizeNumber = (val, fallback = 0) => {
     if (val === '' || val == null) return fallback;
     const num = Number(val);
@@ -278,7 +284,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
                                         />
                                     </div>
-                                    <div className="flex-1"><p className="text-sm font-bold">{isRtl ? 'شهر تقويمي' : 'Calendar month'}</p><p className="text-xs text-slate-500">{isRtl ? 'التجديد يحفظ يوم الاستحقاق ويعالج نهاية الشهر.' : 'Renewals preserve the billing day and handle month ends.'}</p><details className="mt-2 text-xs"><summary>{isRtl ? 'مدة العقد القديم (لا تغيّر الشهر المدفوع)' : 'Legacy contract duration (does not change monthly billing)'}</summary><label htmlFor="legacy_edit_duration">{t('super_admin.plans.duration_label')}</label><input id="legacy_edit_duration" type="number" min="1" value={editedPlanData.duration_days ?? plan.duration_days ?? 30} onChange={(e) => setEditedPlanData(prev => ({ ...prev, duration_days: Number(e.target.value) }))} className="w-full rounded border p-2 dark:bg-slate-900" /></details></div>
+                                    <div className="flex-1"><p className="text-sm font-bold">{billingTerm({ ...plan, duration_days: editedPlanData.duration_days ?? plan.duration_days }, isRtl)}</p><p className="text-xs text-slate-500">{isRtl ? 'التجديد حسب وحدة الفترة المحفوظة للباقة.' : 'Renewal follows the stored plan term.'}</p><details className="mt-2 text-xs"><summary>{isRtl ? 'مدة العقد بالأيام' : 'Contract duration in days'}</summary><label htmlFor="legacy_edit_duration">{t('super_admin.plans.duration_label')}</label><input id="legacy_edit_duration" type="number" min="1" value={editedPlanData.duration_days ?? plan.duration_days ?? 30} onChange={(e) => setEditedPlanData(prev => ({ ...prev, duration_days: Number(e.target.value) }))} className="w-full rounded border p-2 dark:bg-slate-900" /></details></div>
                                 </div>
 
                                 <div className="flex gap-4">
@@ -431,7 +437,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                             </div>
                                             <div className="flex items-baseline gap-1">
                                                 <span className="text-4xl font-bold text-indigo-600 dark:text-indigo-400">{plan.price}</span>
-                                                <span className="text-sm font-bold text-slate-500">{t('super_admin.finance.currency') || 'ج.م'} / {plan.billing_cycle_unit && plan.billing_cycle_unit !== 'month' ? (isRtl ? 'عقد قديم؛ راجع شروط الفترة' : 'legacy contract; review period terms') : (isRtl ? 'شهر تقويمي' : 'calendar month')}</span>
+                                                <span className="text-sm font-bold text-slate-500">{t('super_admin.finance.currency') || 'ج.م'} / {billingTerm(plan, isRtl)}</span>
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
@@ -558,7 +564,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
                                 />
                             </div>
-                            <div className="flex-1"><p className="text-sm font-bold">{isRtl ? 'شهر تقويمي' : 'Calendar month'}</p><p className="text-xs text-slate-500">{isRtl ? 'بدون مدة ثابتة بالأيام.' : 'No fixed day-count billing.'}</p><details className="mt-2 text-xs"><summary>{isRtl ? 'مدة العقد القديم (لا تغيّر الشهر المدفوع)' : 'Legacy contract duration (does not change monthly billing)'}</summary><label htmlFor="new_plan_duration">{t('super_admin.plans.duration_label')}</label><input id="new_plan_duration" type="number" min="1" value={newPlanData.duration_days} onChange={(e) => setNewPlanData(prev => ({ ...prev, duration_days: Number(e.target.value) }))} className="w-full rounded border p-2 dark:bg-slate-900" /></details></div>
+                            <div className="flex-1"><p className="text-sm font-bold">{isRtl ? 'شهر تقويمي' : 'Calendar month'}</p><p className="text-xs text-slate-500">{isRtl ? 'بدون مدة ثابتة بالأيام.' : 'No fixed day-count billing.'}</p><details className="mt-2 text-xs"><summary>{isRtl ? 'مدة العقد بالأيام' : 'Contract duration in days'}</summary><label htmlFor="new_plan_duration">{t('super_admin.plans.duration_label')}</label><input id="new_plan_duration" type="number" min="1" value={newPlanData.duration_days} onChange={(e) => setNewPlanData(prev => ({ ...prev, duration_days: Number(e.target.value) }))} className="w-full rounded border p-2 dark:bg-slate-900" /></details></div>
                         </div>
 
                         <div className="flex gap-4">

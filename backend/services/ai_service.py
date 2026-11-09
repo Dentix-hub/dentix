@@ -129,6 +129,32 @@ class AIService:
         except Exception:
             return None
 
+    @staticmethod
+    def _chat_receipt(response):
+        # Seal only a response that can actually be returned by the API.
+        AIQueryResponse(**response)
+        state = "failure" if not response.get("success") else (
+            "confirmation_required" if response.get("risk_level") == "CONFIRMATION_REQUIRED" else "success"
+        )
+        return AIQuotaService.chat_receipt(state)
+
+    def _replay_chat_response(self, reservation):
+        data = {"request_status": reservation.status, "replayed": True}
+        completed = reservation.status == ReservationStatus.CONSUMED.value
+        outcome = AIQuotaService.chat_outcome(reservation)
+        if completed and outcome == "failure":
+            return AIQueryResponse(success=False, error="request_failed", message="تعذر إكمال الطلب السابق ولن يعاد تنفيذه تلقائيًا.", data=data)
+        if completed and outcome == "confirmation_required":
+            state = state_manager.get_session(self.user.tenant_id, self.user.id)
+            pending = state.pending_confirmation
+            if pending and pending.get("parent_reservation_id") == reservation.reservation_id:
+                tool = pending["tool"]
+                return AIQueryResponse(success=True, tool="response", message=f"⚠️ هذا الإجراء ({tool}) يتطلب تأكيدك. هل أنت متأكد من التنفيذ؟", risk_level="CONFIRMATION_REQUIRED", data={**data, "required_confirmation": True, "pending_tool": tool})
+            return AIQueryResponse(success=False, error="confirmation_state_unavailable", message="حالة التأكيد السابقة لم تعد متاحة؛ لم تتم إعادة تنفيذ الإجراء.", data=data)
+        if outcome != "success":
+            completed = False
+        return AIQueryResponse(success=completed, message="تمت معالجة هذا الطلب بالفعل." if completed else "الطلب السابق قيد المعالجة أو نتيجته غير مؤكدة.", error=None if completed else "request_pending", data=data)
+
     async def analyze_direct(
         self,
         prompt: str,
@@ -288,13 +314,7 @@ class AIService:
                     idempotency_key=idempotency_key,
                 )
                 if getattr(reservation, "is_replay", False):
-                    completed = reservation.status == ReservationStatus.CONSUMED.value
-                    return AIQueryResponse(
-                        success=completed,
-                        message="تمت معالجة هذا الطلب بالفعل." if completed else "الطلب السابق قيد المعالجة أو نتيجته غير مؤكدة.",
-                        error=None if completed else "request_pending",
-                        data={"request_status": reservation.status, "replayed": True},
-                    )
+                    return self._replay_chat_response(reservation)
             except AIQuotaExhaustedError:
                 return AIQueryResponse(
                     success=False,
@@ -367,9 +387,11 @@ class AIService:
 
             completion_status = (
                 ReservationStatus.RELEASED if ai_result.get("_provider_dispatched") is False
+                else ReservationStatus.UNCERTAIN if ai_result.get("_provider_failed") is True
                 else ReservationStatus.CONSUMED
             )
             ai_result.pop("_provider_dispatched", None)
+            ai_result.pop("_provider_failed", None)
             if "error" in ai_result:
                 tool_name = ai_result.get("tool", "unknown")
                 final_response_data = {
@@ -381,6 +403,7 @@ class AIService:
                     await self._finalize_reservation(
                         reservation.reservation_id,
                         completion_status,
+                        reconciliation_notes=self._chat_receipt(final_response_data),
                     )
             else:
                 tool_name = ai_result.get("tool")
@@ -397,6 +420,7 @@ class AIService:
                             await self._finalize_reservation(
                                 reservation.reservation_id,
                                 completion_status,
+                                reconciliation_notes=self._chat_receipt(final_response_data),
                             )
                     else:
                         params = ai_result.get("parameters", {})
@@ -418,14 +442,8 @@ class AIService:
                                     }
                                 },
                             )
-                            if reservation:
-                                await self._finalize_reservation(
-                                    reservation.reservation_id,
-                                    completion_status,
-                                )
-                            return AIQueryResponse(
-                                success=True,
-                                tool="response",
+                            final_response_data = dict(
+                                success=True, tool="response",
                                 message=f"⚠️ هذا الإجراء ({tool_name}) يتطلب تأكيدك. هل أنت متأكد من التنفيذ؟",
                                 data={
                                     "required_confirmation": True,
@@ -433,17 +451,18 @@ class AIService:
                                 },
                                 risk_level="CONFIRMATION_REQUIRED",
                             )
+                            if reservation:
+                                await self._finalize_reservation(
+                                    reservation.reservation_id, completion_status,
+                                    reconciliation_notes=self._chat_receipt(final_response_data),
+                                )
+                            return AIQueryResponse(**final_response_data)
 
                         tool_result = await self.executor.execute(
                             tool_name,
                             params,
                             parent_reservation_id=reservation.reservation_id if reservation else None,
                         )
-                        if reservation:
-                            await self._finalize_reservation(
-                                reservation.reservation_id,
-                                completion_status,
-                            )
                         if not tool_result.get("success"):
                             final_response_data = {
                                 "success": False,
@@ -463,6 +482,11 @@ class AIService:
                                 "risk_level": risk_level,
                                 "suggestions": ai_result.get("suggestions"),
                             }
+                        if reservation:
+                            await self._finalize_reservation(
+                                reservation.reservation_id, completion_status,
+                                reconciliation_notes=self._chat_receipt(final_response_data),
+                            )
                 else:
                     final_response_data = {
                         "success": True,
@@ -473,6 +497,7 @@ class AIService:
                         await self._finalize_reservation(
                             reservation.reservation_id,
                             completion_status,
+                            reconciliation_notes=self._chat_receipt(final_response_data),
                         )
 
         except AIException as e:

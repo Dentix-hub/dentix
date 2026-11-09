@@ -18,6 +18,18 @@ from zoneinfo import ZoneInfo
 DEFAULT_TIMEZONE = "Africa/Cairo"
 
 
+def add_plan_term(dt, plan, *, anchor_day=None, tz_name=DEFAULT_TIMEZONE):
+    """Retain fixed-day legacy contracts and native monthly/yearly recurrence."""
+    if plan.billing_cycle_unit == "day":
+        if not plan.duration_days or plan.duration_days <= 0:
+            raise ValueError("Plan has an invalid renewal duration")
+        return _as_utc(dt).replace(tzinfo=None) + timedelta(days=plan.duration_days), anchor_day
+    if plan.billing_cycle_unit not in {"month", "year"}:
+        raise ValueError("Plan has an invalid billing cycle")
+    return add_calendar_months(dt, months=12 if plan.billing_cycle_unit == "year" else 1,
+        anchor_day=anchor_day, tz_name=tz_name)
+
+
 def _as_utc(dt: datetime) -> datetime:
     """Ensure datetime is UTC."""
     if dt.tzinfo is None:

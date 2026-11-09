@@ -181,6 +181,7 @@ class AIAgent:
 
             result = self._parse_response(content_restored)
             result["_provider_dispatched"] = not self.mock_mode
+            result.pop("_provider_failed", None)
 
             # 6. SECURITY: Scribe Mode Enforcement (Block Write Operations)
             if scribe_mode and "tool" in result and result["tool"] != "response":
@@ -249,6 +250,7 @@ class AIAgent:
                 "message": msg,
                 "error": str(e),
                 "is_soft_error": True,
+                "_provider_failed": True,
             }
 
     def _enforce_scribe_mode(self, result: Dict[str, Any]) -> Optional[Dict[str, Any]]:

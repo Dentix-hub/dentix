@@ -1841,6 +1841,10 @@ def main():
         logger.critical("[PREFLIGHT] MIGRATION FAILED — ABORTING DEPLOYMENT")
         sys.exit(1)
 
+    if not run_legacy_billing_alignment():
+        logger.critical("[PREFLIGHT] BILLING COMPATIBILITY FAILED — ABORTING DEPLOYMENT")
+        sys.exit(1)
+
     if not run_migration_health_check():
         logger.critical("[PREFLIGHT] HEALTH CHECK FAILED — ABORTING DEPLOYMENT")
         sys.exit(1)
@@ -1849,6 +1853,28 @@ def main():
     logger.info("[PREFLIGHT] ALL CHECKS PASSED — Safe to start application")
     logger.info("=" * 60)
     sys.exit(0)
+
+
+def run_legacy_billing_alignment():
+    """Use the selected migration connection; a failed write aborts startup atomically."""
+    from backend.services.legacy_billing_alignment import align_legacy_billing_terms
+
+    engine = None
+    try:
+        db_url = _database_url()
+        if not db_url:
+            return False
+        engine = create_engine(db_url)
+        environment = os.getenv("DENTIX_DEPLOYMENT_ENVIRONMENT", os.getenv("ENVIRONMENT", "")).lower()
+        required = environment in {"production", "prod", "staging"}
+        align_legacy_billing_terms(engine, required=required)
+        return True
+    except Exception:
+        logger.exception("[PREFLIGHT] Approved legacy billing terms could not be verified/applied")
+        return False
+    finally:
+        if engine is not None:
+            engine.dispose()
 
 
 if __name__ == "__main__":

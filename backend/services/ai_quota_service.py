@@ -161,6 +161,50 @@ def isolated_accounting_session(tenant_id=None) -> Generator[Session, None, None
 class AIQuotaService:
     """Canonical service for clinic-local AI daily quota reservation and accounting."""
 
+    CHAT_OUTCOME_KEY = "chat_outcome_v1"
+    CHAT_OUTCOMES = frozenset({"pending", "success", "failure", "confirmation_required"})
+
+    @classmethod
+    def chat_outcome(cls, reservation):
+        try:
+            notes = json.loads(reservation.reconciliation_notes or "null")
+        except (ValueError, TypeError):
+            return None
+        value = notes.get(cls.CHAT_OUTCOME_KEY) if isinstance(notes, dict) else None
+        return value if isinstance(value, str) and value in cls.CHAT_OUTCOMES else None
+
+    @classmethod
+    def chat_receipt(cls, state):
+        if state not in cls.CHAT_OUTCOMES:
+            raise ValueError("Invalid chat outcome")
+        return json.dumps({cls.CHAT_OUTCOME_KEY: state})
+
+    @classmethod
+    def _merge_reconciliation_notes(cls, existing, incoming):
+        def object_value(raw):
+            try:
+                value = json.loads(raw or "null")
+            except (ValueError, TypeError):
+                return None
+            return value if isinstance(value, dict) else None
+
+        before, after = object_value(existing), object_value(incoming)
+        if after and isinstance(after.get(cls.CHAT_OUTCOME_KEY), str) and after[cls.CHAT_OUTCOME_KEY] in cls.CHAT_OUTCOMES:
+            merged = dict(before or {})
+            if existing and before is None:
+                merged["previous_notes"] = existing
+            merged[cls.CHAT_OUTCOME_KEY] = after[cls.CHAT_OUTCOME_KEY]
+            return json.dumps(merged)
+        if after and after.get("kind") in {"scribe_result_v1", "analysis_result_v1"}:
+            if before and cls.CHAT_OUTCOME_KEY in before:
+                after[cls.CHAT_OUTCOME_KEY] = before[cls.CHAT_OUTCOME_KEY]
+            return json.dumps(after)
+        if before and cls.CHAT_OUTCOME_KEY in before:
+            entries = before.get("audit_notes", [])
+            before["audit_notes"] = (entries if isinstance(entries, list) else [entries]) + [incoming]
+            return json.dumps(before)
+        return f"{existing or ''}{' | ' if existing else ''}{incoming}"
+
     @staticmethod
     def get_effective_ai_daily_limit(session: Session, tenant_id: int, now_utc: datetime | None = None) -> int:
         """Resolve the current effective daily AI request limit for the tenant.
@@ -405,6 +449,7 @@ class AIQuotaService:
                 units=1,
                 created_at=now_naive,
                 updated_at=now_naive,
+                reconciliation_notes=cls.chat_receipt("pending") if operation == "ai_chat" else None,
             )
             session.add(reservation)
             locked_window.reserved_count += 1
@@ -453,6 +498,24 @@ class AIQuotaService:
 
             # Idempotent replay if status matches
             if reservation.status == target_status:
+                # Nested analysis may finish the shared reservation before its
+                # parent chat knows the action result. Seal that result once,
+                # without changing quota or discarding the analysis receipt.
+                try:
+                    receipt = json.loads(reconciliation_notes or "null")
+                except (ValueError, TypeError):
+                    receipt = None
+                if (
+                    reservation.operation == "ai_chat"
+                    and isinstance(receipt, dict)
+                    and isinstance(receipt.get(cls.CHAT_OUTCOME_KEY), str)
+                    and receipt.get(cls.CHAT_OUTCOME_KEY) in cls.CHAT_OUTCOMES
+                    and cls.chat_outcome(reservation) in {None, "pending"}
+                ):
+                    reservation.reconciliation_notes = cls._merge_reconciliation_notes(
+                        reservation.reconciliation_notes, reconciliation_notes
+                    )
+                    session.commit()
                 return reservation
 
             # Validate state transition
@@ -499,16 +562,9 @@ class AIQuotaService:
             if error_reason:
                 reservation.error_reason = error_reason[:255]
             if reconciliation_notes:
-                existing_notes = reservation.reconciliation_notes or ""
-                sep = " | " if existing_notes else ""
-                try:
-                    typed_result = json.loads(reconciliation_notes)
-                except (ValueError, TypeError):
-                    typed_result = None
-                if isinstance(typed_result, dict) and typed_result.get("kind") in {"scribe_result_v1", "analysis_result_v1"}:
-                    reservation.reconciliation_notes = reconciliation_notes
-                else:
-                    reservation.reconciliation_notes = f"{existing_notes}{sep}{reconciliation_notes}"
+                reservation.reconciliation_notes = cls._merge_reconciliation_notes(
+                    reservation.reconciliation_notes, reconciliation_notes
+                )
 
             window.updated_at = now_naive
             session.commit()

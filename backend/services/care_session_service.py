@@ -227,6 +227,17 @@ class CareSessionService:
         if data.appointment_id is not None:
             await self._verify_appointment(patient_id, data.appointment_id)
 
+        if data.resume_from_session_id is not None:
+            source_id = await self.db.scalar(
+                select(models.CareSession.id).where(
+                    models.CareSession.id == data.resume_from_session_id,
+                    models.CareSession.tenant_id == self.tenant_id,
+                    models.CareSession.patient_id == patient_id,
+                )
+            )
+            if source_id is None:
+                raise HTTPException(status_code=404, detail="Care session not found")
+
         # Collect and validate all associated work item IDs
         associated_wi_ids = list(getattr(data, "work_item_ids", []) or [])
         if data.resume_work_item_id is not None and data.resume_work_item_id not in associated_wi_ids:
@@ -334,8 +345,13 @@ class CareSessionService:
             )
             self.db.add(session_proc)
 
-        # Continuation / carryover support
-        if data.resume_work_item_id is not None or data.resume_from_session_id is not None or associated_wi_ids:
+        # Historical visits contain only explicitly submitted facts. Automatic
+        # continuation could copy later measurements into an earlier visit.
+        if not is_historical and (
+            data.resume_work_item_id is not None
+            or data.resume_from_session_id is not None
+            or associated_wi_ids
+        ):
             source_session_ids = []
             if data.resume_from_session_id is not None:
                 source_session_ids = [data.resume_from_session_id]
