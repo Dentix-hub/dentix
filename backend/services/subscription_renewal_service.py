@@ -15,7 +15,7 @@ from backend.services.subscription_grant import grant_subscription_period, paid_
 from backend.services.subscription_period import utc_naive
 from fastapi import HTTPException
 from backend.services.subscription_calendar import (
-    add_calendar_months,
+    add_plan_term,
 )
 from backend.services.subscription_state_machine import (
     SubscriptionState,
@@ -115,17 +115,25 @@ async def renew_subscription(
     now = datetime.now(timezone.utc)
     plan = None
     if request.plan_id:
-        plan = await db.get(models.SubscriptionPlan, request.plan_id)
+        plan = (await db.execute(select(models.SubscriptionPlan).where(
+            models.SubscriptionPlan.id == request.plan_id).with_for_update()
+            .execution_options(populate_existing=True))).scalar_one_or_none()
         if not plan or (not plan.is_active and plan.id not in {tenant.plan_id, tenant.future_plan_id}):
             raise SubscriptionRenewalError(404, "Subscription plan not found")
 
     # The same state marker/quote boundary as paid receipt preview; no second grant algorithm.
     from backend.services.subscription_service import SubscriptionService
     target = plan
-    if target is None and (tenant.future_plan_id or tenant.plan_id):
-        target = await db.get(models.SubscriptionPlan, tenant.future_plan_id or tenant.plan_id)
+    target_id = tenant.scheduled_downgrade_plan_id or tenant.future_plan_id or tenant.plan_id
+    if tenant.scheduled_downgrade_plan_id and request.plan_id and request.plan_id != tenant.scheduled_downgrade_plan_id:
+        raise SubscriptionRenewalError(409, "Select the scheduled renewal plan explicitly")
+    if target is None and target_id:
+        target = (await db.execute(select(models.SubscriptionPlan).where(
+            models.SubscriptionPlan.id == target_id).with_for_update()
+            .execution_options(populate_existing=True))).scalar_one_or_none()
+    plan = target
     if target is None:
-        target = SimpleNamespace(id=None, policy_revision=None, price=0, is_active=False, max_users=None, ai_daily_limit=0)
+        target = SimpleNamespace(id=None, policy_revision=None, price=0, is_active=False, max_users=None, ai_daily_limit=0, billing_cycle_unit="month", duration_days=30)
     server_now = utc_naive(now)
     quote_time = utc_naive(request.preview_at) if request.preview_at else server_now
     if request.preview_at and (not request.preview_marker or not 0 <= (server_now - quote_time).total_seconds() <= 300):
@@ -151,14 +159,13 @@ async def renew_subscription(
         base = current_end if current_end and current_end > now else now
         calculated_end = base + timedelta(days=request.extension_days)
     else:
-        # Default calendar month renewal with preserved billing day anchor
+        # Default renewal follows the actual target contract; dated support extensions stay explicit.
         base = current_end if current_end and current_end > now else now
-        calc_end, anchor = add_calendar_months(
-            base,
-            months=1,
-            anchor_day=paid_billing_anchor(tenant),
-            tz_name=tenant.timezone or "Africa/Cairo",
-        )
+        try:
+            calc_end, anchor = add_plan_term(base, target,
+                anchor_day=paid_billing_anchor(tenant), tz_name=tenant.timezone or "Africa/Cairo")
+        except ValueError as exc:
+            raise SubscriptionRenewalError(409, str(exc)) from exc
         calculated_end = _utc(calc_end)
         next_anchor = anchor
 

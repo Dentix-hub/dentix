@@ -40,6 +40,18 @@ describe('PlansManager MS-14 (features, creation, validation, AI limits, and del
         vi.clearAllMocks();
     });
 
+    it.each([
+        ['day', 3650, '3650 يومًا'],
+        ['year', 30, 'سنة تقويمية'],
+        ['month', 30, 'شهر تقويمي'],
+    ])('shows the real %s renewal term in edit mode', (unit, days, label) => {
+        const plan = { id: 1, name: 'synthetic', display_name_ar: 'Synthetic', price: 400,
+            billing_cycle_unit: unit, duration_days: days, max_users: 5 };
+        render(<PlansManager plans={[plan]} editingPlan={1} editedPlanData={{}}
+            setEditingPlan={vi.fn()} setEditedPlanData={vi.fn()} handleSavePlan={vi.fn()} />);
+        expect(screen.getByText(label)).toBeInTheDocument();
+    });
+
     it('parses JSON array format correctly', () => {
         const raw = JSON.stringify(['ai_insights', 'multi_branch', 'custom_addon']);
         const parsed = parseFeatures(raw);

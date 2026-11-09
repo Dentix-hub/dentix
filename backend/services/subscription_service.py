@@ -838,6 +838,8 @@ class SubscriptionService:
                      target_plan_id=plan.id, target_revision=plan.policy_revision,
                      target_price=str(plan.price), target_active=plan.is_active,
                      target_seats=plan.max_users, target_ai_limit=plan.ai_daily_limit,
+                     target_billing_unit=plan.billing_cycle_unit,
+                     target_duration_days=plan.duration_days,
                      preview_at=preview_at.isoformat())
         return hashlib.sha256(json.dumps(state, sort_keys=True, default=str).encode()).hexdigest()
 
@@ -893,7 +895,11 @@ class SubscriptionService:
         curr_state = normalize_state(tenant.subscription_status or "trial")
         if curr_state in {SubscriptionState.SUSPENDED_ADMIN.value, SubscriptionState.CANCELLED.value}:
             raise HTTPException(409, f"Cannot record payment for tenant in '{curr_state}' state. Explicit reactivation is required.")
-        plan = await db.get(models.SubscriptionPlan, payment_data.plan_id)
+        if tenant.scheduled_downgrade_plan_id and payment_data.plan_id != tenant.scheduled_downgrade_plan_id:
+            raise HTTPException(409, "Select the scheduled renewal plan explicitly before recording payment")
+        plan = (await db.execute(select(models.SubscriptionPlan).where(
+            models.SubscriptionPlan.id == payment_data.plan_id
+        ).with_for_update().execution_options(populate_existing=True))).scalar_one_or_none()
         if not plan:
             raise HTTPException(404, "Plan not found")
         from backend.services.subscription_period import utc_naive
@@ -909,8 +915,13 @@ class SubscriptionService:
                                    timezone=tenant.timezone, billing_day_anchor=tenant.billing_day_anchor)
         from backend.services.subscription_grant import grant_subscription_period, paid_billing_anchor
         end = utc_naive(tenant.subscription_end_date) if tenant.subscription_end_date else now
-        end, anchor = add_calendar_months(max(now, end), months=1,
-            anchor_day=paid_billing_anchor(tenant), tz_name=tenant.timezone or "Africa/Cairo")
+        basis = max(now, end)
+        from backend.services.subscription_calendar import add_plan_term
+        try:
+            end, anchor = add_plan_term(basis, plan, anchor_day=paid_billing_anchor(tenant),
+                tz_name=tenant.timezone or "Africa/Cairo")
+        except ValueError as exc:
+            raise HTTPException(409, str(exc)) from exc
         await grant_subscription_period(db, proposal, plan, end, now=now)
         proposal.billing_day_anchor = anchor
         return proposal, plan, marker, now
@@ -962,7 +973,7 @@ class SubscriptionService:
         )
         db.add(payment)
 
-        # Update tenant subscription with calendar months and preserved anchor
+        # Flush the quoted plan term before recording its replay identity.
         await db.flush()
         if ledger_key:
             db.add(models.SubscriptionRenewalRequest(

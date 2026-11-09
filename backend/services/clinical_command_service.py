@@ -1179,18 +1179,18 @@ class ClinicalCommandService:
             if all_steps:
                 logical_tasks = {}
                 for s in all_steps:
-                    key = (s.logical_step_code or s.step_code or s.title or f"step_{s.step_order}", s.occurrence_number or 1)
-                    if key not in logical_tasks:
-                        logical_tasks[key] = []
-                    logical_tasks[key].append(s)
+                    task_key = (s.logical_step_code or s.step_code or s.title or f"step_{s.step_order}", s.occurrence_number or 1)
+                    if task_key not in logical_tasks:
+                        logical_tasks[task_key] = []
+                    logical_tasks[task_key].append(s)
 
                 outstanding_tasks = []
-                for key, task_occurrences in logical_tasks.items():
+                for task_key, task_occurrences in logical_tasks.items():
                     # The effective state of each distinct task occurrence is evaluated by its latest record.
                     # If the latest record is completed, omitted, skipped, or cancelled, it is satisfied.
                     latest_step = task_occurrences[-1]
                     if latest_step.status not in ("completed", "omitted", "skipped", "cancelled"):
-                        outstanding_tasks.append((key, latest_step))
+                        outstanding_tasks.append((task_key, latest_step))
 
                 if outstanding_tasks and not (payload.override_reason or payload.reason):
                     raise HTTPException(
