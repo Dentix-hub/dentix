@@ -41,6 +41,8 @@ class User(BaseModel):
     is_2fa_enabled: bool = False
     patient_visibility_mode: Optional[str] = "all_assigned"
     fcm_token: Optional[str] = None
+    is_active: bool = True
+    is_deleted: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -53,6 +55,7 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     permissions: Optional[str] = None
     patient_visibility_mode: Optional[str] = None
+    is_active: Optional[bool] = None
 
 
 class UserRegisterRequest(BaseModel):

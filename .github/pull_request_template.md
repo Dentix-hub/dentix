@@ -13,6 +13,15 @@
 - **Automated tests**:
 - **Lint / Typecheck**:
 
+## Evidence
+- Before: `<verified failure or N/A>`
+- After: `<verified result or not run>`
+
+## Merge Danger
+- Door: `one-way` | `two-way`
+- Blast radius: `<affected subsystem>`
+- Reason: `<brief explanation>`
+
 ## Sensitive Change Review
 
 - [ ] Touches tenant isolation / RBAC / finance / migrations / clinical (add the HIGH_RISK label)

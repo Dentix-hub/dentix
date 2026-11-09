@@ -14,9 +14,10 @@ from .limiter import rate_limiter
 from .prompt import build_system_prompt
 from .router import SmartModelRouter
 from ...rag.store import knowledge_store
+from ..config import get_fast_model
 from .circuit_breaker import ai_circuit_breaker
 from backend.ai.privacy.scrubber import scrubber
-from backend.services.ai_egress_policy import prepare_ai_messages
+from backend.services.ai_egress_policy import AIEgressDenied, prepare_ai_messages
 
 # Logger Setup
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ class AIAgent:
             )
             self.client = AsyncGroq(api_key=api_key, http_client=http_client, max_retries=2)
 
-        self.model = "llama-3.1-8b-instant"
+        self.model = get_fast_model()
 
     async def _call_llm_safe(
         self, model: str, messages: List[Dict], *, tenant_id: int | None = None
@@ -115,7 +116,7 @@ class AIAgent:
                 logger.info(
                     f"Bypassing LLM - handling detected intent: {detected.intent}"
                 )
-                return self._handle_detected_intent(detected, user_input)
+                return {**self._handle_detected_intent(detected, user_input), "_provider_dispatched": False}
         except Exception as e:
             logger.error(f"Intent detection failed: {e}", exc_info=True)
 
@@ -125,6 +126,7 @@ class AIAgent:
                 "tool": "response",
                 "message": "عذراً، لقد تجاوزت حد الاستخدام اليومي المسموح به للعيادة.",
                 "error": "quota_exceeded",
+                "_provider_dispatched": False,
             }
 
         # Record attempt
@@ -178,6 +180,8 @@ class AIAgent:
             content_restored = scrubber.restore(content, aliases)
 
             result = self._parse_response(content_restored)
+            result["_provider_dispatched"] = not self.mock_mode
+            result.pop("_provider_failed", None)
 
             # 6. SECURITY: Scribe Mode Enforcement (Block Write Operations)
             if scribe_mode and "tool" in result and result["tool"] != "response":
@@ -215,6 +219,14 @@ class AIAgent:
 
             return result
 
+        except AIEgressDenied as exc:
+            logger.info("External AI request rejected before dispatch", extra={"tenant_id": tenant_id})
+            return {
+                "tool": "response",
+                "message": str(exc),
+                "error": "ai_egress_denied",
+                "_provider_dispatched": False,
+            }
         except Exception as e:
             root_cause = getattr(e, "__cause__", None)
             cause_str = f" | Cause: {str(root_cause)}" if root_cause else ""
@@ -238,6 +250,7 @@ class AIAgent:
                 "message": msg,
                 "error": str(e),
                 "is_soft_error": True,
+                "_provider_failed": True,
             }
 
     def _enforce_scribe_mode(self, result: Dict[str, Any]) -> Optional[Dict[str, Any]]:

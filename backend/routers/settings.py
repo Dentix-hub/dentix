@@ -478,12 +478,36 @@ async def get_tenant_features(
     tenant_features = res_features.scalars().all()
 
     feature_keys = set(f.feature_key for f in tenant_features)
+    # Include global rollout as well as tenant overrides, matching clinical APIs.
+    native_key = "clinical_vnext_native_writes"
+    feature_keys.discard(native_key)
+    if await FeatureFlagService.is_feature_enabled(db, native_key, tenant_id):
+        feature_keys.add(native_key)
     if is_clinical_treatment_plans_enabled() or await FeatureFlagService.is_feature_enabled(
         db, "clinical_treatment_plans", tenant_id
     ):
         feature_keys.add("clinical_treatment_plans")
 
     return success_response(data={"features": sorted(list(feature_keys))})
+
+
+@router.get("/entitlements", response_model=StandardResponse[schemas.TenantEntitlementDiagnosticsResponse])
+async def get_current_tenant_entitlements(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """
+    Get effective commercial entitlements and diagnostics for the current authenticated tenant.
+    Never accepts client-selected tenant override (enforces self-tenant scope).
+    """
+    tenant_id = current_user.tenant_id
+    if not tenant_id:
+        raise HTTPException(status_code=400, detail="User does not belong to any clinic")
+
+    from backend.services.entitlement_diagnostics_service import build_tenant_entitlement_diagnostics
+    diagnostics = await build_tenant_entitlement_diagnostics(db, tenant_id)
+    return success_response(data=diagnostics)
+
 
 
 

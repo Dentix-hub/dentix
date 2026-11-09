@@ -8,10 +8,16 @@ from backend import models, schemas
 from backend.database import get_async_db, system_session_scope
 from backend.services.admin_service import AdminService
 from backend.services.feature_service import FeatureFlagService
+from backend.services.account_admission_service import AccountAdmissionService
+from backend.services.subscription_state_machine import (
+    SubscriptionState,
+    normalize_state,
+)
 from backend.services.subscription_renewal_service import (
     SubscriptionRenewalError,
     renew_subscription,
 )
+from backend.services.commercial_action_service import CommercialActionService
 from backend.core.permissions import Role, Permission, require_permission
 from backend.core.response import success_response, StandardResponse
 from starlette.requests import Request
@@ -68,6 +74,7 @@ async def update_tenant(
 async def renew_tenant_subscription(
     tenant_id: int,
     renewal_req: schemas.TenantManualRenewalRequest,
+    preview: bool = False,
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
@@ -77,6 +84,7 @@ async def renew_tenant_subscription(
             tenant_id=tenant_id,
             request=renewal_req,
             admin=current_user,
+            preview=preview,
         )
     except SubscriptionRenewalError as exc:
         raise HTTPException(status_code=exc.status_code, detail=exc.detail) from exc
@@ -129,32 +137,144 @@ async def assign_plan_to_tenant(
     current_user: models.User = Depends(require_super_admin),
     db: AsyncSession = Depends(get_async_db),
 ):
-    res_tenant = await db.execute(select(models.Tenant).where(models.Tenant.id == tenant_id))
-    tenant = res_tenant.scalar_one_or_none()
+    from backend.services.subscription_assignment_service import assign_plan
+
+    tenant = await assign_plan(db, tenant_id, plan_id, current_user)
+    return success_response(data={"tenant": tenant.name, "plan": tenant.plan},
+        message=f"Plan '{tenant.plan}' assigned successfully")
+
+
+@router.post("/{tenant_id}/schedule-downgrade", response_model=StandardResponse[dict])
+async def schedule_tenant_downgrade(
+    tenant_id: int,
+    plan_id: int,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Schedule a plan downgrade for the next renewal (Task 10).
+    Requires active accounts to already be within the target plan cap.
+    """
+    stmt = select(models.Tenant).where(models.Tenant.id == tenant_id).with_for_update()
+    tenant = (await db.execute(stmt)).scalar_one_or_none()
     if not tenant:
         raise HTTPException(status_code=404, detail="Tenant not found")
 
     res_plan = await db.execute(
-        select(models.SubscriptionPlan)
-        .where(models.SubscriptionPlan.id == plan_id)
+        select(models.SubscriptionPlan).where(models.SubscriptionPlan.id == plan_id)
     )
-    plan = res_plan.scalar_one_or_none()
-    if not plan:
-        raise HTTPException(status_code=404, detail="Plan not found")
+    target_plan = res_plan.scalar_one_or_none()
+    if not target_plan or not target_plan.is_active:
+        raise HTTPException(status_code=404, detail="Subscription plan not found")
 
-    tenant.plan = plan.name
-    tenant.plan_id = plan.id
-    tenant.is_active = True
-    tenant.subscription_end_date = datetime.now(timezone.utc) + timedelta(
-        days=plan.duration_days
+    active_count = await AccountAdmissionService.get_active_account_count(db, tenant.id)
+    if target_plan.max_users is not None and active_count > target_plan.max_users:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Cannot schedule downgrade to '{target_plan.name}': tenant currently has {active_count} active accounts, "
+                f"exceeding the target cap ({target_plan.max_users}). Deactivate or delete accounts before scheduling downgrade."
+            ),
+        )
+
+    previous_downgrade_id = tenant.scheduled_downgrade_plan_id
+    tenant.scheduled_downgrade_plan_id = target_plan.id
+
+    db.add(
+        models.AuditLog(
+            action="SUBSCRIPTION_SCHEDULE_DOWNGRADE",
+            entity_type="Tenant",
+            entity_id=tenant.id,
+            target_username=tenant.name,
+            performed_by_id=current_user.id,
+            performed_by_username=current_user.username,
+            old_value=f"scheduled_downgrade={previous_downgrade_id}",
+            new_value=f"scheduled_downgrade={target_plan.id} ({target_plan.name})",
+            details=f"Downgrade scheduled for next renewal. Active accounts: {active_count}/{target_plan.max_users}",
+            tenant_id=tenant.id,
+        )
     )
 
     await db.commit()
     await db.refresh(tenant)
     return success_response(
-        data={"tenant": tenant.name},
-        message=f"Plan '{plan.name}' assigned successfully",
+        data={
+            "tenant_id": tenant.id,
+            "scheduled_downgrade_plan_id": target_plan.id,
+            "scheduled_downgrade_plan": target_plan.name,
+            "effective_cap": target_plan.max_users,
+        },
+        message="Downgrade scheduled successfully for next renewal",
     )
+
+
+# Commercial Suspension, Security Disable, Reactivation & Reversal (PR-11)
+@router.post("/{tenant_id}/suspend", response_model=StandardResponse[schemas.TenantCommercialActionResponse])
+async def suspend_tenant(
+    tenant_id: int,
+    action_req: schemas.TenantCommercialActionRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Apply or preview commercial suspension.
+    Preserves read-only clinical history; halts new mutations and provider calls.
+    """
+    res = await CommercialActionService.suspend_tenant(
+        db, tenant_id=tenant_id, request=action_req, admin_user=current_user
+    )
+    return success_response(data=res, message=res.message)
+
+
+@router.post("/{tenant_id}/security-disable", response_model=StandardResponse[schemas.TenantCommercialActionResponse])
+async def security_disable_tenant(
+    tenant_id: int,
+    action_req: schemas.TenantCommercialActionRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Apply or preview emergency security disable.
+    Sets is_active=False, immediately stopping login and access.
+    """
+    res = await CommercialActionService.security_disable_tenant(
+        db, tenant_id=tenant_id, request=action_req, admin_user=current_user
+    )
+    return success_response(data=res, message=res.message)
+
+
+@router.post("/{tenant_id}/reactivate", response_model=StandardResponse[schemas.TenantCommercialActionResponse])
+async def reactivate_tenant(
+    tenant_id: int,
+    action_req: schemas.TenantCommercialActionRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Apply or preview reactivation of a tenant.
+    Restores is_active=True and transitions suspended status back to active.
+    """
+    res = await CommercialActionService.reactivate_tenant(
+        db, tenant_id=tenant_id, request=action_req, admin_user=current_user
+    )
+    return success_response(data=res, message=res.message)
+
+
+@router.post("/{tenant_id}/reversal", response_model=StandardResponse[schemas.PolicyReversalResponse])
+async def reverse_tenant_policy_action(
+    tenant_id: int,
+    reversal_req: schemas.PolicyReversalRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Reverse an eligible policy change recorded in the audit log for this tenant.
+    Payments and destructive operations cannot be reversed via policy undo.
+    """
+    res = await CommercialActionService.reverse_policy_action(
+        db, request=reversal_req, admin_user=current_user
+    )
+    return success_response(data=res, message=res.message)
 
 
 # Extra: Get Tenant Users
@@ -262,6 +382,7 @@ async def get_tenant_details(
             "name": tenant.name,
             "domain": tenant.domain,
             "plan": tenant.plan,
+            "plan_id": tenant.plan_id,
             "created_at": tenant.created_at,
             "subscription_end_date": tenant.subscription_end_date,
             "is_active": tenant.is_active,
@@ -271,6 +392,52 @@ async def get_tenant_details(
         },
         "stats": stats
     })
+
+
+@router.get("/{tenant_id}/entitlements", response_model=StandardResponse[schemas.TenantEntitlementDiagnosticsResponse])
+async def get_tenant_entitlements_diagnostics(
+    tenant_id: int,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """
+    Get effective commercial entitlements and diagnostics for a specific tenant.
+    Requires SUPER_ADMIN role.
+    """
+    from backend.services.entitlement_diagnostics_service import build_tenant_entitlement_diagnostics
+    try:
+        diagnostics = await build_tenant_entitlement_diagnostics(db, tenant_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return success_response(data=diagnostics)
+
+
+@router.get("/{tenant_id}/commercial-overrides", response_model=StandardResponse[schemas.TenantCommercialOverridesResponse])
+async def get_tenant_commercial_overrides(
+    tenant_id: int,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Get active commercial capability overrides for a specific tenant."""
+    from backend.services.subscription_service import SubscriptionService
+    data = await SubscriptionService.get_tenant_commercial_overrides(db, tenant_id)
+    return success_response(data=data)
+
+
+@router.put("/{tenant_id}/commercial-overrides", response_model=StandardResponse[schemas.TenantCommercialOverridesResponse])
+async def update_tenant_commercial_overrides(
+    tenant_id: int,
+    update_data: schemas.TenantCommercialOverridesUpdateRequest,
+    current_user: models.User = Depends(require_super_admin),
+    db: AsyncSession = Depends(get_async_db),
+):
+    """Update commercial capability overrides for a specific tenant with optimistic concurrency check."""
+    from backend.services.subscription_service import SubscriptionService
+    data = await SubscriptionService.update_tenant_commercial_overrides(
+        db, tenant_id, update_data, admin_user=current_user
+    )
+    return success_response(data=data, message="Commercial overrides updated successfully")
+
 
 
 @router.post("/{tenant_id}/features/{feature_key}", response_model=StandardResponse[dict])
@@ -356,9 +523,9 @@ async def impersonate_tenant(
     async with system_session_scope() as system_db:
         stmt = select(models.User).options(selectinload(models.User.tenant)).where(
             models.User.tenant_id == tenant_id,
-            models.User.is_active == True,
+            models.User.is_active == True,  # noqa: E712
             # is_deleted is nullable in legacy rows; NULL means not deleted.
-            or_(models.User.is_deleted == False, models.User.is_deleted.is_(None)),
+            or_(models.User.is_deleted == False, models.User.is_deleted.is_(None)),  # noqa: E712
         )
 
         if user_id:

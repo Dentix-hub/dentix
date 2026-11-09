@@ -67,11 +67,26 @@ def test_preflight_bootstraps_fresh_database_then_upgrades_existing(monkeypatch)
                 cursor.execute("SELECT count(*) FROM pg_trigger WHERE tgname = 'clinic_write_gate' AND NOT tgisinternal")
                 gate_count = cursor.fetchone()[0]
                 assert gate_count > 0, "Restore write-gate triggers must be installed on fresh bootstrap"
+                cursor.execute("SELECT is_global_enabled, rollout_percentage FROM feature_flags WHERE key = 'clinical_vnext_native_writes'")
+                assert cursor.fetchone() == (True, 100)
+                # An emergency administrative stop after release is retained
+                # both on routine deployments and bootstrap recovery.
+                cursor.execute("UPDATE feature_flags SET is_global_enabled = false WHERE key = 'clinical_vnext_native_writes'")
 
         # The second pass must take the existing Alembic-versioned path and be
         # idempotent. This is the path production takes on normal deployments.
         assert preflight.run_alembic_upgrade() is True
         assert preflight.run_migration_health_check() is True
+        with psycopg2.connect(database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT is_global_enabled FROM feature_flags WHERE key = 'clinical_vnext_native_writes'")
+                assert cursor.fetchone() == (False,)
+                cursor.execute(f'CREATE TABLE "{preflight.BOOTSTRAP_MARKER}" (id INTEGER PRIMARY KEY)')
+        assert preflight.run_alembic_upgrade() is True
+        with psycopg2.connect(database_url) as connection:
+            with connection.cursor() as cursor:
+                cursor.execute("SELECT is_global_enabled FROM feature_flags WHERE key = 'clinical_vnext_native_writes'")
+                assert cursor.fetchone() == (False,)
     finally:
         _drop_database(base_url, database)
 

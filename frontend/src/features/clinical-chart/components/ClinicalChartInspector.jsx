@@ -57,6 +57,7 @@ export default function ClinicalChartInspector({
     const activeToothItems = useMemo(() => {
         if (!toothKey) return [];
         const itemsMap = new Map();
+        const representedLegacyIds = new Set();
 
         // 1. From workItems
         (workItems || []).forEach((wi) => {
@@ -101,11 +102,12 @@ export default function ClinicalChartInspector({
         (treatments || []).forEach((tr) => {
             if (tr.status === 'cancelled') return;
             if (String(tr.tooth_number) === toothKey) {
+                representedLegacyIds.add(String(tr.id));
                 const id = tr.id;
                 const surfaces = Array.isArray(tr.surfaces)
                     ? tr.surfaces
                     : (tr.surface ? tr.surface.split('').filter(Boolean) : []);
-                if (!itemsMap.has(`wi-${id}`)) {
+                if (!tr.work_item_id || !itemsMap.has(`wi-${tr.work_item_id}`)) {
                     const linkedLab = (labOrders || []).find((lo) => lo.treatment_id === id || String(lo.tooth_number) === String(toothKey));
                     const labStatus = linkedLab ? mapLabOrderStatus(linkedLab.status) : 'unmapped';
                     const isLabReady = labStatus === 'lab_ready';
@@ -138,6 +140,8 @@ export default function ClinicalChartInspector({
         // 3. From toothState visual findings (if not already mapped)
         (toothState?.findings || []).forEach((f, idx) => {
             const id = f.id ?? f.visualId ?? `${toothKey}-finding-${idx}`;
+            const source = /^(ve-wi-)(\d+)$/.exec(String(f.visualId || ''));
+            if (source && itemsMap.has(`wi-${source[2]}`)) return;
             if (![...itemsMap.values()].some((it) => String(it.id) === String(id) || String(it.uniqueKey) === `wi-${id}`)) {
                 const surfaces = (f.targets || []).filter((t) => t.surfaceCode).map((t) => t.surfaceCode);
                 itemsMap.set(`vis-${id}`, {
@@ -157,6 +161,11 @@ export default function ClinicalChartInspector({
         // 4. From toothState visual procedures (if not already mapped)
         (toothState?.procedures || []).forEach((p, idx) => {
             const id = p.id ?? p.visualId ?? `${toothKey}-proc-${idx}`;
+            // These IDs are emitted by the workspace projection, not row-number guesses.
+            const nativeSource = /^ve-wi-(\d+)$/.exec(String(p.visualId || ''));
+            const legacySource = /^ve-legacy-wi-(\d+)$/.exec(String(p.visualId || ''));
+            if (nativeSource && itemsMap.has(`wi-${nativeSource[1]}`)) return;
+            if (legacySource && representedLegacyIds.has(legacySource[1])) return;
             if (![...itemsMap.values()].some((it) => String(it.id) === String(id) || String(it.uniqueKey) === `wi-${id}` || String(it.uniqueKey) === `tr-${id}`)) {
                 const surfaces = (p.targets || []).filter((t) => t.surfaceCode).map((t) => t.surfaceCode);
                 const linkedLab = (labOrders || []).find((lo) => lo.work_item_id === id || lo.treatment_id === id || String(lo.tooth_number) === String(toothKey));

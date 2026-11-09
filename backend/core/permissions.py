@@ -262,6 +262,35 @@ def require_permission(*permissions: Permission):
     return _checker
 
 
+def require_all_permissions(*permissions: Permission):
+    """
+    FastAPI dependency that enforces ALL RBAC permissions (true AND semantics).
+
+    Usage in routers:
+        @router.post("/analyze-clinic")
+        def analyze_clinic(
+            user=Depends(require_all_permissions(Permission.AI_CHAT, Permission.REPORT_READ)),
+            ...
+        ):
+    """
+    from fastapi import Depends, HTTPException
+
+    def _checker(current_user=Depends(_get_current_user_lazy())):
+        user_role = getattr(current_user, "role", "guest")
+
+        # Check if user has ALL of the required permissions
+        for perm in permissions:
+            if not has_permission(user_role, perm):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Permission denied. Required: {perm.value}",
+                )
+
+        return current_user
+
+    return _checker
+
+
 def _get_current_user_lazy():
     """Lazy import to avoid circular imports with auth module."""
     def _inner():

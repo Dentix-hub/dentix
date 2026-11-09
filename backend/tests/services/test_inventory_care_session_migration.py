@@ -259,7 +259,7 @@ def test_pd07_check_constraint_rejects_both_null(db_session: Session):
     )
 
 
-def test_alembic_s26_migration_lifecycle_sqlite(monkeypatch):
+def test_alembic_s26_migration_lifecycle_sqlite(monkeypatch, legacy_clinical_schema):
     """Rehearse Alembic migration 2b3c4d5e6f7a upgrade and downgrade on SQLite."""
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp_db:
         db_path = tmp_db.name
@@ -276,6 +276,7 @@ def test_alembic_s26_migration_lifecycle_sqlite(monkeypatch):
 
         # 1. Create base tables needed for treatment_material_usages
         with engine.connect() as conn:
+            legacy_clinical_schema(conn)
             # Head also migrates users.email; keep the legacy prerequisite schema realistic.
             conn.execute(sa.text("CREATE TABLE users (id INTEGER PRIMARY KEY, email VARCHAR NOT NULL)"))
             conn.execute(sa.text("CREATE UNIQUE INDEX ix_users_email ON users(email)"))
@@ -284,7 +285,6 @@ def test_alembic_s26_migration_lifecycle_sqlite(monkeypatch):
             conn.execute(sa.text("CREATE TABLE treatments (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE materials (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE material_sessions (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
-            conn.execute(sa.text("CREATE TABLE care_sessions (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(sa.text("CREATE TABLE clinical_work_items (id INTEGER PRIMARY KEY, tenant_id INTEGER)"))
             conn.execute(
                 sa.text(

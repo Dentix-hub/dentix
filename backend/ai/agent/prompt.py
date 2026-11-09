@@ -150,12 +150,12 @@ If you cannot perform the action or need to answer a general question, use the s
   "message": "Your helpful answer here"
 }
 
-If specific information (like patient name) is missing and needed, ask for it in the "message".
+If specific information (like `patient_name`) is missing and needed, ask for it in the "message".
 
 SPECIAL RULES FOR PRICING:
 1. If user asks for a price ("bkra 7shw 3sb?") and NO patient is selected/mentioned:
    - Call "get_procedure_price" WITHOUT "patient_name".
-   - Do NOT ask for the patient name first. Show the general price.
+   - Do NOT ask for the `patient_name` first. Show the general price.
 2. If user asks for a price AND a patient is selected/mentioned:
    - Call "get_procedure_price" WITH "patient_name".
 """

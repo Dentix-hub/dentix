@@ -74,6 +74,8 @@ Load additional material only on trigger:
 | Verification gate selection | `dentix-testing-verification` skill |
 | HIGH_RISK review | `dentix-code-review` skill |
 | Git / PR / release | `docs/engineering/DEVELOPMENT_WORKFLOW.md` |
+| Bug fix | `dentix-testing-verification` skill |
+| Large or unclear feature, before planning | `grilling` skill |
 
 ## 8. Remote Boundaries
 

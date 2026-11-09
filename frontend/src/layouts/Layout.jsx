@@ -45,6 +45,7 @@ import ErrorBoundary from '@/shared/ui/ErrorBoundary';
 import GlobalErrorFallback from '@/shared/ui/GlobalErrorFallback';
 import { useUIStore } from '@/store/ui.store';
 import { useTenantStore } from '@/store/tenant.store';
+import { useTenantEntitlements } from '@/hooks/useTenantEntitlements';
 import { API_URL } from '@/api';
 import { shouldLoadCommandPaletteData } from './layoutDataPolicy';
 
@@ -56,8 +57,10 @@ const Layout = () => {
     const navigate = useNavigate();
     const { t, i18n } = useTranslation();
     const { sidebarOpen, setSidebarOpen, darkMode: isDarkMode, toggleDarkMode } = useUIStore();
-    const { tenant } = useTenantStore();
+    const { tenant, hasFeature } = useTenantStore();
+    const { entitlements } = useTenantEntitlements();
     const { user: currentUser, logout } = useAuth();
+    const hasAIAssistant = hasFeature('AI_ASSISTANT');
     const [logoError, setLogoError] = useState(false);
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
     const [isDesktop, setIsDesktop] = useState(() => typeof window !== 'undefined' && window.innerWidth >= DESKTOP_BREAKPOINT);
@@ -183,12 +186,37 @@ const Layout = () => {
                 // Preserve current behavior when legacy permission payloads are malformed.
             }
         }
-        if (hasLabPermission) {
+        if (hasLabPermission && hasFeature('LABORATORIES')) {
             navItems.push({ icon: FlaskConical, label: t('sidebar.labs'), path: '/labs' });
         }
     }
 
     const getSubscriptionStatus = () => {
+        if (entitlements) {
+            const status = entitlements.effective_subscription_status;
+            if (status === 'EXPIRED' || (entitlements.is_past_end && !entitlements.is_in_grace)) {
+                return { text: t('sidebar.subscription.expired'), color: 'text-red-500 font-black' };
+            }
+            if (status === 'GRACE' || entitlements.is_in_grace) {
+                let graceDays = 0;
+                if (entitlements.grace_period_until) {
+                    const graceDate = new Date(entitlements.grace_period_until);
+                    graceDays = Math.max(0, Math.ceil((graceDate - new Date()) / (1000 * 60 * 60 * 24)));
+                }
+                return { text: t('sidebar.subscription.grace_period', { count: graceDays }), color: 'text-amber-500 animate-pulse' };
+            }
+            if (status === 'TRIAL' && entitlements.subscription_end_date) {
+                const daysLeft = Math.max(0, Math.ceil((new Date(entitlements.subscription_end_date) - new Date()) / (1000 * 60 * 60 * 24)));
+                return { text: t('sidebar.subscription.trial_badge', { count: daysLeft, defaultValue: `تجريبي: ${daysLeft} يوم` }), color: 'text-cyan-500 font-bold' };
+            }
+            if (entitlements.subscription_end_date) {
+                const daysLeft = Math.ceil((new Date(entitlements.subscription_end_date) - new Date()) / (1000 * 60 * 60 * 24));
+                if (daysLeft === 0) return { text: t('sidebar.subscription.ends_today'), color: 'text-amber-500' };
+                if (daysLeft <= 7 && daysLeft > 0) return { text: t('sidebar.subscription.days_left', { count: daysLeft }), color: 'text-amber-500' };
+                if (daysLeft > 7) return { text: t('sidebar.subscription.days_left', { count: daysLeft }), color: 'text-text-secondary' };
+            }
+        }
+
         if (!tenant?.subscription_end_date) return null;
         const now = new Date();
         const endDate = new Date(tenant.subscription_end_date);
@@ -492,9 +520,11 @@ const Layout = () => {
                         </ErrorBoundary>
                     </main>
 
-                    <Suspense fallback={null}>
-                        <AIChat />
-                    </Suspense>
+                    {hasAIAssistant && (
+                        <Suspense fallback={null}>
+                            <AIChat />
+                        </Suspense>
+                    )}
                 </div>
             </div>
         </div>

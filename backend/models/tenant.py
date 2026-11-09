@@ -44,11 +44,13 @@ class SubscriptionPlan(Base):
 
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)  # New Default Feature
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    policy_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+    billing_cycle_unit: Mapped[str] = mapped_column(String(20), nullable=False, default="month", server_default="month")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
 
-    tenants = relationship("Tenant", back_populates="subscription_plan")
+    tenants = relationship("Tenant", back_populates="subscription_plan", foreign_keys="[Tenant.plan_id]")
     payments = relationship("SubscriptionPayment", back_populates="plan")
 
 
@@ -167,7 +169,16 @@ class Tenant(Base):
     auto_suspend_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     payment_failed_count: Mapped[int] = mapped_column(Integer, default=0)
     manual_override_reason: Mapped[str | None] = mapped_column(String, nullable=True)
+    subscription_start_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     subscription_end_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    billing_day_anchor: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    future_plan_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=True
+    )
+    future_plan_start_date: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    scheduled_downgrade_plan_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("subscription_plans.id", ondelete="SET NULL"), nullable=True
+    )
     plan: Mapped[str] = mapped_column(String, default="trial")  # Legacy
     plan_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("subscription_plans.id"), nullable=True)
     domain: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
@@ -179,6 +190,7 @@ class Tenant(Base):
     )
 
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    policy_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
@@ -215,7 +227,65 @@ class Tenant(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     users = relationship("User", back_populates="tenant")
-    subscription_plan = relationship("SubscriptionPlan", back_populates="tenants")
+    subscription_plan = relationship("SubscriptionPlan", foreign_keys=[plan_id], back_populates="tenants")
+    future_plan = relationship("SubscriptionPlan", foreign_keys=[future_plan_id])
+    scheduled_downgrade_plan = relationship(
+        "SubscriptionPlan", foreign_keys=[scheduled_downgrade_plan_id]
+    )
     payments = relationship(
         "SubscriptionPayment", back_populates="tenant", cascade="all, delete-orphan"
     )
+    commercial_overrides = relationship(
+        "CommercialTenantOverride", back_populates="tenant", cascade="all, delete-orphan"
+    )
+
+
+class CommercialTenantOverride(Base):
+    """Commercial capability override for a tenant (inherit/allow/deny)."""
+
+    __tablename__ = "commercial_tenant_overrides"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "capability_key",
+            name="uq_commercial_tenant_override_tenant_key",
+        ),
+        CheckConstraint(
+            "override_value IN ('allow', 'deny', 'inherit')",
+            name="ck_commercial_tenant_override_value",
+        ),
+    )
+    __rls_policies__ = [
+        Permissive(
+            condition_args=[ConditionArg(comparator_name="tenant_id", type=Integer)],
+            cmd=[Command.select, Command.update, Command.delete, Command.insert],
+            custom_expr=lambda tenant_id: column("tenant_id") == tenant_id,
+        )
+    ]
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    tenant_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    capability_key: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    override_value: Mapped[str] = mapped_column(String(16), nullable=False)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_by_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+        onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+
+    tenant = relationship("Tenant", back_populates="commercial_overrides")
+    created_by = relationship("User")
+

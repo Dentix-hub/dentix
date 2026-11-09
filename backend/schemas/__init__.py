@@ -88,6 +88,8 @@ from .clinical_commands import (
     ClinicalWorkItemCorrectionWarning,
     ClinicalEventRead,
     ClinicalToothDetailRead,
+    ClinicalWorkItemStatusUpdate,
+    ClinicalWorkItemStatusResponse,
 )
 
 
@@ -115,6 +117,7 @@ from .procedure_chart_style import (
 # Care Sessions (Slices S18 & S19)
 from .care_session import (
     CareSessionCreate,
+    CareSessionAddendumCreate,
     CareSessionFinish,
     CareSessionTransition,
     CareSessionUpdate,
@@ -124,15 +127,35 @@ from .care_session import (
     CareSessionStepUpdate,
     CareSessionStepRead,
     CareSessionTemplateApply,
+    CareSessionProcedureRead,
+    CareSessionProcedureUpdate,
+    CareSessionDraftSave,
+    CareSessionDraftRead,
     CareObservationCreate,
     CareObservationRead,
+    CareObservationAmend,
     NextVisitRequestCreate,
     NextVisitRequestRead,
     NextVisitRequestSchedule,
     NextVisitRequestScheduleResult,
+    NextVisitRequestStop,
+    NextVisitRequestPostpone,
+    NextVisitRequestHandoff,
     NextVisitSuggestionRead,
     ResumableWorkItemRead,
     CareSessionResumableResponse,
+    FollowUpDashboardCounts,
+    FollowUpDashboardResponse,
+)
+
+# Workflow Templates (VNext)
+from .workflow_template import (
+    WorkflowFieldSchema,
+    WorkflowStepSchema,
+    WorkflowTemplateDefinitionPayload,
+    WorkflowTemplateCreate,
+    WorkflowTemplateUpdate,
+    WorkflowTemplateRead,
 )
 
 # Care Session Materials (Slice S30)
@@ -228,10 +251,33 @@ from .tenant import (
     SubscriptionPlan,
     SubscriptionPaymentBase,
     SubscriptionPaymentCreate,
+    SubscriptionPaymentPreview,
     SubscriptionPayment,
     SubscriptionCheckoutCreate,
     SubscriptionCheckoutSession,
     SubscriptionWebhookEvent,
+    CapacitySeatsDiagnostics,
+    CapacityAIDiagnostics,
+    CapacitiesDiagnostics,
+    CapabilityDiagnosticItem,
+    TenantEntitlementDiagnosticsResponse,
+    SubscriptionPlanPreviewRequest,
+    SubscriptionPlanPreviewResponse,
+    CommercialOverrideItem,
+    TenantCommercialOverridesUpdateRequest,
+    CommercialTenantOverrideResponse,
+    TenantCommercialOverridesResponse,
+    TrialPolicyResponse,
+    CatalogSetupRequest,
+    TrialPolicyUpdateRequest,
+    EmergencyRestrictionUpdateRequest,
+    EmergencyRestrictionResponse,
+    TenantCommercialActionRequest,
+    TenantCommercialActionResponse,
+    PolicyReversalRequest,
+    PolicyReversalResponse,
+    CatalogInventoryResponse,
+    ReconciliationPreviewResponse,
 )
 
 # Laboratory
@@ -379,10 +425,27 @@ __all__ = [
     "SubscriptionPlan",
     "SubscriptionPaymentBase",
     "SubscriptionPaymentCreate",
+    "SubscriptionPaymentPreview",
     "SubscriptionPayment",
     "SubscriptionCheckoutCreate",
     "SubscriptionCheckoutSession",
     "SubscriptionWebhookEvent",
+    "CapacitySeatsDiagnostics",
+    "CapacityAIDiagnostics",
+    "CapacitiesDiagnostics",
+    "CapabilityDiagnosticItem",
+    "TenantEntitlementDiagnosticsResponse",
+    "SubscriptionPlanPreviewRequest",
+    "SubscriptionPlanPreviewResponse",
+    "CommercialOverrideItem",
+    "TenantCommercialOverridesUpdateRequest",
+    "CommercialTenantOverrideResponse",
+    "TenantCommercialOverridesResponse",
+    "TrialPolicyResponse",
+    "CatalogSetupRequest",
+    "TrialPolicyUpdateRequest",
+    "EmergencyRestrictionUpdateRequest",
+    "EmergencyRestrictionResponse",
     # Laboratory
     "LaboratoryBase",
     "LaboratoryCreate",
@@ -512,3 +575,5 @@ __all__ = [
     "TenantFinanceParityReport",
 ]
 
+
+from .tenant import ReconciliationApplyRequest, ReconciliationSelection

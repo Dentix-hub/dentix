@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import ObservationSummary from './ObservationSummary';
 import {
     CheckCircle,
     Clock,
     AlertCircle,
     FileText,
-    Ruler,
     Loader2,
     CalendarPlus,
     Info,
@@ -27,9 +27,11 @@ export default function FinishCareSessionSheet({
     session,
     onFinishSession,
     isFinishing = false,
+    draftData = null,
+    onDraftChange = null,
     t = (k, f) => f || k,
 }) {
-    const [notes, setNotes] = useState('');
+    const [notes, setNotes] = useState(draftData?.notes ?? session?.notes ?? '');
 
     const steps = session?.steps || [];
     const observations = session?.observations || [];
@@ -50,10 +52,13 @@ export default function FinishCareSessionSheet({
         '';
 
     const firstRemainingStep = pendingSteps[0] || partialSteps[0];
+    const associatedIds = [...new Set((session?.procedures || []).map((procedure) => procedure.work_item_id))];
+    const primaryWorkItemId = firstRemainingStep?.work_item_id || associatedIds[0] || null;
+    const procedureName = session?.procedures?.find((procedure) => procedure.work_item_id === primaryWorkItemId)?.template_snapshot?.title || firstRemainingStep?.work_item?.code || 'Dental care';
     const defaultReason = firstRemainingStep
         ? (extractedTooth
-            ? `Tooth ${extractedTooth}: Root Canal Treatment - ${firstRemainingStep.title}`
-            : `Root Canal Treatment - ${firstRemainingStep.title}`)
+            ? `Tooth ${extractedTooth}: ${procedureName} - ${firstRemainingStep.title}`
+            : `${procedureName} - ${firstRemainingStep.title}`)
         : (extractedTooth
             ? `Follow-up: Tooth ${extractedTooth}`
             : 'Dental Follow-up Visit');
@@ -64,11 +69,73 @@ export default function FinishCareSessionSheet({
 
     const defaultDuration = isRctSession ? 45 : 30;
 
-    const [requestNextVisit, setRequestNextVisit] = useState(false);
-    const [nextVisitReason, setNextVisitReason] = useState(defaultReason);
-    const [nextVisitDuration, setNextVisitDuration] = useState(defaultDuration);
-    const [nextVisitNotes, setNextVisitNotes] = useState('');
+    const [requestNextVisit, setRequestNextVisit] = useState(Boolean(draftData?.requestNextVisit));
+    const [nextVisitReason, setNextVisitReason] = useState(draftData?.nextVisitReason ?? defaultReason);
+    const [nextVisitDuration, setNextVisitDuration] = useState(draftData?.nextVisitDuration ?? defaultDuration);
+    const [nextVisitNotes, setNextVisitNotes] = useState(draftData?.nextVisitNotes ?? '');
     const [isLabHandoffOpen, setIsLabHandoffOpen] = useState(false);
+    const [nextVisitDate, setNextVisitDate] = useState(draftData?.nextVisitDate || '');
+
+    // Sync from server draftData when recovered
+    useEffect(() => {
+        if (draftData) {
+            if (typeof draftData.notes === 'string') {
+                setNotes(draftData.notes);
+            }
+            if (typeof draftData.nextVisitNotes === 'string') {
+                setNextVisitNotes(draftData.nextVisitNotes);
+            }
+            if (typeof draftData.nextVisitReason === 'string') {
+                setNextVisitReason(draftData.nextVisitReason);
+            }
+            if (draftData.nextVisitDuration !== undefined) {
+                setNextVisitDuration(draftData.nextVisitDuration);
+            }
+            if (draftData.requestNextVisit !== undefined) {
+                setRequestNextVisit(Boolean(draftData.requestNextVisit));
+            }
+            if (typeof draftData.nextVisitDate === 'string') setNextVisitDate(draftData.nextVisitDate);
+        }
+    }, [draftData]);
+
+    const handleNotesChange = (e) => {
+        const val = e.target.value;
+        setNotes(val);
+        if (onDraftChange) {
+            onDraftChange({ notes: val });
+        }
+    };
+
+    const handleNextVisitReasonChange = (e) => {
+        const val = e.target.value;
+        setNextVisitReason(val);
+        if (onDraftChange) {
+            onDraftChange({ nextVisitReason: val });
+        }
+    };
+
+    const handleNextVisitDurationChange = (dur) => {
+        setNextVisitDuration(dur);
+        if (onDraftChange) {
+            onDraftChange({ nextVisitDuration: dur });
+        }
+    };
+
+    const handleNextVisitNotesChange = (e) => {
+        const val = e.target.value;
+        setNextVisitNotes(val);
+        if (onDraftChange) {
+            onDraftChange({ nextVisitNotes: val });
+        }
+    };
+
+    const handleToggleRequestNextVisit = (e) => {
+        const val = e.target.checked;
+        setRequestNextVisit(val);
+        if (onDraftChange) {
+            onDraftChange({ requestNextVisit: val });
+        }
+    };
 
     const hasLabReadyStep = steps.some(
         (s) => (s.status === 'completed' || s.status === 'in_progress') && isLabReadyStep(s.step_code)
@@ -84,12 +151,16 @@ export default function FinishCareSessionSheet({
         if (requestNextVisit && nextVisitReason.trim()) {
             payload.next_visit_request = {
                 care_session_id: session.id,
+                work_item_id: primaryWorkItemId,
+                associated_work_item_ids: associatedIds,
                 reason: nextVisitReason.trim(),
                 suggested_duration_minutes: Number(nextVisitDuration) || 30,
                 notes: nextVisitNotes.trim() || undefined,
             };
+            if (nextVisitDate) payload.next_visit_request.preferred_time_window_start = new Date(nextVisitDate).toISOString();
         }
-        await onFinishSession(payload);
+        const result = await onFinishSession(payload);
+        if (result === false) return;
         setNotes('');
         onClose();
     };
@@ -186,32 +257,9 @@ export default function FinishCareSessionSheet({
                     )}
                 </div>
 
-                {/* Canal Observations Summary */}
-                {workingLengthObs.length > 0 && (
-                    <div className="space-y-2 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
-                        <div className="flex items-center gap-1.5">
-                            <Ruler className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                {t('care_session.recorded_measurements', 'Recorded Canal Lengths')}
-                            </span>
-                        </div>
-                        <div className="flex flex-wrap gap-1.5 pt-1" data-testid="finish-sheet-canal-measurements">
-                            {workingLengthObs.map((obs) => {
-                                const val = obs.structured_value || {};
-                                return (
-                                    <span
-                                        key={obs.id}
-                                        className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
-                                    >
-                                        <span className="font-bold">{obs.canal_id || 'Canal'}:</span>
-                                        <span>{val.length_mm ?? obs.length_mm} mm</span>
-                                        {val.maf && <span className="text-[10px] opacity-75">({val.maf})</span>}
-                                    </span>
-                                );
-                            })}
-                        </div>
-                    </div>
-                )}
+                <div data-testid="finish-sheet-canal-measurements">
+                    <ObservationSummary observations={workingLengthObs} t={t} />
+                </div>
 
                 {/* Free Text Notes Entry (G10-M15) */}
                 <div className="space-y-1.5">
@@ -226,7 +274,7 @@ export default function FinishCareSessionSheet({
                         id="finish-session-notes"
                         rows={3}
                         value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
+                        onChange={handleNotesChange}
                         placeholder={t(
                             'care_session.final_notes_placeholder',
                             'Document patient tolerance, clinical observations, or instructions for the next visit...'
@@ -282,7 +330,7 @@ export default function FinishCareSessionSheet({
                             type="checkbox"
                             id="toggle-request-next-visit"
                             checked={requestNextVisit}
-                            onChange={(e) => setRequestNextVisit(e.target.checked)}
+                            onChange={handleToggleRequestNextVisit}
                             data-testid="request-next-visit-toggle"
                             className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900"
                         />
@@ -316,7 +364,7 @@ export default function FinishCareSessionSheet({
                                     type="text"
                                     id="next-visit-reason"
                                     value={nextVisitReason}
-                                    onChange={(e) => setNextVisitReason(e.target.value)}
+                                    onChange={handleNextVisitReasonChange}
                                     placeholder={t(
                                         'care_session.next_visit_reason_placeholder',
                                         'e.g. Tooth 46: Root Canal Treatment - Obturation'
@@ -325,6 +373,14 @@ export default function FinishCareSessionSheet({
                                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
                                 />
                             </div>
+
+                            <label className="block space-y-1 text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                <span>{t('care_session.preferred_follow_up_date', 'Preferred follow-up date and time (optional)')}</span>
+                                <input type="datetime-local" data-testid="next-visit-date-input" value={nextVisitDate} onChange={(event) => {
+                                    setNextVisitDate(event.target.value);
+                                    onDraftChange?.({ nextVisitDate: event.target.value });
+                                }} className="w-full rounded-lg border border-border bg-surface p-2" />
+                            </label>
 
                             {/* Suggested Duration (G11-M07) */}
                             <div className="space-y-1">
@@ -336,7 +392,7 @@ export default function FinishCareSessionSheet({
                                         <button
                                             key={dur}
                                             type="button"
-                                            onClick={() => setNextVisitDuration(dur)}
+                                            onClick={() => handleNextVisitDurationChange(dur)}
                                             data-testid={`duration-chip-${dur}`}
                                             className={`rounded-lg px-2.5 py-1 text-xs font-bold transition-colors ${
                                                 Number(nextVisitDuration) === dur
@@ -349,7 +405,7 @@ export default function FinishCareSessionSheet({
                                     ))}
                                     <select
                                         value={nextVisitDuration}
-                                        onChange={(e) => setNextVisitDuration(Number(e.target.value))}
+                                        onChange={(e) => handleNextVisitDurationChange(Number(e.target.value))}
                                         data-testid="next-visit-duration-select"
                                         className="rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 shadow-sm focus:border-blue-500 focus:outline-none dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
                                     >
@@ -374,7 +430,7 @@ export default function FinishCareSessionSheet({
                                     type="text"
                                     id="next-visit-notes"
                                     value={nextVisitNotes}
-                                    onChange={(e) => setNextVisitNotes(e.target.value)}
+                                    onChange={handleNextVisitNotesChange}
                                     placeholder={t(
                                         'care_session.reception_instructions_placeholder',
                                         'e.g. Schedule after 7 days, check symptoms'
@@ -439,5 +495,7 @@ FinishCareSessionSheet.propTypes = {
     session: PropTypes.object,
     onFinishSession: PropTypes.func.isRequired,
     isFinishing: PropTypes.bool,
+    draftData: PropTypes.object,
+    onDraftChange: PropTypes.func,
     t: PropTypes.func,
 };

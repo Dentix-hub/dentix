@@ -1,11 +1,19 @@
+import json
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from backend import models, schemas
 from backend.database import get_async_db
 from backend.services.feature_service import FeatureFlagService
+from backend.core.commercial_registry import (
+    CAPABILITY_REGISTRY,
+    canonicalize_capability_key,
+)
 from backend.core.permissions import Role
 from backend.core.permissions import Permission, require_permission
+from backend.core.response import success_response, StandardResponse
 
 
 router = APIRouter(
@@ -110,4 +118,78 @@ async def get_clinical_drift_features_alias(
         tenant_id=tenant_id,
         limit_patients=limit_patients,
         after_patient_id=after_patient_id,
+    )
+
+
+# Emergency Commercial Restrictions (PR-04 Task 8)
+@router.get("/emergency-restrictions", response_model=StandardResponse[schemas.EmergencyRestrictionResponse])
+async def get_emergency_restrictions(
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(get_super_admin),
+):
+    """List all platform emergency restrictions."""
+    prefix = "emergency_restriction_"
+    stmt = select(models.SystemSetting).where(models.SystemSetting.key.startswith(prefix))
+    res = await db.execute(stmt)
+    rows = res.scalars().all()
+    active = [r.key[len(prefix):] for r in rows if r.value == "true"]
+    return success_response(
+        data=schemas.EmergencyRestrictionResponse(active_restrictions=active)
+    )
+
+
+@router.post("/emergency-restrictions", response_model=StandardResponse[schemas.EmergencyRestrictionResponse])
+async def set_emergency_restriction(
+    req: schemas.EmergencyRestrictionUpdateRequest,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: models.User = Depends(get_super_admin),
+):
+    """Set or lift an emergency capability restriction with transactional audit."""
+    canon = canonicalize_capability_key(req.capability_key)
+    if not canon or canon not in CAPABILITY_REGISTRY:
+        raise HTTPException(
+            status_code=422, detail=f"Unknown capability key '{req.capability_key}'"
+        )
+
+    setting_key = f"emergency_restriction_{canon}"
+    # A missing setting has no row to lock. Serialize creation by policy key too.
+    if db.get_bind().dialect.name == "postgresql":
+        from sqlalchemy import text
+        await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:policy_key))"), {"policy_key": setting_key})
+    stmt = select(models.SystemSetting).where(models.SystemSetting.key == setting_key).with_for_update()
+    row = (await db.execute(stmt)).scalar_one_or_none()
+    old_state = row.value if row else "false"
+    if req.expected_restricted is not None and req.expected_restricted != (old_state == "true"):
+        raise HTTPException(409, "Emergency restriction changed; refresh the preview")
+    new_state = "true" if req.is_restricted else "false"
+
+    if row:
+        row.value = new_state
+    else:
+        db.add(models.SystemSetting(key=setting_key, value=new_state))
+
+    audit = models.AuditLog(
+        action="EMERGENCY_RESTRICTION_UPDATE",
+        entity_type="SystemSetting",
+        performed_by_id=current_user.id,
+        performed_by_username=current_user.username,
+        old_value=old_state,
+        new_value=new_state,
+        details=f"Emergency restriction for '{canon}' set to {req.is_restricted}. Reason: {req.reason}",
+    )
+    db.add(audit)
+    await db.commit()
+
+    prefix = "emergency_restriction_"
+    stmt_all = select(models.SystemSetting).where(models.SystemSetting.key.startswith(prefix))
+    res_all = await db.execute(stmt_all)
+    all_rows = res_all.scalars().all()
+    active = [r.key[len(prefix):] for r in all_rows if r.value == "true"]
+
+    return success_response(
+        data=schemas.EmergencyRestrictionResponse(
+            active_restrictions=active,
+            updated_at=datetime.now(timezone.utc),
+        ),
+        message=f"Emergency restriction for '{canon}' updated successfully",
     )

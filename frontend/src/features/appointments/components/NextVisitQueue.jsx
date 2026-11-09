@@ -9,13 +9,17 @@ import {
     X,
     Inbox,
     ChevronDown,
-    ChevronUp
+    ChevronUp,
+    Settings2,
 } from 'lucide-react';
 import { Button, Badge, EmptyState } from '@/shared/ui';
+import FollowUpManagementModal from '@/features/care-sessions/FollowUpManagementModal';
+import { useAuth } from '@/auth/useAuth';
 
 export default function NextVisitQueue({
     requests = [],
     isLoading = false,
+    doctors = [],
     onSchedule,
     onDismiss,
     className = '',
@@ -24,6 +28,19 @@ export default function NextVisitQueue({
     const isAr = i18n.language === 'ar';
     const [statusFilter, setStatusFilter] = useState('requested');
     const [isCollapsed, setIsCollapsed] = useState(false);
+    const [managingRequest, setManagingRequest] = useState(null);
+
+    const { user } = useAuth();
+    const role = (user?.role || '').toLowerCase();
+    const permissionsList = Array.isArray(user?.permissions)
+        ? user.permissions
+        : (typeof user?.permissions === 'string' ? JSON.parse(user?.permissions || '[]') : []);
+
+    const canManageClinicalFollowUp =
+        ['admin', 'super_admin', 'doctor'].includes(role) ||
+        permissionsList.includes('clinical:write') ||
+        permissionsList.includes('clinical_write') ||
+        permissionsList.includes('CLINICAL_WRITE');
 
     const filteredRequests = requests.filter(r => {
         if (statusFilter === 'all') return true;
@@ -146,17 +163,29 @@ export default function NextVisitQueue({
                                     formatDateTime={formatDateTime}
                                     onSchedule={onSchedule}
                                     onDismiss={onDismiss}
+                                    canManage={canManageClinicalFollowUp}
+                                    onManage={(mReq) => setManagingRequest(mReq)}
                                 />
                             ))}
                         </div>
                     )}
                 </div>
             )}
+
+            {managingRequest && (
+                <FollowUpManagementModal
+                    isOpen={Boolean(managingRequest)}
+                    request={managingRequest}
+                    doctors={doctors}
+                    onClose={() => setManagingRequest(null)}
+                    onSuccess={() => setManagingRequest(null)}
+                />
+            )}
         </section>
     );
 }
 
-function NextVisitCard({ request, isAr, formatDateTime, onSchedule, onDismiss }) {
+function NextVisitCard({ request, isAr, formatDateTime, onSchedule, onDismiss, canManage = false, onManage }) {
     const isPending = request.status === 'requested';
     const isScheduled = request.status === 'scheduled';
 
@@ -227,6 +256,19 @@ function NextVisitCard({ request, isAr, formatDateTime, onSchedule, onDismiss })
             </div>
 
             <div className="mt-4 flex items-center justify-end gap-2 border-t border-border pt-3">
+                {canManage && (
+                    <Button
+                        variant="ghost"
+                        size="xs"
+                        onClick={() => onManage && onManage(request)}
+                        className="min-h-9 px-2 text-text-secondary hover:text-text-primary"
+                        data-testid={`manage-request-btn-${request.id}`}
+                        title={isAr ? 'إدارة المتابعة السريرية' : 'Manage Follow-up'}
+                    >
+                        <Settings2 size={15} className="me-1" aria-hidden="true" />
+                        {isAr ? 'إدارة' : 'Manage'}
+                    </Button>
+                )}
                 {isPending ? (
                     <>
                         <Button

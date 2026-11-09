@@ -754,6 +754,15 @@ describe('U4D Acceptance & Click-Budget: Tooth 16 Surfaces M+O -> "حشوة تج
     });
 });
 
+it('routes native session entry to unified visits and preserves legacy history read-only', () => {
+    const openVisits = vi.fn();
+    render(<QueryClientProvider client={new QueryClient()}><QuickTreatmentSheet isOpen isEditing isNativeWritesEnabled onClose={vi.fn()} onSave={vi.fn()} onOpenCareSessions={openVisits} initialData={{ id: 50, tooth_number: '46', procedure: mockProcedures[0].name, treatment_sessions: [{ id: 1, notes: 'Preserved earlier visit', session_date: '2026-10-01' }] }} procedures={mockProcedures} /></QueryClientProvider>);
+    expect(screen.getByText('Preserved earlier visit')).toBeInTheDocument();
+    expect(screen.queryByText('إضافة جلسة')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('open-unified-care-sessions'));
+    expect(openVisits).toHaveBeenCalledTimes(1);
+});
+
 describe('N3: Multi-tooth quick treatment apply', () => {
     const queryClient = new QueryClient({
         defaultOptions: { queries: { retry: false } },

@@ -386,6 +386,219 @@ html[dir="rtl"] .hero-title {
   margin-top: 12px;
   text-align: center;
 }
+/* A no-JavaScript product tour; every frame has a real full-size screenshot link. */
+.motion-product {
+  position: relative;
+  background: linear-gradient(145deg,#e0f2fe,#f0fdfa 70%,#eaf6fc);
+  isolation: isolate;
+}
+.motion-product::before {
+  content: '';
+  position: absolute;
+  inset: -18px;
+  border: 1px solid #0ea5e91a;
+  border-radius: 32px;
+  z-index: -1;
+  pointer-events: none;
+}
+.motion-toggle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+.motion-stage {
+  position: relative;
+  aspect-ratio: 1440/1000;
+  overflow: hidden;
+  background: #f4f9fc;
+}
+.motion-scene {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  visibility: hidden;
+  animation: tour-records 12s linear infinite;
+}
+.motion-scene-1 {
+  opacity: 1;
+  visibility: visible;
+  animation-name: tour-booking;
+}
+.motion-scene-3 {
+  animation-name: tour-treatment;
+}
+.hero-product.motion-product .motion-scene img {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  object-fit: contain;
+  object-position: center 28%;
+  animation: tour-drift 12s ease-in-out infinite;
+}
+.scene-caption {
+  position: absolute;
+  inset-inline: 18px;
+  inset-block-end: 18px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  width: fit-content;
+  max-width: calc(100% - 36px);
+  padding: 10px 18px;
+  border: 1px solid #ffffff40;
+  border-radius: 12px;
+  background: #0c2758f2;
+  color: white;
+  box-shadow: 0 8px 24px #0c275826;
+  font-size: clamp(12px,1.2vw,16px);
+  font-weight: 700;
+}
+.scene-number {
+  color: #5eead4;
+  font-family: Arial,sans-serif;
+  font-size: 11px;
+}
+.patient-journey {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  list-style: none;
+  margin: 16px 0 0;
+  padding: 0;
+  gap: 10px;
+}
+.journey-step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 8px;
+  border: 1px solid #c8e0ec;
+  border-radius: 10px;
+  background: #ffffffb3;
+  color: #36576b;
+  font-size: 11px;
+  font-weight: 700;
+}
+.journey-step::after {
+  content: '';
+  position: absolute;
+  inset-block-end: -1px;
+  inset-inline: 8px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--color-secondary);
+  scale: 0 1;
+  transform-origin: left;
+  animation: journey-progress 12s linear infinite;
+}
+html[dir="rtl"] .journey-step::after {
+  transform-origin: right;
+}
+.journey-step-2::after {
+  animation-delay: 4s;
+}
+.journey-step-3::after {
+  animation-delay: 8s;
+}
+.journey-number {
+  color: var(--color-primary-dark);
+  font: 10px Arial,sans-serif;
+}
+.motion-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+}
+.motion-footer .demo-note {
+  margin: 0;
+  text-align: start;
+}
+.motion-control {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 7px;
+  min-height: 44px;
+  padding: 8px 10px;
+  border: 1px solid #c8e0ec;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--navy);
+  cursor: pointer;
+  background: #fff;
+}
+.motion-toggle:checked ~ .motion-footer .motion-control {
+  background: var(--navy);
+  color: white;
+}
+.motion-toggle:focus-visible ~ .motion-footer .motion-control {
+  outline: 3px solid var(--color-primary-dark);
+  outline-offset: 3px;
+}
+.motion-toggle:checked ~ * .motion-scene,
+.motion-toggle:checked ~ * .motion-scene img,
+.motion-toggle:checked ~ * .journey-step::after,
+.motion-product:focus-within .motion-scene,
+.motion-product:focus-within .motion-scene img,
+.motion-product:focus-within .journey-step::after {
+  animation-play-state: paused;
+}
+@keyframes tour-booking {
+  0%,29%,100% { opacity: 1; visibility: visible; }
+  33.333%,96% { opacity: 0; visibility: hidden; }
+}
+@keyframes tour-records {
+  0%,29%,66.666%,100% { opacity: 0; visibility: hidden; }
+  33.333%,62.666% { opacity: 1; visibility: visible; }
+}
+@keyframes tour-treatment {
+  0%,62.666%,100% { opacity: 0; visibility: hidden; }
+  66.666%,96% { opacity: 1; visibility: visible; }
+}
+@keyframes tour-drift {
+  0%,100% { scale: 1; }
+  50% { scale: 1.025; }
+}
+@keyframes journey-progress {
+  0% { scale: 0 1; }
+  32% { scale: 1 1; }
+  33.333%,100% { scale: 0 1; }
+}
+@keyframes landing-arrive {
+  from { opacity: 0; translate: 0 16px; }
+  to { opacity: 1; translate: 0 0; }
+}
+@media(prefers-reduced-motion:no-preference) {
+  .hero-copy .eyebrow,.hero-title,.hero-description,.hero-cta-group,.hero-note {
+    animation: landing-arrive .65s cubic-bezier(.16,1,.3,1) both;
+  }
+  .hero-title { animation-delay: .08s; }
+  .hero-description { animation-delay: .16s; }
+  .hero-cta-group,.hero-note { animation-delay: .24s; }
+  /* Progressive enhancement: unsupported browsers show the content normally. */
+  @supports(animation-timeline:view()) {
+    .feature-card,.day-intro,.story-copy,.day-note {
+      animation: landing-arrive linear both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 35%;
+    }
+  }
+}
+@media(max-width:640px) {
+  .patient-journey { gap: 5px; }
+  .journey-step { flex-direction: column; gap: 4px; padding: 10px 4px; font-size: 10px; text-align: center; }
+  .scene-caption { inset-inline: 12px; inset-block-end: 12px; padding: 8px 12px; }
+  .motion-footer { align-items: flex-start; }
+  .motion-product::before { inset: -8px; border-radius: 26px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  .motion-toggle,.motion-control { display: none; }
+}
 /* Four links into the clinic's day, without an icon-card wall. */
 .feature-strip {
   border-block: 1px solid var(--border);
@@ -646,6 +859,8 @@ html[dir="rtl"] .hero-title {
 }
 .site-footer nav {
   display: flex;
+  flex-wrap: wrap;
+  min-width: 0;
   gap: 24px;
   font-size: 11px;
   color: var(--muted);
@@ -1057,6 +1272,256 @@ html[dir="rtl"] .hero-title {
     gap: 10px;
     font-size: 9px;
   }
+}
+/* --- Legal & Long-form Public Content --- */
+.legal-main {
+  background: var(--surface);
+  padding: 40px 0 80px;
+  min-height: 70vh;
+}
+.legal-container {
+  max-width: 860px;
+}
+.breadcrumbs {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 24px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.breadcrumbs a {
+  color: var(--color-primary-dark);
+  text-decoration: none;
+}
+.breadcrumbs a:hover {
+  text-decoration: underline;
+}
+.legal-header {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 36px 32px 28px;
+  margin-bottom: 24px;
+}
+.legal-title {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--navy);
+  margin: 0 0 8px;
+}
+html[dir="rtl"] .legal-title {
+  font-family: Cairo, Tahoma, Arial, sans-serif;
+}
+.legal-meta {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 0 0 16px;
+  font-weight: 600;
+}
+.legal-intro {
+  font-size: 16px;
+  line-height: 1.8;
+  color: var(--ink);
+  margin: 0;
+}
+.legal-article {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px;
+}
+.prose-section {
+  margin-bottom: 32px;
+  padding-bottom: 28px;
+  border-bottom: 1px solid var(--border);
+}
+.prose-section:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+.prose-section h2 {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 0 0 14px;
+}
+html[dir="rtl"] .prose-section h2 {
+  font-family: Cairo, Tahoma, Arial, sans-serif;
+}
+.prose-section h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 16px 0 8px;
+}
+.prose-section p {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin: 8px 0;
+}
+.prose-subblock {
+  margin: 14px 0;
+}
+.prose-list {
+  padding-inline-start: 24px;
+  margin: 10px 0;
+}
+.prose-list li {
+  font-size: 15px;
+  line-height: 1.8;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+.prose-alert {
+  background: var(--sky);
+  border: 1px solid var(--color-primary);
+  border-radius: 10px;
+  padding: 14px 18px;
+  font-weight: 600;
+  color: var(--navy);
+  margin: 16px 0;
+  font-size: 14px;
+  line-height: 1.7;
+}
+@media(max-width: 640px) {
+  .legal-header {
+    padding: 24px 20px;
+  }
+  .legal-title {
+    font-size: 24px;
+  }
+  .legal-article {
+    padding: 20px;
+  }
+  .prose-section h2 {
+    font-size: 18px;
+  }
+}
+/* --- Plans, Contact & Guide Components --- */
+.plans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+  margin: 32px 0;
+}
+.plan-card {
+  background: #fff;
+  border: 2px solid var(--border);
+  border-radius: 16px;
+  padding: 32px 24px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.plan-card.featured {
+  border-color: var(--color-primary);
+  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.12);
+}
+.plan-badge {
+  position: absolute;
+  top: -12px;
+  inset-inline-end: 20px;
+  background: var(--color-primary);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 12px;
+}
+.plan-name {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--navy);
+  margin: 0 0 8px;
+}
+.plan-price {
+  font-size: 36px;
+  font-weight: 900;
+  color: var(--ink);
+  margin: 12px 0 4px;
+  line-height: 1.1;
+}
+.plan-price span {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.plan-period {
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+.plan-features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 28px;
+  flex: 1;
+}
+.plan-features li {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin-bottom: 10px;
+  padding-inline-start: 20px;
+  position: relative;
+}
+.plan-features li::before {
+  content: "✓";
+  position: absolute;
+  inset-inline-start: 0;
+  color: var(--color-secondary);
+  font-weight: bold;
+}
+.contact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px;
+  margin: 32px 0;
+}
+.contact-card {
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 32px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.contact-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--navy);
+  margin: 12px 0 8px;
+}
+.contact-card p {
+  font-size: 14px;
+  color: var(--muted);
+  margin: 0 0 20px;
+  flex: 1;
+}
+.content-figure {
+  margin: 28px 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+.content-figure img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.content-figure figcaption {
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  text-align: center;
 }
 @media(prefers-reduced-motion:reduce) {
   html {

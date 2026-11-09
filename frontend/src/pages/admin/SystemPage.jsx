@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import logger from '@/utils/logger';
 import { api } from '@/api';
+import CommercialLaunchControls from '@/features/admin/SuperAdmin/CommercialLaunchControls';
 import SettingsManager from '@/features/admin/SuperAdmin/SettingsManager';
 import AuditLogViewer from '@/features/admin/SuperAdmin/AuditLogViewer';
 import SecurityPanel from '@/features/admin/SuperAdmin/SecurityPanel';
@@ -186,6 +187,7 @@ export default function SystemPage() {
     }
 
     const tabs = [
+        { id: 'commercial', label: isRtl ? 'الضوابط التجارية' : 'Commercial controls', icon: Shield },
         { id: 'settings', label: t('super_admin.system.tabs.settings'), icon: Settings },
         { id: 'features', label: t('super_admin.system.tabs.features'), icon: Zap },
         { id: 'profile', label: t('super_admin.system.tabs.profile'), icon: User },
@@ -225,6 +227,7 @@ export default function SystemPage() {
                 </div>
             </div>
 
+            {activeTab === 'commercial' && <CommercialLaunchControls />}
             {activeTab === 'settings' && <SettingsManager settings={settings} fetchData={fetchData} />}
             {activeTab === 'features' && <FeatureManager tenants={tenants} />}
 

@@ -223,6 +223,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 import traceback
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from backend.core.logging_sanitizer import sanitize_text, sanitize_dict
@@ -252,12 +253,12 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     request.state.error_detail = "validation_error"
     return JSONResponse(
         status_code=422,
-        content={
+        content=jsonable_encoder({
             "detail": sanitized_errors,
             "success": False,
             "message": "Validation error",
             "trace_id": get_trace_id(),
-        },
+        }),
     )
 
 @app.exception_handler(Exception)
@@ -480,6 +481,7 @@ from backend.routers import (
     clinical_charges,  # Clinical Charges (Slice S33)
     admin_finance_parity,  # Admin Finance Parity (Slice S34)
     admin_clinical_rollout,  # Admin Clinical Rollout (Slice S36)
+    workflow_templates,  # Workflow Templates & Custom Fields (VNext)
 )
 
 # --- Register Exception Handlers ---
@@ -516,6 +518,8 @@ app.include_router(next_visit_requests.router, prefix=API_V1_STR)
 app.include_router(next_visit_requests.router)
 app.include_router(clinical_charges.router, prefix=API_V1_STR)
 app.include_router(clinical_charges.router)
+app.include_router(workflow_templates.router, prefix=API_V1_STR)
+app.include_router(workflow_templates.router)
 app.include_router(auth.router, prefix=f"{API_V1_STR}/auth")
 
 app.include_router(password_reset.router, prefix=f"{API_V1_STR}/auth")

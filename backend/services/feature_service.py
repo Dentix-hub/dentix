@@ -34,6 +34,10 @@ class FeatureFlagService:
             return False
 
         # 3. Check Rollout Percentage (if not 100/0)
+        # Note (PR-02 / E04): In legacy rollout, when is_global_enabled is True and
+        # rollout_percentage is 0, execution falls through to True on line 48.
+        # This behavior is preserved for existing pilot configurations until PR-04/09
+        # data reconciliation preview. Emergency restrictions provide a separate, unoverrideable stop.
         if 0 < flag.rollout_percentage < 100:
             if tenant_id:
                 # Deterministic rollout based on Tenant ID

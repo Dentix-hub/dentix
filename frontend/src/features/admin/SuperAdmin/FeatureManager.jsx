@@ -116,12 +116,35 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
         }
     };
 
+    const handleResetOverride = async (key, tenantId) => {
+        if (!tenantId) {
+            toast.error(t('super_admin.features.select_clinic'));
+            return;
+        }
+
+        try {
+            await api.delete('/api/v1/admin/features/override', {
+                data: {
+                    tenant_id: Number(tenantId),
+                    feature_key: key,
+                },
+            });
+            toast.success(t('super_admin.features.reset_inherit_success') || 'تمت إعادة ضبط التجاوز واستعادة التوريث بنجاح');
+        } catch {
+            toast.error(t('super_admin.features.override_fail'));
+        }
+    };
+
     if (loading) {
         return <div className="p-8 text-center text-slate-500">{t('super_admin.features.loading')}</div>;
     }
 
     return (
         <div className="space-y-6" dir={isRtl ? 'rtl' : 'ltr'}>
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/40 rounded-2xl text-xs text-amber-800 dark:text-amber-300 font-medium leading-relaxed">
+                {t('super_admin.features.rollout_notice') || 'ملاحظة: هذه اللوحة مخصصة للتحكم في الإطلاق التدريجي للميزات البرمجية والتجريبية (Rollout Flags)، وليست بديلاً عن باقات الاشتراك التجاري.'}
+            </div>
+
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white dark:bg-slate-900 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-800 gap-4">
                 <div className={isRtl ? 'text-right' : 'text-left'}>
                     <h3 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -186,6 +209,13 @@ export default function FeatureManager({ tenants = [], onToggleGlobal }) {
                                     className="px-2.5 py-1.5 text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white rounded-lg transition-colors"
                                 >
                                     {t('super_admin.features.disable')}
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleResetOverride(flag.key, overrideTenants[flag.key])}
+                                    className="px-2.5 py-1.5 text-xs font-bold bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg transition-colors"
+                                >
+                                    {t('super_admin.features.reset_inherit') || 'إعادة للتوريث'}
                                 </button>
                             </div>
 

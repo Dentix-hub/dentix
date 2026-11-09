@@ -11,8 +11,12 @@ import { useVoiceInput } from '@/hooks/useVoiceInput';
 import { useTextToSpeech } from '@/hooks/useTextToSpeech';
 import { formatAIResponse } from '@/utils/aiResponseFormatter';
 import { useTranslation } from 'react-i18next';
+import { useTenantStore } from '@/store/tenant.store';
 export default function AIChat() {
     const { t } = useTranslation();
+    const { entitlements } = useTenantStore();
+    const aiQuota = entitlements?.capacities?.ai;
+    const isQuotaExhausted = !!(aiQuota && aiQuota.daily_limit > 0 && aiQuota.remaining_quota === 0);
     const [avatarError, setAvatarError] = useState(false);
     // Initial greeting in current language
     const [messages, setMessages] = useState([
@@ -49,9 +53,9 @@ export default function AIChat() {
         speakText
     } = useTextToSpeech(false);
 
-    const handleSend = useCallback(async (overrideInput) => {
+    const handleSend = useCallback(async (overrideInput, confirmationOnly = false) => {
         const messageText = typeof overrideInput === 'string' ? overrideInput.trim() : input.trim();
-        if (!messageText || isLoading) return;
+        if (!messageText || isLoading || (isQuotaExhausted && !confirmationOnly)) return;
         if (isListening) {
             stopListening();
         }
@@ -81,15 +85,21 @@ export default function AIChat() {
             }
         } catch (err) {
             logger.error('AI Query Error:', err);
+            const detail = err.response?.data?.detail;
+            const isCommercialDenied = err.response?.status === 403 || err.response?.status === 429;
             setMessages(prev => [...prev, {
                 role: 'assistant',
-                content: err.response?.data?.detail || t('ai_chat.chat.connection_error'),
+                content: typeof detail === 'string' ? detail : t('ai_chat.chat.connection_error'),
                 type: 'error'
             }]);
+            if (isCommercialDenied) {
+                useTenantStore.getState().fetchTenant();
+            }
         } finally {
+            useTenantStore.getState().fetchTenant();
             setIsLoading(false);
         }
-    }, [input, isLoading, isListening, lastPatientName, messages, scribeMode, speakText, stopListening, t, ttsEnabled]);
+    }, [input, isLoading, isListening, isQuotaExhausted, lastPatientName, messages, scribeMode, speakText, stopListening, t, ttsEnabled]);
 
     // Sync transcript to input
     useEffect(() => {
@@ -153,6 +163,7 @@ export default function AIChat() {
         <>
             {/* Floating Button */}
             <button
+                aria-label={t("ai_chat.toggle_assistant", { defaultValue: "فتح أو إغلاق المساعد / Toggle assistant" })}
                 onClick={() => setIsOpen(!isOpen)}
                 className={`fixed bottom-[max(1.5rem,env(safe-area-inset-bottom))] z-50 p-0 rounded-full shadow-2xl transition-all duration-300 end-6 ${isOpen
                     ? 'bg-slate-700 hover:bg-slate-800 rotate-90 w-14 h-14 flex items-center justify-center'
@@ -187,7 +198,17 @@ export default function AIChat() {
                         </div>
                         <div className="flex-1">
                             <h3 className="text-white font-bold">{t('ai_chat.title')}</h3>
-                            <p className="text-cyan-200 text-xs">{t('ai_chat.subtitle')}</p>
+                            {aiQuota && aiQuota.daily_limit > 0 && aiQuota.remaining_quota != null ? (
+                                <p className="text-cyan-200 text-xs">
+                                    {t('ai_chat.quota_status', {
+                                        remaining: aiQuota.remaining_quota ?? 0,
+                                        total: aiQuota.daily_limit,
+                                        defaultValue: `المتبقي اليوم: ${aiQuota.remaining_quota ?? 0} من ${aiQuota.daily_limit}`
+                                    })}
+                                </p>
+                            ) : (
+                                <p className="text-cyan-200 text-xs">{aiQuota && aiQuota.remaining_quota == null ? t('ai_chat.quota_unavailable', { defaultValue: 'Quota unavailable / الحصة غير متاحة' }) : t('ai_chat.subtitle')}</p>
+                            )}
                         </div>
                         {isListening && (
                             <div className="flex items-center gap-1 bg-red-500 text-white px-2 py-1 rounded-full text-xs animate-pulse">
@@ -204,6 +225,19 @@ export default function AIChat() {
                             {ttsEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
                         </button>
                     </div>
+                    {/* Quota Exhausted Warning */}
+                    {isQuotaExhausted && (
+                        <div className="bg-amber-500/10 border-b border-amber-500/20 px-3 py-1.5 text-center text-xs text-amber-600 dark:text-amber-400 font-medium">
+                            {t('ai_chat.quota_exhausted', {
+                                timezone: aiQuota.timezone || 'Africa/Cairo',
+                                defaultValue: `تم استهلاك الحصة اليومية بالكامل. تتجدد الحصة تلقائياً عند منتصف الليل (${aiQuota.timezone || 'Africa/Cairo'})`
+                            })}
+                            <div className="mt-1 flex justify-center gap-3">
+                                <button disabled={isLoading} onClick={() => handleSend('نعم', true)}>{t('ai_chat.confirm_pending', { defaultValue: 'تأكيد الإجراء المعلّق / Confirm pending action' })}</button>
+                                <button disabled={isLoading} onClick={() => handleSend('لا', true)}>{t('ai_chat.cancel_pending', { defaultValue: 'إلغاء الإجراء المعلّق / Cancel pending action' })}</button>
+                            </div>
+                        </div>
+                    )}
                     {/* Quick Actions */}
                     <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 flex gap-2 overflow-x-auto">
                         <button
@@ -334,7 +368,7 @@ export default function AIChat() {
                             />
                             <button
                                 onClick={handleSend}
-                                disabled={!input.trim() || isLoading}
+                                disabled={!input.trim() || isLoading || isQuotaExhausted}
                                 className="bg-gradient-to-r from-cyan-600 to-indigo-600 text-white px-4 py-3 rounded-xl hover:shadow-lg hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100 md:w-auto"
                             >
                                 <Send size={20} />

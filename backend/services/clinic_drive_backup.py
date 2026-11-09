@@ -27,6 +27,35 @@ def _now():
 async def queue_drive_backup(db, *, tenant_id, actor_id, request_key):
     if not isinstance(request_key, str) or not 1 <= len(request_key) <= 128 or request_key.strip() != request_key:
         raise ArchiveError('مفتاح طلب النسخ الاحتياطي غير صالح')
+
+    from backend.core.config import get_subscription_enforcement_mode
+    from backend.core.commercial_registry import CapabilityKey
+    from backend.services.entitlement_service import EntitlementService
+    from sqlalchemy.orm import selectinload
+
+    mode = get_subscription_enforcement_mode()
+    if mode not in {"off", "observe"}:
+        stmt_t = select(models.Tenant).options(selectinload(models.Tenant.subscription_plan)).where(models.Tenant.id == tenant_id)
+        tenant_obj = (await db.execute(stmt_t)).scalar_one_or_none()
+        if tenant_obj:
+            emergency_restrictions, commercial_overrides = (
+                await EntitlementService.async_resolve_restrictions_and_overrides(db, tenant_id)
+            )
+            eval_res = EntitlementService.evaluate_tenant_entitlements(
+                tenant_obj,
+                override_mode=mode,
+                emergency_restrictions=emergency_restrictions,
+                commercial_overrides=commercial_overrides,
+            )
+            backup_dec = eval_res.commercial_decisions.get(CapabilityKey.TENANT_BACKUPS.value, {})
+            if not backup_dec.get("allowed", True):
+                raise ArchiveError(
+                    backup_dec.get("explanation_ar")
+                    or backup_dec.get("explanation_en")
+                    or eval_res.reason
+                    or "خاصية النسخ الاحتياطي غير مفعلة في باقة اشتراك العيادة."
+                )
+
     tenant = (await db.execute(select(models.Tenant).where(models.Tenant.id == tenant_id).with_for_update())).scalar_one()
     if tenant.google_connection_status != 'connected' or not tenant.google_refresh_token or not tenant.google_backup_folder_id:
         raise DriveFailure('reconnect')

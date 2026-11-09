@@ -90,6 +90,64 @@ class WorkflowStepDefinition:
 
 
 # ---------------------------------------------------------------------------
+# Workflow Field Definition (Immutable)
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class WorkflowFieldDefinition:
+    field_id: str
+    field_type: str
+    label: str
+    description: str = ""
+    is_required: bool = False
+    unit: str = ""
+    choices: tuple[str, ...] = ()
+    default_value: Any = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.field_id, str) or not self.field_id.strip():
+            raise ValueError("field_id must be a non-empty string")
+        if not isinstance(self.field_type, str) or not self.field_type.strip():
+            raise ValueError("field_type must be a non-empty string")
+        if not isinstance(self.label, str) or not self.label.strip():
+            raise ValueError("label must be a non-empty string")
+        if not isinstance(self.is_required, bool):
+            raise ValueError(f"is_required must be a boolean (got {self.is_required!r})")
+        if isinstance(self.choices, (list, tuple)):
+            object.__setattr__(self, "choices", tuple(self.choices))
+
+    def to_dict(self) -> dict[str, Any]:
+        """Safe deep-copy dictionary representation for JSON export."""
+        return {
+            "field_id": self.field_id,
+            "field_type": self.field_type,
+            "label": self.label,
+            "description": self.description,
+            "is_required": self.is_required,
+            "unit": self.unit,
+            "choices": list(self.choices),
+            "default_value": self.default_value,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> WorkflowFieldDefinition:
+        """Construct a validated WorkflowFieldDefinition from a dictionary."""
+        if not isinstance(data, dict):
+            raise TypeError(f"Expected dict for field definition, got {type(data).__name__}")
+        raw_choices = data.get("choices") or ()
+        return cls(
+            field_id=data.get("field_id", ""),
+            field_type=data.get("field_type", "text"),
+            label=data.get("label", ""),
+            description=data.get("description", ""),
+            is_required=data.get("is_required", False),
+            unit=data.get("unit", ""),
+            choices=tuple(raw_choices),
+            default_value=data.get("default_value"),
+        )
+
+
+# ---------------------------------------------------------------------------
 # Workflow Template Definition (Immutable & Versioned)
 # ---------------------------------------------------------------------------
 
@@ -102,6 +160,7 @@ class WorkflowTemplateDefinition:
     steps: tuple[WorkflowStepDefinition, ...]
     description: str = ""
     is_active: bool = True
+    custom_fields: tuple[WorkflowFieldDefinition, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.template_code, str) or not self.template_code.strip():
@@ -152,6 +211,22 @@ class WorkflowTemplateDefinition:
                     f"step '{step.step_code}' at index {idx} has order {step.step_order}, expected {expected_order}"
                 )
 
+        # Convert custom_fields to tuple and validate unique field_id
+        raw_fields = self.custom_fields or ()
+        fields_tuple: tuple[WorkflowFieldDefinition, ...] = tuple(
+            f if isinstance(f, WorkflowFieldDefinition) else WorkflowFieldDefinition.from_dict(f)
+            for f in raw_fields
+        )
+        object.__setattr__(self, "custom_fields", fields_tuple)
+
+        seen_field_ids: set[str] = set()
+        for idx, field in enumerate(fields_tuple):
+            if not isinstance(field, WorkflowFieldDefinition):
+                raise TypeError(f"Field at index {idx} in template '{self.template_code}' must be a WorkflowFieldDefinition")
+            if field.field_id in seen_field_ids:
+                raise ValueError(f"Duplicate field_id '{field.field_id}' in template '{self.template_code}'")
+            seen_field_ids.add(field.field_id)
+
     def to_dict(self) -> dict[str, Any]:
         """Safe deep-copy dictionary representation for JSON export."""
         return {
@@ -162,6 +237,7 @@ class WorkflowTemplateDefinition:
             "description": self.description,
             "is_active": self.is_active,
             "steps": [s.to_dict() for s in self.steps],
+            "custom_fields": [f.to_dict() for f in self.custom_fields],
         }
 
     @classmethod
@@ -173,6 +249,10 @@ class WorkflowTemplateDefinition:
         if not isinstance(raw_steps, (list, tuple)):
             raise TypeError("Expected list or tuple of steps in template data")
         steps = tuple(WorkflowStepDefinition.from_dict(s) for s in raw_steps)
+
+        raw_fields = data.get("custom_fields", [])
+        custom_fields = tuple(WorkflowFieldDefinition.from_dict(f) for f in raw_fields) if raw_fields else ()
+
         return cls(
             template_code=data.get("template_code", ""),
             version=data.get("version", 0),
@@ -181,6 +261,7 @@ class WorkflowTemplateDefinition:
             steps=steps,
             description=data.get("description", ""),
             is_active=data.get("is_active", True),
+            custom_fields=custom_fields,
         )
 
 
@@ -234,6 +315,29 @@ ENDO_RCT_TEMPLATE_V1 = WorkflowTemplateDefinition(
             description="Placement of coronal barrier, provisional restoration, or definitive post-endodontic coronal seal.",
         ),
     ),
+    custom_fields=(
+        WorkflowFieldDefinition(
+            field_id="canal_count",
+            field_type="number",
+            label="Number of Canals",
+            description="Total verified canal orifices",
+            unit="canals",
+        ),
+        WorkflowFieldDefinition(
+            field_id="sealer_type",
+            field_type="choice",
+            label="Root Canal Sealer",
+            description="Sealer material used for obturation",
+            choices=("Bioceramic", "Resin-based (AH Plus)", "Zinc Oxide Eugenol", "Calcium Hydroxide"),
+        ),
+        WorkflowFieldDefinition(
+            field_id="obturation_technique",
+            field_type="choice",
+            label="Obturation Technique",
+            description="Method of root canal obturation",
+            choices=("Single Cone Bioceramic", "Warm Vertical Compaction", "Cold Lateral Condensation", "Carrier-Based"),
+        ),
+    ),
 )
 
 # G2-M10: Crown Restoration Template v1
@@ -280,6 +384,33 @@ PROS_CROWN_TEMPLATE_V1 = WorkflowTemplateDefinition(
             step_order=6,
             title="Try-In & Definitive Cementation",
             description="Evaluation of seating, proximal contacts, marginal fit, aesthetics, occlusion, and definitive cementation.",
+        ),
+    ),
+    custom_fields=(
+        WorkflowFieldDefinition(
+            field_id="shade",
+            field_type="text",
+            label="Tooth Shade",
+            description="VITA or 3D Master shade guide match (e.g. A2, A3.5, BL2)",
+        ),
+        WorkflowFieldDefinition(
+            field_id="material",
+            field_type="choice",
+            label="Restoration Material",
+            description="Crown restorative material",
+            choices=("Monolithic Zirconia", "Layered Zirconia", "Lithium Disilicate (E.max)", "PFM (Porcelain Fused to Metal)", "Full Metal / Gold"),
+        ),
+        WorkflowFieldDefinition(
+            field_id="impression_method",
+            field_type="choice",
+            label="Impression Method",
+            choices=("Intraoral Digital Scan", "PVS / Polyvinyl Siloxane", "Polyether", "Alginate Preliminary"),
+        ),
+        WorkflowFieldDefinition(
+            field_id="definitive_cement",
+            field_type="text",
+            label="Luting / Cementation Agent",
+            description="e.g. Resin modified glass ionomer, adhesive resin cement",
         ),
     ),
 )
@@ -336,6 +467,31 @@ PROS_BRIDGE_TEMPLATE_V1 = WorkflowTemplateDefinition(
             description="Verification of marginal seating, proximal contacts, pontic tissue contact, occlusion, and cementation.",
         ),
     ),
+    custom_fields=(
+        WorkflowFieldDefinition(
+            field_id="span_units",
+            field_type="number",
+            label="Number of Bridge Units",
+            unit="units",
+        ),
+        WorkflowFieldDefinition(
+            field_id="shade",
+            field_type="text",
+            label="Bridge Shade",
+        ),
+        WorkflowFieldDefinition(
+            field_id="material",
+            field_type="choice",
+            label="Framework Material",
+            choices=("Monolithic Zirconia", "Layered Zirconia", "PFM", "Cast Metal"),
+        ),
+        WorkflowFieldDefinition(
+            field_id="pontic_design",
+            field_type="choice",
+            label="Pontic Design",
+            choices=("Modified Ridge Lap", "Ovate", "Sanitary / Hygienic", "Conical"),
+        ),
+    ),
 )
 
 # G2-M12: Composite Restoration Template v1
@@ -372,6 +528,31 @@ REST_COMPOSITE_TEMPLATE_V1 = WorkflowTemplateDefinition(
             description="Occlusal adjustment, margin finishing, surface polishing, and post-restorative verification.",
         ),
     ),
+    custom_fields=(
+        WorkflowFieldDefinition(
+            field_id="cavity_class",
+            field_type="choice",
+            label="Black's Cavity Class",
+            choices=("Class I", "Class II", "Class III", "Class IV", "Class V"),
+        ),
+        WorkflowFieldDefinition(
+            field_id="shade",
+            field_type="text",
+            label="Composite Shade",
+            description="e.g. A2, A3, B1, Bleach",
+        ),
+        WorkflowFieldDefinition(
+            field_id="isolation_method",
+            field_type="choice",
+            label="Isolation Method",
+            choices=("Rubber Dam", "Cotton Rolls / Dry Tips", "Isolite / Suction Device"),
+        ),
+        WorkflowFieldDefinition(
+            field_id="bonding_agent",
+            field_type="text",
+            label="Adhesive / Bonding Agent",
+        ),
+    ),
 )
 
 # G2-M13: Surgical Extraction Template v1
@@ -406,6 +587,25 @@ SURG_EXTRACTION_TEMPLATE_V1 = WorkflowTemplateDefinition(
             step_order=4,
             title="Hemostasis & Post-Operative Care",
             description="Hemostasis verification, socket preservation/suturing documentation, and post-operative instruction review.",
+        ),
+    ),
+    custom_fields=(
+        WorkflowFieldDefinition(
+            field_id="anesthesia",
+            field_type="choice",
+            label="Local Anesthesia",
+            choices=("Infiltration (Articaine 4%)", "Inferior Alveolar Nerve Block (Mepivacaine 2%)", "Infiltration (Lidocaine 2%)", "Intraligamentary"),
+        ),
+        WorkflowFieldDefinition(
+            field_id="suture_type",
+            field_type="choice",
+            label="Suture Material",
+            choices=("None Required", "Silk 3-0", "Vicryl 4-0 Resorbable", "PGA 3-0", "Nylon 4-0"),
+        ),
+        WorkflowFieldDefinition(
+            field_id="socket_preservation",
+            field_type="boolean",
+            label="Socket Preservation / Bone Graft Performed",
         ),
     ),
 )
@@ -454,6 +654,25 @@ PROS_DENTURE_TEMPLATE_V1 = WorkflowTemplateDefinition(
             step_order=6,
             title="Post-Insertion Review",
             description="Follow-up evaluation for pressure areas, retention, stability, masticatory adaptation, and adjustments.",
+        ),
+    ),
+    custom_fields=(
+        WorkflowFieldDefinition(
+            field_id="denture_arch",
+            field_type="choice",
+            label="Prosthesis Arch",
+            choices=("Maxillary Full", "Mandibular Full", "Both Maxillary & Mandibular", "Partial Denture"),
+        ),
+        WorkflowFieldDefinition(
+            field_id="shade_mold",
+            field_type="text",
+            label="Teeth Shade & Mold",
+        ),
+        WorkflowFieldDefinition(
+            field_id="base_material",
+            field_type="choice",
+            label="Base Material",
+            choices=("Heat-Cure Acrylic", "Flexible Valplast / Nylon", "Cobalt-Chromium Cast Partial", "3D Printed Resin"),
         ),
     ),
 )

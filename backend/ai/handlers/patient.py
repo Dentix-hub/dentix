@@ -13,7 +13,7 @@ class PatientHandler(BaseHandler):
     def __init__(self, db, user):
         super().__init__(db, user)
         self.service = PatientService(db, self.tenant_id)
-        self.adapter = PatientToolAdapter(self.service)
+        self.adapter = PatientToolAdapter(self.service, user=self.user, db=self.db)
 
     async def get_patient_file(self, params: Dict) -> Dict:
         """Get patient file by name."""

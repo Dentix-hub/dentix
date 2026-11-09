@@ -218,13 +218,26 @@ async def test_session_cookie_mode_survives_rotation_under_rls(remember_me):
 
 
 @pytest.mark.parametrize("remember_me", ["true", "false"])
-async def test_2fa_login_and_rotation_under_force_rls(remember_me):
+@pytest.mark.parametrize("otp_timestamp", [1_800_000_029, 1_800_000_030])
+async def test_2fa_login_and_rotation_under_force_rls(remember_me, otp_timestamp, monkeypatch):
+    from datetime import datetime
+    from types import SimpleNamespace
+
     import httpx
     import pyotp
     from backend import models
     from backend.database import AsyncSessionLocal, RlsContext
     from backend.main import app
     from backend.services.auth_service import AuthService
+
+    class OtpDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromtimestamp(otp_timestamp, tz)
+
+    # Pin only PyOTP's clock on either side of a 30-second boundary. Keep
+    # generation/verification real and leave JWT expiry and database time alone.
+    monkeypatch.setattr(pyotp.totp, "datetime", SimpleNamespace(datetime=OtpDatetime))
 
     await _seed()
     secret = "JBSWY3DPEHPK3PXP"
@@ -241,7 +254,19 @@ async def test_2fa_login_and_rotation_under_force_rls(remember_me):
             assert not client.cookies.get("access_token")
             pending_access = await client.get("/api/v1/auth/session", headers={"Authorization": "Bearer " + first.json()["access_token"]})
             assert pending_access.status_code == 401
-            second = await client.post("/api/v1/auth/login/2fa", data={"code": pyotp.TOTP(secret).now()}, headers={"Authorization": "Bearer " + first.json()["access_token"]})
+            totp = pyotp.TOTP(secret)
+            code = totp.now()
+            expired_code = totp.at(otp_timestamp - totp.interval)
+            wrong_code = f"{(int(code) + 1) % 1_000_000:06d}"
+            for rejected_code in (expired_code, wrong_code):
+                rejected = await client.post(
+                    "/api/v1/auth/login/2fa", data={"code": rejected_code},
+                    headers={"Authorization": "Bearer " + first.json()["access_token"]},
+                )
+                assert rejected.status_code == 401, rejected.text
+                assert not client.cookies.get("access_token")
+                assert not client.cookies.get("refresh_token")
+            second = await client.post("/api/v1/auth/login/2fa", data={"code": code}, headers={"Authorization": "Bearer " + first.json()["access_token"]})
             assert second.status_code == 200, second.text
             rotated = await client.post("/api/v1/auth/refresh")
             assert rotated.status_code == 200, rotated.text

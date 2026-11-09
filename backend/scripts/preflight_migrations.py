@@ -78,6 +78,7 @@ CLINICAL_G1_TABLES: tuple[str, ...] = (
     "next_visit_requests",
     "clinical_attachment_links",
 )
+CARE_WORKFLOW_TABLES = ("care_session_procedures", "care_session_drafts")
 
 RLS_TABLES = (
     "users",
@@ -121,11 +122,15 @@ RLS_TABLES = (
     "domain_events",
     "push_subscriptions",
     *CLINICAL_G1_TABLES,
+    *CARE_WORKFLOW_TABLES,
     "clinical_projection_coverages",
     "clinical_charges",
     "user_onboarding_state",
     "tenant_data_operations",
     "google_oauth_attempts",
+    "commercial_tenant_overrides",
+    "ai_quota_windows",
+    "ai_reservations",
 )
 
 CHILD_TENANT_RELATIONSHIPS = (
@@ -149,6 +154,12 @@ CHILD_TENANT_RELATIONSHIPS = (
     ("care_sessions", "provider_user_id", "users", True),
     ("care_session_steps", "care_session_id", "care_sessions", False),
     ("care_session_steps", "work_item_id", "clinical_work_items", True),
+    # Care-session workflow tables need the same guards on a fresh bootstrap
+    # as on the Alembic upgrade path (b1c2d3e4f5a6).
+    ("care_session_procedures", "care_session_id", "care_sessions", False),
+    ("care_session_procedures", "work_item_id", "clinical_work_items", False),
+    ("care_session_drafts", "patient_id", "patients", False),
+    ("care_session_drafts", "care_session_id", "care_sessions", True),
     ("clinical_events", "patient_id", "patients", False),
     ("clinical_events", "work_item_id", "clinical_work_items", True),
     ("clinical_events", "care_session_id", "care_sessions", True),
@@ -186,6 +197,9 @@ CHILD_TENANT_RELATIONSHIPS = (
     ("clinical_charges", "legacy_treatment_id", "treatments", True),
     # Onboarding Checklist State User Link
     ("user_onboarding_state", "user_id", "users", False),
+    # AI Reservation Ledger Window and User Links (PR-07)
+    ("ai_reservations", "window_id", "ai_quota_windows", False),
+    ("ai_reservations", "user_id", "users", True),
 )
 
 # Phase G14 / S32: direct parent-patient checks for clinical_charges (kept separate from
@@ -784,6 +798,7 @@ def _install_postgresql_rls(connection) -> None:
 RESTORE_GATE_NAMESPACE = 1146377304
 RESTORE_WRITE_GATE_TABLES = (
     "users", "appointments", "attachments", "batches", "care_observations",
+    "care_session_drafts", "care_session_procedures",
     "care_session_steps", "care_sessions", "clinical_attachment_links",
     "clinical_charges", "clinical_event_targets", "clinical_events",
     "clinical_projection_coverages", "clinical_treatment_plan_items",
@@ -878,6 +893,142 @@ def _install_postgresql_restore_write_gates(connection) -> None:
         )
 
 
+def _repair_postgresql_rls_policies(connection) -> None:
+    """Remove application-controlled GUC bypass from all live PostgreSQL policies."""
+    if connection.dialect.name != "postgresql":
+        return
+
+    set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+    if set_role:
+        connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+
+    connection.execute(
+        text(
+            r"""
+            DO $$
+            DECLARE
+                policy_row record;
+                tenant_expression text;
+                alter_clauses text;
+            BEGIN
+                FOR policy_row IN
+                    SELECT tablename, policyname, qual, with_check
+                      FROM pg_policies
+                     WHERE schemaname = current_schema()
+                       AND (
+                           COALESCE(qual, '') LIKE '%rls.bypass_rls%'
+                           OR COALESCE(with_check, '') LIKE '%rls.bypass_rls%'
+                       )
+                LOOP
+                    IF policy_row.tablename = 'notifications' THEN
+                        tenant_expression :=
+                            '((tenant_id = NULLIF(current_setting(''rls.tenant_id'', true), '''')::integer) '
+                            'OR (is_global = true) OR (tenant_id IS NULL))';
+                    ELSE
+                        tenant_expression :=
+                            '(tenant_id = NULLIF(current_setting(''rls.tenant_id'', true), '''')::integer)';
+                    END IF;
+
+                    alter_clauses := '';
+                    IF policy_row.qual IS NOT NULL THEN
+                        alter_clauses := alter_clauses || ' USING (' || tenant_expression || ')';
+                    END IF;
+                    IF policy_row.with_check IS NOT NULL THEN
+                        alter_clauses := alter_clauses || ' WITH CHECK (' || tenant_expression || ')';
+                    END IF;
+
+                    EXECUTE format(
+                        'ALTER POLICY %I ON %I%s',
+                        policy_row.policyname,
+                        policy_row.tablename,
+                        alter_clauses
+                    );
+                END LOOP;
+            END
+            $$
+            """
+        )
+    )
+
+
+def _repair_postgresql_child_tenant_triggers(connection) -> None:
+    """Additively install any missing child tenant triggers on PostgreSQL."""
+    if connection.dialect.name != "postgresql":
+        return
+
+    set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+    if set_role:
+        connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+
+    existing_tables = set(inspect(connection).get_table_names())
+    expected = {
+        _child_tenant_trigger_name(table, key): (table, key, parent, allow_null)
+        for table, key, parent, allow_null in CHILD_TENANT_RELATIONSHIPS
+        if table in existing_tables
+    }
+    present = set(
+        connection.execute(
+            text(
+                """SELECT tgname FROM pg_trigger
+                   WHERE NOT tgisinternal AND tgname = ANY(:names)"""
+            ),
+            {"names": list(expected.keys())},
+        ).scalars()
+    )
+    missing = set(expected.keys()) - present
+    if not missing:
+        return
+
+    logger.info("[PREFLIGHT] Repairing missing child tenant triggers: %s", sorted(missing))
+    connection.execute(
+        text(
+            """
+            DO $do$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_proc WHERE proname = 'dentix_assert_parent_tenant'
+                ) THEN
+                    EXECUTE $create_func$
+                        CREATE FUNCTION dentix_assert_parent_tenant()
+                        RETURNS trigger LANGUAGE plpgsql AS $$
+                        DECLARE
+                            child_parent_id integer;
+                            parent_tenant_id integer;
+                            allow_null boolean := COALESCE(TG_ARGV[2], 'false')::boolean;
+                        BEGIN
+                            child_parent_id := NULLIF(to_jsonb(NEW) ->> TG_ARGV[1], '')::integer;
+                            IF child_parent_id IS NULL AND allow_null THEN RETURN NEW; END IF;
+                            IF child_parent_id IS NULL THEN
+                                RAISE EXCEPTION 'Missing required parent on %', TG_TABLE_NAME;
+                            END IF;
+                            EXECUTE format('SELECT tenant_id FROM %I WHERE id = $1', TG_ARGV[0])
+                               INTO parent_tenant_id USING child_parent_id;
+                            IF parent_tenant_id IS NULL OR NEW.tenant_id IS DISTINCT FROM parent_tenant_id THEN
+                                RAISE EXCEPTION 'Tenant mismatch on %', TG_TABLE_NAME;
+                            END IF;
+                            RETURN NEW;
+                        END;
+                        $$;
+                    $create_func$;
+                END IF;
+            END $do$;
+            """
+        )
+    )
+    for trigger_name in sorted(missing):
+        table, child_key, parent, allow_null = expected[trigger_name]
+        connection.execute(text(f'DROP TRIGGER IF EXISTS "{trigger_name}" ON "{table}"'))
+        connection.execute(
+            text(
+                f'''CREATE TRIGGER "{trigger_name}"
+                    BEFORE INSERT OR UPDATE OF tenant_id, "{child_key}" ON "{table}"
+                    FOR EACH ROW EXECUTE FUNCTION dentix_assert_parent_tenant(
+                        '{parent}', '{child_key}', '{str(allow_null).lower()}'
+                    )'''
+            )
+        )
+
+
 def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
     """Create/resume the current canonical schema for a brand-new database."""
     from alembic import command
@@ -898,6 +1049,14 @@ def _bootstrap_fresh_database(engine, alembic_cfg) -> None:
     with engine.begin() as connection:
         _install_postgresql_rls(connection)
         _install_postgresql_restore_write_gates(connection)
+        # Fresh metadata baselines are stamped at head, so release-policy
+        # data migrations do not run here. Seed the same global default while
+        # preserving decisions made before an interrupted bootstrap resumes.
+        connection.execute(text("""
+            INSERT INTO feature_flags (key, description, is_global_enabled, rollout_percentage)
+            VALUES ('clinical_vnext_native_writes', 'Unified clinical session recording', true, 100)
+            ON CONFLICT (key) DO NOTHING
+        """))
 
     # The model baseline is current by definition. Historical revisions are
     # legacy deltas for pre-existing schemas and cannot safely be replayed from
@@ -943,6 +1102,102 @@ def _same_db_candidate_urls(reference_url: str) -> list[tuple[str, str]]:
             seen.add(raw)
             candidates.append((env_name, raw))
     return candidates
+
+
+def _release_migration_access(db_url: str, *, needs_ddl: bool) -> bool:
+    """Probe an existing login's access without granting it any new rights."""
+    probe_engine = create_engine(db_url, connect_args={"connect_timeout": 5})
+    try:
+        with probe_engine.connect() as conn:
+            bypass = conn.execute(text(
+                "SELECT rolsuper OR rolbypassrls FROM pg_roles WHERE rolname = current_user"
+            )).scalar()
+            if not bypass:
+                return False
+            for table, privilege in (
+                ("feature_flags", "SELECT"), ("feature_flags", "INSERT"),
+                ("feature_flags", "UPDATE"), ("tenant_features", "SELECT"),
+                ("tenant_features", "UPDATE"), ("alembic_version", "SELECT"),
+                ("alembic_version", "UPDATE"),
+            ):
+                if not conn.execute(text(
+                    "SELECT has_table_privilege(current_user, :table, :privilege)"
+                ), {"table": table, "privilege": privilege}).scalar():
+                    return False
+            sequence = conn.execute(text(
+                "SELECT pg_get_serial_sequence('feature_flags', 'id')"
+            )).scalar()
+            if sequence and not conn.execute(text(
+                "SELECT has_sequence_privilege(current_user, :sequence, 'USAGE, UPDATE')"
+            ), {"sequence": sequence}).scalar():
+                return False
+            if needs_ddl:
+                return bool(conn.execute(text("""
+                    SELECT bool_and(pg_has_role(current_user, tableowner, 'USAGE'))
+                    FROM pg_tables WHERE schemaname = current_schema()
+                """)).scalar())
+            return True
+    except Exception:
+        # Candidate URLs can contain credentials; report only the env name
+        # in the caller, never connection exceptions/URLs from this probe.
+        return False
+    finally:
+        probe_engine.dispose()
+
+
+def _rls_release_migration_url(engine, config, db_url: str) -> tuple[str, bool]:
+    """Choose a physically separate privileged login for global release data.
+
+    Ownership alone cannot update FORCE-RLS tables. The deployed release
+    migration is immutable; select credentials able to execute it instead of
+    disabling RLS or granting BYPASSRLS/membership to the application login.
+    """
+    from alembic.migration import MigrationContext
+    from alembic.script import ScriptDirectory
+
+    if engine.name != "postgresql":
+        return db_url, False
+    scripts = ScriptDirectory.from_config(config)
+    with engine.begin() as conn:
+        try:
+            with conn.begin_nested():
+                current = MigrationContext.configure(conn).get_current_heads()
+        except Exception:
+            # A supported NOINHERIT migration login may need its existing
+            # owner membership just to read Alembic bookkeeping. Use that
+            # role only in this read transaction; do not grant new rights.
+            owner = (_probe_postgresql_candidate(db_url) or {}).get("set_role_target")
+            if not owner:
+                raise
+            conn.execute(text(f"SET LOCAL ROLE {_quote_ident(str(owner))}"))
+            current = MigrationContext.configure(conn).get_current_heads()
+    pending = {rev.revision for rev in scripts.iterate_revisions(scripts.get_heads(), current)}
+    release_data_revisions = {"d3e4f5a6b7c8"}
+    if not pending.intersection(release_data_revisions):
+        return db_url, False
+    release_target = "d3e4f5a6b7c8"
+    revisions_to_release = {rev.revision for rev in scripts.iterate_revisions(release_target, current)}
+    data_only = revisions_to_release.issubset(release_data_revisions)
+    if _release_migration_access(db_url, needs_ddl=not data_only):
+        os.environ.pop("DENTIX_MIGRATION_SET_ROLE", None)
+        return db_url, data_only
+    if not (os.getenv("MIGRATION_DATABASE_URL") or os.getenv("OWNER_DATABASE_URL")):
+        for source, candidate in _same_db_candidate_urls(db_url):
+            if candidate != db_url and _release_migration_access(candidate, needs_ddl=not data_only):
+                logger.info(
+                    "[PREFLIGHT] Selecting %s for pending global release: verified "
+                    "BYPASSRLS and required privileges; runtime login remains unchanged.",
+                    source,
+                )
+                os.environ.pop("DENTIX_MIGRATION_SET_ROLE", None)
+                return candidate, data_only
+    raise RuntimeError(
+        "Pending global session release requires an existing BYPASSRLS migration "
+        "login with feature_flags INSERT/SELECT/UPDATE, tenant_features and "
+        "alembic_version SELECT/UPDATE, and feature flag sequence access. Configure "
+        "MIGRATION_DATABASE_URL/OWNER_DATABASE_URL or a same-database privileged "
+        "SYSTEM_DATABASE_URL. Application RLS and roles were not changed."
+    )
 
 
 def _prepare_postgresql_migration_privileges(engine, migration_url: str) -> None:
@@ -1226,7 +1481,16 @@ def run_alembic_upgrade():
                 return False
 
             logger.info("[PREFLIGHT] Existing versioned schema detected; running alembic upgrade head ...")
-            if engine.name == "postgresql":
+            release_url, release_data_only = _rls_release_migration_url(engine, alembic_cfg, db_url)
+            if release_url != db_url:
+                release_engine = create_engine(release_url)
+                release_alembic_cfg = _alembic_config(release_url)
+                if release_engine.name == "postgresql" and not release_data_only:
+                    _prepare_postgresql_migration_privileges(release_engine, release_url)
+                command.upgrade(release_alembic_cfg, "d3e4f5a6b7c8")
+                release_engine.dispose()
+
+            if engine.name == "postgresql" and not release_data_only:
                 _prepare_postgresql_migration_privileges(engine, db_url)
 
             if not _is_alembic_at_head(engine, alembic_cfg):
@@ -1239,6 +1503,23 @@ def run_alembic_upgrade():
             logger.info("[PREFLIGHT] Alembic upgrade completed successfully.")
 
         if engine.name == "postgresql":
+            rls_failures = _verify_postgresql_rls(
+                engine, tuple(RLS_TABLES) + ("notifications",)
+            )
+            bypass_failures = [
+                f for f in rls_failures if "no_application_bypass=False" in f
+            ]
+            if bypass_failures:
+                logger.warning(
+                    "[PREFLIGHT] Legacy application-controlled RLS bypass detected (%s); repairing policies: %s",
+                    len(bypass_failures),
+                    bypass_failures,
+                )
+                _prepare_postgresql_migration_privileges(engine, db_url)
+                with engine.begin() as connection:
+                    _repair_postgresql_rls_policies(connection)
+                _sync_postgresql_runtime_privileges(engine, db_url)
+
             missing_gates = _verify_postgresql_restore_write_gates(engine)
             if missing_gates:
                 logger.warning(
@@ -1258,6 +1539,28 @@ def run_alembic_upgrade():
                         "[PREFLIGHT] Restore write gates repair failed; %s gates still missing: %s",
                         len(remaining_missing),
                         remaining_missing,
+                    )
+                    return False
+
+            missing_triggers = _verify_postgresql_child_tenant_triggers(engine)
+            if missing_triggers:
+                logger.warning(
+                    "[PREFLIGHT] Missing child tenant triggers detected (%s); applying additive installation.",
+                    len(missing_triggers),
+                )
+                _prepare_postgresql_migration_privileges(engine, db_url)
+                with engine.begin() as connection:
+                    set_role = os.getenv("DENTIX_MIGRATION_SET_ROLE")
+                    if set_role:
+                        connection.execute(text(f"SET LOCAL ROLE {_quote_ident(set_role)}"))
+                    _repair_postgresql_child_tenant_triggers(connection)
+                _sync_postgresql_runtime_privileges(engine, db_url)
+                remaining_triggers = _verify_postgresql_child_tenant_triggers(engine)
+                if remaining_triggers:
+                    logger.error(
+                        "[PREFLIGHT] Child tenant triggers repair failed; %s triggers still missing: %s",
+                        len(remaining_triggers),
+                        remaining_triggers,
                     )
                     return False
 
@@ -1444,6 +1747,7 @@ def run_migration_health_check():
         ("stock_movements", "tenant_id"),
         ("subscription_renewal_requests", "tenant_id"),
         *((table, "tenant_id") for table in CLINICAL_G1_TABLES),
+        *((table, "tenant_id") for table in CARE_WORKFLOW_TABLES),
     ]
 
     missing: list[str] = []
@@ -1476,6 +1780,7 @@ def run_migration_health_check():
             "stock_movements",
             "subscription_renewal_requests",
             *CLINICAL_G1_TABLES,
+            *CARE_WORKFLOW_TABLES,
         }
         nullable = [
             table
@@ -1536,6 +1841,10 @@ def main():
         logger.critical("[PREFLIGHT] MIGRATION FAILED — ABORTING DEPLOYMENT")
         sys.exit(1)
 
+    if not run_legacy_billing_alignment():
+        logger.critical("[PREFLIGHT] BILLING COMPATIBILITY FAILED — ABORTING DEPLOYMENT")
+        sys.exit(1)
+
     if not run_migration_health_check():
         logger.critical("[PREFLIGHT] HEALTH CHECK FAILED — ABORTING DEPLOYMENT")
         sys.exit(1)
@@ -1544,6 +1853,28 @@ def main():
     logger.info("[PREFLIGHT] ALL CHECKS PASSED — Safe to start application")
     logger.info("=" * 60)
     sys.exit(0)
+
+
+def run_legacy_billing_alignment():
+    """Use the selected migration connection; a failed write aborts startup atomically."""
+    from backend.services.legacy_billing_alignment import align_legacy_billing_terms
+
+    engine = None
+    try:
+        db_url = _database_url()
+        if not db_url:
+            return False
+        engine = create_engine(db_url)
+        environment = os.getenv("DENTIX_DEPLOYMENT_ENVIRONMENT", os.getenv("ENVIRONMENT", "")).lower()
+        required = environment in {"production", "prod", "staging"}
+        align_legacy_billing_terms(engine, required=required)
+        return True
+    except Exception:
+        logger.exception("[PREFLIGHT] Approved legacy billing terms could not be verified/applied")
+        return False
+    finally:
+        if engine is not None:
+            engine.dispose()
 
 
 if __name__ == "__main__":

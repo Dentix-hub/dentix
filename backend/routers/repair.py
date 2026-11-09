@@ -313,9 +313,7 @@ async def reset_password(
         hashed_pw = auth.get_password_hash(new_password)
         user.hashed_password = hashed_pw
 
-        # Ensure account is active and not locked
-        if hasattr(user, "is_active"):
-            user.is_active = True
+        # Ensure account lockout is cleared (preserving active/inactive state)
         if hasattr(user, "account_locked_until"):
             user.account_locked_until = None
         if hasattr(user, "failed_login_attempts"):

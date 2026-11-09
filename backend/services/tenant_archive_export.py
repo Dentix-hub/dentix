@@ -24,25 +24,63 @@ async def export_clinic_archive_data(db, tenant_id, *, validate_restore=True):
     When validate_restore is True, executes shared restore preflight checks so
     the export fails early if business data is incompatible with recovery.
     """
+    from backend.core.config import get_subscription_enforcement_mode
+    from backend.core.commercial_registry import CapabilityKey
+    from backend.services.entitlement_service import EntitlementService
+    from backend.services.tenant_archive import ArchiveError
+    from sqlalchemy.orm import selectinload
+
+    mode = get_subscription_enforcement_mode()
+    if mode not in {"off", "observe"}:
+        stmt_t = select(models.Tenant).options(selectinload(models.Tenant.subscription_plan)).where(models.Tenant.id == tenant_id)
+        tenant_obj = (await db.execute(stmt_t)).scalar_one_or_none()
+        if tenant_obj:
+            emergency_restrictions, commercial_overrides = (
+                await EntitlementService.async_resolve_restrictions_and_overrides(db, tenant_id)
+            )
+            eval_res = EntitlementService.evaluate_tenant_entitlements(
+                tenant_obj,
+                override_mode=mode,
+                emergency_restrictions=emergency_restrictions,
+                commercial_overrides=commercial_overrides,
+            )
+            backup_dec = eval_res.commercial_decisions.get(CapabilityKey.TENANT_BACKUPS.value, {})
+            if not backup_dec.get("allowed", True):
+                raise ArchiveError(
+                    backup_dec.get("explanation_ar")
+                    or backup_dec.get("explanation_en")
+                    or eval_res.reason
+                    or "خاصية النسخ الاحتياطي غير مفعلة في باقة اشتراك العيادة."
+                )
+
     from backend.services.drive_image_safety import ensure_no_active_image_operations
     await ensure_no_active_image_operations(db, tenant_id)
     result = {}
     classes = {mapper.local_table.name: mapper.class_ for mapper in models.Base.registry.mappers}
     for name, columns in ARCHIVE_COLUMNS.items():
         model = classes[name]
-        query = select(model)
-        if hasattr(model, 'tenant_id'):
-            query = query.where(model.tenant_id == tenant_id)
-        elif name == 'price_list_items':
-            query = query.join(models.PriceList, model.price_list_id == models.PriceList.id).where(models.PriceList.tenant_id == tenant_id)
+        table = model.__table__
+        query = select(*[table.c[column] for column in columns])
+        if "tenant_id" in table.c:
+            query = query.where(table.c.tenant_id == tenant_id)
+        elif name == "price_list_items":
+            price_lists_table = models.PriceList.__table__
+            query = query.join(
+                price_lists_table,
+                table.c.price_list_id == price_lists_table.c.id,
+            ).where(price_lists_table.c.tenant_id == tenant_id)
         else:
-            raise ValueError(f'Unsupported archive ownership: {name}')
-        rows = (await db.execute(query)).scalars().all()
-        result[name] = [{column: _serialize(getattr(row, column)) for column in columns} for row in rows]
-    query = select(models.User).where(models.User.tenant_id == tenant_id)
-    result['staff_references'] = [
-        {column: _serialize(getattr(user, column)) for column in STAFF_REFERENCE_COLUMNS}
-        for user in (await db.execute(query)).scalars().all()
+            raise ValueError(f"Unsupported archive ownership: {name}")
+        rows = (await db.execute(query)).mappings().all()
+        result[name] = [{column: _serialize(row[column]) for column in columns} for row in rows]
+    user_table = models.User.__table__
+    user_query = select(*[user_table.c[col] for col in STAFF_REFERENCE_COLUMNS]).where(
+        user_table.c.tenant_id == tenant_id
+    )
+    user_rows = (await db.execute(user_query)).mappings().all()
+    result["staff_references"] = [
+        {column: _serialize(row[column]) for column in STAFF_REFERENCE_COLUMNS}
+        for row in user_rows
     ]
     payload = {'data': result}
     from backend.services.tenant_archive_history import disclose_unresolved_treatment_history

@@ -1,10 +1,17 @@
+import PlanAIToolPolicy from './PlanAIToolPolicy';
 import { useState } from 'react';
 import logger from '@/utils/logger';
 import { Edit3, Save, X, Users, Activity, PlusCircle, Trash2, CheckSquare, Square, Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { createSubscriptionPlan, deleteSubscriptionPlan } from '@/api';
+import { api, createSubscriptionPlan, deleteSubscriptionPlan } from '@/api';
 import { toast, ConfirmDialog } from '@/shared/ui';
 import { KNOWN_PLAN_FEATURES, parseFeatures, serializeFeatures } from './planFeatureUtils';
+
+const billingTerm = (plan, isRtl) => {
+    if (plan.billing_cycle_unit === 'day') return isRtl ? `${plan.duration_days} يومًا` : `${plan.duration_days} days`;
+    if (plan.billing_cycle_unit === 'year') return isRtl ? 'سنة تقويمية' : 'Calendar year';
+    return isRtl ? 'شهر تقويمي' : 'Calendar month';
+};
 
 const sanitizeNumber = (val, fallback = 0) => {
     if (val === '' || val == null) return fallback;
@@ -25,6 +32,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [planToDelete, setPlanToDelete] = useState(null);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [priceConfirmData, setPriceConfirmData] = useState(null);
 
     const [newPlanData, setNewPlanData] = useState({
         name: '',
@@ -80,6 +88,23 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
             toast.error(t('super_admin.plans.error_invalid_duration') || 'يرجى إدخال مدة أيام صحيحة أكبر من الصفر');
             return false;
         }
+        if (data.max_users !== null && data.max_users !== undefined && data.max_users !== '') {
+            const users = Number(data.max_users);
+            if (users <= 0) {
+                toast.error(t('super_admin.plans.error_invalid_users') || 'الحد الأقصى للمستخدمين يجب أن يكون 1 على الأقل');
+                return false;
+            }
+        }
+        if (data.is_ai_enabled) {
+            const aiLimit = sanitizeNumber(data.ai_daily_limit, 0);
+            if (aiLimit <= 0) {
+                toast.error(t('super_admin.plans.error_ai_limit_required') || 'يجب تحديد حد يومي لطلبات الذكاء الاصطناعي أكبر من 0 عند تفعيل المساعد');
+                return false;
+            }
+        } else if (!data.is_ai_enabled && sanitizeNumber(data.ai_daily_limit, 0) > 0) {
+            toast.error(t('super_admin.plans.error_ai_disabled_zero') || 'الحد اليومي يجب أن يكون 0 عند تعطيل المساعد الذكي');
+            return false;
+        }
         return true;
     };
 
@@ -92,6 +117,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
         setIsSubmitting(true);
         try {
             const payload = {
+                billing_cycle_unit: "month",
                 name: newPlanData.name.trim(),
                 display_name_ar: newPlanData.display_name_ar.trim(),
                 price: Math.max(0, sanitizeNumber(newPlanData.price, 0)),
@@ -149,6 +175,9 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
     const onSavePlanClicked = async (plan) => {
         const candidate = {
+            billing_cycle_unit: plan.billing_cycle_unit || "month",
+            ai_features: Object.hasOwn(editedPlanData, "ai_features") ? editedPlanData.ai_features : plan.ai_features,
+            expected_revision: plan.policy_revision,
             display_name_ar: editedPlanData.display_name_ar !== undefined ? editedPlanData.display_name_ar : plan.display_name_ar,
             price: editedPlanData.price !== undefined ? editedPlanData.price : plan.price,
             duration_days: editedPlanData.duration_days !== undefined ? editedPlanData.duration_days : plan.duration_days,
@@ -165,17 +194,39 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
 
         const payload = {
             ...candidate,
+            expected_revision: plan.policy_revision || 1,
+            reason: t('super_admin.plans.audit_reason_update') || 'تحديث الخطة بواسطة المدير العام',
             display_name_ar: candidate.display_name_ar.trim(),
             price: Math.max(0, sanitizeNumber(candidate.price, 0)),
             duration_days: Math.max(1, parseInt(candidate.duration_days, 10) || 30),
             max_users: sanitizeNullableInt(candidate.max_users),
             max_patients: sanitizeNullableInt(candidate.max_patients),
-            ai_daily_limit: Math.max(0, parseInt(candidate.ai_daily_limit, 10) || 0),
+            ai_daily_limit: candidate.is_ai_enabled ? Math.max(0, parseInt(candidate.ai_daily_limit, 10) || 0) : 0,
             is_ai_enabled: Boolean(candidate.is_ai_enabled),
             is_default: Boolean(candidate.is_default),
         };
 
         if (handleSavePlan) {
+            if (Number(payload.price) !== Number(plan.price) && api && typeof api.post === 'function') {
+                try {
+                    const previewRes = await api.post(`/api/v1/admin/subscriptions/plans/${plan.id}/preview`, {
+                        price: payload.price,
+                    });
+                    const affectedCount = previewRes.data?.affected_tenants_count ?? 0;
+                    setPriceConfirmData({
+                        planId: plan.id,
+                        payload,
+                        affectedCount,
+                        oldPrice: plan.price,
+                        newPrice: payload.price,
+                    });
+                    return;
+                } catch (err) {
+                    logger.error('Failed to preview plan price update:', err);
+                    toast.error(t('super_admin.plans.error_saving'));
+                    return;
+                }
+            }
             handleSavePlan(plan.id, payload);
         }
     };
@@ -192,12 +243,12 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                     const keys = currentFeatures.keys.includes(key)
                         ? currentFeatures.keys.filter(k => k !== key)
                         : [...currentFeatures.keys, key];
-                    const serialized = serializeFeatures(keys, currentFeatures.custom);
+                    const serialized = serializeFeatures(keys, currentFeatures.custom, editedPlanData.features ?? plan.features);
                     setEditedPlanData(prev => ({ ...prev, features: serialized }));
                 };
 
                 const handleEditCustomChange = (text) => {
-                    const serialized = serializeFeatures(currentFeatures.keys, text);
+                    const serialized = serializeFeatures(currentFeatures.keys, text, editedPlanData.features ?? plan.features);
                     setEditedPlanData(prev => ({ ...prev, features: serialized }));
                 };
 
@@ -233,16 +284,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
                                         />
                                     </div>
-                                    <div className="flex-1">
-                                        <label className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.duration_label') || 'المدة (بالأيام)'}</label>
-                                        <input
-                                            type="number"
-                                            min="1"
-                                            value={editedPlanData.duration_days ?? plan.duration_days ?? 30}
-                                            onChange={(e) => setEditedPlanData(prev => ({ ...prev, duration_days: e.target.value === '' ? '' : parseInt(e.target.value, 10) }))}
-                                            className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none font-bold"
-                                        />
-                                    </div>
+                                    <div className="flex-1"><p className="text-sm font-bold">{billingTerm({ ...plan, duration_days: editedPlanData.duration_days ?? plan.duration_days }, isRtl)}</p><p className="text-xs text-slate-500">{isRtl ? 'التجديد حسب وحدة الفترة المحفوظة للباقة.' : 'Renewal follows the stored plan term.'}</p><details className="mt-2 text-xs"><summary>{isRtl ? 'مدة العقد بالأيام' : 'Contract duration in days'}</summary><label htmlFor="legacy_edit_duration">{t('super_admin.plans.duration_label')}</label><input id="legacy_edit_duration" type="number" min="1" value={editedPlanData.duration_days ?? plan.duration_days ?? 30} onChange={(e) => setEditedPlanData(prev => ({ ...prev, duration_days: Number(e.target.value) }))} className="w-full rounded border p-2 dark:bg-slate-900" /></details></div>
                                 </div>
 
                                 <div className="flex gap-4">
@@ -262,11 +304,14 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                         <input
                                             type="number"
                                             min="1"
+                                            disabled
+                                            title={t('super_admin.plans.patient_limit_unenforced')}
                                             value={editedPlanData.max_patients !== undefined ? (editedPlanData.max_patients ?? '') : (plan.max_patients ?? '')}
                                             onChange={(e) => setEditedPlanData(prev => ({ ...prev, max_patients: e.target.value === '' ? null : parseInt(e.target.value, 10) }))}
                                             className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none font-bold placeholder-slate-300"
                                             placeholder="∞"
                                         />
+                                        <p className="text-type-caption text-text-secondary">{t('super_admin.plans.patient_limit_unenforced')}</p>
                                     </div>
                                 </div>
 
@@ -278,19 +323,30 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     <div className="grid grid-cols-1 gap-2">
                                         {KNOWN_PLAN_FEATURES.map(feat => {
                                             const isChecked = currentFeatures.keys.includes(feat.key);
+                                            const isSellable = feat.isSellable !== false;
                                             return (
                                                 <button
                                                     type="button"
                                                     key={feat.key}
-                                                    onClick={() => toggleEditFeature(feat.key)}
-                                                    className={`w-full flex items-center gap-3 p-2 rounded-xl text-xs font-bold transition-all text-start ${
-                                                        isChecked 
+                                                    disabled={!isSellable}
+                                                    onClick={() => isSellable && toggleEditFeature(feat.key)}
+                                                    className={`w-full flex items-center justify-between p-2 rounded-xl text-xs font-bold transition-all text-start ${
+                                                        !isSellable
+                                                        ? 'opacity-60 bg-slate-100/50 dark:bg-slate-800/40 text-slate-400 cursor-not-allowed'
+                                                        : isChecked 
                                                         ? 'bg-indigo-100/70 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300' 
                                                         : 'hover:bg-slate-200/50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-400'
                                                     }`}
                                                 >
-                                                    {isChecked ? <CheckSquare size={16} className="text-indigo-600 shrink-0" /> : <Square size={16} className="text-slate-400 shrink-0" />}
-                                                    <span>{isRtl ? feat.label_ar : feat.label_en}</span>
+                                                    <div className="flex items-center gap-3">
+                                                        {isChecked ? <CheckSquare size={16} className={isSellable ? "text-indigo-600 shrink-0" : "text-slate-400 shrink-0"} /> : <Square size={16} className="text-slate-400 shrink-0" />}
+                                                        <span>{isRtl ? feat.label_ar : feat.label_en}</span>
+                                                    </div>
+                                                    {!isSellable && (
+                                                        <span className="text-[10px] px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 font-normal">
+                                                            {t('super_admin.plans.feature_unavailable') || 'غير متاح'}
+                                                        </span>
+                                                    )}
                                                 </button>
                                             );
                                         })}
@@ -306,6 +362,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     </div>
                                 </div>
 
+                                <PlanAIToolPolicy value={Object.hasOwn(editedPlanData, 'ai_features') ? editedPlanData.ai_features : plan.ai_features} onChange={(ai_features) => setEditedPlanData(prev => ({ ...prev, ai_features }))} />
                                 {/* AI Settings Section */}
                                 <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/30">
                                     <h4 className="font-bold text-indigo-600 mb-3 flex items-center gap-2">
@@ -323,7 +380,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                             />
                                         </div>
                                         <div>
-                                            <label htmlFor={`edit_ai_limit_${plan.id}`} className={`block text-xs font-bold text-slate-500 mb-1`}>{t('super_admin.plans.ai_daily_limit') || 'الحد اليومي لطلبات الذكاء الاصطناعي'} (0 = {t('super_admin.plans.unlimited') || 'غير محدود'})</label>
+                                            <label htmlFor={`edit_ai_limit_${plan.id}`} className={`block text-xs font-bold text-slate-500 mb-1`}>{t('super_admin.plans.ai_daily_limit') || 'الحد اليومي لطلبات الذكاء الاصطناعي'} (0 = {t('super_admin.plans.ai_disabled') || 'معطّل'})</label>
                                             <input
                                                 id={`edit_ai_limit_${plan.id}`}
                                                 type="number"
@@ -380,7 +437,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                             </div>
                                             <div className="flex items-baseline gap-1">
                                                 <span className="text-4xl font-bold text-indigo-600 dark:text-indigo-400">{plan.price}</span>
-                                                <span className="text-sm font-bold text-slate-500">{t('super_admin.finance.currency') || 'ج.م'} / {plan.duration_days} {t('super_admin.plans.days_unit') || 'يوم'}</span>
+                                                <span className="text-sm font-bold text-slate-500">{t('super_admin.finance.currency') || 'ج.م'} / {billingTerm(plan, isRtl)}</span>
                                             </div>
                                         </div>
                                         <div className="flex gap-2">
@@ -427,7 +484,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                                         {t('super_admin.plans.ai_settings') || 'الذكاء الاصطناعي'} <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
                                                     </p>
                                                     <p className="font-bold text-indigo-700 dark:text-indigo-300">
-                                                        {plan.ai_daily_limit > 0 ? `${plan.ai_daily_limit} ${t('super_admin.plans.requests_unit') || 'طلب / يوم'}` : (t('super_admin.plans.unlimited') || 'غير محدود')}
+                                                        {`${Math.max(0, Number(plan.ai_daily_limit) || 0)} ${t('super_admin.plans.requests_unit') || 'طلب / يوم'}`}
                                                     </p>
                                                 </div>
                                             </div>
@@ -507,17 +564,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
                                 />
                             </div>
-                            <div className="flex-1">
-                                <label htmlFor="new_plan_duration" className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.duration_label') || 'المدة (بالأيام)'}</label>
-                                <input
-                                    id="new_plan_duration"
-                                    type="number"
-                                    min="1"
-                                    value={newPlanData.duration_days}
-                                    onChange={(e) => setNewPlanData(prev => ({ ...prev, duration_days: e.target.value === '' ? '' : parseInt(e.target.value, 10) }))}
-                                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold"
-                                />
-                            </div>
+                            <div className="flex-1"><p className="text-sm font-bold">{isRtl ? 'شهر تقويمي' : 'Calendar month'}</p><p className="text-xs text-slate-500">{isRtl ? 'بدون مدة ثابتة بالأيام.' : 'No fixed day-count billing.'}</p><details className="mt-2 text-xs"><summary>{isRtl ? 'مدة العقد بالأيام' : 'Contract duration in days'}</summary><label htmlFor="new_plan_duration">{t('super_admin.plans.duration_label')}</label><input id="new_plan_duration" type="number" min="1" value={newPlanData.duration_days} onChange={(e) => setNewPlanData(prev => ({ ...prev, duration_days: Number(e.target.value) }))} className="w-full rounded border p-2 dark:bg-slate-900" /></details></div>
                         </div>
 
                         <div className="flex gap-4">
@@ -537,6 +584,8 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                 <label htmlFor="new_plan_patients" className={`block text-xs font-bold text-slate-500 mb-1.5 ${isRtl ? 'me-1' : 'ms-1'}`}>{t('super_admin.plans.patients_label') || 'المرضى'}</label>
                                 <input
                                     id="new_plan_patients"
+                                    disabled
+                                    title={t('super_admin.plans.patient_limit_unenforced')}
                                     type="number"
                                     min="1"
                                     value={newPlanData.max_patients || ''}
@@ -544,6 +593,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500 outline-none font-bold placeholder-slate-300"
                                     placeholder="∞"
                                 />
+                                        <p className="text-type-caption text-text-secondary">{t('super_admin.plans.patient_limit_unenforced')}</p>
                             </div>
                         </div>
 
@@ -555,19 +605,30 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                             <div className="grid grid-cols-1 gap-2">
                                 {KNOWN_PLAN_FEATURES.map(feat => {
                                     const isChecked = newSelectedFeatures.includes(feat.key);
+                                    const isSellable = feat.isSellable !== false;
                                     return (
                                         <button
                                             type="button"
                                             key={feat.key}
-                                            onClick={() => toggleNewFeature(feat.key)}
-                                            className={`w-full flex items-center gap-3 p-2 rounded-xl text-xs font-bold transition-all text-start ${
-                                                isChecked 
+                                            disabled={!isSellable}
+                                            onClick={() => isSellable && toggleNewFeature(feat.key)}
+                                            className={`w-full flex items-center justify-between gap-3 p-2 rounded-xl text-xs font-bold transition-all text-start ${
+                                                !isSellable
+                                                ? 'opacity-60 bg-slate-100/50 dark:bg-slate-800/40 text-slate-400 cursor-not-allowed'
+                                                : isChecked 
                                                 ? 'bg-emerald-100/70 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300' 
                                                 : 'hover:bg-slate-200/50 dark:hover:bg-slate-700/50 text-slate-600 dark:text-slate-400'
                                             }`}
                                         >
-                                            {isChecked ? <CheckSquare size={16} className="text-emerald-600 shrink-0" /> : <Square size={16} className="text-slate-400 shrink-0" />}
-                                            <span>{isRtl ? feat.label_ar : feat.label_en}</span>
+                                            <div className="flex items-center gap-3">
+                                                {isChecked ? <CheckSquare size={16} className={isSellable ? "text-emerald-600 shrink-0" : "text-slate-400 shrink-0"} /> : <Square size={16} className="text-slate-400 shrink-0" />}
+                                                <span>{isRtl ? feat.label_ar : feat.label_en}</span>
+                                            </div>
+                                            {!isSellable && (
+                                                <span className="text-[10px] px-2 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 font-normal">
+                                                    {t('super_admin.plans.feature_unavailable') || 'غير متاح'}
+                                                </span>
+                                            )}
                                         </button>
                                     );
                                 })}
@@ -610,7 +671,7 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                                     />
                                 </div>
                                 <div>
-                                    <label htmlFor="new_ai_limit" className={`block text-xs font-bold text-slate-500 mb-1`}>{t('super_admin.plans.ai_daily_limit') || 'الحد اليومي لطلبات الذكاء الاصطناعي'} (0 = {t('super_admin.plans.unlimited') || 'غير محدود'})</label>
+                                    <label htmlFor="new_ai_limit" className={`block text-xs font-bold text-slate-500 mb-1`}>{t('super_admin.plans.ai_daily_limit') || 'الحد اليومي لطلبات الذكاء الاصطناعي'} (0 = {t('super_admin.plans.ai_disabled') || 'معطّل'})</label>
                                     <input
                                         id="new_ai_limit"
                                         type="number"
@@ -661,12 +722,38 @@ const PlansManager = ({ plans, editingPlan, setEditingPlan, editedPlanData, setE
                 isOpen={Boolean(planToDelete)}
                 onClose={() => setPlanToDelete(null)}
                 onConfirm={handleConfirmDelete}
-                title={t('super_admin.plans.delete_title') || 'حذف الخطة'}
-                message={t('super_admin.plans.delete_confirm', { name: planToDelete ? (isRtl ? planToDelete.display_name_ar : (planToDelete.display_name_en || planToDelete.name)) : '' }) || 'هل أنت متأكد من حذف هذه الخطة؟'}
-                confirmText={t('common.delete') || 'حذف'}
+                title={t('super_admin.plans.delete_title') || 'إيقاف/حذف الخطة من البيع'}
+                message={t('super_admin.plans.delete_confirm', { name: planToDelete ? (isRtl ? planToDelete.display_name_ar : (planToDelete.display_name_en || planToDelete.name)) : '' }) || 'هل أنت متأكد من إيقاف بيع هذه الخطة؟ ستبقى سارية للعيادات المشتركة حالياً ولن تتاح للبيع الجديد.'}
+                confirmText={t('common.delete') || 'إيقاف البيع'}
                 cancelText={t('common.cancel') || 'إلغاء'}
                 variant="danger"
                 isLoading={isDeleting}
+            />
+
+            {/* PR-11 Confirm Dialog for Plan Price Changes (Preserving Historical Receipts) */}
+            <ConfirmDialog
+                isOpen={Boolean(priceConfirmData)}
+                onClose={() => setPriceConfirmData(null)}
+                onConfirm={() => {
+                    if (priceConfirmData && handleSavePlan) {
+                        handleSavePlan(priceConfirmData.planId, priceConfirmData.payload);
+                    }
+                    setPriceConfirmData(null);
+                }}
+                title={t('super_admin.plans.price_change_title', 'تأكيد تعديل سعر الباقة')}
+                message={
+                    priceConfirmData
+                        ? t('super_admin.plans.price_change_notice', {
+                              count: priceConfirmData.affectedCount,
+                              oldPrice: priceConfirmData.oldPrice,
+                              newPrice: priceConfirmData.newPrice,
+                          }) ||
+                          `تعديل سعر الباقة من ${priceConfirmData.oldPrice} إلى ${priceConfirmData.newPrice} EGP سيسري على التجديدات المستقبلية لـ (${priceConfirmData.affectedCount}) عيادة مشتركة. الإيصالات المالية السابقة محفوظة قانونياً ولن يتم تعديلها بأثر رجعي.`
+                        : ''
+                }
+                confirmText={t('common.confirm', 'تأكيد التعديل')}
+                cancelText={t('common.cancel', 'إلغاء')}
+                variant="warning"
             />
         </div>
     );

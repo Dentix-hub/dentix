@@ -274,6 +274,7 @@ class TreatmentSession(Base):
     session_date = Column(
         DateTime, default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
     )
+    next_session_date = Column(DateTime, nullable=True)
     notes = Column(Text, nullable=True)
     tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=True, index=True)
 
