@@ -20,7 +20,7 @@ def register_default_tools(registry: "ToolRegistry"):
         Tool(
             name="get_patient_file",
             description="استرجاع الملف الطبي للمريض (التفاصيل، آخر العلاجات، التاريخ الطبي).",
-            parameters={"patient_name": "اسم المريض الثلاثي أو الثنائي"},
+            parameters={"patient_name": "الاسم الثلاثي أو الثنائي"},
             allowed_roles=["doctor", "receptionist", "admin", "super_admin"],
         )
     )
@@ -29,7 +29,7 @@ def register_default_tools(registry: "ToolRegistry"):
         Tool(
             name="get_financial_record",
             description="⚠️ حسابات مريض محدد فقط (ليس العيادة). يعرض الديون والمدفوعات لمريض معين.",
-            parameters={"patient_name": "اسم المريض"},
+            parameters={"patient_name": "الاسم"},
             allowed_roles=["doctor", "accountant", "admin", "super_admin"],
         )
     )
@@ -59,7 +59,7 @@ def register_default_tools(registry: "ToolRegistry"):
         استخدم هذه الأداة عندما يقول المستخدم: "سجل مريض"، "ضيف مريض"، "مريض جديد"، "افتح ملف"، "أضف مريض".
         ⚠️ لا تستدعي الأداة إذا كانت البيانات ناقصة (الاسم، السن، التليفون) - اسأل المستخدم أولاً باستخدام response.""",
             parameters={
-                "patient_name": "اسم المريض الكامل (مطلوب)",
+                "patient_name": "الاسم الكامل (مطلوب)",
                 "phone": "رقم التليفون (مطلوب)",
                 "age": "السن بالسنوات (مطلوب)",
                 "gender": "الجنس (اختياري - male/female)",
@@ -110,7 +110,7 @@ def register_default_tools(registry: "ToolRegistry"):
             name="smart_book_appointment",
             description="تسجيل حجز جديد لمريض. لا تستخدم هذه الأداة للاستعلام عن المواعيد.",
             parameters={
-                "patient_name": "اسم المريض",
+                "patient_name": "الاسم",
                 "date": "التاريخ المفضل",
                 "time": "الوقت المفضل (صباح/مساء أو ساعة محددة)",
                 "reason": "سبب الزيارة (اختياري)",
@@ -132,7 +132,7 @@ def register_default_tools(registry: "ToolRegistry"):
             name="create_appointment",
             description="حجز موعد جديد مباشرة (يتطلب تاريخ ووقت دقيق).",
             parameters={
-                "patient_name": "اسم المريض",
+                "patient_name": "الاسم",
                 "date": "YYYY-MM-DD",
                 "time": "HH:MM",
                 "duration": "المدة بالدقائق",
@@ -156,7 +156,7 @@ def register_default_tools(registry: "ToolRegistry"):
             name="record_medical_note",
             description="تسجيل ملاحظة طبية نصية أو صوتية في ملف المريض.",
             parameters={
-                "patient_name": "اسم المريض",
+                "patient_name": "الاسم",
                 "note_type": "نوع الملاحظة (diagnosis/procedure/prescription/general)",
                 "content": "نص الملاحظة",
             },
@@ -172,7 +172,7 @@ def register_default_tools(registry: "ToolRegistry"):
         أمثلة: "عملنا حشو كومبوزيت للضرس 6"، "خلعنا ضرس العقل"، "عملنا تنظيف جير"
         """,
             parameters={
-                "patient_name": "اسم المريض",
+                "patient_name": "الاسم",
                 "procedure": "اسم الإجراء",
                 "tooth_number": "رقم السن (اختياري)",
                 "diagnosis": "التشخيص (اختياري)",
@@ -192,7 +192,7 @@ def register_default_tools(registry: "ToolRegistry"):
         مثال: "المريض أحمد عنده تسوس Class 2 في الضرس 6 Upper Right، عملنا تنظيف وحشو Composite A2، المطلوب متابعة بعد أسبوع"
         """,
             parameters={
-                "patient_name": "اسم المريض (إذا ذُكر)",
+                "patient_name": "الاسم (إذا ذُكر)",
                 "dictation": "النص الكامل للإملاء الطبي",
             },
             complexity="complex",
@@ -209,7 +209,7 @@ def register_default_tools(registry: "ToolRegistry"):
             description="الاستعلام عن سعر إجراء طبي معين (حشو، خلع، زراعة...).",
             parameters={
                 "procedure_name": "اسم الإجراء (مثل: حشو عصب، خلع ضرس)",
-                "patient_name": "اسم المريض (اختياري - لتحديد السعر الدقيق)",
+                "patient_name": "الاسم (اختياري - لتحديد السعر الدقيق)",
             },
             allowed_roles=["admin", "super_admin", "doctor", "receptionist"],
         )
@@ -246,7 +246,7 @@ def register_default_tools(registry: "ToolRegistry"):
         Tool(
             name="create_payment",
             description="تسجيل دفعة مالية جديدة للمريض.",
-            parameters={"patient_name": "اسم المريض", "amount": "المبلغ المدفوع"},
+            parameters={"patient_name": "الاسم", "amount": "المبلغ المدفوع"},
             allowed_roles=[
                 "doctor",
                 "receptionist",
@@ -355,7 +355,7 @@ def register_default_tools(registry: "ToolRegistry"):
         Tool(
             name="send_whatsapp_message",
             description="إرسال رسالة واتساب لمريض معين. استخدم للأسئلة: ابعت رسالة، كلم المريض",
-            parameters={"patient_name": "اسم المريض", "message": "نص الرسالة"},
+            parameters={"patient_name": "الاسم", "message": "نص الرسالة"},
             allowed_roles=["doctor", "admin", "super_admin", "receptionist"],
         )
     )
@@ -412,7 +412,7 @@ def register_default_tools(registry: "ToolRegistry"):
         Tool(
             name="summarize_patient",
             description="تلخيص حالة المريض وتاريخه الطبي. استخدم للأسئلة: لخص حالة، ملخص المريض",
-            parameters={"patient_name": "اسم المريض"},
+            parameters={"patient_name": "الاسم"},
             complexity="complex",
         )
     )
