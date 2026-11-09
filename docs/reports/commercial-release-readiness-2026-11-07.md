@@ -1,6 +1,6 @@
 # Commercial release preparation — 2026-11-07
 
-**Status: PARTIAL. Do not promote or open controlled paid sales yet.** Owner Super Admin acceptance is recorded from this conversation. Production inspection was read-only; all mutation rehearsals used disposable local synthetic databases. No production migration, catalog update, enforcement/privacy change, main merge or deployment was performed.
+**Status: PARTIAL. Do not promote or open controlled paid sales yet.** Owner Super Admin acceptance is recorded from this conversation. Production operations remain read-only. November 7 rehearsals used synthetic databases; November 9 recovery/upgrade verification used an isolated restored production snapshot, subsequently deleted. No production migration, catalog update, enforcement/privacy change, main merge or deployment was performed.
 
 ## Candidate and verified delivery
 
@@ -91,10 +91,10 @@ Two fixture/tooling failures preceded the successful run: database creation init
 
 | ID / severity | Invariant and evidence | Disposition |
 |---|---|---|
-| G01 HIGH | DEVELOPMENT_WORKFLOW §3 requires a DB snapshot before production migrations. An October 30 encrypted recovery artifact is historical evidence, not a fresh cutover backup. | Fresh encrypted backup plus isolated restore verification still required. No current backup/restore certificate was obtainable through the available connector; no patient-data export was attempted. |
-| G02 HIGH | Additive migration/RLS integrity requires the configured owner to control the affected objects. Production has 77 tables owned by `postgres`, 14 by the app role. App is NOBYPASSRLS and not a member of the BYPASSRLS system role. | Actual hosting OWNER/MIGRATION connection and DDL ownership capability remain UNVERIFIED. Do not widen the runtime app role or drop FORCE RLS to make deployment pass. |
+| G01 HIGH → database recovery PASS, November 9 | DEVELOPMENT_WORKFLOW §3 requires a DB snapshot before production migrations. The October 30 artifact alone was insufficient. | Fresh AES-256-GCM production snapshot and isolated PostgreSQL 17 restore now PASS; all 132 table counts/hashes match its exported snapshot. Revalidate freshness before a later cutover. External object storage and recovery secrets remain separate from the logical DB artifact. |
+| G02 HIGH, partly resolved November 9 | Additive migration/RLS integrity requires the configured owner to control the affected objects. Production has 77 tables owned by `postgres`, 14 by the app role. | The supplied native migration login passes the existing SELECT-only preflight capability probe, including BYPASSRLS, owner membership and required global-table/sequence privileges. Its installation as the actual hosting migration secret remains UNVERIFIED. Runtime app rights were unchanged. |
 
-**Finding count: Spec 4 (worst HIGH); Standards 2 (worst HIGH).** These are open deployment/acceptance gates, not six newly claimed code regressions. Earlier reproduced PR #369/#370 code defects are closed by merged fixes and stated evidence. This follow-up inspects commercial execution, migration/configuration and recovery boundaries; it does not claim a fresh line-by-line review of all 364 changed files.
+**Original finding count: Spec 4; Standards 2 (worst HIGH). Current unresolved gates: Spec 4; Standards 1 (hosting configuration for G02).** G01's database snapshot/restore evidence is now PASS as of November 9. These are deployment/acceptance gates, not newly claimed code regressions. Earlier reproduced PR #369/#370 code defects are closed by merged fixes and stated evidence. This follow-up does not claim a fresh line-by-line review of all 364 changed files.
 
 ## Concrete cutover and recovery sequence — prepared, not authorized to execute
 
@@ -114,11 +114,11 @@ Recovery: record the previous application revision and per-plan before-values. S
 
 Private metadata-only snapshots, projections, scripts, logs and `production-action-manifest.json` are stored under `/home/ubuntu/dentix-task-artifacts/release-readiness-20261107/` with restrictive permissions. They are excluded from Git/bundles. The manifest is reviewable preparation, not an authorized live mutation script. No source/schema/CI change was needed for this preparation.
 
-Available access supports authenticated metadata SELECTs and GitHub read checks. It does not provide the production native migration/backup connection or Hugging Face configuration control/provider credential. Completing these external operations requires an authorized secure operator/session and explicit production authorization. Owner UI acceptance and the legacy `vib=30` policy are already settled; do not ask the owner to repeat them.
+As of November 7, access supported authenticated metadata SELECTs and GitHub read checks but lacked a native backup/migration connection. The owner supplied that connection and confirmed saving the backup key on November 9; the executed results below supersede that access limitation. Hugging Face configuration control/provider credential and explicit production promotion authorization remain separate. Owner UI acceptance and legacy `vib=30` approval are already settled; do not ask the owner to repeat them.
 
 ## Operator handoff — remaining external evidence
 
-No promotion, Space restart/configuration change, production catalog edit or provider request was executed in this follow-up. All six live gates remain open. Continue from the existing action manifest rather than starting a parallel rollout.
+No promotion, Space restart/configuration change, production catalog edit or provider request was executed. The following was the November 7 handoff; the dated November 9 evidence below completes its database backup/restore and native credential checks. Continue from the existing action manifest rather than starting a parallel rollout.
 
 | Boundary | Required next evidence / action |
 |---|---|
@@ -128,4 +128,37 @@ No promotion, Space restart/configuration change, production catalog edit or pro
 | Hosted enforcement | At the hosting configuration boundary, validate `SUBSCRIPTION_ENFORCEMENT_MODE=enforce` only after normalization, then execute synthetic active/expired/over-seat/AI-exhausted acceptance with preserved history access and existing RBAC/visibility. Record the effective runtime mode and deployed revision. |
 | Provider/privacy | Configure the real `GROQ_API_KEY` in hosting secrets and confirm the approved `EXTERNAL_AI_PHI_MODE`. Contracted mode additionally requires actual approval before `EXTERNAL_AI_CONTRACT_APPROVED=true`. A Hugging Face inference credential does not validate Dentix's configured Groq transport. Run one bounded nonclinical request plus same-key replay, proving a real result, one consumption unit and no redispatch. |
 
-Required access is an operator/session capability, not plaintext credentials in chat. A secure session was requested during the follow-up; until it is available, local preparation can be preserved but these live gates cannot truthfully be marked PASS.
+Credentials belong in the restricted operator file/secret store, not PRs or report content. Native access was supplied on November 9. Remaining hosting/acceptance gates cannot be marked PASS from the recovery evidence alone.
+
+## Executed production recovery and native access — November 9, 2026
+
+The owner's uploaded operator file was parsed as data, installed outside Git with mode 0600 and never printed. The uploaded backup key decoded to 32 bytes and matched the previously generated key that the owner confirmed saving. Both supplied connections authenticated as `postgres` against the production project using client TLS. PostgreSQL's backend `pg_stat_ssl` reports the pooler-to-database leg; client `ssl_in_use=true` verified the external connection. No passwords, URLs or key material are recorded here.
+
+The existing `_release_migration_access(..., needs_ddl=True)` returned **PASS**, exit 0. Read-only checks confirmed native BYPASSRLS, owner capability for all 91 public tables across both owners, global feature/Alembic table privileges and required sequence access. This proves the supplied native login's capability; it does not prove that Hugging Face's startup has that value configured in `MIGRATION_DATABASE_URL`/`OWNER_DATABASE_URL`. Do not replace the restricted runtime app connection with this operator login.
+
+The repository's actual `create_backup`/`verify_and_restore` functions created and authenticated a production logical dump using pinned PostgreSQL 17.11 clients. An exported read-only REPEATABLE READ snapshot was shared with `pg_dump --snapshot` through a private wrapper, so independent source counts/hashes and the dump describe the same database state. The authoritative verified artifact is:
+
+| Field | Evidence |
+|---|---|
+| Snapshot time / revision | `20261109_033752Z` / `f3c4d5e6a7b8` |
+| Artifact | `dentix_backup_20261109_033752Z.dump.enc` and matching `.manifest.json` |
+| Encryption / key identifier | AES-256-GCM / `production-release-20261109` |
+| Size / SHA-256 | 1,317,233 bytes / `0fb3ebdcaa1930e5fb15e6337f3f5a1751dfe81f79bd960aa97204076d772ec8` |
+| Restricted artifact directory | `/home/ubuntu/dentix-task-artifacts/release-readiness-20261109/verified-production-backup/`, directory 0700, artifacts 0600 |
+| Restored data verification | All **132 tables**, including **91 public tables**, matched source row counts and hashes |
+| Restored integrity metadata | 185 public foreign keys, none unvalidated; 60 public tables retained ENABLE + FORCE RLS |
+
+A password-protected, loopback-only isolated PostgreSQL 17.11 runtime was assembled outside the repository, including the actual Vault 0.3.1 source and vector extension. Guarded atomic restore completed successfully. An inherited source-only `PGSSLMODE=require` initially prevented the local SSL-less connection; source TLS stayed required while the local fixture used SCRAM authentication. The first comparison then found one hash mismatch in `procedure_material_weights`, with equal row counts. Investigation proved source `extra_float_digits=0` versus local default 1. Matching the verification session's serialization restored exact equality across all 132 original table assertions; a separate `float8send` binary digest also confirmed unchanged material-weight floating-point values. No values or assertions were altered to conceal a mismatch.
+
+The existing authoritative preflight was then executed on this **real restored schema/data**, not the earlier synthetic baseline: **PASS**, `f3c4d5e6a7b8 → 3b4c5d6e7f8a`; public tables increased 91→96. Original-column hashes/counts were preserved in 130 of the 132 original tables; only Alembic bookkeeping and the reviewed global feature-flag policy changed. A second preflight/health invocation passed without further original-column changes. Local superuser ownership is a limitation of this restoration rehearsal; restricted-role CI evidence and hosted runtime acceptance remain separate.
+
+Executed commands (each final command exit 0; these are scripts, not pytest counts):
+
+```text
+/home/ubuntu/dentix/.venv/bin/python /home/ubuntu/dentix-task-artifacts/release-readiness-20261109/finalize_recovery_verification.py
+/home/ubuntu/dentix/.venv/bin/python /home/ubuntu/dentix-task-artifacts/release-readiness-20261109/rehearse_restored_production_upgrade.py
+```
+
+Private result certificates, snapshot digests and scripts remain under `/home/ubuntu/dentix-task-artifacts/release-readiness-20261109/`. The local server was stopped and its entire plaintext restored cluster deleted after verification; only encrypted database artifacts and restricted verification records remain. The logical dump deliberately excludes ownership/ACL restoration and does not contain role passwords, external encryption keys or Storage object bytes. Original ownership/grant reconstruction and hosted service operation were not certified. Preserve the owner's existing application/tenant keys and the separately saved backup key as recovery material.
+
+GitHub protected refs and Hugging Face deployment markers were re-read: production remains `b5671506`, Staging remains `86f80c14`. There was no hosted DDL/DML, deployment, privacy/enforcement change, catalog normalization or provider dispatch. Remaining work is hosting migration-secret configuration, controlled signup/catalog ordering and legacy normalization, enforced hosted acceptance, real-provider/privacy acceptance, and final promotion review/authorization. A later cutover must obtain a fresh snapshot if the November 9 artifact is no longer current enough for its recovery window.
