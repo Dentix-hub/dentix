@@ -4,6 +4,7 @@ import json
 from typing import Dict, Any, List
 from groq import Groq
 from backend import models
+from backend.ai.config import get_complex_model
 from backend.services.ai_egress_policy import prepare_ai_messages
 from backend.services.commercial_ai_guard import evaluate_commercial_ai_access
 from backend.services.ai_quota_service import (
@@ -123,7 +124,7 @@ RULES:
         try:
             completion = self.client.chat.completions.create(
                 messages=messages,
-                model="llama3-70b-8192",
+                model=get_complex_model(),
                 temperature=0,
                 response_format={"type": "json_object"},
             )

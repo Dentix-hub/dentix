@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Groq compatibility (2026-11-09): local shared fast/complex model defaults updated for current developer-tier support across chat/direct analysis/Scribe, with account overrides. Legacy cards/cost estimates, recorded costs, privacy, clinical semantics and quota accounting preserved; legacy offers unchanged per owner decision.
+- Verification: 37 focused tests PASS, including 11 new model/override/cost regressions and real PostgreSQL egress/accounting/replay coverage; Ruff/whitespace PASS. No hosted key/model success or deployment claimed.
+- Status: local code DONE; launch/provider delivery PARTIAL pending isolated real-key smoke and approved hosted acceptance. Report: docs/reports/groq-model-compatibility-2026-11-09.md. No push/PR/schema/configuration changes on hosting.
+
 - AI privacy-denial accounting (2026-11-06): typed pre-dispatch denial now releases chat/direct/preallocated analysis reservations; Scribe's existing deny-before-reserve ordering verified. Privacy settings, generic provider accounting and historical rows preserved.
 - Verification: 74 focused backend tests PASS (18 new PostgreSQL cases), plus overlapping final denial-audit acceptance; Ruff/whitespace PASS. Hosted acceptance/paid launch remain PARTIAL; staging mode OFF and real-provider approval unchanged. Report: docs/reports/ai-pre-dispatch-accounting-2026-11-06.md.
 

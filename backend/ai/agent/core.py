@@ -14,6 +14,7 @@ from .limiter import rate_limiter
 from .prompt import build_system_prompt
 from .router import SmartModelRouter
 from ...rag.store import knowledge_store
+from ..config import get_fast_model
 from .circuit_breaker import ai_circuit_breaker
 from backend.ai.privacy.scrubber import scrubber
 from backend.services.ai_egress_policy import AIEgressDenied, prepare_ai_messages
@@ -43,7 +44,7 @@ class AIAgent:
             )
             self.client = AsyncGroq(api_key=api_key, http_client=http_client, max_retries=2)
 
-        self.model = "llama-3.1-8b-instant"
+        self.model = get_fast_model()
 
     async def _call_llm_safe(
         self, model: str, messages: List[Dict], *, tenant_id: int | None = None

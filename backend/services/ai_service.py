@@ -12,6 +12,7 @@ from typing import Optional, List, Dict, Any
 from backend import models
 from backend.schemas.ai import AIQueryResponse
 from backend.ai.agent.core import get_agent
+from backend.ai.config import get_fast_model
 from backend.ai.executor import ToolExecutor
 from backend.ai.tools.security import get_tool_risk
 from backend.ai.validation_layer import AIValidationLayer
@@ -213,7 +214,7 @@ class AIService:
                         await self.db.rollback()
 
             response = await self.agent._call_llm_safe(
-                "llama-3.1-8b-instant",
+                get_fast_model(),
                 messages,
                 tenant_id=self.user.tenant_id,
             )
