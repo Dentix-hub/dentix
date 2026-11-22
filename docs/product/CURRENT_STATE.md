@@ -10,6 +10,8 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 - Status: local code/provider compatibility DONE; owner authorized push/PR to Staging. Hosted delivery/clinical activation PARTIAL; no deployment or clinical privacy approval. Report: docs/reports/groq-model-compatibility-2026-11-09.md.
 - PR #371 CI follow-up: Safety blocked on unused APScheduler 3.11.3 (SFTY-20261008-90293). Removed only that dependency; all other locked packages and security policies unchanged. Frozen sync/lock, exact CI compatibility smoke and Safety PASS; 46 focused tests PASS, 0 failed/skipped. Remote CI remains pending after correction.
 
+- UX calendar (2026-11-22): click or tap opens the existing appointment editor for the selected record. Local verification passed 7 Vitest and 5 Chromium tests covering two records, zero writes on close, one save to the selected ID, empty-slot booking and drag rescheduling.
+
 - AI privacy-denial accounting (2026-11-06): typed pre-dispatch denial now releases chat/direct/preallocated analysis reservations; Scribe's existing deny-before-reserve ordering verified. Privacy settings, generic provider accounting and historical rows preserved.
 - Verification: 74 focused backend tests PASS (18 new PostgreSQL cases), plus overlapping final denial-audit acceptance; Ruff/whitespace PASS. Hosted acceptance/paid launch remain PARTIAL; staging mode OFF and real-provider approval unchanged. Report: docs/reports/ai-pre-dispatch-accounting-2026-11-06.md.
 
