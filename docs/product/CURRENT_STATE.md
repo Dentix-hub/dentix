@@ -2,6 +2,15 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Clinical recording QA hotfix (2026-11-23, `hotfix/clinical-recording-qa` on `24eabafc`):
+  - (1) Safe API error formatting (`formatApiError`) in active-session Add Procedure entry points (`GenericVisitWorkspace`, `PatientDetails`) and `LabHandoffSheet` prevents React crashes on structured 422 arrays/objects while keeping valid additions working.
+  - (2) Durable session documentation drafts (`useCareSessionDraft`, `GenericVisitWorkspace`): serialized server saves, blur/visibility flush through the existing authenticated API, plus native `beforeunload` confirmation while unacknowledged edits/errors/conflicts exist; zero PHI in browser storage; disarmed on finish.
+  - (3a) Authoritative lab-handoff target resolution in `FinishCareSessionSheet`/`LabHandoffSheet` resolves linked lab-eligible procedures and teeth from session + workspace data, prefers unambiguous lab-ready steps, requires explicit selection when ambiguous, and guards invalid targets.
+  - (3b) Guarded `NextVisitRequestRead.populate_enriched_fields` against unloaded SQLAlchemy `patient` relations (`sa_inspect`) and refreshed `patient` on next-visit mutation paths so `POST /finish` with `next_visit_request` returns 200 without `MissingGreenlet` or broadened PII.
+  - (4) Fixed `QuickTreatmentSheet` form re-init on `selectedToothCondition`/`procedures` updates, stopped incidental initial condition writes, added condition-only `tooth_status` save path (0 treatments), and synced canonical lifecycle events on `POST /treatments/tooth_status` when native writes are enabled.
+  - (5) Surfaced unlinked native `proposed` procedures in `TreatmentHistory` from authorized `GET /clinical-work-items` with truthful `Proposed` status, deduplicated against linked treatments, and without synthetic treatments or legacy edit/delete actions.
+  - Verification: 184 backend and 200 frontend tests passed in focused runs, including PostgreSQL contracts, Chromium reload and concurrent 409 checks, production build, ESLint and Ruff. Direct hotfix CI and release acceptance pending.
+
 - Groq compatibility (2026-11-09): local shared fast/complex model defaults updated for current developer-tier support across chat/direct analysis/Scribe, with account overrides. Legacy cards/cost estimates, recorded costs, privacy, clinical semantics and quota accounting preserved; legacy offers unchanged per owner decision.
 - Follow-up: corrected static system/schema labels falsely rejected by the unchanged privacy confidence gate; dynamic messages/context still scanned. Verification: 44 focused tests PASS (18 new), real PostgreSQL egress/accounting coverage and Ruff/whitespace PASS.
 - Genuine Groq smoke PASS on both models; actual AIService/local PostgreSQL request consumed one unit (10→9), replay left quota at nine and provider call count one. No patient rows or hosted configuration changes; synthetic clusters removed.

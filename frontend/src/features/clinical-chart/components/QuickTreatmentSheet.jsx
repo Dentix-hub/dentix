@@ -186,6 +186,8 @@ export default function QuickTreatmentSheet({
         () => (Array.isArray(procedures) ? procedures : []),
         [procedures],
     );
+    const safeProceduresRef = useRef(safeProcedures);
+    safeProceduresRef.current = safeProcedures;
 
     const matchedProcedure = useMemo(() => {
         if (!treatment?.procedure) return null;
@@ -299,6 +301,7 @@ export default function QuickTreatmentSheet({
     // Reset and initialize data on open
     useEffect(() => {
         if (!isOpen) return;
+        let isCancelled = false;
         const normalized = normalizeSheetData(initialData);
         setTreatment(normalized);
         setHighlightedInvalidTeeth([]);
@@ -319,8 +322,9 @@ export default function QuickTreatmentSheet({
         setPaymentNotes('');
         setPaymentError('');
 
-        const initialCondition = initialData?.explicit_tooth_condition || initialData?.diagnosis || selectedToothCondition || 'Healthy';
-        setExplicitToothCondition(initialCondition);
+        // Only preserve an explicit condition choice if one was explicitly passed in initialData;
+        // do NOT treat incidental initial diagnosis or parent selectedToothCondition as an explicit write.
+        setExplicitToothCondition(initialData?.explicit_tooth_condition || null);
 
         const procName = normalized?.procedure;
         if (procName) {
@@ -329,10 +333,11 @@ export default function QuickTreatmentSheet({
 
             resolveProcedureSelection({
                 procedureName: procName,
-                procedures: safeProcedures,
+                procedures: safeProceduresRef.current,
                 defaultPriceListId: normalized?.default_price_list_id,
                 currentPriceListId: normalized?.price_list_id,
             }).then(({ found, cost, price_list_id, autoMaterials }) => {
+                if (isCancelled) return;
                 if (!found) {
                     setIsManualProcedure(true);
                     setTreatment((prev) => (prev ? {
@@ -349,7 +354,9 @@ export default function QuickTreatmentSheet({
                     setTreatment((prev) => (prev ? {
                         ...prev,
                         procedure: procName,
-                        cost: resolvedCost,
+                        cost: prev.cost !== '' && prev.cost !== undefined && prev.cost !== normalized?.cost
+                            ? prev.cost
+                            : resolvedCost,
                         price_list_id,
                     } : prev));
                     setConsumedMaterials(initialData?.consumedMaterials?.length ? initialData.consumedMaterials : (autoMaterials || []));
@@ -365,7 +372,11 @@ export default function QuickTreatmentSheet({
                 handleSaveErrorRef.current?.(normalized.escalation_error, false);
             }, 0);
         }
-    }, [isOpen, initialData, safeProcedures, selectedToothCondition]);
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [isOpen, initialData]);
 
     // Find linked lab order for this treatment if editing
     const linkedLabOrder = useMemo(() => {

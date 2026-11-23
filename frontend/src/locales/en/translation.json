@@ -1151,6 +1151,7 @@
       "click_to_complete": "Procedure active. Click to mark complete.",
       "completed": "Completed",
       "active": "In Progress",
+      "proposed": "Proposed",
       "reopen": "Reopen",
       "mark_done": "Mark Done"
     },
@@ -3829,7 +3830,16 @@
     "entries_kept_open": "Your entries are kept in this form while it stays open.",
     "recheck_availability": "Check again",
     "record_failed": "Could not record the session. Your entries are kept; please try again.",
-    "measurement_type_help": "General measurement records a value or note. Working Length records canal length in mm with file size, taper and reference point."
+    "measurement_type_help": "General measurement records a value or note. Working Length records canal length in mm with file size, taper and reference point.",
+    "autosave_unsaved": "Unsaved changes",
+    "add_procedure_error": "Failed to add procedure",
+    "remove_procedure_error": "Failed to remove procedure",
+    "repeat_step_error": "Failed to repeat step",
+    "finish_error": "Failed to finish care session",
+    "lab_no_eligible_procedure": "No lab-eligible prosthetic procedure linked to this visit.",
+    "lab_select_procedure_prompt": "Multiple lab-eligible procedures in this visit — select one before sending to lab.",
+    "lab_target_procedure_label": "Target Procedure for Lab Order",
+    "lab_select_procedure_placeholder": "-- Select lab procedure --"
   },
   "dental_chart": {
     "primary_teeth": "Primary teeth",
@@ -3951,6 +3961,7 @@
   "lab_handoff": {
     "failed_load_labs": "Failed to load dental laboratories list.",
     "error_select_lab": "Please select a laboratory.",
+    "error_missing_work_item": "No eligible linked procedure is selected for this lab order.",
     "error_submitting": "Failed to dispatch lab handoff.",
     "modal_title": "Chairside Lab Handoff (1-Tap)",
     "quick_handoff_subtitle": "Instant chairside dispatch linked to Clinical Work Item",

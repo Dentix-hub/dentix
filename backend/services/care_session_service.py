@@ -2424,6 +2424,7 @@ class CareSessionService:
 
         try:
             await self.db.commit()
+            await self.db.refresh(request)
         except (IntegrityError, StaleDataError) as exc:
             await self.db.rollback()
             await self._get_active_current_user()
@@ -2873,6 +2874,7 @@ class CareSessionService:
         try:
             await self.db.commit()
             await self.db.refresh(req)
+            await self.db.refresh(req, attribute_names=["patient"])
         except (IntegrityError, StaleDataError) as exc:
             await self.db.rollback()
             await self._get_active_current_user()
@@ -2952,6 +2954,7 @@ class CareSessionService:
         self.db.add(event)
         await self.db.commit()
         await self.db.refresh(req)
+        await self.db.refresh(req, attribute_names=["patient"])
         if req.patient:
             setattr(req, "patient_name", req.patient.name)
             setattr(req, "patient_phone", req.patient.phone)
@@ -3006,6 +3009,7 @@ class CareSessionService:
         self.db.add(event)
         await self.db.commit()
         await self.db.refresh(req)
+        await self.db.refresh(req, attribute_names=["patient"])
         if req.patient:
             setattr(req, "patient_name", req.patient.name)
             setattr(req, "patient_phone", req.patient.phone)
@@ -3067,6 +3071,7 @@ class CareSessionService:
         self.db.add(event)
         await self.db.commit()
         await self.db.refresh(req)
+        await self.db.refresh(req, attribute_names=["patient"])
         if req.patient:
             setattr(req, "patient_name", req.patient.name)
             setattr(req, "patient_phone", req.patient.phone)
@@ -3134,6 +3139,7 @@ class CareSessionService:
         self.db.add(event)
         await self.db.commit()
         await self.db.refresh(req)
+        await self.db.refresh(req, attribute_names=["patient"])
         if req.patient:
             setattr(req, "patient_name", req.patient.name)
             setattr(req, "patient_phone", req.patient.phone)

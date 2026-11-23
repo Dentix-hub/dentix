@@ -95,8 +95,56 @@ async def update_tooth_status(
     current_user: schemas.User = Depends(require_permission(Permission.CLINICAL_WRITE)),
 ):
     await ensure_patient_visible(db, current_user, status.patient_id)
-    from .. import crud
-    result = await crud.update_tooth_status(db, status, current_user.tenant_id)
+    from datetime import datetime, timezone
+    from backend import models
+    from backend.clinical.legacy_mapping import map_legacy_tooth_status_condition
+    from backend.models.clinical_core import FDI_TOOTH_KEYS
+    from backend.services.clinical_workspace_service import FEATURE_FLAG_CLINICAL_NATIVE_WRITES
+    from backend.services.feature_service import FeatureFlagService
+
+    result = await crud.update_tooth_status(db, status, current_user.tenant_id, commit=False)
+
+    # Keep native/legacy projection aligned for canonical tooth lifecycle updates (e.g. Missing -> MISSING)
+    # without reinterpreting Missing as Extracted or creating treatment/finance records.
+    tooth_key = str(status.tooth_number)
+    classification, _ = map_legacy_tooth_status_condition(status.condition)
+    if (
+        classification is not None
+        and classification.kind == "lifecycle"
+        and tooth_key in FDI_TOOTH_KEYS
+        and await FeatureFlagService.is_feature_enabled(
+            db, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, current_user.tenant_id
+        )
+    ):
+        now = datetime.now(timezone.utc)
+        lifecycle_event = models.ClinicalEvent(
+            tenant_id=current_user.tenant_id,
+            patient_id=status.patient_id,
+            event_type="tooth_lifecycle_changed",
+            occurred_at=now,
+            actor_user_id=getattr(current_user, "id", None),
+            payload={
+                "kind": "lifecycle",
+                "canonical_code": classification.canonical_code,
+                "lifecycle": classification.canonical_code,
+                "condition": status.condition,
+                "source": "tooth_status_api",
+            },
+            notes=status.notes,
+        )
+        db.add(lifecycle_event)
+        await db.flush()
+        db.add(
+            models.ClinicalEventTarget(
+                tenant_id=current_user.tenant_id,
+                event_id=lifecycle_event.id,
+                target_kind="tooth",
+                tooth_key=tooth_key,
+            )
+        )
+
+    await db.commit()
+    await db.refresh(result)
     return success_response(data=result, message="Tooth status updated")
 
 
