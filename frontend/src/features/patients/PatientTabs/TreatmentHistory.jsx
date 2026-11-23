@@ -17,12 +17,14 @@ import {
 import { fdiToPalmer } from '@/utils/toothUtils';
 import { useTranslation } from 'react-i18next';
 import ProcedureStatusControl from '@/features/clinical-chart/components/ProcedureStatusControl';
+import { CANONICAL_PROCEDURES_BY_CODE } from '@/features/clinical-chart/domain/catalogDefinitions';
 import FollowUpManagementModal from '@/features/care-sessions/FollowUpManagementModal';
 import HistoricalCareSessionModal from '@/features/care-sessions/HistoricalCareSessionModal';
 import CareSessionAddendumModal from '@/features/care-sessions/CareSessionAddendumModal';
 import VisitDocumentation from '@/features/care-sessions/VisitDocumentation';
 import CareObservationAmendmentModal from '@/features/care-sessions/CareObservationAmendmentModal';
 import { getPatientCareSessions } from '@/api/patients';
+import { usePatientClinicalWorkItems } from '../hooks/usePatientClinicalWorkItems';
 import { getDoctors } from '@/api/admin';
 import { useAuthStore } from '@/store/auth.store';
 
@@ -87,7 +89,7 @@ const TreatmentHistory = ({
     onDelete,
     onAdd,
 }) => {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const queryClient = useQueryClient();
     const [viewMode, setViewMode] = useState('procedures'); // 'procedures' | 'sessions'
     const [expandedRowIds, setExpandedRowIds] = useState(new Set());
@@ -132,9 +134,57 @@ const TreatmentHistory = ({
         enabled: Boolean(patientId && !propCareSessions && nativeWritesEnabled),
     });
 
+    const { data: workItems = [] } = usePatientClinicalWorkItems(patientId, nativeWritesEnabled);
+
     const allSessions = propCareSessions || fetchedSessions;
     const careSessions = allSessions.filter((session) => !session.amends_session_id);
     const renderDocumentation = (session) => <VisitDocumentation session={session} addenda={allSessions.filter((entry) => entry.amends_session_id === session.id)} doctors={doctors} canAmend={canManageClinicalFollowUp} onAmend={setAmendingVisit} t={t} />;
+
+    const linkedWorkItemIds = new Set(
+        (history || [])
+            .map((h) => h.work_item_id)
+            .filter((wid) => wid !== null && wid !== undefined)
+            .map(String)
+    );
+    const isArabic = i18n?.language?.startsWith('ar');
+    const proposedWorkItems = nativeWritesEnabled
+        ? workItems
+              .filter((wi) => {
+                  if (!wi || wi.id == null) return false;
+                  if (String(wi.kind || '').toLowerCase() !== 'procedure') return false;
+                  if (String(wi.status || '').toLowerCase() !== 'proposed') return false;
+                  if (linkedWorkItemIds.has(String(wi.id))) return false;
+                  return true;
+              })
+              .map((wi) => {
+                  const catalogDef = CANONICAL_PROCEDURES_BY_CODE.get(String(wi.code || '').toUpperCase());
+                  const procedureLabel =
+                      wi.title ||
+                      wi.display_name ||
+                      (catalogDef ? (isArabic ? catalogDef.nameAr : catalogDef.name) : wi.code) ||
+                      'Procedure';
+                  const targets = Array.isArray(wi.targets) ? wi.targets : [];
+                  const toothKeys = [...new Set(targets.map((target) => target?.tooth_key).filter(Boolean).map(String))];
+                  const toothDisplay =
+                      toothKeys.length > 0
+                          ? toothKeys
+                                .map((tk) => fdiToPalmer(Number(tk) || tk) || `T${tk}`)
+                                .join(', ')
+                          : '-';
+
+                  return {
+                      rowKey: `proposed-wi-${wi.id}`,
+                      work_item_id: wi.id,
+                      code: wi.code,
+                      date: wi.created_at || wi.recorded_at || null,
+                      toothDisplay,
+                      procedureLabel,
+                      notes: wi.notes || '',
+                  };
+              })
+        : [];
+
+    const totalProceduresCount = history.length + proposedWorkItems.length;
 
     const availableWorkItems = (history || [])
         .filter((h) => Boolean(h.work_item_id))
@@ -195,7 +245,7 @@ const TreatmentHistory = ({
                                         : 'text-slate-600 hover:text-slate-900 dark:text-slate-400'
                                 }`}
                             >
-                                {t('patientDetails.treatment_history.procedures_view', 'Procedures')} ({history.length})
+                                {t('patientDetails.treatment_history.procedures_view', 'Procedures')} ({totalProceduresCount})
                             </button>
                             <button
                                 type="button"
@@ -529,6 +579,95 @@ const TreatmentHistory = ({
                                     </tr>
                                 );
                             })}
+                            {proposedWorkItems.map((item) => {
+                                const matchedSessions = careSessions.filter((s) => isSessionMatchingTreatment(s, item));
+                                const isExpanded = expandedRowIds.has(item.rowKey);
+
+                                return (
+                                    <tr
+                                        key={item.rowKey}
+                                        data-testid={`proposed-work-item-row-${item.work_item_id}`}
+                                        className="grid min-w-0 grid-cols-2 gap-3 rounded-card border border-border bg-surface p-3 transition-colors sm:table-row sm:border-0 sm:p-0 sm:hover:bg-surface-subtle"
+                                    >
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.date', 'Date')}</span>
+                                            {item.date ? new Date(item.date).toLocaleDateString() : '--'}
+                                        </td>
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.tooth', 'Tooth')}</span>
+                                            {item.toothDisplay}
+                                        </td>
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3 col-span-2">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.diagnosis', 'Diagnosis')}</span>
+                                            -
+                                        </td>
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3 col-span-2 order-first font-bold sm:order-none">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.treatment', 'Procedure')}</span>
+                                            {item.procedureLabel}
+                                        </td>
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.status', 'Status')}</span>
+                                            <span
+                                                data-testid={`proposed-status-badge-${item.work_item_id}`}
+                                                className="inline-block rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-xs font-bold text-sky-700 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-300"
+                                            >
+                                                {t('clinical.status.proposed', 'Proposed')}
+                                            </span>
+                                        </td>
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3 col-span-2">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.details', 'Details & Sessions')}</span>
+                                            {item.notes && (
+                                                <div className="mt-1 text-slate-500 italic text-[11px] dark:text-slate-400">
+                                                    {item.notes}
+                                                </div>
+                                            )}
+                                            {matchedSessions.length > 0 && (
+                                                <div className="mt-2">
+                                                    <button
+                                                        type="button"
+                                                        data-testid={`toggle-sessions-${item.rowKey}`}
+                                                        onClick={() => toggleRow(item.rowKey)}
+                                                        className="inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50/80 px-2 py-0.5 text-xs font-bold text-indigo-700 transition-colors hover:bg-indigo-100 dark:border-indigo-900/60 dark:bg-indigo-950/40 dark:text-indigo-300"
+                                                    >
+                                                        <Activity className="h-3 w-3" />
+                                                        <span>
+                                                            {t('patientDetails.treatment_history.care_sessions_count', `Care Sessions (${matchedSessions.length})`, {
+                                                                count: matchedSessions.length,
+                                                            })}
+                                                        </span>
+                                                        {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                                    </button>
+                                                    {isExpanded && (
+                                                        <div className="mt-2 space-y-2 rounded-xl border border-indigo-100 bg-indigo-50/30 p-2.5 dark:border-indigo-900/30 dark:bg-indigo-950/20">
+                                                            {matchedSessions.map((session) => (
+                                                                <div
+                                                                    key={session.id}
+                                                                    className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-xs dark:border-slate-700 dark:bg-slate-800"
+                                                                >
+                                                                    <div className="flex flex-wrap items-center justify-between gap-1.5 pb-1 border-b border-slate-100 dark:border-slate-700/60">
+                                                                        <span className="font-bold text-indigo-950 dark:text-indigo-300">
+                                                                            {t('care_session.session_label', 'Session')} <bdi dir="ltr">#{session.id}</bdi>
+                                                                        </span>
+                                                                        <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+                                                                            <Calendar className="h-3 w-3" />
+                                                                            {formatCareSessionDate(session)}
+                                                                        </span>
+                                                                    </div>
+                                                                    {renderDocumentation(session)}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </td>
+                                        <td className="block min-w-0 space-y-1 text-xs text-text-secondary sm:table-cell sm:space-y-0 sm:p-3">
+                                            <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.actions', 'Actions')}</span>
+                                            <span>-</span>
+                                        </td>
+                                    </tr>
+                                );
+                            })}
                         </tbody>
                     </table>
                 </div>
@@ -642,7 +781,7 @@ const TreatmentHistory = ({
                 </div>
             )}
 
-            {history.length === 0 && careSessions.length === 0 && (
+            {history.length === 0 && proposedWorkItems.length === 0 && careSessions.length === 0 && (
                 <div className="p-8 text-center text-slate-500 dark:text-slate-400">
                     {t('patientDetails.treatment_history.empty', 'No treatment or visit history recorded yet.')}
                 </div>

@@ -35,6 +35,7 @@ import {
     addCareSessionStep,
     getPatientCareSessions,
 } from '@/api/patients';
+import { formatApiError } from '@/utils/formatApiError';
 
 /**
  * Generic Visit Workspace (Requirement 1 & 3).
@@ -55,6 +56,8 @@ export default function GenericVisitWorkspace({
     onOpenLabHandoff,
     draftData = null,
     onDraftChange = null,
+    onFlushDraft = null,
+    hasUnsavedDraftChanges = false,
     careSessionDraftStatus = 'idle',
     resolveConflict = null,
     refetchSession = null,
@@ -178,7 +181,6 @@ export default function GenericVisitWorkspace({
         setProcedureNotes(val);
         if (onDraftChange && selectedWorkItemId) {
             onDraftChange({
-                ...draftData,
                 [`proc_notes_${selectedWorkItemId}`]: val,
             });
         }
@@ -188,7 +190,6 @@ export default function GenericVisitWorkspace({
         setNextAction(val);
         if (onDraftChange && selectedWorkItemId) {
             onDraftChange({
-                ...draftData,
                 [`proc_next_action_${selectedWorkItemId}`]: val,
             });
         }
@@ -197,9 +198,14 @@ export default function GenericVisitWorkspace({
     const handleCustomFieldChange = (fieldId, val) => {
         if (onDraftChange && selectedWorkItemId) {
             onDraftChange({
-                ...draftData,
                 [`proc_custom_${selectedWorkItemId}_${fieldId}`]: val,
             });
+        }
+    };
+
+    const flushPendingDraft = () => {
+        if (onFlushDraft && (hasUnsavedDraftChanges || careSessionDraftStatus === 'unsaved' || careSessionDraftStatus === 'error')) {
+            Promise.resolve(onFlushDraft()).catch(() => {});
         }
     };
 
@@ -313,7 +319,9 @@ export default function GenericVisitWorkspace({
             if (refetchSession) await refetchSession();
             setSelectedWorkItemId(workItemId);
         } catch (err) {
-            setActionError(err?.response?.data?.detail || err.message || 'Failed to add procedure');
+            setActionError(
+                formatApiError(err, t('care_session.add_procedure_error', 'Failed to add procedure'))
+            );
         } finally {
             setIsAddingProc(false);
         }
@@ -328,7 +336,9 @@ export default function GenericVisitWorkspace({
             await removeCareSessionProcedure(session.patient_id, session.id, workItemId);
             if (refetchSession) await refetchSession();
         } catch (err) {
-            setActionError(err?.response?.data?.detail || err.message || 'Failed to remove procedure');
+            setActionError(
+                formatApiError(err, t('care_session.remove_procedure_error', 'Failed to remove procedure'))
+            );
         }
     };
 
@@ -346,7 +356,9 @@ export default function GenericVisitWorkspace({
             setRepeatReason('');
             if (refetchSession) await refetchSession();
         } catch (err) {
-            setActionError(err?.response?.data?.detail || err.message || 'Failed to repeat step');
+            setActionError(
+                formatApiError(err, t('care_session.repeat_step_error', 'Failed to repeat step'))
+            );
         }
     };
 
@@ -381,7 +393,10 @@ export default function GenericVisitWorkspace({
         <DentixDialog
             open={isOpen}
             onOpenChange={(nextOpen) => {
-                if (!nextOpen && !isSavingMeasurements) onClose?.();
+                if (!nextOpen && !isSavingMeasurements) {
+                    flushPendingDraft();
+                    onClose?.();
+                }
             }}
             title={t('care_session.workspace_title', 'Chairside Visit Workspace')}
             size="5xl"
@@ -432,6 +447,24 @@ export default function GenericVisitWorkspace({
 
                     {/* Autosave & Conflict Indicators */}
                     <div className="flex min-w-0 flex-wrap items-center gap-3">
+                        {careSessionDraftStatus === 'unsaved' && (
+                            <div
+                                data-testid="workspace-draft-unsaved"
+                                className="inline-flex items-center gap-1.5 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                            >
+                                <span>{t('care_session.autosave_unsaved', 'Unsaved changes')}</span>
+                                {onFlushDraft && (
+                                    <button
+                                        type="button"
+                                        data-testid="workspace-draft-save-now-btn"
+                                        onClick={() => Promise.resolve(onFlushDraft()).catch(() => {})}
+                                        className="rounded-md bg-primary px-2 py-0.5 text-xs text-white hover:bg-primary/90"
+                                    >
+                                        {t('common.save', 'Save')}
+                                    </button>
+                                )}
+                            </div>
+                        )}
                         {careSessionDraftStatus === 'saving' && (
                             <span
                                 data-testid="workspace-draft-saving"
@@ -441,7 +474,7 @@ export default function GenericVisitWorkspace({
                                 {t('care_session.autosave_saving', 'Saving draft...')}
                             </span>
                         )}
-                        {careSessionDraftStatus === 'saved' && (
+                        {careSessionDraftStatus === 'saved' && !hasUnsavedDraftChanges && (
                             <span
                                 data-testid="workspace-draft-saved"
                                 className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
@@ -451,13 +484,23 @@ export default function GenericVisitWorkspace({
                             </span>
                         )}
                         {careSessionDraftStatus === 'error' && (
-                            <span
+                            <div
                                 data-testid="workspace-draft-error"
                                 className="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-300"
                             >
                                 <AlertTriangle className="h-3.5 w-3.5 text-amber-600" />
-                                {t('care_session.autosave_offline', 'Offline (changes kept in page)')}
-                            </span>
+                                <span>{t('care_session.autosave_offline', 'Offline (changes kept in page)')}</span>
+                                {onFlushDraft && (
+                                    <button
+                                        type="button"
+                                        data-testid="workspace-draft-retry-btn"
+                                        onClick={() => Promise.resolve(onFlushDraft()).catch(() => {})}
+                                        className="rounded-md bg-amber-600 px-2 py-0.5 text-xs text-white hover:bg-amber-700"
+                                    >
+                                        {t('common.retry', 'Retry')}
+                                    </button>
+                                )}
+                            </div>
                         )}
                         {careSessionDraftStatus === 'conflict' && (
                             <div
@@ -1032,6 +1075,7 @@ export default function GenericVisitWorkspace({
                             <textarea
                                 value={procedureNotes}
                                 onChange={(e) => handleNotesChange(e.target.value)}
+                                onBlur={flushPendingDraft}
                                 data-testid="workspace-proc-notes-input"
                                 rows={3}
                                 placeholder={t('care_session.proc_notes_placeholder', 'Document clinical observations, anesthesia, techniques, materials used...')}
@@ -1048,6 +1092,7 @@ export default function GenericVisitWorkspace({
                                 type="text"
                                 value={nextAction}
                                 onChange={(e) => handleNextActionChange(e.target.value)}
+                                onBlur={flushPendingDraft}
                                 data-testid="workspace-proc-next-action-input"
                                 placeholder={t('care_session.proc_next_action_placeholder', 'e.g. Master cone fit and obturation')}
                                 className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-primary focus:border-primary focus:outline-hidden"
@@ -1076,6 +1121,8 @@ GenericVisitWorkspace.propTypes = {
     onOpenLabHandoff: PropTypes.func,
     draftData: PropTypes.object,
     onDraftChange: PropTypes.func,
+    onFlushDraft: PropTypes.func,
+    hasUnsavedDraftChanges: PropTypes.bool,
     careSessionDraftStatus: PropTypes.string,
     resolveConflict: PropTypes.func,
     refetchSession: PropTypes.func,

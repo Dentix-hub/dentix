@@ -1151,6 +1151,7 @@
       "click_to_complete": "الإجراء قيد التنفيذ. اضغط لتحديده كمكتمل.",
       "completed": "مكتمل",
       "active": "قيد التنفيذ",
+      "proposed": "مقترح",
       "reopen": "إعادة فتح",
       "mark_done": "تحديد كمكتمل"
     },
@@ -3809,7 +3810,16 @@
     "entries_kept_open": "مدخلاتك محفوظة داخل هذا النموذج ما دام مفتوحًا.",
     "recheck_availability": "إعادة التحقق",
     "record_failed": "تعذّر تسجيل الجلسة. مدخلاتك محفوظة في النموذج؛ حاول مرة أخرى.",
-    "measurement_type_help": "القياس العام (Measurement) يسجّل قيمة أو ملاحظة. طول العمل (Working Length) يسجّل طول قناة العصب بالمليمتر مع مقاس الملف والتيبر والنقطة المرجعية."
+    "measurement_type_help": "القياس العام (Measurement) يسجّل قيمة أو ملاحظة. طول العمل (Working Length) يسجّل طول قناة العصب بالمليمتر مع مقاس الملف والتيبر والنقطة المرجعية.",
+    "autosave_unsaved": "تعديلات غير محفوظة",
+    "add_procedure_error": "تعذّرت إضافة الإجراء إلى الجلسة",
+    "remove_procedure_error": "تعذّرت إزالة الإجراء من الجلسة",
+    "repeat_step_error": "تعذّر تكرار الخطوة",
+    "finish_error": "تعذّر إنهاء جلسة العلاج",
+    "lab_no_eligible_procedure": "لا يوجد إجراء تركيبة مؤهل للمعمل مرتبط بهذه الزيارة.",
+    "lab_select_procedure_prompt": "توجد عدة إجراءات مؤهلة للمعمل في هذه الزيارة — اختر الإجراء المطلوب قبل الإرسال.",
+    "lab_target_procedure_label": "الإجراء المستهدف لطلب المعمل",
+    "lab_select_procedure_placeholder": "-- اختر إجراء المعمل --"
   },
   "dental_chart": {
     "primary_teeth": "الأسنان اللبنية",
@@ -3951,6 +3961,7 @@
   "lab_handoff": {
     "failed_load_labs": "تعذر تحميل قائمة معامل الأسنان.",
     "error_select_lab": "من فضلك اختر المعمل",
+    "error_missing_work_item": "لا يوجد إجراء مرتبط مؤهل محدد لطلب المعمل هذا.",
     "error_submitting": "فشل إرسال طلب المعمل",
     "modal_title": "العنوان",
     "quick_handoff_subtitle": "العنوان",
