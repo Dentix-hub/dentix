@@ -1226,6 +1226,8 @@
     "remove_procedure": "إزالة الإجراء من المرحلة",
     "perform_now": "تنفيذ الآن",
     "linked_plan_item": "عنصر من الخطة",
+    "item_fallback": "عنصر #{{id}}",
+    "unnamed_procedure": "إجراء",
     "progress_done": "{{completed}} من {{total}} مكتمل",
     "errors": {
       "link_unavailable": "وضع المزامنة السريرية غير مفعل.",
@@ -1240,7 +1242,12 @@
       "proposed": "مقترحة",
       "accepted": "مقبولة",
       "completed": "مكتملة",
-      "cancelled": "ملغاة"
+      "cancelled": "ملغاة",
+      "planned": "مخطط",
+      "open": "مفتوح",
+      "active": "نشط",
+      "scheduled": "مجدول",
+      "in_progress": "قيد التنفيذ"
     },
     "actions": {
       "propose": "تقديم المقترح",

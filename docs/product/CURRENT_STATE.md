@@ -2,6 +2,11 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Clinical plans display & localization fix (2026-11-24, `fix_procedure_modal_bug` on `5de8e60f`):
+  - Fixed work-item label/target/status mismatches in `AddProcedureModal`, `PlanItemRow`, and `PlanComparisonModal` (`code` + canonical catalog localization, `surface_code`, translated status & item fallback instead of `"undefined"`/`"Item #1"`).
+  - Localized persisted default `"Phase N"` titles in UI headers, dialogs, `TreatmentPlansCard` edit modal, and `PlanOverlayActiveBanner`, and added `planned`/`open`/`active`/`scheduled`/`in_progress` parity keys in `ar`/`en` locales.
+  - Verification: 4 Vitest suites (50 passed, 0 skipped/failed), `npm run lint`, `check-design-system-guardrails.mjs --diff-base=origin/main`, and `npm run build` all PASS; local commit only (no push/PR).
+
 - QA & live production hotfix (2026-11-24, `hotfix/qa-report-production-fixes` on `d4d80f90`):
   - Clinical/Sessions: resolved `VNEXT_PRIMARY` workspace read mode when `clinical_vnext_native_writes` is active (`QA-01`/`LIVE-03`), filtered non-integer legacy IDs and guarded unlinked workspace notes (`QA-02`/`QA-06`), eager-loaded `resumable`/next-visit queries without broadening `finish` PII (`QA-05`/`QA-22`), fixed `PatientDetails` `isNativeWritesEnabled` flash while loading.
   - Inventory/Patients/Prescriptions/Uploads/Users/Appointments/Labs: post-commit eager loads (`QA-10`/`QA-11`/`QA-12`/`LIVE-01`), delete response envelope (`QA-15`), Pillow+magic image verification (`QA-23`), `/api/v1/upload/file` local media routing (`QA-16`/`LIVE-02`), strict schema bounds (`QA-07`/`QA-13`/`QA-14`/`QA-18`), `medical_history` editing + submit lock (`QA-08`/`QA-09`), removed `getToken()` gate (`QA-17`/`LIVE-04`).
