@@ -84,6 +84,7 @@ const TreatmentHistory = ({
     patientId,
     careSessions: propCareSessions,
     nativeWritesEnabled = false,
+    nativeWritesLoading = false,
     onRecheckNativeWrites,
     onEdit,
     onDelete,
@@ -287,7 +288,7 @@ const TreatmentHistory = ({
                         </button>
                     )}
                 </div>
-                {hasClinicalWritePermission && !nativeWritesEnabled && !isHistoricalModalOpen && (
+                {hasClinicalWritePermission && !nativeWritesEnabled && !nativeWritesLoading && !isHistoricalModalOpen && (
                     <div id="native-session-unavailable" data-testid="native-session-unavailable" role="status" className="space-y-2 text-sm text-text-secondary">
                         <p>{t('care_session.native_writes_unavailable', 'Session recording is not enabled for this clinic. Ask the system administrator to enable clinical sessions, then check again.')}</p>
                         {onRecheckNativeWrites && (
@@ -524,7 +525,7 @@ const TreatmentHistory = ({
                                                                                     className="flex items-center gap-1.5 rounded-md bg-blue-50/80 px-2 py-1 text-[11px] font-semibold text-blue-900 border border-blue-200 dark:bg-blue-950/30 dark:border-blue-900/40 dark:text-blue-300"
                                                                                 >
                                                                                     <CalendarClock className="h-3.5 w-3.5 text-blue-600" />
-                                                                                    <span>Follow-up: {nvr.reason} ({nvr.suggested_duration_minutes}m)</span>
+                                                                                    <span>{t('care_session.followup_prefix', 'Follow-up')}: {nvr.reason} ({nvr.suggested_duration_minutes}{t('care_session.duration_unit_short', 'm')})</span>
                                                                                     {canManageClinicalFollowUp && (
                                                                                         <button
                                                                                             type="button"
@@ -689,19 +690,19 @@ const TreatmentHistory = ({
                                     </div>
                                     <div>
                                         <h4 className="text-xs font-bold text-slate-900 dark:text-white">
-                                            Care {t('care_session.session_label', 'Session')} <bdi dir="ltr">#{session.id}</bdi>
+                                            {t('care_session.care_session_title', 'Care Session')} <bdi dir="ltr">#{session.id}</bdi>
                                             {session.appointment_id && (
                                                 <span className="ms-2 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
-                                                    Appt #{session.appointment_id}
+                                                    {t('care_session.appt_badge', 'Appt')} #{session.appointment_id}
                                                 </span>
                                             )}
                                         </h4>
                                         <p className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
                                             <Calendar className="h-3 w-3" />
-                                            <span>Visit Date: {formatCareSessionDate(session)}</span>
+                                            <span>{t('care_session.visit_date', 'Visit Date')}: {formatCareSessionDate(session)}</span>
                                             {session.is_historical && (
                                                 <span className="ms-1 rounded bg-slate-100 px-1 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                                                    Historical Entry
+                                                    {t('care_session.historical_entry', 'Historical Entry')}
                                                 </span>
                                             )}
                                         </p>
@@ -724,7 +725,7 @@ const TreatmentHistory = ({
                             {session.steps && session.steps.length > 0 && (
                                 <div className="mt-2.5 space-y-1">
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                                        Workflow {t('care_session.steps_tab', 'Workflow Steps')} ({(session.steps || []).filter((s) => s.status === 'completed').length}/{(session.steps || []).length}):
+                                        {t('care_session.steps_tab', 'Workflow Steps')} ({(session.steps || []).filter((s) => s.status === 'completed').length}/{(session.steps || []).length}):
                                     </span>
                                     <div className="flex flex-wrap gap-1.5">
                                         {session.steps.map((st) => (
@@ -767,7 +768,7 @@ const TreatmentHistory = ({
                                         >
                                             <div className="flex items-center gap-1.5">
                                                 <CalendarClock className="h-4 w-4 text-blue-600" />
-                                                <span>Follow-up: {nvr.reason} ({nvr.suggested_duration_minutes}m)</span>
+                                                <span>{t('care_session.followup_prefix', 'Follow-up')}: {nvr.reason} ({nvr.suggested_duration_minutes}{t('care_session.duration_unit_short', 'm')})</span>
                                             </div>
                                             <span className="rounded bg-blue-200/80 px-2 py-0.5 text-[10px] uppercase font-bold text-blue-800 dark:bg-blue-900 dark:text-blue-200">
                                                 {nvr.status}
@@ -833,6 +834,7 @@ TreatmentHistory.propTypes = {
     patientId: PropTypes.oneOfType([PropTypes.number, PropTypes.string]),
     careSessions: PropTypes.arrayOf(PropTypes.object),
     nativeWritesEnabled: PropTypes.bool,
+    nativeWritesLoading: PropTypes.bool,
     onRecheckNativeWrites: PropTypes.func,
     onEdit: PropTypes.func,
     onDelete: PropTypes.func,

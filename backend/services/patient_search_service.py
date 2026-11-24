@@ -27,8 +27,11 @@ def _current_age(patient: models.Patient) -> Optional[int]:
     """Return current display age without fabricating an exact birthday."""
     if patient.date_of_birth:
         today = date.today()
-        return today.year - patient.date_of_birth.year - (
-            (today.month, today.day) < (patient.date_of_birth.month, patient.date_of_birth.day)
+        return max(
+            0,
+            today.year - patient.date_of_birth.year - (
+                (today.month, today.day) < (patient.date_of_birth.month, patient.date_of_birth.day)
+            ),
         )
 
     age = patient.age if patient.age and patient.age > 0 else None

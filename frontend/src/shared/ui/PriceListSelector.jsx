@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getToken } from '@/utils';
 
 const PriceListSelector = ({ value, onChange }) => {
     const { t } = useTranslation();
@@ -8,21 +7,29 @@ const PriceListSelector = ({ value, onChange }) => {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        if (!getToken()) {
-            setLoading(false);
-            return;
-        }
+        let cancelled = false;
         import('@/api').then(({ getPriceLists }) => {
             getPriceLists()
                 .then(res => {
-                    setLists(res.data || []);
+                    if (!cancelled) {
+                        setLists(res?.data || []);
+                    }
                 })
                 .catch(() => {
                     // 401 or other error: keep lists empty, user can still use "Default"
-                    setLists([]);
+                    if (!cancelled) {
+                        setLists([]);
+                    }
                 })
-                .finally(() => setLoading(false));
+                .finally(() => {
+                    if (!cancelled) {
+                        setLoading(false);
+                    }
+                });
         });
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     if (loading) return <div className="text-sm text-gray-400">{t('common.loading')}</div>;

@@ -2,6 +2,12 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- QA & live production hotfix (2026-11-24, `hotfix/qa-report-production-fixes` on `d4d80f90`):
+  - Clinical/Sessions: resolved `VNEXT_PRIMARY` workspace read mode when `clinical_vnext_native_writes` is active (`QA-01`/`LIVE-03`), filtered non-integer legacy IDs and guarded unlinked workspace notes (`QA-02`/`QA-06`), eager-loaded `resumable`/next-visit queries without broadening `finish` PII (`QA-05`/`QA-22`), fixed `PatientDetails` `isNativeWritesEnabled` flash while loading.
+  - Inventory/Patients/Prescriptions/Uploads/Users/Appointments/Labs: post-commit eager loads (`QA-10`/`QA-11`/`QA-12`/`LIVE-01`), delete response envelope (`QA-15`), Pillow+magic image verification (`QA-23`), `/api/v1/upload/file` local media routing (`QA-16`/`LIVE-02`), strict schema bounds (`QA-07`/`QA-13`/`QA-14`/`QA-18`), `medical_history` editing + submit lock (`QA-08`/`QA-09`), removed `getToken()` gate (`QA-17`/`LIVE-04`).
+  - Payroll/Archive/Timezone/Templates/i18n/PWA: excluded deleted staff from current payroll unless paid in-month (`QA-21`), accepted legacy null `associated_work_item_ids` in archives (`QA-25`), preserved UTC tz on PostgreSQL `TIMESTAMPTZ` binds (`QA-24`), unwrapped & localized templates/calendar/history/quick-sheet (`QA-19`/`QA-20`/`LIVE-05`/`LIVE-07`), precached `logo.webp`.
+  - Verification: 290 backend passed / 2 PG-fixture skips, `TZ=Africa/Cairo` & `TZ=UTC` bind tests pass, Ruff & Bandit pass; 19 frontend suites (175 tests), ESLint, Vite/PWA/marketing build & diff guardrails pass. Live PostgreSQL CI suites pending PR CI.
+
 - Clinical recording QA hotfix (2026-11-23, `hotfix/clinical-recording-qa` on `24eabafc`):
   - (1) Safe API error formatting (`formatApiError`) in active-session Add Procedure entry points (`GenericVisitWorkspace`, `PatientDetails`) and `LabHandoffSheet` prevents React crashes on structured 422 arrays/objects while keeping valid additions working.
   - (2) Durable session documentation drafts (`useCareSessionDraft`, `GenericVisitWorkspace`): serialized server saves, blur/visibility flush through the existing authenticated API, plus native `beforeunload` confirmation while unacknowledged edits/errors/conflicts exist; zero PHI in browser storage; disarmed on finish.

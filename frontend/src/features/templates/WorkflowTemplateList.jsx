@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
     Plus,
     Layers,
@@ -13,7 +14,9 @@ import { Button, Badge, EmptyState } from '@/shared/ui';
 import WorkflowTemplateEditor from './WorkflowTemplateEditor';
 import { getWorkflowTemplates, updateWorkflowTemplateStatus } from '@/api/workflowTemplates';
 
-export default function WorkflowTemplateList({ t = (k, f) => f || k }) {
+export default function WorkflowTemplateList({ t: tProp }) {
+    const { t: i18nT } = useTranslation();
+    const t = tProp || i18nT;
     const queryClient = useQueryClient();
     const [editingTemplate, setEditingTemplate] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
@@ -28,7 +31,7 @@ export default function WorkflowTemplateList({ t = (k, f) => f || k }) {
         queryKey: ['workflow-templates'],
         queryFn: async () => {
             const res = await getWorkflowTemplates({ include_inactive: true });
-            return res.data?.data || [];
+            return Array.isArray(res?.data) ? res.data : (res?.data?.data || []);
         },
     });
 
@@ -122,7 +125,7 @@ export default function WorkflowTemplateList({ t = (k, f) => f || k }) {
                 </div>
             ) : error ? (
                 <div className="rounded-2xl border border-danger/20 bg-danger/10 p-6 text-center text-xs font-bold text-danger">
-                    {error.message || 'Failed to load templates'}
+                    {error.message || t('templates.load_error', 'Failed to load templates')}
                 </div>
             ) : filteredTemplates.length === 0 ? (
                 <EmptyState
@@ -137,16 +140,16 @@ export default function WorkflowTemplateList({ t = (k, f) => f || k }) {
                 />
             ) : (
                 <div className="overflow-hidden rounded-2xl border border-border bg-surface-elevated shadow-xs">
-                    <table className="w-full border-collapse text-left text-xs">
+                    <table className="w-full border-collapse text-start text-xs">
                         <thead>
                             <tr className="border-b border-border bg-surface text-2xs font-bold text-text-secondary uppercase">
-                                <th className="px-4 py-3">Template / Procedure</th>
-                                <th className="px-4 py-3">Version</th>
-                                <th className="px-4 py-3">Steps</th>
-                                <th className="px-4 py-3">Custom Fields</th>
-                                <th className="px-4 py-3">Type</th>
-                                <th className="px-4 py-3">Status</th>
-                                <th className="px-4 py-3 text-right">Actions</th>
+                                <th className="px-4 py-3">{t('templates.col_template_procedure', 'Template / Procedure')}</th>
+                                <th className="px-4 py-3">{t('templates.col_version', 'Version')}</th>
+                                <th className="px-4 py-3">{t('templates.col_steps', 'Steps')}</th>
+                                <th className="px-4 py-3">{t('templates.col_custom_fields', 'Custom Fields')}</th>
+                                <th className="px-4 py-3">{t('templates.col_type', 'Type')}</th>
+                                <th className="px-4 py-3">{t('templates.col_status', 'Status')}</th>
+                                <th className="px-4 py-3 text-end">{t('templates.col_actions', 'Actions')}</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-border">
@@ -178,26 +181,26 @@ export default function WorkflowTemplateList({ t = (k, f) => f || k }) {
                                         </td>
                                         <td className="px-4 py-3 font-semibold text-text-primary">
                                             <Badge variant="neutral" size="xs">
-                                                {stepCount} {stepCount === 1 ? 'step' : 'steps'}
+                                                {stepCount} {stepCount === 1 ? t('templates.step_one', 'step') : t('templates.step_other', 'steps')}
                                             </Badge>
                                         </td>
                                         <td className="px-4 py-3 font-semibold text-text-primary">
                                             {fieldCount > 0 ? (
                                                 <Badge variant="primary" size="xs">
-                                                    {fieldCount} {fieldCount === 1 ? 'field' : 'fields'}
+                                                    {fieldCount} {fieldCount === 1 ? t('templates.field_one', 'field') : t('templates.field_other', 'fields')}
                                                 </Badge>
                                             ) : (
-                                                <span className="text-text-secondary text-2xs">None</span>
+                                                <span className="text-text-secondary text-2xs">{t('templates.none', 'None')}</span>
                                             )}
                                         </td>
                                         <td className="px-4 py-3">
                                             {tpl.is_customized ? (
                                                 <Badge variant="success" size="xs" className="font-bold">
-                                                    Clinic Custom
+                                                    {t('templates.type_clinic_custom', 'Clinic Custom')}
                                                 </Badge>
                                             ) : (
                                                 <Badge variant="neutral" size="xs">
-                                                    System Default
+                                                    {t('templates.type_system_default', 'System Default')}
                                                 </Badge>
                                             )}
                                         </td>
@@ -207,22 +210,28 @@ export default function WorkflowTemplateList({ t = (k, f) => f || k }) {
                                                 disabled={statusMutation.isPending || !tpl.id}
                                                 onClick={() => tpl.id && statusMutation.mutate({ templateId: tpl.id, isActive: !tpl.is_active })}
                                                 className="inline-flex items-center gap-1 cursor-pointer hover:opacity-80 disabled:cursor-default"
-                                                title={tpl.id ? (tpl.is_active ? 'Click to deactivate' : 'Click to activate') : 'Default template'}
+                                                title={
+                                                    tpl.id
+                                                        ? (tpl.is_active
+                                                            ? t('templates.tooltip_deactivate', 'Click to deactivate')
+                                                            : t('templates.tooltip_activate', 'Click to activate'))
+                                                        : t('templates.tooltip_default', 'Default template')
+                                                }
                                             >
                                                 {tpl.is_active ? (
                                                     <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 font-bold">
                                                         <CheckCircle2 className="h-3.5 w-3.5" />
-                                                        <span>Active</span>
+                                                        <span>{t('templates.status_active', 'Active')}</span>
                                                     </span>
                                                 ) : (
                                                     <span className="inline-flex items-center gap-1 text-text-secondary font-bold">
                                                         <XCircle className="h-3.5 w-3.5" />
-                                                        <span>Inactive</span>
+                                                        <span>{t('templates.status_inactive', 'Inactive')}</span>
                                                     </span>
                                                 )}
                                             </button>
                                         </td>
-                                        <td className="px-4 py-3 text-right">
+                                        <td className="px-4 py-3 text-end">
                                             <Button
                                                 variant="outline"
                                                 size="xs"
@@ -231,7 +240,7 @@ export default function WorkflowTemplateList({ t = (k, f) => f || k }) {
                                                 className="gap-1 font-bold text-xs"
                                             >
                                                 <Edit3 className="h-3 w-3" />
-                                                <span>{tpl.is_customized ? 'Edit Version' : 'Customize'}</span>
+                                                <span>{tpl.is_customized ? t('templates.edit_version', 'Edit Version') : t('templates.customize', 'Customize')}</span>
                                             </Button>
                                         </td>
                                     </tr>

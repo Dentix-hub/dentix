@@ -7,8 +7,10 @@ export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
     const [notes, setNotes] = useState('');
     const [savedMeds, setSavedMeds] = useState([]);
     const [showSavedList, setShowSavedList] = useState(false);
+    const [validationError, setValidationError] = useState('');
     useEffect(() => {
         if (isOpen) {
+            setValidationError('');
             loadSavedMeds();
         }
     }, [isOpen]);
@@ -37,7 +39,18 @@ export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
         setShowSavedList(false);
     };
     const handlePrint = () => {
-        onPrint({ drugs, notes });
+        const validDrugs = drugs
+            .map((d) => ({
+                name: (d.name || '').trim(),
+                dose: (d.dose || '').trim(),
+            }))
+            .filter((d) => d.name.length > 0);
+        if (validDrugs.length === 0) {
+            setValidationError('يرجى إضافة دواء واحد على الأقل قبل الحفظ والطباعة');
+            return;
+        }
+        setValidationError('');
+        onPrint({ drugs: validDrugs, notes: notes.trim() });
     };
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
@@ -77,14 +90,23 @@ export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
                         <div key={i} className="flex gap-2">
                             <input
                                 value={d.name}
-                                onChange={e => { const n = [...drugs]; n[i].name = e.target.value; setDrugs(n); }}
+                                onChange={e => {
+                                    const n = [...drugs];
+                                    n[i] = { ...n[i], name: e.target.value };
+                                    setDrugs(n);
+                                    if (validationError) setValidationError('');
+                                }}
                                 placeholder="الدواء"
                                 className="flex-1 p-3 bg-slate-50 rounded-xl outline-none"
                                 dir="ltr"
                             />
                             <input
                                 value={d.dose}
-                                onChange={e => { const n = [...drugs]; n[i].dose = e.target.value; setDrugs(n); }}
+                                onChange={e => {
+                                    const n = [...drugs];
+                                    n[i] = { ...n[i], dose: e.target.value };
+                                    setDrugs(n);
+                                }}
                                 placeholder="الجرعة"
                                 className="w-1/3 p-3 bg-slate-50 rounded-xl outline-none"
                             />
@@ -93,6 +115,11 @@ export default function PrescriptionModal({ isOpen, onClose, onPrint }) {
                             )}
                         </div>
                     ))}
+                    {validationError && (
+                        <p role="alert" data-testid="rx-validation-error" className="text-sm font-bold text-red-600">
+                            {validationError}
+                        </p>
+                    )}
                     <button onClick={handleAddDrug} className="text-primary text-sm font-bold hover:underline flex items-center gap-1">
                         <Plus size={16} />
                         دواء آخر
