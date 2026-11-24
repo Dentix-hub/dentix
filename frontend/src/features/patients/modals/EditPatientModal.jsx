@@ -2,12 +2,27 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { getDoctors } from '@/api';
+import { toast } from '@/shared/ui';
 import PriceListSelector from '@/shared/ui/PriceListSelector';
+
+const MEDICAL_CONDITION_KEYS = [
+    'none',
+    'diabetes',
+    'hypertension',
+    'heart_disease',
+    'allergy',
+    'blood_thinners',
+    'hepatitis_c',
+    'thyroid',
+    'pregnancy',
+    'smoking',
+];
 
 export default function EditPatientModal({ isOpen, onClose, onSave, initialData }) {
     const { t } = useTranslation();
     const [formData, setFormData] = useState({});
     const [hasExactDob, setHasExactDob] = useState(false);
+    const todayIso = new Date().toISOString().split('T')[0];
 
     const doctorsQuery = useQuery({
         queryKey: ['doctors', 'patient-edit-form'],
@@ -31,12 +46,33 @@ export default function EditPatientModal({ isOpen, onClose, onSave, initialData 
                 age: initialData.age ?? '',
                 phone: initialData.phone || '',
                 address: initialData.address || '',
+                medical_history: initialData.medical_history || '',
                 date_of_birth: exactDobKnown ? initialData.date_of_birth : '',
                 default_price_list_id: initialData.default_price_list_id ?? '',
                 assigned_doctor_id: initialData.assigned_doctor_id ?? '',
             });
         }
     }, [isOpen, initialData]);
+
+    const toggleMedicalCondition = (conditionKey) => {
+        const condition = t(`patients.medical_conditions.${conditionKey}`);
+        const none = t('patients.medical_conditions.none');
+        const separator = t('common.separator', '، ');
+
+        if (conditionKey === 'none') {
+            setFormData((prev) => ({ ...prev, medical_history: none }));
+            return;
+        }
+
+        let current = formData.medical_history
+            ? String(formData.medical_history).split(separator).map((item) => item.trim()).filter(Boolean)
+            : [];
+        current = current.filter((item) => item !== none);
+        current = current.includes(condition)
+            ? current.filter((item) => item !== condition)
+            : [...current, condition];
+        setFormData((prev) => ({ ...prev, medical_history: current.join(separator) }));
+    };
 
     const parseOptionalInt = (val) => {
         if (val === '' || val === null || val === undefined) return null;
@@ -46,11 +82,21 @@ export default function EditPatientModal({ isOpen, onClose, onSave, initialData 
 
     const handleSubmit = (event) => {
         event.preventDefault();
+        const trimmedName = formData.name?.trim() || '';
+        if (!trimmedName) {
+            toast.error(t('patients.form.name_required', 'Patient name is required'));
+            return;
+        }
+        if (hasExactDob && formData.date_of_birth && formData.date_of_birth > todayIso) {
+            toast.error(t('patients.form.future_dob_error', 'تاريخ الميلاد لا يمكن أن يكون في المستقبل'));
+            return;
+        }
         const payload = {
             ...formData,
-            name: formData.name?.trim() || '',
+            name: trimmedName,
             phone: formData.phone?.trim() || '',
             address: formData.address?.trim() || '',
+            medical_history: formData.medical_history?.trim() || '',
             age: parseOptionalInt(formData.age),
             assigned_doctor_id: parseOptionalInt(formData.assigned_doctor_id),
             default_price_list_id: parseOptionalInt(formData.default_price_list_id),
@@ -130,6 +176,7 @@ export default function EditPatientModal({ isOpen, onClose, onSave, initialData 
                                 <span>{t('patients.date_of_birth')}</span>
                                 <input
                                     type="date"
+                                    max={todayIso}
                                     value={formData.date_of_birth || ''}
                                     onChange={(e) => setFormData({ ...formData, date_of_birth: e.target.value })}
                                     className="w-full rounded-xl border border-border bg-input p-3 text-text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
@@ -149,6 +196,40 @@ export default function EditPatientModal({ isOpen, onClose, onSave, initialData 
                             dir="auto"
                         />
                     </label>
+
+                    <div className="space-y-2 rounded-xl border border-border bg-surface-hover/40 p-3">
+                        <label className="block text-sm font-bold text-text-secondary" htmlFor="edit-patient-medical-history">
+                            {t('patients.form.medical_history')}
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                            {MEDICAL_CONDITION_KEYS.map((conditionKey) => {
+                                const condition = t(`patients.medical_conditions.${conditionKey}`);
+                                const currentHistory = String(formData.medical_history || '');
+                                const isSelected = conditionKey === 'none'
+                                    ? currentHistory === condition
+                                    : currentHistory.includes(condition);
+                                return (
+                                    <button
+                                        key={conditionKey}
+                                        type="button"
+                                        onClick={() => toggleMedicalCondition(conditionKey)}
+                                        aria-pressed={isSelected}
+                                        className={`rounded-xl border px-3 py-1.5 text-xs font-bold transition ${isSelected ? 'border-rose-500 bg-rose-500 text-white' : 'border-border bg-surface text-text-secondary hover:border-rose-300'}`}
+                                    >
+                                        {condition}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <textarea
+                            id="edit-patient-medical-history"
+                            value={formData.medical_history || ''}
+                            onChange={(e) => setFormData({ ...formData, medical_history: e.target.value })}
+                            placeholder={t('patients.form.other_notes')}
+                            className="min-h-20 w-full resize-y rounded-xl border border-border bg-input p-3 text-sm text-text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                            dir="auto"
+                        />
+                    </div>
 
                     <div className="rounded-xl border border-border bg-surface-hover/40 p-3">
                         <label className="mb-2 block text-sm font-bold text-text-secondary">

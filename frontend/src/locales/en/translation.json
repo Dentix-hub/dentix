@@ -461,7 +461,8 @@
       "name_required": "Patient name is required",
       "name": "Patient Name",
       "phone": "Phone Number",
-      "create_btn": "Create & Select"
+      "create_btn": "Create & Select",
+      "future_dob_error": "Date of birth cannot be in the future"
     },
     "empty_state": {
       "title": "No Patients Found",
@@ -710,6 +711,12 @@
     "title": "Appointments Schedule",
     "subtitle": "Manage clinic bookings and appointments",
     "new_booking": "New Booking",
+    "calendar": {
+      "today": "Today",
+      "month": "Month",
+      "week": "Week",
+      "list": "List"
+    },
     "no_appointments": "No Appointments",
     "no_appointments_desc": "No appointments booked yet",
     "add_appointment": "Add Appointment",
@@ -2191,6 +2198,7 @@
     "image_deleting": "Deleting image from Google Drive",
     "image_details": "View issue",
     "image_unavailable": "Image unavailable. Check the Google Drive connection.",
+    "local_image_unavailable": "Image unavailable right now",
     "backup_queued": "Backup queued",
     "backup_failed": "Backup failed",
     "list_drive": "Show Google Drive backups",
@@ -3839,7 +3847,17 @@
     "lab_no_eligible_procedure": "No lab-eligible prosthetic procedure linked to this visit.",
     "lab_select_procedure_prompt": "Multiple lab-eligible procedures in this visit — select one before sending to lab.",
     "lab_target_procedure_label": "Target Procedure for Lab Order",
-    "lab_select_procedure_placeholder": "-- Select lab procedure --"
+    "lab_select_procedure_placeholder": "-- Select lab procedure --",
+    "care_session_title": "Care Session",
+    "appt_badge": "Appt",
+    "visit_date": "Visit Date",
+    "historical_entry": "Historical Entry",
+    "followup_prefix": "Follow-up",
+    "duration_unit_short": "m",
+    "proc_short": "Proc",
+    "procedure_label": "Procedure",
+    "selected_procedure": "Selected Procedure",
+    "notes_require_procedure": "Link a clinical procedure to this visit to save procedure notes and next planned action. You can also record final visit notes when finishing the session."
   },
   "dental_chart": {
     "primary_teeth": "Primary teeth",
@@ -3886,6 +3904,7 @@
     "price_list_label": "Price List",
     "discount_label": "Discount",
     "diagnosis_label": "Diagnosis",
+    "diagnosis_placeholder": "Diagnosis (e.g. Dental caries, Pulpitis)",
     "tooth_condition_label": "Tooth Condition",
     "lab_section_title": "Laboratory Order",
     "lab_select": "Select Laboratory",
@@ -4076,6 +4095,28 @@
     "add_step_btn": "Add Step",
     "fields_guidance": "Add chairside inputs (e.g. shade, materials, measurements).",
     "add_field_btn": "Add Field",
-    "no_custom_fields": "No custom fields defined for this template yet. Click \"Add Field\" to create one."
+    "no_custom_fields": "No custom fields defined for this template yet. Click \"Add Field\" to create one.",
+    "load_error": "Failed to load templates",
+    "col_template_procedure": "Template / Procedure",
+    "col_version": "Version",
+    "col_steps": "Steps",
+    "col_custom_fields": "Custom Fields",
+    "col_type": "Type",
+    "col_status": "Status",
+    "col_actions": "Actions",
+    "step_one": "step",
+    "step_other": "steps",
+    "field_one": "field",
+    "field_other": "fields",
+    "none": "None",
+    "type_clinic_custom": "Clinic Custom",
+    "type_system_default": "System Default",
+    "status_active": "Active",
+    "status_inactive": "Inactive",
+    "tooltip_deactivate": "Click to deactivate",
+    "tooltip_activate": "Click to activate",
+    "tooltip_default": "Default template",
+    "edit_version": "Edit Version",
+    "customize": "Customize"
   }
 }

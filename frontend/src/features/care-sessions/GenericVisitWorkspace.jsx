@@ -72,7 +72,13 @@ export default function GenericVisitWorkspace({
     const availableWorkItems = useMemo(() => {
         const associatedIds = new Set(sessionProcedures.map((p) => p.work_item_id));
         return (patientWorkItems || []).filter(
-            (wi) => wi.kind === 'procedure' && !associatedIds.has(wi.id) && !['cancelled', 'entered_in_error'].includes(wi.status)
+            (wi) =>
+                wi.kind === 'procedure' &&
+                wi.provenance !== 'legacy_fallback' &&
+                typeof wi.id === 'number' &&
+                Number.isInteger(wi.id) &&
+                !associatedIds.has(wi.id) &&
+                !['cancelled', 'entered_in_error'].includes(wi.status)
         );
     }, [sessionProcedures, patientWorkItems]);
 
@@ -592,7 +598,7 @@ export default function GenericVisitWorkspace({
                                                     #{toothKey}
                                                 </span>
                                             )}
-                                            <span className="min-w-0 break-words">{wi?.title || wi?.code || `Proc #${sp.work_item_id}`}</span>
+                                            <span className="min-w-0 break-words">{wi?.title || wi?.code || `${t('care_session.proc_short', 'Proc')} #${sp.work_item_id}`}</span>
                                         </button>
 
                                         {/* Remove procedure button (if 0 steps completed in this visit) */}
@@ -641,7 +647,7 @@ export default function GenericVisitWorkspace({
                                                     className="w-full flex items-center justify-between gap-2 rounded-xl px-2.5 py-1.5 text-xs text-text-primary hover:bg-surface text-start"
                                                 >
                                                     <span className="font-bold truncate">
-                                                        {wi.title || wi.code || `Procedure #${wi.id}`}
+                                                        {wi.title || wi.code || `${t('care_session.procedure_label', 'Procedure')} #${wi.id}`}
                                                     </span>
                                                     {wi.tooth_key && (
                                                         <span className="rounded bg-surface px-1 py-0.5 text-xs text-text-secondary">
@@ -694,7 +700,7 @@ export default function GenericVisitWorkspace({
                             <div>
                                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                                     <h3 className="min-w-0 break-words text-base font-bold text-text-primary">
-                                        {selectedWorkItem?.title || selectedWorkItem?.code || 'Selected Procedure'}
+                                        {selectedWorkItem?.title || selectedWorkItem?.code || t('care_session.selected_procedure', 'Selected Procedure')}
                                     </h3>
                                     {selectedWorkItem?.targets?.[0]?.tooth_key && (
                                         <Badge variant="primary" size="sm" className="font-bold">
@@ -1067,6 +1073,17 @@ export default function GenericVisitWorkspace({
                         aria-label="Notes and Next Action"
                         className="rounded-2xl border border-border bg-surface-elevated p-4 shadow-xs space-y-4"
                     >
+                        {!selectedWorkItemId && (
+                            <p
+                                data-testid="workspace-notes-unlinked-notice"
+                                className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200"
+                            >
+                                {t(
+                                    'care_session.notes_require_procedure',
+                                    'Link a clinical procedure to this visit to save procedure notes and next planned action. You can also record final visit notes when finishing the session.'
+                                )}
+                            </p>
+                        )}
                         <div className="space-y-1.5">
                             <label className="flex items-center gap-1.5 text-xs font-bold text-text-primary">
                                 <FileText className="h-4 w-4 text-primary" />
@@ -1076,10 +1093,11 @@ export default function GenericVisitWorkspace({
                                 value={procedureNotes}
                                 onChange={(e) => handleNotesChange(e.target.value)}
                                 onBlur={flushPendingDraft}
+                                disabled={!selectedWorkItemId}
                                 data-testid="workspace-proc-notes-input"
                                 rows={3}
                                 placeholder={t('care_session.proc_notes_placeholder', 'Document clinical observations, anesthesia, techniques, materials used...')}
-                                className="w-full rounded-xl border border-border bg-surface p-3 text-xs text-text-primary focus:border-primary focus:outline-hidden"
+                                className="w-full rounded-xl border border-border bg-surface p-3 text-xs text-text-primary focus:border-primary focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-60"
                             />
                         </div>
 
@@ -1093,9 +1111,10 @@ export default function GenericVisitWorkspace({
                                 value={nextAction}
                                 onChange={(e) => handleNextActionChange(e.target.value)}
                                 onBlur={flushPendingDraft}
+                                disabled={!selectedWorkItemId}
                                 data-testid="workspace-proc-next-action-input"
                                 placeholder={t('care_session.proc_next_action_placeholder', 'e.g. Master cone fit and obturation')}
-                                className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-primary focus:border-primary focus:outline-hidden"
+                                className="w-full rounded-xl border border-border bg-surface px-3 py-2 text-xs text-text-primary focus:border-primary focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-60"
                             />
                         </div>
                     </section>

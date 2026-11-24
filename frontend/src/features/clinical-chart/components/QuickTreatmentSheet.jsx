@@ -1143,7 +1143,7 @@ export default function QuickTreatmentSheet({
                                 type="text"
                                 value={treatment.diagnosis || ''}
                                 onChange={(e) => setTreatment((prev) => ({ ...prev, diagnosis: e.target.value }))}
-                                placeholder="التشخيص (e.g. Dental caries, Pulpitis)"
+                                placeholder={t('quick_treatment_sheet.diagnosis_placeholder', 'التشخيص (مثال: تسوس أسنان، التهاب عصب)')}
                                 className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                             />
                         </div>
@@ -1311,7 +1311,7 @@ export default function QuickTreatmentSheet({
                             className="w-full py-2 text-xs text-blue-600 font-bold border border-blue-200 dark:border-blue-800 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors flex items-center justify-center gap-1.5"
                         >
                             <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-                            <span>{showAdvanced ? t('quick_treatment_sheet.hide_details', '- إخفاء التفاصيل') : t('quick_treatment_sheet.more_details_button', 'تفاصيل إضافية (More details)')}</span>
+                            <span>{showAdvanced ? t('quick_treatment_sheet.hide_details', '- إخفاء التفاصيل') : t('quick_treatment_sheet.more_details_button', 'تفاصيل إضافية')}</span>
                         </button>
 
                         {showAdvanced && (

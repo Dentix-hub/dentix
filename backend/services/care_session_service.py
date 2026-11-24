@@ -1733,6 +1733,19 @@ class CareSessionService:
     # Queries
     # -----------------------------------------------------------------------
 
+    @staticmethod
+    def _session_eager_options():
+        return (
+            selectinload(models.CareSession.procedures)
+            .selectinload(models.CareSessionProcedure.work_item)
+            .selectinload(models.ClinicalWorkItem.targets),
+            selectinload(models.CareSession.steps)
+            .selectinload(models.CareSessionStep.work_item)
+            .selectinload(models.ClinicalWorkItem.targets),
+            selectinload(models.CareSession.observations),
+            selectinload(models.CareSession.next_visit_requests),
+        )
+
     async def get_session(
         self, patient_id: int, session_id: int, eager_load: bool = True
     ) -> Any:
@@ -1746,10 +1759,7 @@ class CareSessionService:
         )
         if eager_load:
             stmt = stmt.execution_options(populate_existing=True).options(
-                selectinload(models.CareSession.procedures).selectinload(models.CareSessionProcedure.work_item).selectinload(models.ClinicalWorkItem.targets),
-                selectinload(models.CareSession.steps).selectinload(models.CareSessionStep.work_item).selectinload(models.ClinicalWorkItem.targets),
-                selectinload(models.CareSession.observations),
-                selectinload(models.CareSession.next_visit_requests),
+                *self._session_eager_options()
             )
         session = (await self.db.execute(stmt)).scalars().first()
         if not session:
@@ -1770,12 +1780,7 @@ class CareSessionService:
         stmt = (
             select(models.CareSession)
             .execution_options(populate_existing=True)
-            .options(
-                selectinload(models.CareSession.procedures).selectinload(models.CareSessionProcedure.work_item).selectinload(models.ClinicalWorkItem.targets),
-                selectinload(models.CareSession.steps).selectinload(models.CareSessionStep.work_item).selectinload(models.ClinicalWorkItem.targets),
-                selectinload(models.CareSession.observations),
-                selectinload(models.CareSession.next_visit_requests),
-            )
+            .options(*self._session_eager_options())
             .where(
                 models.CareSession.tenant_id == self.tenant_id,
                 models.CareSession.patient_id == patient_id,
@@ -1802,16 +1807,7 @@ class CareSessionService:
         stmt = (
             select(models.CareSession)
             .execution_options(populate_existing=True)
-            .options(
-                selectinload(models.CareSession.procedures)
-                .selectinload(models.CareSessionProcedure.work_item)
-                .selectinload(models.ClinicalWorkItem.targets),
-                selectinload(models.CareSession.steps)
-                .selectinload(models.CareSessionStep.work_item)
-                .selectinload(models.ClinicalWorkItem.targets),
-                selectinload(models.CareSession.observations),
-                selectinload(models.CareSession.next_visit_requests),
-            )
+            .options(*self._session_eager_options())
             .where(
                 models.CareSession.tenant_id == self.tenant_id,
                 models.CareSession.patient_id == patient_id,
@@ -1953,10 +1949,7 @@ class CareSessionService:
         # 1. Query active session
         stmt_active = (
             select(models.CareSession)
-            .options(
-                selectinload(models.CareSession.steps),
-                selectinload(models.CareSession.observations),
-            )
+            .options(*self._session_eager_options())
             .where(
                 models.CareSession.tenant_id == self.tenant_id,
                 models.CareSession.patient_id == patient_id,
@@ -1971,10 +1964,7 @@ class CareSessionService:
         # 2. Query paused session
         stmt_paused = (
             select(models.CareSession)
-            .options(
-                selectinload(models.CareSession.steps),
-                selectinload(models.CareSession.observations),
-            )
+            .options(*self._session_eager_options())
             .where(
                 models.CareSession.tenant_id == self.tenant_id,
                 models.CareSession.patient_id == patient_id,
@@ -2386,7 +2376,7 @@ class CareSessionService:
                 "suggested_duration_minutes": request.suggested_duration_minutes,
                 "care_session_id": target_session_id,
                 "work_item_id": target_work_item_id,
-                "associated_work_item_ids": associated_wis if associated_wis else None,
+                "associated_work_item_ids": associated_wis,
                 "assigned_doctor_id": request.assigned_doctor_id,
                 "status": "requested",
             },
@@ -2433,7 +2423,15 @@ class CareSessionService:
                 detail="Concurrent conflict during next-visit request creation",
             ) from exc
 
-        return request
+        stmt_loaded = (
+            select(models.NextVisitRequest)
+            .options(selectinload(models.NextVisitRequest.patient))
+            .where(
+                models.NextVisitRequest.id == request.id,
+                models.NextVisitRequest.tenant_id == self.tenant_id,
+            )
+        )
+        return (await self.db.execute(stmt_loaded)).scalar_one()
 
     async def list_next_visit_requests(
         self,
@@ -2445,9 +2443,13 @@ class CareSessionService:
         await self.ensure_native_writes_enabled()
         await self._verify_patient(patient_id)
 
-        stmt = select(models.NextVisitRequest).where(
-            models.NextVisitRequest.tenant_id == self.tenant_id,
-            models.NextVisitRequest.patient_id == patient_id,
+        stmt = (
+            select(models.NextVisitRequest)
+            .options(selectinload(models.NextVisitRequest.patient))
+            .where(
+                models.NextVisitRequest.tenant_id == self.tenant_id,
+                models.NextVisitRequest.patient_id == patient_id,
+            )
         )
         if session_id is not None:
             stmt = stmt.where(models.NextVisitRequest.care_session_id == session_id)
@@ -2463,10 +2465,14 @@ class CareSessionService:
         await self.ensure_native_writes_enabled()
         await self._verify_patient(patient_id)
 
-        stmt = select(models.NextVisitRequest).where(
-            models.NextVisitRequest.id == request_id,
-            models.NextVisitRequest.tenant_id == self.tenant_id,
-            models.NextVisitRequest.patient_id == patient_id,
+        stmt = (
+            select(models.NextVisitRequest)
+            .options(selectinload(models.NextVisitRequest.patient))
+            .where(
+                models.NextVisitRequest.id == request_id,
+                models.NextVisitRequest.tenant_id == self.tenant_id,
+                models.NextVisitRequest.patient_id == patient_id,
+            )
         )
         req = (await self.db.execute(stmt)).scalar_one_or_none()
         if not req:

@@ -553,6 +553,7 @@ class AccountingService:
         """Get revenue settings for non-doctor staff."""
         stmt = select(models.User).where(
             models.User.tenant_id == self.tenant_id,
+            models.User.is_deleted == False,  # noqa: E712
             models.User.role.notin_(DOCTOR_ROLES + ["super_admin", "admin"]),
         )
         staff = (await self.db.execute(stmt)).scalars().all()
@@ -576,6 +577,7 @@ class AccountingService:
         eligible_roles = ["receptionist", "nurse", "assistant", "accountant"]
         stmt = select(models.User).where(
             models.User.tenant_id == self.tenant_id,
+            models.User.is_deleted == False,  # noqa: E712
             models.User.role.in_(eligible_roles),
         )
         staff_members = (await self.db.execute(stmt)).scalars().all()
@@ -616,15 +618,8 @@ class AccountingService:
         except Exception:
             raise ValueError("Invalid month format. Expected YYYY-MM")
 
-        # Explicitly approved payroll-eligible roles only
-        eligible_roles = ["receptionist", "nurse", "assistant", "accountant"]
-        stmt = select(models.User).where(
-            models.User.tenant_id == self.tenant_id,
-            models.User.role.in_(eligible_roles),
-        )
-        employees = (await self.db.execute(stmt)).scalars().all()
-
-        # Fetch all salary payments for this tenant and month (supporting partial payment history)
+        # Fetch all salary payments for this tenant and month first so deleted employees
+        # remain visible ONLY in historical months where they actually received payments.
         stmt_p = select(models.SalaryPayment).where(
             models.SalaryPayment.tenant_id == self.tenant_id,
             models.SalaryPayment.month == month,
@@ -634,6 +629,25 @@ class AccountingService:
         payments_by_user = defaultdict(list)
         for p in payments:
             payments_by_user[p.user_id].append(p)
+
+        # Explicitly approved payroll-eligible roles only
+        eligible_roles = ["receptionist", "nurse", "assistant", "accountant"]
+        emp_filters = [
+            models.User.tenant_id == self.tenant_id,
+            models.User.role.in_(eligible_roles),
+        ]
+        if payments_by_user:
+            emp_filters.append(
+                or_(
+                    models.User.is_deleted == False,  # noqa: E712
+                    models.User.id.in_(list(payments_by_user.keys())),
+                )
+            )
+        else:
+            emp_filters.append(models.User.is_deleted == False)  # noqa: E712
+
+        stmt = select(models.User).where(*emp_filters)
+        employees = (await self.db.execute(stmt)).scalars().all()
 
         result = []
         for emp in employees:
@@ -736,6 +750,7 @@ class AccountingService:
         stmt_emp = select(models.User).where(
             models.User.id == user_id,
             models.User.tenant_id == self.tenant_id,
+            models.User.is_deleted == False,  # noqa: E712
             models.User.role.in_(eligible_roles),
         )
         emp = (await self.db.execute(stmt_emp)).scalar_one_or_none()

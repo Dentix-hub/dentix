@@ -76,7 +76,7 @@ export default defineConfig(({ mode }) => ({
                 // are cached at runtime by the service worker. Baseline was
                 // 121 entries / 2.90 MiB. Note: workbox-build ignores inline
                 // negation patterns, so exclusions use globIgnores.
-                globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+                globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
                 globIgnores: [
                     'assets/vendor-charts-*.js',
                     'assets/vendor-calendar-*.js',

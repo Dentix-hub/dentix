@@ -72,12 +72,15 @@ def remap_event_payload(payload, mapping, *, section='clinical_events', field_pr
                 result[key] = _mapped(mapping, EVENT_IDS[key], item, section=section, field=canonical_field,
                                       historical_mapping=historical_mapping)
             elif key in EVENT_ID_LISTS:
-                if not isinstance(item, list):
+                if item is None:
+                    result[key] = None
+                elif not isinstance(item, list):
                     raise ArchiveError(
                         f'بيانات الحدث السريري غير صالحة ({section}.{canonical_field})',
                         section=section, field=canonical_field, category='invalid_payload', counts=1,
                     )
-                result[key] = [_mapped(mapping, EVENT_ID_LISTS[key], entry, section=section, field=canonical_field) for entry in item]
+                else:
+                    result[key] = [_mapped(mapping, EVENT_ID_LISTS[key], entry, section=section, field=canonical_field) for entry in item]
             elif key.endswith(('_id', '_ids')) and key not in NON_DATABASE_IDS and item is not None:
                 raise ArchiveError(
                     f'مرجع الحدث السريري غير مدعوم ({section}.{canonical_field})',

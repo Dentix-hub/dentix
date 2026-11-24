@@ -1,6 +1,7 @@
 """Clinical/treatment-related schemas."""
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+import json
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from typing import Optional, Literal
 from datetime import datetime
 from decimal import Decimal
@@ -8,6 +9,28 @@ from .patient import PatientSummary
 from .laboratory import LabOrderCreate
 from .procedure_chart_style import ProcedureChartStyleEmbedded
 from backend.core.money import NonNegativeMoney
+
+ALLOWED_APPOINTMENT_STATUSES = {
+    "scheduled": "Scheduled",
+    "waiting": "Waiting",
+    "in progress": "In Progress",
+    "in_progress": "In Progress",
+    "completed": "Completed",
+    "cancelled": "Cancelled",
+    "canceled": "Cancelled",
+    "no show": "No Show",
+    "no_show": "No Show",
+    "postponed": "Postponed",
+    "confirmed": "Confirmed",
+    "arrived": "Arrived",
+}
+
+
+def validate_appointment_status_value(value: str) -> str:
+    key = value.strip().lower()
+    if key not in ALLOWED_APPOINTMENT_STATUSES:
+        raise ValueError(f"Invalid appointment status: '{value}'")
+    return ALLOWED_APPOINTMENT_STATUSES[key]
 
 
 class AppointmentBase(BaseModel):
@@ -23,14 +46,29 @@ class AppointmentBase(BaseModel):
 class AppointmentUpdate(BaseModel):
     patient_id: Optional[int] = None
     date_time: Optional[datetime] = None
-    duration_minutes: Optional[int] = None
+    duration_minutes: Optional[int] = Field(None, gt=0, le=1440)
     status: Optional[str] = None
     notes: Optional[str] = None
     doctor_id: Optional[int] = None
     price_list_id: Optional[int] = None
 
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        return validate_appointment_status_value(v)
+
 
 class AppointmentCreate(AppointmentBase):
+    duration_minutes: int = Field(30, gt=0, le=1440)
+    status: str = "Scheduled"
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        return validate_appointment_status_value(v)
+
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
@@ -387,7 +425,39 @@ class PrescriptionBase(BaseModel):
 
 
 class PrescriptionCreate(PrescriptionBase):
-    pass
+    @field_validator("medications")
+    @classmethod
+    def validate_medications_non_empty(cls, v: str) -> str:
+        trimmed = (v or "").strip()
+        if not trimmed:
+            raise ValueError("At least one medication is required")
+        try:
+            parsed = json.loads(trimmed)
+        except json.JSONDecodeError:
+            return trimmed
+
+        if isinstance(parsed, list):
+            cleaned = []
+            for item in parsed:
+                if isinstance(item, str):
+                    if item.strip():
+                        cleaned.append(item.strip())
+                elif isinstance(item, dict):
+                    name = str(item.get("name") or item.get("drug") or "").strip()
+                    dose = str(item.get("dose") or "").strip()
+                    if name:
+                        cleaned.append({**item, "name": name, "dose": dose})
+            if not cleaned:
+                raise ValueError("At least one valid medication is required")
+            return json.dumps(cleaned, ensure_ascii=False)
+
+        if isinstance(parsed, dict):
+            name = str(parsed.get("name") or parsed.get("drug") or "").strip()
+            if not name:
+                raise ValueError("At least one valid medication is required")
+            return trimmed
+
+        raise ValueError("Invalid medications format")
 
 
 class Prescription(PrescriptionBase):

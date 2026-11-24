@@ -1101,7 +1101,7 @@ class ClinicalWorkspaceService:
         Resolve the locked rollout mode using FeatureFlagService:
         Precedence:
         1. Explicit enabled shadow -> SHADOW
-        2. Otherwise enabled primary -> VNEXT_PRIMARY
+        2. Otherwise enabled primary or native writes -> VNEXT_PRIMARY
         3. Otherwise fail-closed -> LEGACY_ONLY
         """
         is_shadow = await FeatureFlagService.is_feature_enabled(
@@ -1114,6 +1114,12 @@ class ClinicalWorkspaceService:
             self.db, FEATURE_FLAG_CLINICAL_PRIMARY, self.tenant_id
         )
         if is_primary:
+            return "VNEXT_PRIMARY"
+
+        is_native_writes = await FeatureFlagService.is_feature_enabled(
+            self.db, FEATURE_FLAG_CLINICAL_NATIVE_WRITES, self.tenant_id
+        )
+        if is_native_writes:
             return "VNEXT_PRIMARY"
 
         return "LEGACY_ONLY"
