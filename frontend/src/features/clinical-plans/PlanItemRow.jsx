@@ -2,6 +2,11 @@ import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
 import { Play, Trash2 } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatters';
+import {
+    formatClinicalPlanStatus,
+    formatWorkItemLabel,
+    formatWorkItemTargets,
+} from './planDisplayUtils';
 
 export default function PlanItemRow({
     item,
@@ -24,14 +29,7 @@ export default function PlanItemRow({
     const isPlanAccepted = plan?.status === 'accepted';
     const canPerformNow = !isNativeWritesEnabled && isPlanAccepted && isProcedure && isOpenStatus && isSingleTooth;
 
-    const targetsDesc = targets
-        .map((tg) =>
-            tg.tooth_key
-                ? `${tg.tooth_key}${tg.surface || tg.surface_code ? ` (${tg.surface || tg.surface_code})` : ''}`
-                : ''
-        )
-        .filter(Boolean)
-        .join(', ');
+    const targetsDesc = formatWorkItemTargets(targets);
 
     return (
         <div
@@ -40,9 +38,11 @@ export default function PlanItemRow({
         >
             <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <span className="font-semibold text-slate-800 dark:text-slate-200">
-                    {item.work_item?.display_name ||
-                        item.work_item?.procedure_code ||
-                        `Item #${item.id}`}
+                    {formatWorkItemLabel(item.work_item, {
+                        language: i18n?.language,
+                        t,
+                        fallbackId: item.id,
+                    })}
                 </span>
                 {targetsDesc && (
                     <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-400">
@@ -51,10 +51,7 @@ export default function PlanItemRow({
                 )}
                 {item.work_item?.status && (
                     <span className="rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
-                        {t(
-                            `clinical_plans.status.${item.work_item.status}`,
-                            item.work_item.status
-                        )}
+                        {formatClinicalPlanStatus(item.work_item.status, t)}
                     </span>
                 )}
                 {item.unpriced ? (

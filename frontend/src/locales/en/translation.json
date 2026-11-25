@@ -1226,6 +1226,8 @@
     "remove_procedure": "Remove procedure from phase",
     "perform_now": "Perform now",
     "linked_plan_item": "Plan Item",
+    "item_fallback": "Item #{{id}}",
+    "unnamed_procedure": "Procedure",
     "progress_done": "{{completed}} of {{total}} done",
     "errors": {
       "link_unavailable": "Clinical shadow mode is not active.",
@@ -1240,7 +1242,12 @@
       "proposed": "Proposed",
       "accepted": "Accepted",
       "completed": "Completed",
-      "cancelled": "Cancelled"
+      "cancelled": "Cancelled",
+      "planned": "Planned",
+      "open": "Open",
+      "active": "Active",
+      "scheduled": "Scheduled",
+      "in_progress": "In Progress"
     },
     "actions": {
       "propose": "Propose",
