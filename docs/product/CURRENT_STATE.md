@@ -2,6 +2,9 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Staging CD (2026-11-26): pin the staging deployment job to Ubuntu 24.04 after Run 45774837110 verified Hugging Face readiness but Playwright rejected Chromium installation on Ubuntu 26.04.
+- Staging browser smoke remains pending on the updated workflow after the hotfix merges.
+
 - Clinical plans display & localization fix (2026-11-24, `hotfix/procedure-modal-bug` on `5de8e60f`):
   - Fixed work-item label/target/status mismatches in `AddProcedureModal`, `PlanItemRow`, and `PlanComparisonModal` (`code` + canonical catalog localization, `surface_code`, translated status & item fallback instead of `"undefined"`/`"Item #1"`).
   - Localized persisted default `"Phase N"` titles in UI headers, dialogs, `TreatmentPlansCard` edit modal, and `PlanOverlayActiveBanner`, and added `planned`/`open`/`active`/`scheduled`/`in_progress` parity keys in `ar`/`en` locales.
