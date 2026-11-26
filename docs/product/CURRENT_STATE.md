@@ -4,6 +4,7 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 
 - UX screenshots (2026-11-26): refreshed six bilingual captures from fictional data and corrected the dashboard greeting. Built assets and registration CTA verified at 390px and 1440px.
 - UX verification: Frontend 1,239 passed, 0 failed/skipped. Backend 1,947 passed, 123 skipped (122 require isolated PostgreSQL, 1 TestClient host limitation), 0 failures. Build, lint and design guardrails passed. Marketing Playwright 142 passed, 2 skipped (no JavaScript), 1 Chromium teardown error; that mobile case passed three isolated repeats.
+- PR #377 CI: pinned Playwright jobs to Ubuntu 24.04 because the locked Chromium installer rejects the Ubuntu 26.04 runner.
 - UX dashboard (2026-11-22): independent source loading and retries, verified zeros, same-clinic stale notices, missing business date feedback and localized EGP. Local verification passed 11 Vitest and 7 Chromium tests, including independent request failures and recovery, denied data eviction and language switching.
 - UX patient archive: the localized confirmation shows the selected patient and restores focus on cancel. A pending archive blocks duplicate writes and removes the recent entry only after success.
 - UX login: visible username and password labels, accessible focus, higher contrast for filled buttons and connectivity status text. Device-offline and backend-degraded states remain distinct.
