@@ -28,6 +28,24 @@ class PatientBase(BaseModel):
 
 
 class PatientCreate(PatientBase):
+    name: str = Field(..., min_length=1)
+    age: Optional[int] = Field(None, ge=0, le=150)
+
+    @field_validator("name")
+    @classmethod
+    def validate_non_blank_name(cls, v: str) -> str:
+        trimmed = v.strip()
+        if not trimmed:
+            raise ValueError("Patient name cannot be empty")
+        return trimmed
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_dob_not_future(cls, v: Optional[date]) -> Optional[date]:
+        if v is not None and v > date.today():
+            raise ValueError("Date of birth cannot be in the future")
+        return v
+
     model_config = ConfigDict(
         json_schema_extra={
             "examples": [
@@ -48,7 +66,7 @@ class PatientCreate(PatientBase):
 
 class PatientUpdate(BaseModel):
     name: Optional[str] = None
-    age: Optional[int] = None
+    age: Optional[int] = Field(None, ge=0, le=150)
     phone: Optional[str] = None
     email: Optional[str] = None
     address: Optional[str] = None
@@ -63,6 +81,23 @@ class PatientUpdate(BaseModel):
     def coerce_empty_to_none(cls, v):
         if v == "" or (isinstance(v, str) and not v.strip()):
             return None
+        return v
+
+    @field_validator("name")
+    @classmethod
+    def validate_non_blank_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        trimmed = v.strip()
+        if not trimmed:
+            raise ValueError("Patient name cannot be empty")
+        return trimmed
+
+    @field_validator("date_of_birth")
+    @classmethod
+    def validate_dob_not_future(cls, v: Optional[date]) -> Optional[date]:
+        if v is not None and v > date.today():
+            raise ValueError("Date of birth cannot be in the future")
         return v
 
     model_config = ConfigDict(

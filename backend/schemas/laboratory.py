@@ -1,12 +1,25 @@
 """Laboratory and lab order schemas."""
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional
 from datetime import datetime
 from decimal import Decimal
 
 from backend.utils.tenant_time import utc_now_naive
 from backend.core.money import NonNegativeMoney, PositiveMoney
+
+ALLOWED_LAB_ORDER_STATUSES = {
+    "pending",
+    "in_progress",
+    "sent",
+    "sent_to_lab",
+    "try_in",
+    "ready",
+    "received",
+    "completed",
+    "delivered",
+    "cancelled",
+}
 
 
 class LaboratoryBase(BaseModel):
@@ -20,7 +33,15 @@ class LaboratoryBase(BaseModel):
 
 
 class LaboratoryCreate(LaboratoryBase):
-    pass
+    name: str = Field(..., min_length=1)
+
+    @field_validator("name")
+    @classmethod
+    def validate_non_blank_name(cls, v: str) -> str:
+        trimmed = v.strip()
+        if not trimmed:
+            raise ValueError("Laboratory name cannot be empty")
+        return trimmed
 
 
 class LaboratoryUpdate(BaseModel):
@@ -32,6 +53,16 @@ class LaboratoryUpdate(BaseModel):
     specialties: Optional[str] = None
     notes: Optional[str] = None
     is_active: Optional[bool] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_non_blank_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        trimmed = v.strip()
+        if not trimmed:
+            raise ValueError("Laboratory name cannot be empty")
+        return trimmed
 
 
 class Laboratory(LaboratoryBase):
@@ -60,6 +91,14 @@ class LabOrderBase(BaseModel):
 
 class LabOrderCreate(LabOrderBase):
     paid_now: NonNegativeMoney = Decimal("0.00")
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: str) -> str:
+        trimmed = (v or "").strip()
+        if trimmed.lower() not in ALLOWED_LAB_ORDER_STATUSES:
+            raise ValueError(f"Invalid lab order status: '{v}'")
+        return trimmed
 
 
 class LabHandoffCreate(BaseModel):
@@ -90,6 +129,16 @@ class LabOrderUpdate(BaseModel):
     notes: Optional[str] = None
     delivery_date: Optional[datetime] = None
     received_date: Optional[datetime] = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        trimmed = v.strip()
+        if trimmed.lower() not in ALLOWED_LAB_ORDER_STATUSES:
+            raise ValueError(f"Invalid lab order status: '{v}'")
+        return trimmed
 
 
 class LabOrder(LabOrderBase):

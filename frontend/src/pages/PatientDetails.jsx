@@ -54,9 +54,11 @@ import {
     useCareSessionDraft,
 } from '@/features/care-sessions';
 import { useTreatmentOperations } from '@/features/patients/hooks/useTreatmentOperations';
+import { usePatientClinicalWorkItems } from '@/features/patients/hooks/usePatientClinicalWorkItems';
 import { Baby, Sparkles, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 import { getTodayStr } from '../utils/toothUtils';
+import { formatApiError } from '@/utils/formatApiError';
 import {
     createPatientClinicalFinding,
     createPatientClinicalFindingsBulk,
@@ -277,7 +279,7 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
         enabled: (activeTab === 'chart' || isToothSelectModalOpen),
     });
 
-    const { data: tenantFeatures = [], refetch: refetchTenantFeatures } = useTenantFeatures();
+    const { data: tenantFeatures = [], isLoading: tenantFeaturesLoading, refetch: refetchTenantFeatures } = useTenantFeatures();
     const isTreatmentPlansEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_treatment_plans');
     const isNativeWritesEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_vnext_native_writes');
 
@@ -369,6 +371,7 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
         updateDraft: updateCareSessionDraft,
         discardDraft: discardCareSessionDraft,
         status: careSessionDraftStatus,
+        hasUnsavedChanges: hasUnsavedCareSessionDraft,
         resolveConflict: resolveCareSessionDraftConflict,
         saveNow: flushCareSessionDraft,
     } = useCareSessionDraft({
@@ -418,6 +421,10 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
 
     const [isRctWorkflowOpen, setIsRctWorkflowOpen] = useState(false);
     const [isFinishSheetOpen, setIsFinishSheetOpen] = useState(false);
+    const { data: linkedClinicalWorkItems } = usePatientClinicalWorkItems(
+        id, isNativeWritesEnabled && Boolean(activeCareSession) && (isRctWorkflowOpen || isFinishSheetOpen)
+    );
+    const visitWorkItems = linkedClinicalWorkItems ?? workspaceSnapshot?.work_items ?? [];
     const [careSessionDisabledNotice, setCareSessionDisabledNotice] = useState(null);
 
     const handleStartRctSession = useCallback(async (targetToothKey) => {
@@ -586,7 +593,7 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
             toast.success(t('care_session.finished_success', 'Care session completed successfully'));
             return true;
         } catch (err) {
-            toast.error(err?.response?.data?.detail || err?.message || 'Failed to finish care session');
+            toast.error(formatApiError(err, t('care_session.finish_error', 'Failed to finish care session')));
             return false;
         }
     }, [id, activeCareSession?.id, finishCareSessionMutation, discardCareSessionDraft, flushCareSessionDraft, refetchActiveSession, refetchResumableSession, refetchWorkspace, t]);
@@ -1153,6 +1160,7 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
                                 history={history}
                                 patientId={id}
                                 nativeWritesEnabled={isNativeWritesEnabled}
+                                nativeWritesLoading={tenantFeaturesLoading}
                                 onRecheckNativeWrites={async () => {
                                     const result = await refetchTenantFeatures();
                                     return !result.isError && Array.isArray(result.data) && result.data.includes('clinical_vnext_native_writes');
@@ -1211,7 +1219,8 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
                 onRefetch={refetchClinicalData}
                 onOpenCareSessions={async () => {
                     setIsTreatmentSheetOpen(false);
-                    const item = (workspaceSnapshot?.work_items || []).find((candidate) => candidate.id === newTreatment.work_item_id);
+                    const targetWorkItemId = newTreatment.work_item_id ?? newTreatment.clinical_work_item_id;
+                    const item = (workspaceSnapshot?.work_items || []).find((candidate) => candidate.id === targetWorkItemId);
                     if (!item) {
                         setActiveTab('history');
                         return;
@@ -1223,7 +1232,12 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
                                 await addCareSessionProcedure(id, activeCareSession.id, item.id);
                                 await refetchActiveSession();
                             } catch (error) {
-                                toast.error(error?.response?.data?.detail || t('care_session.start_error'));
+                                toast.error(
+                                    formatApiError(
+                                        error,
+                                        t('care_session.start_error', 'Failed to add procedure to active session')
+                                    )
+                                );
                                 return;
                             }
                         }
@@ -1288,7 +1302,7 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
                 <GenericVisitWorkspace
                     session={activeCareSession}
                     patient={patient}
-                    patientWorkItems={workspaceSnapshot?.work_items || []}
+                    patientWorkItems={visitWorkItems}
                     isOpen={isRctWorkflowOpen}
                     onClose={() => setIsRctWorkflowOpen(false)}
                     onUpdateStepStatus={handleUpdateStepStatus}
@@ -1299,6 +1313,8 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
                     }}
                     draftData={careSessionDraftData}
                     onDraftChange={updateCareSessionDraft}
+                    onFlushDraft={flushCareSessionDraft}
+                    hasUnsavedDraftChanges={hasUnsavedCareSessionDraft}
                     careSessionDraftStatus={careSessionDraftStatus}
                     resolveConflict={resolveCareSessionDraftConflict}
                     refetchSession={refetchActiveSession}
@@ -1311,6 +1327,8 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
                     isOpen={isFinishSheetOpen}
                     onClose={() => setIsFinishSheetOpen(false)}
                     session={activeCareSession}
+                    patientWorkItems={visitWorkItems}
+                    patientName={patient?.name || ''}
                     onFinishSession={handleFinishSession}
                     isFinishing={finishCareSessionMutation.isPending}
                     draftData={careSessionDraftData}

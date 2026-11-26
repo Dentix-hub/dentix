@@ -8,6 +8,7 @@ import TreatmentHistory from '@/features/patients/PatientTabs/TreatmentHistory';
 const { historicalProps } = vi.hoisted(() => ({ historicalProps: vi.fn() }));
 
 vi.mock('@/api/patients', () => ({
+    getPatientClinicalWorkItems: vi.fn().mockResolvedValue({ data: [] }),
     addCareSessionProcedure: vi.fn(),
     removeCareSessionProcedure: vi.fn(),
     addCareSessionStep: vi.fn(),

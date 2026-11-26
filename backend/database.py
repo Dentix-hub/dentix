@@ -364,8 +364,23 @@ def _record_pool_checkin(dbapi_connection, connection_record):
     )
 
 
-def _normalize_db_bind_value(value):
+def _is_timezone_aware_sql_type(sql_type) -> bool:
+    if sql_type is None:
+        return False
+    if bool(getattr(sql_type, "timezone", False)):
+        return True
+    impl = getattr(sql_type, "impl", None)
+    if impl is not None and bool(getattr(impl, "timezone", False)):
+        return True
+    return False
+
+
+def _normalize_db_bind_value(value, *, preserve_utc_tz: bool = False):
     if isinstance(value, datetime.datetime):
+        if preserve_utc_tz:
+            if value.tzinfo is None:
+                return value.replace(tzinfo=datetime.timezone.utc)
+            return value.astimezone(datetime.timezone.utc)
         if value.tzinfo is None:
             return value
         return value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
@@ -378,9 +393,46 @@ def _normalize_db_bind_value(value):
     return value
 
 
+def _normalize_parameters_for_context(conn, parameters, context, executemany):
+    if parameters is None:
+        return parameters
+
+    is_postgres = getattr(getattr(conn, "dialect", None), "name", "") == "postgresql"
+    compiled = getattr(context, "compiled", None) if (is_postgres and context is not None) else None
+    binds = getattr(compiled, "binds", None) if compiled is not None else None
+    if not binds:
+        return _normalize_db_bind_value(parameters)
+
+    def _is_aware_param(param_name) -> bool:
+        bind_param = binds.get(param_name)
+        return _is_timezone_aware_sql_type(getattr(bind_param, "type", None))
+
+    positiontup = getattr(compiled, "positiontup", None)
+
+    def _normalize_row(row):
+        if isinstance(row, dict):
+            return {
+                key: _normalize_db_bind_value(val, preserve_utc_tz=_is_aware_param(key))
+                for key, val in row.items()
+            }
+        if isinstance(row, (tuple, list)) and positiontup and len(positiontup) == len(row):
+            normalized = [
+                _normalize_db_bind_value(val, preserve_utc_tz=_is_aware_param(name))
+                for name, val in zip(positiontup, row)
+            ]
+            return tuple(normalized) if isinstance(row, tuple) else normalized
+        return _normalize_db_bind_value(row)
+
+    if executemany and isinstance(parameters, (list, tuple)):
+        normalized_rows = [_normalize_row(row) for row in parameters]
+        return tuple(normalized_rows) if isinstance(parameters, tuple) else normalized_rows
+
+    return _normalize_row(parameters)
+
+
 @event.listens_for(async_engine.sync_engine, "before_cursor_execute", retval=True)
 def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
-    return statement, _normalize_db_bind_value(parameters)
+    return statement, _normalize_parameters_for_context(conn, parameters, context, executemany)
 
 
 if system_async_engine is not None:

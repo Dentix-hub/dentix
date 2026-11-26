@@ -497,7 +497,8 @@
       "name_required": "اسم المريض مطلوب",
       "name": "اسم المريض",
       "phone": "رقم الهاتف",
-      "create_btn": "إنشاء واختيار"
+      "create_btn": "إنشاء واختيار",
+      "future_dob_error": "تاريخ الميلاد لا يمكن أن يكون في المستقبل"
     },
     "empty_state": {
       "title": "لا يوجد مرضى",
@@ -732,6 +733,12 @@
     "title": "جدول المواعيد",
     "subtitle": "إدارة حجوزات ومواعيد العيادة",
     "new_booking": "حجز جديد",
+    "calendar": {
+      "today": "اليوم",
+      "month": "شهر",
+      "week": "أسبوع",
+      "list": "قائمة"
+    },
     "no_appointments": "لا توجد مواعيد",
     "no_appointments_desc": "لم يتم حجز أي مواعيد حتى الآن",
     "add_appointment": "إضافة موعد",
@@ -1178,6 +1185,7 @@
       "click_to_complete": "الإجراء قيد التنفيذ. اضغط لتحديده كمكتمل.",
       "completed": "مكتمل",
       "active": "قيد التنفيذ",
+      "proposed": "مقترح",
       "reopen": "إعادة فتح",
       "mark_done": "تحديد كمكتمل"
     },
@@ -1245,6 +1253,8 @@
     "remove_procedure": "إزالة الإجراء من المرحلة",
     "perform_now": "تنفيذ الآن",
     "linked_plan_item": "عنصر من الخطة",
+    "item_fallback": "عنصر #{{id}}",
+    "unnamed_procedure": "إجراء",
     "progress_done": "{{completed}} من {{total}} مكتمل",
     "errors": {
       "link_unavailable": "وضع المزامنة السريرية غير مفعل.",
@@ -1259,7 +1269,12 @@
       "proposed": "مقترحة",
       "accepted": "مقبولة",
       "completed": "مكتملة",
-      "cancelled": "ملغاة"
+      "cancelled": "ملغاة",
+      "planned": "مخطط",
+      "open": "مفتوح",
+      "active": "نشط",
+      "scheduled": "مجدول",
+      "in_progress": "قيد التنفيذ"
     },
     "actions": {
       "propose": "تقديم المقترح",
@@ -2218,6 +2233,7 @@
     "image_deleting": "جاري حذف الصورة من Google Drive",
     "image_details": "تفاصيل المشكلة",
     "image_unavailable": "الصورة غير متاحة حاليًا، تأكد من ربط جوجل درايف",
+    "local_image_unavailable": "الصورة غير متاحة حاليًا",
     "backup_queued": "تم إرسال النسخة الاحتياطية للتنفيذ",
     "backup_failed": "تعذر إنشاء النسخة الاحتياطية",
     "list_drive": "عرض نسخ Google Drive",
@@ -3837,7 +3853,26 @@
     "entries_kept_open": "مدخلاتك محفوظة داخل هذا النموذج ما دام مفتوحًا.",
     "recheck_availability": "إعادة التحقق",
     "record_failed": "تعذّر تسجيل الجلسة. مدخلاتك محفوظة في النموذج؛ حاول مرة أخرى.",
-    "measurement_type_help": "القياس العام (Measurement) يسجّل قيمة أو ملاحظة. طول العمل (Working Length) يسجّل طول قناة العصب بالمليمتر مع مقاس الملف والتيبر والنقطة المرجعية."
+    "measurement_type_help": "القياس العام (Measurement) يسجّل قيمة أو ملاحظة. طول العمل (Working Length) يسجّل طول قناة العصب بالمليمتر مع مقاس الملف والتيبر والنقطة المرجعية.",
+    "autosave_unsaved": "تعديلات غير محفوظة",
+    "add_procedure_error": "تعذّرت إضافة الإجراء إلى الجلسة",
+    "remove_procedure_error": "تعذّرت إزالة الإجراء من الجلسة",
+    "repeat_step_error": "تعذّر تكرار الخطوة",
+    "finish_error": "تعذّر إنهاء جلسة العلاج",
+    "lab_no_eligible_procedure": "لا يوجد إجراء تركيبة مؤهل للمعمل مرتبط بهذه الزيارة.",
+    "lab_select_procedure_prompt": "توجد عدة إجراءات مؤهلة للمعمل في هذه الزيارة — اختر الإجراء المطلوب قبل الإرسال.",
+    "lab_target_procedure_label": "الإجراء المستهدف لطلب المعمل",
+    "lab_select_procedure_placeholder": "-- اختر إجراء المعمل --",
+    "care_session_title": "جلسة رعاية",
+    "appt_badge": "موعد",
+    "visit_date": "تاريخ الزيارة",
+    "historical_entry": "توثيق تاريخي",
+    "followup_prefix": "متابعة",
+    "duration_unit_short": "د",
+    "proc_short": "إجراء",
+    "procedure_label": "إجراء",
+    "selected_procedure": "الإجراء المحدد",
+    "notes_require_procedure": "اربط إجراءً علاجيًا بهذه الجلسة لحفظ ملاحظات الإجراء والخطوة القادمة. يمكنك أيضًا كتابة ملخص الزيارة عند إنهاء الجلسة."
   },
   "dental_chart": {
     "primary_teeth": "الأسنان اللبنية",
@@ -3862,7 +3897,7 @@
     "close_button_label": "إغلاق نافذة التأكيد السريع",
     "tooth_label": "السن:",
     "surfaces_label": "الأسطح:",
-    "whole_tooth": "كامل السن (Whole tooth)",
+    "whole_tooth": "كامل السن",
     "cost_label": "التكلفة",
     "unpriced_hint": "غير مسعّر",
     "status_label": "حالة الإجراء",
@@ -3871,7 +3906,7 @@
     "bom_summary": "سيتم خصم {{count}} مواد ({{count}} materials will be deducted)",
     "bom_details_link": "تعديل المواد / Details",
     "cancel_button": "إلغاء",
-    "more_details_button": "تفاصيل إضافية (More details)",
+    "more_details_button": "تفاصيل إضافية",
     "save_button": "حفظ",
     "saving_button": "جاري الحفظ...",
     "multi_teeth_count": "{{count}} أسنان",
@@ -3884,6 +3919,7 @@
     "price_list_label": "قائمة الأسعار",
     "discount_label": "الخصم",
     "diagnosis_label": "التشخيص",
+    "diagnosis_placeholder": "التشخيص (مثال: تسوس أسنان، التهاب عصب)",
     "tooth_condition_label": "حالة السن",
     "lab_section_title": "بيانات المعمل",
     "lab_select": "اختر المعمل",
@@ -3979,6 +4015,7 @@
   "lab_handoff": {
     "failed_load_labs": "تعذر تحميل قائمة معامل الأسنان.",
     "error_select_lab": "من فضلك اختر المعمل",
+    "error_missing_work_item": "لا يوجد إجراء مرتبط مؤهل محدد لطلب المعمل هذا.",
     "error_submitting": "فشل إرسال طلب المعمل",
     "modal_title": "العنوان",
     "quick_handoff_subtitle": "العنوان",
@@ -4093,6 +4130,28 @@
     "add_step_btn": "إضافة خطوة",
     "fields_guidance": "أضف حقولًا للتوثيق، مثل اللون والمواد والقياسات.",
     "add_field_btn": "إضافة حقل",
-    "no_custom_fields": "لم تُحدد حقول مخصصة بعد. اضغط على إضافة حقل لإنشاء واحد."
+    "no_custom_fields": "لم تُحدد حقول مخصصة بعد. اضغط على إضافة حقل لإنشاء واحد.",
+    "load_error": "تعذر تحميل القوالب",
+    "col_template_procedure": "القالب / الإجراء",
+    "col_version": "الإصدار",
+    "col_steps": "الخطوات",
+    "col_custom_fields": "الحقول المخصصة",
+    "col_type": "النوع",
+    "col_status": "الحالة",
+    "col_actions": "الإجراءات",
+    "step_one": "خطوة",
+    "step_other": "خطوات",
+    "field_one": "حقل",
+    "field_other": "حقول",
+    "none": "لا يوجد",
+    "type_clinic_custom": "مخصص للعيادة",
+    "type_system_default": "افتراضي بالنظام",
+    "status_active": "نشط",
+    "status_inactive": "معطّل",
+    "tooltip_deactivate": "اضغط للتعطيل",
+    "tooltip_activate": "اضغط للتفعيل",
+    "tooltip_default": "قالب افتراضي",
+    "edit_version": "تعديل الإصدار",
+    "customize": "تخصيص"
   }
 }

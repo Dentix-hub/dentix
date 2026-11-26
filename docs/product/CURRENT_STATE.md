@@ -4,12 +4,37 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 
 - UX screenshots (2026-11-26): refreshed six bilingual captures from fictional data and corrected the dashboard greeting. Built assets and registration CTA verified at 390px and 1440px.
 - UX verification: Frontend 1,239 passed, 0 failed/skipped. Backend 1,947 passed, 123 skipped (122 require isolated PostgreSQL, 1 TestClient host limitation), 0 failures. Build, lint and design guardrails passed. Marketing Playwright 142 passed, 2 skipped (no JavaScript), 1 Chromium teardown error; that mobile case passed three isolated repeats.
-- PR #377 CI: pinned Playwright jobs to Ubuntu 24.04 because the locked Chromium installer rejects the Ubuntu 26.04 runner.
+- PR #377 CI (2026-11-26): merged staging #378 hotfix reconciliation (`uv.lock` & isolated Safety runner) and updated `critical-path.spec.ts` to confirm `<ConfirmDialog>` on patient archive.
 - UX dashboard (2026-11-22): independent source loading and retries, verified zeros, same-clinic stale notices, missing business date feedback and localized EGP. Local verification passed 11 Vitest and 7 Chromium tests, including independent request failures and recovery, denied data eviction and language switching.
 - UX patient archive: the localized confirmation shows the selected patient and restores focus on cancel. A pending archive blocks duplicate writes and removes the recent entry only after success.
 - UX login: visible username and password labels, accessible focus, higher contrast for filled buttons and connectivity status text. Device-offline and backend-degraded states remain distinct.
 - UX patient identity: hide the clinical workspace until identity is available, preserve the requested tab, flag transient stale data, and discard cached clinical data on terminal denial.
 - UX calendar (2026-11-22): click or tap opens the existing appointment editor for the selected record. Local verification passed 7 Vitest and 5 Chromium tests covering two records, zero writes on close, one save to the selected ID, empty-slot booking and drag rescheduling.
+
+- Production hotfix reconciliation (2026-11-26): backported #374, #375 and #376 from `d2128440` onto staging `04cfaf0c`.
+  - Product and workflow files match the production revision. Focused verification passed 53 backend and 56 frontend tests, frozen dependency installation, Ruff, ESLint, and actionlint.
+  - Staging CI, deployment smoke, and owner acceptance are pending. UX delivery is tracked in #377.
+
+- Clinical plans display & localization fix (2026-11-24, `hotfix/procedure-modal-bug` on `5de8e60f`):
+  - Fixed work-item label/target/status mismatches in `AddProcedureModal`, `PlanItemRow`, and `PlanComparisonModal` (`code` + canonical catalog localization, `surface_code`, translated status & item fallback instead of `"undefined"`/`"Item #1"`).
+  - Localized persisted default `"Phase N"` titles in UI headers, dialogs, `TreatmentPlansCard` edit modal, and `PlanOverlayActiveBanner`, and added `planned`/`open`/`active`/`scheduled`/`in_progress` parity keys in `ar`/`en` locales.
+  - Verification: 4 Vitest suites (50 passed, 0 skipped/failed), `npm run lint`, `check-design-system-guardrails.mjs --diff-base=origin/main`, and `npm run build` all PASS; PR CI pending.
+
+- QA & live production hotfix (2026-11-24, `hotfix/qa-report-production-fixes` on `d4d80f90`):
+  - Clinical/Sessions: resolved `VNEXT_PRIMARY` workspace read mode when `clinical_vnext_native_writes` is active (`QA-01`/`LIVE-03`), filtered non-integer legacy IDs and guarded unlinked workspace notes (`QA-02`/`QA-06`), eager-loaded `resumable`/next-visit queries without broadening `finish` PII (`QA-05`/`QA-22`), fixed `PatientDetails` `isNativeWritesEnabled` flash while loading.
+  - Inventory/Patients/Prescriptions/Uploads/Users/Appointments/Labs: post-commit eager loads (`QA-10`/`QA-11`/`QA-12`/`LIVE-01`), delete response envelope (`QA-15`), Pillow+magic image verification (`QA-23`), `/api/v1/upload/file` local media routing (`QA-16`/`LIVE-02`), strict schema bounds (`QA-07`/`QA-13`/`QA-14`/`QA-18`), `medical_history` editing + submit lock (`QA-08`/`QA-09`), removed `getToken()` gate (`QA-17`/`LIVE-04`).
+  - Payroll/Archive/Timezone/Templates/i18n/PWA: excluded deleted staff from current payroll unless paid in-month (`QA-21`), accepted legacy null `associated_work_item_ids` in archives (`QA-25`), preserved UTC tz on PostgreSQL `TIMESTAMPTZ` binds (`QA-24`), unwrapped & localized templates/calendar/history/quick-sheet (`QA-19`/`QA-20`/`LIVE-05`/`LIVE-07`), precached `logo.webp`.
+  - Verification: 290 backend passed / 2 PG-fixture skips, `TZ=Africa/Cairo` & `TZ=UTC` bind tests pass, Ruff & Bandit pass; 19 frontend suites (175 tests), ESLint, Vite/PWA/marketing build & diff guardrails pass. Live PostgreSQL CI suites pending PR CI.
+
+- Clinical recording QA hotfix (2026-11-23, `hotfix/clinical-recording-qa` on `24eabafc`):
+  - (1) Safe API error formatting (`formatApiError`) in active-session Add Procedure entry points (`GenericVisitWorkspace`, `PatientDetails`) and `LabHandoffSheet` prevents React crashes on structured 422 arrays/objects while keeping valid additions working.
+  - (2) Durable session documentation drafts (`useCareSessionDraft`, `GenericVisitWorkspace`): serialized server saves, blur/visibility flush through the existing authenticated API, plus native `beforeunload` confirmation while unacknowledged edits/errors/conflicts exist; zero PHI in browser storage; disarmed on finish.
+  - (3a) Authoritative lab-handoff target resolution in `FinishCareSessionSheet`/`LabHandoffSheet` resolves linked lab-eligible procedures and teeth from session + workspace data, prefers unambiguous lab-ready steps, requires explicit selection when ambiguous, and guards invalid targets.
+  - (3b) Guarded `NextVisitRequestRead.populate_enriched_fields` against unloaded SQLAlchemy `patient` relations (`sa_inspect`) and refreshed `patient` on next-visit mutation paths so `POST /finish` with `next_visit_request` returns 200 without `MissingGreenlet` or broadened PII.
+  - (4) Fixed `QuickTreatmentSheet` form re-init on `selectedToothCondition`/`procedures` updates, stopped incidental initial condition writes, added condition-only `tooth_status` save path (0 treatments), and synced canonical lifecycle events on `POST /treatments/tooth_status` when native writes are enabled.
+  - (5) Surfaced unlinked native `proposed` procedures in `TreatmentHistory` from authorized `GET /clinical-work-items` with truthful `Proposed` status, deduplicated against linked treatments, and without synthetic treatments or legacy edit/delete actions.
+  - Verification: 184 backend and 200 frontend tests passed in focused runs, including PostgreSQL contracts, Chromium reload and concurrent 409 checks, production build, ESLint and Ruff. Direct hotfix CI and release acceptance pending.
+  - CI follow-up: pinned Playwright jobs to Ubuntu 24.04, updated six flagged dependencies, and isolated the unchanged Safety CLI policy from the app dependency environment. Safety, 54 backend tests, five Chromium tests, and actionlint passed locally.
 
 - Groq compatibility (2026-11-09): local shared fast/complex model defaults updated for current developer-tier support across chat/direct analysis/Scribe, with account overrides. Legacy cards/cost estimates, recorded costs, privacy, clinical semantics and quota accounting preserved; legacy offers unchanged per owner decision.
 - Follow-up: corrected static system/schema labels falsely rejected by the unchanged privacy confidence gate; dynamic messages/context still scanned. Verification: 44 focused tests PASS (18 new), real PostgreSQL egress/accounting coverage and Ruff/whitespace PASS.

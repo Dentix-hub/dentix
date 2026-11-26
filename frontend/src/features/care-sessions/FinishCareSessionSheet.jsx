@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import PropTypes from 'prop-types';
 import ObservationSummary from './ObservationSummary';
 import {
@@ -12,8 +12,35 @@ import {
     FlaskConical,
 } from 'lucide-react';
 import Modal from '@/shared/ui/Modal';
-import { isLabReadyStep } from '@/features/clinical-chart/domain';
+import { isLabReadyStep, isLabRequiredProcedure } from '@/features/clinical-chart/domain';
 import LabHandoffSheet from './LabHandoffSheet';
+
+const INACTIVE_WORK_ITEM_STATUSES = new Set([
+    'cancelled',
+    'entered_in_error',
+    'entered-in-error',
+    'superseded',
+]);
+
+function extractToothKeysForWorkItem(workItem, observations, workItemId, fallbackToothKey = '') {
+    const targetTeeth = (workItem?.targets || [])
+        .map((target) => target?.tooth_key || target?.toothKey)
+        .filter(Boolean)
+        .map(String);
+    if (targetTeeth.length > 0) {
+        return [...new Set(targetTeeth)].join(', ');
+    }
+    if (workItem?.tooth_key || workItem?.tooth_number) {
+        return String(workItem.tooth_key || workItem.tooth_number);
+    }
+    const obsTeeth = (observations || [])
+        .filter((obs) => obs.work_item_id != null && Number(obs.work_item_id) === Number(workItemId) && obs.tooth_key)
+        .map((obs) => String(obs.tooth_key));
+    if (obsTeeth.length > 0) {
+        return [...new Set(obsTeeth)].join(', ');
+    }
+    return fallbackToothKey ? String(fallbackToothKey) : '';
+}
 
 /**
  * Compact Finish-Session Sheet (Slice S20 / G10-M11 & S22 / G11-M02, G11-M06..M08).
@@ -25,6 +52,8 @@ export default function FinishCareSessionSheet({
     isOpen,
     onClose,
     session,
+    patientWorkItems = [],
+    patientName = '',
     onFinishSession,
     isFinishing = false,
     draftData = null,
@@ -33,7 +62,7 @@ export default function FinishCareSessionSheet({
 }) {
     const [notes, setNotes] = useState(draftData?.notes ?? session?.notes ?? '');
 
-    const steps = session?.steps || [];
+    const steps = useMemo(() => session?.steps || [], [session?.steps]);
     const observations = session?.observations || [];
 
     const completedSteps = steps.filter((s) => s.status === 'completed');
@@ -137,9 +166,165 @@ export default function FinishCareSessionSheet({
         }
     };
 
-    const hasLabReadyStep = steps.some(
-        (s) => (s.status === 'completed' || s.status === 'in_progress') && isLabReadyStep(s.step_code)
+    // Authoritative lab-handoff target resolution from session procedures, steps, and workspace work items.
+    // Matches backend lab eligibility (LAB_REQUIRED_PROCEDURE_CODES + LAB_READY_STEP_CODES).
+    const labCandidates = useMemo(() => {
+        const sessionProcedures = session?.procedures || [];
+        const sessionSteps = session?.steps || [];
+        const sessionObservations = session?.observations || [];
+        const workspaceById = new Map(
+            (patientWorkItems || [])
+                .filter((wi) => wi && wi.id != null)
+                .map((wi) => [Number(wi.id), wi])
+        );
+
+        const orderedWorkItemIds = [];
+        const procById = new Map();
+        for (const proc of sessionProcedures) {
+            const wid = proc?.work_item_id ?? proc?.work_item?.id;
+            if (wid != null && Number.isInteger(Number(wid)) && Number(wid) > 0) {
+                const numId = Number(wid);
+                if (!procById.has(numId)) {
+                    procById.set(numId, proc);
+                    orderedWorkItemIds.push(numId);
+                }
+            }
+        }
+        const stepWorkItemById = new Map();
+        for (const step of sessionSteps) {
+            const wid = step?.work_item_id ?? step?.work_item?.id;
+            if (wid != null && Number.isInteger(Number(wid)) && Number(wid) > 0) {
+                const numId = Number(wid);
+                if (step?.work_item && !stepWorkItemById.has(numId)) {
+                    stepWorkItemById.set(numId, step.work_item);
+                }
+                if (!orderedWorkItemIds.includes(numId)) {
+                    orderedWorkItemIds.push(numId);
+                }
+            }
+        }
+
+        const isSingleSessionProcedure = orderedWorkItemIds.length === 1;
+        const candidates = [];
+
+        for (const wid of orderedWorkItemIds) {
+            const proc = procById.get(wid) || null;
+            const wsItem = workspaceById.get(wid) || null;
+            const nestedItem = proc?.work_item || stepWorkItemById.get(wid) || null;
+
+            const kind = String(wsItem?.kind || nestedItem?.kind || 'procedure').toLowerCase();
+            if (kind !== 'procedure') continue;
+
+            const status = String(
+                proc?.work_item_status || wsItem?.status || nestedItem?.status || 'active'
+            ).toLowerCase();
+            if (INACTIVE_WORK_ITEM_STATUSES.has(status)) continue;
+
+            const code = String(
+                wsItem?.code ||
+                    nestedItem?.code ||
+                    proc?.template_snapshot?.procedure_code ||
+                    proc?.template_code ||
+                    proc?.template_snapshot?.code ||
+                    ''
+            ).trim();
+            if (!isLabRequiredProcedure(code)) continue;
+
+            const mergedWorkItem = {
+                ...(nestedItem || {}),
+                ...(wsItem || {}),
+                id: wid,
+                code,
+                title:
+                    wsItem?.title ||
+                    nestedItem?.title ||
+                    proc?.template_snapshot?.title ||
+                    code,
+                targets:
+                    wsItem?.targets?.length
+                        ? wsItem.targets
+                        : nestedItem?.targets?.length
+                        ? nestedItem.targets
+                        : [],
+            };
+
+            const toothKey = extractToothKeysForWorkItem(
+                mergedWorkItem,
+                sessionObservations,
+                wid,
+                isSingleSessionProcedure ? session?.tooth_key || '' : ''
+            );
+
+            const hasLabReadyStepForItem = sessionSteps.some((step) => {
+                const stepWid = step?.work_item_id ?? step?.work_item?.id;
+                if (stepWid == null || Number(stepWid) !== wid) return false;
+                return (
+                    (step.status === 'completed' || step.status === 'in_progress') &&
+                    isLabReadyStep(step.step_code)
+                );
+            });
+
+            candidates.push({
+                workItemId: wid,
+                workItem: mergedWorkItem,
+                code,
+                title: mergedWorkItem.title,
+                toothKey,
+                hasLabReadyStep: hasLabReadyStepForItem,
+            });
+        }
+
+        return candidates;
+    }, [session?.procedures, session?.steps, session?.observations, session?.tooth_key, patientWorkItems]);
+
+    const labReadyCandidates = useMemo(
+        () => labCandidates.filter((c) => c.hasLabReadyStep),
+        [labCandidates]
     );
+
+    // Unambiguous auto-selection: single lab-ready eligible procedure, or single eligible procedure overall.
+    // Ambiguous (>1 lab-ready, or 0 lab-ready with >1 eligible) requires explicit user selection.
+    const defaultLabWorkItemId = useMemo(() => {
+        if (labReadyCandidates.length === 1) {
+            return String(labReadyCandidates[0].workItemId);
+        }
+        if (labReadyCandidates.length === 0 && labCandidates.length === 1) {
+            return String(labCandidates[0].workItemId);
+        }
+        return '';
+    }, [labCandidates, labReadyCandidates]);
+
+    const [selectedLabWorkItemId, setSelectedLabWorkItemId] = useState(defaultLabWorkItemId);
+
+    useEffect(() => {
+        setSelectedLabWorkItemId((prev) => {
+            if (prev && labCandidates.some((c) => String(c.workItemId) === String(prev))) {
+                return prev;
+            }
+            return defaultLabWorkItemId;
+        });
+    }, [defaultLabWorkItemId, labCandidates]);
+
+    const selectedLabCandidate = useMemo(
+        () => labCandidates.find((c) => String(c.workItemId) === String(selectedLabWorkItemId)) || null,
+        [labCandidates, selectedLabWorkItemId]
+    );
+
+    const hasUnlinkedLegacyLabStep = useMemo(
+        () =>
+            (session?.procedures || []).length === 0 &&
+            steps.some(
+                (s) =>
+                    s.work_item_id == null &&
+                    !s.work_item &&
+                    (s.status === 'completed' || s.status === 'in_progress') &&
+                    isLabReadyStep(s.step_code)
+            ),
+        [session?.procedures, steps]
+    );
+
+    const hasLabReadyStep = labReadyCandidates.length > 0 || hasUnlinkedLegacyLabStep;
+    const isLabSelectionAmbiguous = labCandidates.length > 1 && !selectedLabCandidate;
 
     if (!session) return null;
 
@@ -286,31 +471,70 @@ export default function FinishCareSessionSheet({
 
                 {/* Chairside Lab Handoff Trigger (Slice S28 / G12-M05, G12-M06) */}
                 <div
-                    className="flex items-center justify-between rounded-card border border-teal-200 bg-teal-50/50 p-3 dark:border-teal-900/40 dark:bg-teal-950/20"
+                    className="space-y-2.5 rounded-card border border-teal-200 bg-teal-50/50 p-3 dark:border-teal-900/40 dark:bg-teal-950/20"
                     data-testid="lab-handoff-trigger-section"
                 >
-                    <div className="flex items-center gap-2">
-                        <FlaskConical className="h-4 w-4 text-teal-600 dark:text-teal-400" aria-hidden="true" />
-                        <div>
-                            <span className="text-xs font-bold text-teal-950 dark:text-teal-200">
-                                {t('care_session.lab_handoff_label', 'Dental Lab Order')}
-                            </span>
-                            <p className="text-[11px] text-teal-800 dark:text-teal-300">
-                                {hasLabReadyStep
-                                    ? t('care_session.lab_ready_prompt', 'Preparation / impression step recorded — dispatch lab handoff.')
-                                    : t('care_session.lab_optional_prompt', 'Dispatch 1-tap prosthetic prescription with non-duplicating billing.')}
-                            </p>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                            <FlaskConical className="h-4 w-4 text-teal-600 dark:text-teal-400" aria-hidden="true" />
+                            <div>
+                                <span className="text-xs font-bold text-teal-950 dark:text-teal-200">
+                                    {t('care_session.lab_handoff_label', 'Dental Lab Order')}
+                                </span>
+                                <p className="text-[11px] text-teal-800 dark:text-teal-300">
+                                    {labCandidates.length === 0 && !hasUnlinkedLegacyLabStep
+                                        ? t('care_session.lab_no_eligible_procedure', 'No lab-eligible prosthetic procedure linked to this visit.')
+                                        : isLabSelectionAmbiguous
+                                        ? t('care_session.lab_select_procedure_prompt', 'Multiple lab-eligible procedures in this visit — select one before sending to lab.')
+                                        : hasLabReadyStep
+                                        ? t('care_session.lab_ready_prompt', 'Preparation / impression step recorded — dispatch lab handoff.')
+                                        : t('care_session.lab_optional_prompt', 'Dispatch 1-tap prosthetic prescription with non-duplicating billing.')}
+                                </p>
+                            </div>
                         </div>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (!selectedLabCandidate) return;
+                                setIsLabHandoffOpen(true);
+                            }}
+                            disabled={!selectedLabCandidate}
+                            data-testid="open-lab-handoff-button"
+                            className="inline-flex items-center gap-1.5 rounded-control bg-teal-600 px-3 py-1.5 text-xs font-bold text-white shadow-low hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
+                            <span>{t('care_session.send_to_lab', 'Send to Lab')}</span>
+                        </button>
                     </div>
-                    <button
-                        type="button"
-                        onClick={() => setIsLabHandoffOpen(true)}
-                        data-testid="open-lab-handoff-button"
-                        className="inline-flex items-center gap-1.5 rounded-control bg-teal-600 px-3 py-1.5 text-xs font-bold text-white shadow-low hover:bg-teal-700"
-                    >
-                        <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
-                        <span>{t('care_session.send_to_lab', 'Send to Lab')}</span>
-                    </button>
+
+                    {labCandidates.length > 1 && (
+                        <div className="pt-1">
+                            <label
+                                htmlFor="lab-target-procedure-select"
+                                className="mb-1 block text-[11px] font-semibold text-teal-900 dark:text-teal-200"
+                            >
+                                {t('care_session.lab_target_procedure_label', 'Target Procedure for Lab Order')}
+                            </label>
+                            <select
+                                id="lab-target-procedure-select"
+                                data-testid="lab-target-procedure-select"
+                                value={selectedLabWorkItemId}
+                                onChange={(e) => setSelectedLabWorkItemId(e.target.value)}
+                                className="w-full rounded-control border border-teal-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:border-teal-500 focus:outline-none dark:border-teal-800 dark:bg-slate-900 dark:text-slate-200"
+                            >
+                                <option value="">
+                                    {t('care_session.lab_select_procedure_placeholder', '-- Select lab procedure --')}
+                                </option>
+                                {labCandidates.map((candidate) => (
+                                    <option key={candidate.workItemId} value={String(candidate.workItemId)}>
+                                        {candidate.title}
+                                        {candidate.toothKey ? ` (#${candidate.toothKey})` : ''}
+                                        {candidate.hasLabReadyStep ? ' ✓' : ''}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    )}
                 </div>
 
                 {/* Chairside Next-Visit Request (Slice S22 / G11-M02, G11-M06, G11-M07, G11-M08) */}
@@ -475,13 +699,14 @@ export default function FinishCareSessionSheet({
                 </div>
             </form>
 
-            {isLabHandoffOpen && (
+            {isLabHandoffOpen && selectedLabCandidate && (
                 <LabHandoffSheet
                     isOpen={isLabHandoffOpen}
                     onClose={() => setIsLabHandoffOpen(false)}
                     patientId={session.patient_id}
-                    toothKey={extractedTooth}
-                    workItem={steps.find((s) => s.work_item)?.work_item || null}
+                    patientName={patientName}
+                    toothKey={selectedLabCandidate.toothKey}
+                    workItem={selectedLabCandidate.workItem}
                     t={t}
                 />
             )}
@@ -493,6 +718,8 @@ FinishCareSessionSheet.propTypes = {
     isOpen: PropTypes.bool.isRequired,
     onClose: PropTypes.func.isRequired,
     session: PropTypes.object,
+    patientWorkItems: PropTypes.array,
+    patientName: PropTypes.string,
     onFinishSession: PropTypes.func.isRequired,
     isFinishing: PropTypes.bool,
     draftData: PropTypes.object,

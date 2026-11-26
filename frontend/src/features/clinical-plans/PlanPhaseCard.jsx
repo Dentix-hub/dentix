@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { formatCurrency } from '@/utils/formatters';
 import PlanItemRow from './PlanItemRow';
+import { formatPhaseName } from './planDisplayUtils';
 
 export default function PlanPhaseCard({
     plan,
@@ -31,6 +32,7 @@ export default function PlanPhaseCard({
     onPerformItem,
 }) {
     const { t, i18n } = useTranslation();
+    const displayPhaseName = formatPhaseName(phase.name, t);
     const totalItems = phase.items?.length || 0;
     const completedItems = (phase.items || []).filter(
         (it) => (it.work_item?.status || it.status) === 'completed'
@@ -48,7 +50,7 @@ export default function PlanPhaseCard({
                         {phase.phase_order + 1}
                     </span>
                     <h5 className="font-semibold text-slate-800 dark:text-slate-100">
-                        {phase.name}
+                        {displayPhaseName}
                     </h5>
                     <span
                         data-testid={`phase-status-${phase.id}`}
@@ -127,7 +129,7 @@ export default function PlanPhaseCard({
                                 onClick={() => onMovePhaseUp(plan, idx)}
                                 className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                                 title={t('clinical_plans.actions.move_up', 'Move Up')}
-                                aria-label={`Move phase ${phase.name} up`}
+                                aria-label={`Move phase ${displayPhaseName} up`}
                             >
                                 <ChevronUp size={14} />
                             </button>
@@ -140,7 +142,7 @@ export default function PlanPhaseCard({
                                 onClick={() => onMovePhaseDown(plan, idx)}
                                 className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                                 title={t('clinical_plans.actions.move_down', 'Move Down')}
-                                aria-label={`Move phase ${phase.name} down`}
+                                aria-label={`Move phase ${displayPhaseName} down`}
                             >
                                 <ChevronDown size={14} />
                             </button>
@@ -152,7 +154,7 @@ export default function PlanPhaseCard({
                                 onClick={() => onOpenEditPhase(plan.id, phase)}
                                 className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                                 title={t('clinical_plans.actions.edit_phase', 'Edit Phase')}
-                                aria-label={`Edit phase ${phase.name}`}
+                                aria-label={`Edit phase ${displayPhaseName}`}
                             >
                                 <Pencil size={13} />
                             </button>
@@ -161,10 +163,10 @@ export default function PlanPhaseCard({
                             <button
                                 type="button"
                                 data-testid={`delete-phase-button-${phase.id}`}
-                                onClick={() => onDeletePhase({ planId: plan.id, phaseId: phase.id, name: phase.name })}
+                                onClick={() => onDeletePhase({ planId: plan.id, phaseId: phase.id, name: displayPhaseName })}
                                 className="inline-flex min-h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-rose-600 hover:bg-rose-50 dark:border-slate-700 dark:bg-slate-800 dark:text-rose-400 dark:hover:bg-rose-950/30"
                                 title={t('clinical_plans.actions.delete_phase', 'Delete Phase')}
-                                aria-label={`Delete phase ${phase.name}`}
+                                aria-label={`Delete phase ${displayPhaseName}`}
                             >
                                 <Trash2 size={13} />
                             </button>
@@ -176,7 +178,7 @@ export default function PlanPhaseCard({
                         <button
                             type="button"
                             data-testid={`add-procedure-button-${phase.id}`}
-                            onClick={() => onOpenAddProcedure(plan.id, phase.id, phase.name)}
+                            onClick={() => onOpenAddProcedure(plan.id, phase.id, displayPhaseName)}
                             className="inline-flex min-h-11 items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-xs transition-colors hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                         >
                             <Plus size={13} />

@@ -225,7 +225,14 @@ class NextVisitRequestRead(BaseModel):
             if m:
                 setattr(data, "fulfilled_appointment_id", int(m.group(1)))
 
-        patient = getattr(data, "patient", None)
+        from sqlalchemy.inspection import inspect as sa_inspect
+
+        ins = sa_inspect(data, raiseerr=False)
+        patient = (
+            None
+            if ins is not None and "patient" in ins.unloaded
+            else getattr(data, "patient", None)
+        )
         if patient:
             if not getattr(data, "patient_name", None):
                 setattr(data, "patient_name", getattr(patient, "name", None))

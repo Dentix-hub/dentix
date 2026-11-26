@@ -69,17 +69,19 @@ class MaterialBase(BaseModel):
 
 
 class MaterialCreate(MaterialBase):
-    pass
+    alert_threshold: int = Field(10, ge=0)
+    packaging_ratio: float = Field(1.0, gt=0)
+    max_uses: Optional[int] = Field(1, ge=1)
 
 
 class MaterialUpdate(BaseModel):
     name: Optional[str] = None
     type: Optional[str] = None  # Relaxed to match MaterialBase
     base_unit: Optional[str] = None
-    alert_threshold: Optional[int] = None
-    packaging_ratio: Optional[float] = None
+    alert_threshold: Optional[int] = Field(None, ge=0)
+    packaging_ratio: Optional[float] = Field(None, gt=0)
     standard_price: Optional[NonNegativeMoney] = None
-    max_uses: Optional[int] = None
+    max_uses: Optional[int] = Field(None, ge=1)
     category_id: Optional[int] = None
     brand: Optional[str] = None
 
@@ -175,7 +177,7 @@ class MaterialStockSummary(BaseModel):
 
 class ConsumptionItem(BaseModel):
     material_id: int
-    quantity: float
+    quantity: float = Field(..., gt=0)
     batch_id: Optional[int] = None
     patient_id: Optional[int] = None
 
@@ -183,14 +185,14 @@ class ConsumptionItem(BaseModel):
 class StockReceiveRequest(BaseModel):
     material_id: int
     warehouse_id: int
-    quantity: float
+    quantity: float = Field(..., gt=0)
     batch: BatchBase
 
 
 class StockTransferRequest(BaseModel):
     stock_item_id: int
     target_warehouse_id: int
-    quantity: float
+    quantity: float = Field(..., gt=0)
 
 
 class StockMovementRead(BaseModel):

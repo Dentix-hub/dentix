@@ -1,7 +1,12 @@
 import PropTypes from 'prop-types';
+import { formatPhaseName } from '@/features/clinical-plans/planDisplayUtils';
 
 export default function PlanOverlayActiveBanner({ planOverlay, onToggleOverlay, t }) {
     if (!planOverlay) return null;
+
+    const activePhaseName = planOverlay.phaseId
+        ? formatPhaseName(planOverlay.phases.find((p) => p.id === planOverlay.phaseId)?.name, t)
+        : '';
 
     return (
         <div
@@ -16,7 +21,7 @@ export default function PlanOverlayActiveBanner({ planOverlay, onToggleOverlay, 
                     </span>
                     <span className="text-xs font-extrabold text-blue-700 dark:text-blue-300">
                         {planOverlay.planTitle}
-                        {planOverlay.phaseId && ` (${planOverlay.phases.find((p) => p.id === planOverlay.phaseId)?.name || ''})`}
+                        {planOverlay.phaseId && ` (${activePhaseName})`}
                     </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-2 border-s border-blue-200 ps-3 dark:border-blue-800">
@@ -34,7 +39,7 @@ export default function PlanOverlayActiveBanner({ planOverlay, onToggleOverlay, 
                                 className="inline-block h-1.5 w-1.5 rounded-full"
                                 style={{ backgroundColor: ph.colorConfig.badgeBg }}
                             />
-                            {ph.name} (P{idx + 1})
+                            {formatPhaseName(ph.name, t)} (P{idx + 1})
                         </span>
                     ))}
                 </div>

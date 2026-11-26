@@ -33,10 +33,14 @@ export const invalidatePatientClinicalQueries = (queryClient, patientId) => {
     queryClient.invalidateQueries({ queryKey: ['patient', pid, 'care-sessions'] });
     queryClient.invalidateQueries({ queryKey: ['patient', pidNum, 'care-sessions'] });
 
-    // 4. Treatments history
+    // 4. Treatments history & clinical work items
     queryClient.invalidateQueries({ queryKey: queryKeys.patientTreatments(pid) });
     if (!Number.isNaN(pidNum) && pidNum !== pid) {
         queryClient.invalidateQueries({ queryKey: queryKeys.patientTreatments(pidNum) });
+    }
+    queryClient.invalidateQueries({ queryKey: ['patient', pid, 'clinical-work-items'] });
+    if (!Number.isNaN(pidNum) && pidNum !== pid) {
+        queryClient.invalidateQueries({ queryKey: ['patient', pidNum, 'clinical-work-items'] });
     }
 
     // 5. Patient Teeth status
@@ -64,6 +68,7 @@ export const invalidateAllPatientsClinicalQueries = (queryClient) => {
             if (!Array.isArray(key) || key[0] !== 'patient') return false;
             return [
                 'clinical-workspace',
+                'clinical-work-items',
                 'clinical-plans',
                 'care-sessions',
                 'treatments',

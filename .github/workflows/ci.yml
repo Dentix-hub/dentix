@@ -518,7 +518,7 @@ jobs:
     name: Reproduce / Recover Stale Frontend Assets
     needs: [classify-scope]
     if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.pwa == 'true' || needs.classify-scope.outputs.frontend == 'true') }}
-    # Playwright 1.59.1 provides Chromium binaries for Ubuntu 24.04.
+    # The locked Playwright version supports Chromium on Ubuntu 24.04.
     runs-on: ubuntu-24.04
     timeout-minutes: 15
 
@@ -567,6 +567,7 @@ jobs:
     name: Responsive Acceptance Matrix
     needs: [classify-scope]
     if: ${{ !cancelled() && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || needs.classify-scope.outputs.frontend == 'true' || needs.classify-scope.outputs.clinical_ui == 'true' || needs.classify-scope.outputs.mobile == 'true') }}
+    # The locked Playwright version supports Chromium on Ubuntu 24.04.
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -727,6 +728,7 @@ jobs:
     name: E2E Critical Path (Playwright)
     needs: [classify-scope, backend, frontend, dependency-reproducibility]
     if: ${{ !cancelled() && !contains(needs.*.result, 'failure') && (needs.classify-scope.result != 'success' || needs.classify-scope.outputs.force_full != 'false' || ((needs.classify-scope.outputs.frontend == 'true' && needs.classify-scope.outputs.backend == 'true') || needs.classify-scope.outputs.auth == 'true' || needs.classify-scope.outputs.clinical_ui == 'true')) }}
+    # The locked Playwright version supports Chromium on Ubuntu 24.04.
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 

@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 import { DentixDialog } from '@/shared/ui';
+import { formatPhaseName } from './planDisplayUtils';
 
 export default function DeletePhaseConfirm({
     deletingPhase,
@@ -32,7 +33,7 @@ export default function DeletePhaseConfirm({
                 </p>
                 {deletingPhase && (
                     <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs font-bold text-rose-800 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-300">
-                        {deletingPhase.name}
+                        {formatPhaseName(deletingPhase.name, t)}
                     </div>
                 )}
                 <div className="flex justify-end gap-2 pt-2">

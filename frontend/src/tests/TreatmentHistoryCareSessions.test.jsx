@@ -5,6 +5,7 @@ import TreatmentHistory from '@/features/patients/PatientTabs/TreatmentHistory';
 import { useAuthStore } from '@/store/auth.store';
 
 vi.mock('@/api/patients', () => ({
+    getPatientClinicalWorkItems: vi.fn().mockResolvedValue({ data: [] }),
     getPatientCareSessions: vi.fn(),
     updateClinicalWorkItemStatus: vi.fn(),
 }));
