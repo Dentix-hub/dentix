@@ -63,7 +63,10 @@ function RowActions({ patient, canArchive, onArchive, align = 'end' }) {
                 <ExternalLink className="h-4 w-4" />
             </Link>
             {canArchive && (
-                <button type="button" onClick={() => onArchive(patient.id, patient.name)} className="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-amber-50 hover:text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400/40 dark:hover:bg-amber-950/30" aria-label={t('patients.archive_patient')}>
+                <button type="button" onClick={(event) => {
+                    event.currentTarget.focus();
+                    onArchive(patient.id, patient.name);
+                }} className="flex h-9 w-9 items-center justify-center rounded-lg text-text-muted hover:bg-amber-50 hover:text-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-400/40 dark:hover:bg-amber-950/30" aria-label={t('patients.archive_patient')}>
                     <Archive className="h-4 w-4" />
                 </button>
             )}

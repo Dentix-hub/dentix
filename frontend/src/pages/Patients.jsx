@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/auth/useAuth';
-import { toast } from '@/shared/ui';
+import { ConfirmDialog, toast } from '@/shared/ui';
 import { useDeletePatient, usePatientDirectory, useRecentPatients } from '@/hooks/usePatients';
-import { getRecentPatientIds } from '@/features/patients/recentPatients';
+import { forgetRecentPatientId, getRecentPatientIds } from '@/features/patients/recentPatients';
 import PatientTable from '@/features/patients/PatientTable';
 import PatientFilters from '@/features/patients/PatientFilters';
 import PatientQuickFilters from '@/features/patients/PatientQuickFilters';
@@ -26,6 +26,8 @@ export default function Patients() {
     const [recentIds, setRecentIds] = useState(() => getRecentPatientIds());
     const [isModalOpen, setIsModalOpen] = useState(false);
     const archivePatient = useDeletePatient();
+    const [patientToArchive, setPatientToArchive] = useState(null);
+    const archiveInFlight = useRef(false);
     const isDoctor = user?.role === 'doctor';
 
     useEffect(() => {
@@ -82,16 +84,26 @@ export default function Patients() {
     const activeIsError = scope === 'recent' ? recent.isError : directory.isError;
     const activeRefetch = scope === 'recent' ? recent.refetch : directory.refetch;
 
-    const handleArchivePatient = useCallback(async (id, name) => {
-        if (!window.confirm(t('patients.archive_confirm', { name }))) return;
+    const requestArchive = useCallback((id, name) => {
+        if (!archiveInFlight.current) setPatientToArchive({ id, name });
+    }, []);
+
+    const confirmArchive = async () => {
+        if (!patientToArchive || archiveInFlight.current) return;
+        const { id } = patientToArchive;
+        archiveInFlight.current = true;
         try {
             await archivePatient.mutateAsync(id);
+            forgetRecentPatientId(id);
+            setRecentIds((ids) => ids.filter((patientId) => patientId !== id));
             toast.success(t('patients.archive_success'));
-            if (scope === 'recent') setRecentIds(getRecentPatientIds().filter((patientId) => patientId !== id));
         } catch (err) {
-            toast.error(err.response?.data?.detail || t('patients.archive_error'));
+            const detail = err.response?.data?.detail;
+            toast.error(typeof detail === 'string' ? detail : t('patients.archive_error'));
+        } finally {
+            archiveInFlight.current = false;
         }
-    }, [archivePatient, scope, t]);
+    };
 
     return (
         <div className="min-h-screen space-y-5 pb-20 animate-in fade-in duration-300">
@@ -116,13 +128,23 @@ export default function Patients() {
                     searchQuery={debouncedSearch}
                     scope={scope}
                     onRetry={activeRefetch}
-                    onArchive={handleArchivePatient}
+                    onArchive={requestArchive}
                     onAdd={() => setIsModalOpen(true)}
                     hasNextPage={scope !== 'recent' && directory.hasNextPage}
                     isFetchingNextPage={directory.isFetchingNextPage}
                     onLoadMore={() => directory.fetchNextPage()}
                 />
             </section>
+
+            <ConfirmDialog
+                isOpen={Boolean(patientToArchive)}
+                onClose={() => setPatientToArchive(null)}
+                onConfirm={confirmArchive}
+                title={t('patients.archive_patient')}
+                message={t('patients.archive_confirm', { name: patientToArchive?.name })}
+                confirmText={t('common.confirm')}
+                cancelText={t('common.cancel')}
+            />
 
             <PatientModal
                 isOpen={isModalOpen}

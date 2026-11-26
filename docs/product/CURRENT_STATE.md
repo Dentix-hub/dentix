@@ -4,6 +4,8 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 
 - UX dashboard (2026-11-22): independent source loading and retries, verified zeros, same-clinic stale notices, missing business date feedback and localized EGP. Local verification passed 11 Vitest and 7 Chromium tests, including independent request failures and recovery, denied data eviction and language switching.
 
+- UX patient archive: the localized confirmation shows the selected patient and restores focus on cancel. A pending archive blocks duplicate writes and removes the recent entry only after success.
+
 - Groq compatibility (2026-11-09): local shared fast/complex model defaults updated for current developer-tier support across chat/direct analysis/Scribe, with account overrides. Legacy cards/cost estimates, recorded costs, privacy, clinical semantics and quota accounting preserved; legacy offers unchanged per owner decision.
 - Follow-up: corrected static system/schema labels falsely rejected by the unchanged privacy confidence gate; dynamic messages/context still scanned. Verification: 44 focused tests PASS (18 new), real PostgreSQL egress/accounting coverage and Ruff/whitespace PASS.
 - Genuine Groq smoke PASS on both models; actual AIService/local PostgreSQL request consumed one unit (10→9), replay left quota at nine and provider call count one. No patient rows or hosted configuration changes; synthetic clusters removed.

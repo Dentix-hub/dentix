@@ -503,7 +503,7 @@
       "smoking": "Smoking",
       "other": "Other"
     },
-    "archive_confirm": "Are you sure you want to archive this patient?",
+    "archive_confirm": "Are you sure you want to archive {{name}}?",
     "archive_success": "Patient archived successfully",
     "archive_error": "Failed to archive patient",
     "patient_name": "Patient",
