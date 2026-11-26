@@ -2,6 +2,8 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Staging smoke upload (2026-11-26): replaced the corrupt one-pixel PNG from run 45794878553. The upload validator accepts the new fixture and the upload API regression test passes locally. Hosted smoke is pending.
+
 - Staging CD (2026-11-26): synchronize the authoritative workflow from main (`fd285fbb`, #379). The staging deployment job uses Ubuntu 24.04. Hosted browser smoke is pending.
 
 - UX screenshots (2026-11-26): refreshed six bilingual captures from fictional data and corrected the dashboard greeting. Built assets and registration CTA verified at 390px and 1440px.
