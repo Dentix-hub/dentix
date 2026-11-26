@@ -104,12 +104,58 @@ def test_marketing_document_cannot_escape_static_directory(marketing_client):
 
 
 @pytest.mark.parametrize("path", [
-    "/", "/login", "/register", "/reset-password", "/patients",
+    "/login", "/register", "/reset-password", "/patients",
     "/archive", "/enterprise", "/arbitrary", "/english", "/marketing-tools",
 ])
 def test_application_navigation_keeps_existing_spa_behavior(marketing_client, path):
     client, static_dir = marketing_client
     response = client.get(path)
+    assert response.status_code == 200
+    assert response.content == (static_dir / "index.html").read_bytes()
+
+
+def test_anonymous_root_redirects_to_arabic_landing_with_no_store_and_vary_cookie(marketing_client):
+    client, _ = marketing_client
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == "/ar"
+    assert "no-store" in response.headers["cache-control"]
+    assert "private" in response.headers["cache-control"]
+    assert "cookie" in response.headers.get("vary", "").lower()
+    assert 'id="root"' not in response.text
+
+
+def test_anonymous_root_preserves_query_without_open_redirect(marketing_client):
+    client, _ = marketing_client
+    query = "utm_source=ads&next=https%3A%2F%2Fevil.example"
+    response = client.get(f"/?{query}", follow_redirects=False)
+    assert response.status_code == 307
+    assert response.headers["location"] == f"/ar?{query}"
+
+
+def test_pwa_source_root_serves_spa_shell(marketing_client):
+    client, static_dir = marketing_client
+    response = client.get("/?source=pwa", follow_redirects=False)
+    assert response.status_code == 200
+    assert response.content == (static_dir / "index.html").read_bytes()
+    assert "no-store" in response.headers["cache-control"]
+    assert "cookie" in response.headers.get("vary", "").lower()
+
+
+@pytest.mark.parametrize("cookie_name", ["dentix_session_hint", "access_token", "csrf_token"])
+def test_root_with_session_cookie_serves_spa_shell(marketing_client, cookie_name):
+    client, static_dir = marketing_client
+    response = client.get("/", cookies={cookie_name: "1"}, follow_redirects=False)
+    assert response.status_code == 200
+    assert response.content == (static_dir / "index.html").read_bytes()
+    assert "no-store" in response.headers["cache-control"]
+    assert "cookie" in response.headers.get("vary", "").lower()
+
+
+def test_root_without_marketing_files_does_not_redirect_to_missing_ar(marketing_client):
+    client, static_dir = marketing_client
+    (static_dir / "ar" / "index.html").unlink()
+    response = client.get("/", follow_redirects=False)
     assert response.status_code == 200
     assert response.content == (static_dir / "index.html").read_bytes()
 

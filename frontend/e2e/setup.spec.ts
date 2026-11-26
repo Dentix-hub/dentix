@@ -72,10 +72,8 @@ setup('E2E Test Setup: Create test data', async ({ request, page }) => {
   // The critical path only needs the clinic admin. A new trial tenant allows
   // one user, so role-specific legacy suites must provision their own fixtures.
 
-  // `/` is the canonical unauthenticated login route. Starting at `/login`
-  // leaves a successfully authenticated non-super-admin on an authenticated
-  // route that does not exist, so App correctly renders NotFound there.
-  await page.goto(`${BASE_URL}/`);
+  // `/login` is the dedicated SPA login route; anonymous `/` redirects to `/ar`.
+  await page.goto(`${BASE_URL}/login`);
   await page.locator('input[type="text"]').fill(ADMIN_USER);
   await page.locator('input[type="password"]').fill(ADMIN_PASS);
   await page.locator('button[type="submit"]').click();

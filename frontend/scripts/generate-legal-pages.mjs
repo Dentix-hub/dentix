@@ -264,7 +264,7 @@ ${JSON.stringify(structuredData, null, 2)}
         </ul>
         <div class="nav-actions">
           <a class="btn-lang" href="${targetLangUrl}" hreflang="${targetLangCode}" aria-label="${targetLangAria}">${targetLangText}</a>
-          <a class="nav-login" href="/">${isAr ? 'تسجيل الدخول' : 'Log in'}</a>
+          <a class="nav-login" href="/login">${isAr ? 'تسجيل الدخول' : 'Log in'}</a>
           <a class="btn btn-primary" href="/register">${isAr ? 'إنشاء حساب عيادة' : 'Create Clinic Account'}</a>
         </div>
       </nav>
@@ -300,7 +300,7 @@ ${bodyContent}      </article>
           <a href="${homeUrl}">${isAr ? 'الرئيسية' : 'Home'}</a>
           <a href="${termsUrl}">${isAr ? 'الشروط والأحكام' : 'Terms'}</a>
           <a href="${privacyUrl}">${isAr ? 'سياسة الخصوصية' : 'Privacy'}</a>
-          <a href="/">${isAr ? 'تسجيل الدخول' : 'Log in'}</a>
+          <a href="/login">${isAr ? 'تسجيل الدخول' : 'Log in'}</a>
           <a href="/register">${isAr ? 'تسجيل عيادة جديدة' : 'Create Clinic'}</a>
         </nav>
       </div>

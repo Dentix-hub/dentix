@@ -39,7 +39,9 @@ export default defineConfig(({ mode }) => ({
                 // the installed PWA out of landscape on tablets.
                 orientation: 'any',
                 scope: '/',
-                start_url: '/',
+                // Keep id/scope at '/' for installed PWAs; query marker lets anonymous
+                // installability checks and fresh Home Screen launches enter the SPA directly.
+                start_url: '/?source=pwa',
                 lang: 'ar',
                 dir: 'rtl',
                 icons: [

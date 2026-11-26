@@ -65,7 +65,7 @@ const RegisterClinic = ({ isDarkMode: _isDarkMode }) => {
             data.append('admin_password', formData.admin_password);
             data.append('contact_phone', formData.contact_phone.trim());
             await registerClinic(data);
-            navigate('/', { state: { message: t('auth.register.success') } });
+            navigate('/login', { state: { message: t('auth.register.success') } });
         } catch (err) {
             logger.error(err);
             const serverDetail = err.response?.data?.detail;
@@ -228,7 +228,7 @@ const RegisterClinic = ({ isDarkMode: _isDarkMode }) => {
                         {loading ? t('auth.register.submitting') : t('auth.register.submit')}
                     </button>
                     <div className="text-center mt-4">
-                        <Link to="/" className={`text-sm hover:underline text-primary`}>
+                        <Link to="/login" className={`text-sm hover:underline text-primary`}>
                             {t('auth.register.login_link')}
                         </Link>
                     </div>

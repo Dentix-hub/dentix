@@ -676,18 +676,47 @@ from fastapi.responses import FileResponse, RedirectResponse
 # ...
 
 
+_ROOT_SESSION_COOKIES = ("dentix_session_hint", "access_token", "csrf_token")
+
+
 @app.get("/")
-async def read_root():
-    """Serve the React Frontend."""
-    # Check both potential static locations
+async def read_root(request: Request):
+    """Redirect anonymous web visitors to /ar while preserving SPA/PWA entry."""
+    has_session_cookie = any(name in request.cookies for name in _ROOT_SESSION_COOKIES)
+    is_pwa_launch = request.query_params.get("source") == "pwa"
+
+    if not has_session_cookie and not is_pwa_launch:
+        ar_page = get_safe_static_path(static_dir, "ar/index.html")
+        if ar_page and ar_page.is_file():
+            destination = "/ar"
+            if request.url.query:
+                destination += f"?{request.url.query}"
+            return RedirectResponse(
+                url=destination,
+                status_code=307,
+                headers={
+                    "Cache-Control": "private, no-store, must-revalidate",
+                    "Pragma": "no-cache",
+                    "Expires": "0",
+                    "Vary": "Cookie",
+                },
+            )
+
+    # Check static_dir first (used by runtime/tests), then container/dev fallbacks
     static_paths = [
+        str(static_dir / "index.html"),
         os.path.join(base_dir, "static", "index.html"),  # Local dev /app/backend/static
         "/app/static/index.html",  # Docker /app/static
     ]
 
     for path in static_paths:
         if os.path.exists(path):
-            return FileResponse(path)
+            response = FileResponse(path)
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+            response.headers["Vary"] = "Cookie"
+            return response
 
     return {
         "message": "Welcome to Smart Clinic API (Frontend not found)",

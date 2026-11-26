@@ -2,6 +2,10 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Root landing routing (2026-11-26, `feat/root-landing-redirect`): anonymous `GET /` redirects `307` to `/ar` (preserving safe query params, `Vary: Cookie`, `Cache-Control: private, no-store`) in `frontend/vercel.json` and `backend/main.py` while keeping `id: '/'`, `scope: '/'`, `sw.js` cache-first PWA launch, and `start_url: '/?source=pwa'`.
+  - Standardized 18 public marketing/legal/guide pages + generators/validators/tests on `href="/login"`, added safe post-login redirect resolution (`App.jsx`, `Login.jsx`, `RegisterClinic.jsx`, `ProtectedRoute.jsx`), and cleared session hints before redirecting to `/login` in `logout()`.
+  - Verification: `npm run build` + artifact validation + `npm run lint` PASS; 10 targeted Vitest files (130 passed), marketing Playwright (163 passed, 2 existing no-JS skips), stale-deployment reproduction (`verify-stale-deployment-recovery.mjs`), and 42 backend tests + Ruff PASS. Full CI, Vercel Preview `curl -I` header verification, and staging smoke pending PR.
+
 - Staging smoke upload (2026-11-26): replaced the corrupt one-pixel PNG from run 45794878553. The upload validator accepts the new fixture and the upload API regression test passes locally. Hosted smoke is pending.
 
 - Staging CD (2026-11-26): synchronize the authoritative workflow from main (`fd285fbb`, #379). The staging deployment job uses Ubuntu 24.04. Hosted browser smoke is pending.

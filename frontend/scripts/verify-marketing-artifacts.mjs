@@ -172,7 +172,7 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
     errors.push(`${lang}/index.html illegally contains PWA manifest link`);
   }
 
-  // 7. Action Links: Login must point to / (never /login)
+  // 7. Action Links: Login must point to /login (never bare / which redirects anonymous visitors to /ar)
   const links = doc.querySelectorAll('a');
   let loginCount = 0;
   let hasLangSwitch = false;
@@ -186,13 +186,9 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
 
     if (loginTexts.some((lt) => text.includes(lt.toLowerCase()))) {
       loginCount++;
-      if (href !== '/') {
-        errors.push(`Login link must point to '/', found '${href}'`);
+      if (href !== '/login') {
+        errors.push(`Login link must point to '/login', found '${href}'`);
       }
-    }
-
-    if (href === '/login' || href.startsWith('/login?')) {
-      errors.push(`Direct link to /login found: '${href}'`);
     }
 
     if (href === targetLangSwitch) {
@@ -211,7 +207,7 @@ export function validateMarketingHtml(html, distDir = null, options = {}) {
   }
 
   if (loginCount < 2) {
-    errors.push(`Expected at least 2 login links pointing to '/', found ${loginCount} in ${canonical}`);
+    errors.push(`Expected at least 2 login links pointing to '/login', found ${loginCount} in ${canonical}`);
   }
 
   if (!hasLangSwitch) {

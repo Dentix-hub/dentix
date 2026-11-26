@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import Login from '@/pages/Login';
 
 const loginMock = vi.fn();
@@ -221,5 +221,102 @@ describe('Login Component', () => {
 
         fireEvent.click(verifyButton);
         await waitFor(() => expect(verify2FAMock).toHaveBeenCalledWith('123456', 'temp-2fa-token'));
+    });
+
+    it('navigates clinic users to / after password login and after 2FA verification', async () => {
+        render(
+            <MemoryRouter initialEntries={['/login']}>
+                <Routes>
+                    <Route path="/login" element={<Login isDarkMode={false} toggleDarkMode={vi.fn()} />} />
+                    <Route path="/" element={<div>Clinic Dashboard</div>} />
+                    <Route path="/admin" element={<div>Super Admin Console</div>} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        fireEvent.change(screen.getByLabelText('auth.login.username'), { target: { value: 'clinic_admin' } });
+        fireEvent.change(screen.getByLabelText('auth.login.password'), { target: { value: 'pass123' } });
+        fireEvent.click(screen.getByRole('button', { name: 'auth.login.submit' }));
+
+        expect(await screen.findByText('Clinic Dashboard')).toBeInTheDocument();
+
+        loginMock.mockResolvedValueOnce({ user_status: '2fa_required', access_token: 'temp-2fa-token' });
+        verify2FAMock.mockResolvedValueOnce({ role: 'doctor' });
+        render(
+            <MemoryRouter initialEntries={['/login']}>
+                <Routes>
+                    <Route path="/login" element={<Login isDarkMode={false} toggleDarkMode={vi.fn()} />} />
+                    <Route path="/" element={<div>Clinic Dashboard 2FA</div>} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        const userInputs = screen.getAllByLabelText('auth.login.username');
+        const passInputs = screen.getAllByLabelText('auth.login.password');
+        fireEvent.change(userInputs[userInputs.length - 1], { target: { value: 'dr_sara' } });
+        fireEvent.change(passInputs[passInputs.length - 1], { target: { value: 'pass123' } });
+        const submitButtons = screen.getAllByRole('button', { name: 'auth.login.submit' });
+        fireEvent.click(submitButtons[submitButtons.length - 1]);
+
+        const codeInput = await screen.findByPlaceholderText('000000');
+        fireEvent.change(codeInput, { target: { value: '654321' } });
+        fireEvent.click(screen.getByRole('button', { name: 'تأكيد الرمز' }));
+
+        expect(await screen.findByText('Clinic Dashboard 2FA')).toBeInTheDocument();
+    });
+
+    it('restores safe in-app location.state.from and falls back to / for unsafe or public paths', async () => {
+        render(
+            <MemoryRouter initialEntries={[{ pathname: '/login', state: { from: { pathname: '/patients', search: '?page=2' } } }]}>
+                <Routes>
+                    <Route path="/login" element={<Login isDarkMode={false} toggleDarkMode={vi.fn()} />} />
+                    <Route path="/patients" element={<div>Patients Page</div>} />
+                    <Route path="/" element={<div>Fallback Root</div>} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        fireEvent.change(screen.getByLabelText('auth.login.username'), { target: { value: 'clinic_admin' } });
+        fireEvent.change(screen.getByLabelText('auth.login.password'), { target: { value: 'pass123' } });
+        fireEvent.click(screen.getByRole('button', { name: 'auth.login.submit' }));
+
+        expect(await screen.findByText('Patients Page')).toBeInTheDocument();
+
+        render(
+            <MemoryRouter initialEntries={[{ pathname: '/login', state: { from: { pathname: '//evil.example' } } }]}>
+                <Routes>
+                    <Route path="/login" element={<Login isDarkMode={false} toggleDarkMode={vi.fn()} />} />
+                    <Route path="/" element={<div>Safe Root Fallback</div>} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        const userInputs = screen.getAllByLabelText('auth.login.username');
+        const passInputs = screen.getAllByLabelText('auth.login.password');
+        fireEvent.change(userInputs[userInputs.length - 1], { target: { value: 'clinic_admin' } });
+        fireEvent.change(passInputs[passInputs.length - 1], { target: { value: 'pass123' } });
+        const submitButtons = screen.getAllByRole('button', { name: 'auth.login.submit' });
+        fireEvent.click(submitButtons[submitButtons.length - 1]);
+
+        expect(await screen.findByText('Safe Root Fallback')).toBeInTheDocument();
+    });
+
+    it('navigates super_admin to /admin and renders registration success status banner', async () => {
+        loginMock.mockResolvedValueOnce({ role: 'super_admin' });
+        render(
+            <MemoryRouter initialEntries={[{ pathname: '/login', state: { message: 'Clinic registered successfully' } }]}>
+                <Routes>
+                    <Route path="/login" element={<Login isDarkMode={false} toggleDarkMode={vi.fn()} />} />
+                    <Route path="/admin" element={<div>Super Admin Console</div>} />
+                </Routes>
+            </MemoryRouter>
+        );
+
+        expect(screen.getByRole('status')).toHaveTextContent('Clinic registered successfully');
+        fireEvent.change(screen.getByLabelText('auth.login.username'), { target: { value: 'super' } });
+        fireEvent.change(screen.getByLabelText('auth.login.password'), { target: { value: 'secret' } });
+        fireEvent.click(screen.getByRole('button', { name: 'auth.login.submit' }));
+
+        expect(await screen.findByText('Super Admin Console')).toBeInTheDocument();
     });
 });
