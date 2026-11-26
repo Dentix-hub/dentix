@@ -145,7 +145,7 @@ test('HF staging passes production-like auth/patient/appointment/finance/file/RB
   // Use an allowlisted file type with a real matching magic signature. The
   // production upload validator intentionally rejects text/plain/.txt.
   const onePixelPng = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z6GQAAAAASUVORK5CYII=',
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC',
     'base64',
   );
   const upload = await page.request.post(`${API_URL}/upload?patient_id=${patient.id}&note=staging-smoke`, {
