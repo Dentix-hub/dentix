@@ -32,8 +32,10 @@ to it). The redirect is configured at the Vercel project level, not in
 1. All product links, emails, QR codes, docs and onboarding must reference
    `https://www.dentixs.app`.
 2. Never use stale `*.vercel.app` addresses in product metadata.
-3. Manifest `id` is `"/"` on the canonical origin (see `vite.config.js`);
-   do not change it casually — it re-identifies the installed app.
+3. Manifest `id` and `scope` stay locked to `"/"` on the canonical origin (see `vite.config.js`);
+   do not change `id` casually — it re-identifies the installed app. `start_url` uses `"/?source=pwa"`
+   so anonymous installability checks and fresh PWA launches enter the SPA directly while anonymous
+   web visits to `/` redirect (`307`) to `/ar`.
 4. Canonical metadata in `frontend/index.html` (`rel=canonical`, `og:url`,
    `twitter:url`) must keep pointing at the canonical origin.
 

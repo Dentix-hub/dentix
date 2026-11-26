@@ -1,11 +1,33 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { parseJwt, getToken, getRefreshToken, setToken, removeToken, getAdminToken, setAdminToken, removeAdminToken } from '../utils';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+const apiPostMock = vi.hoisted(() => vi.fn());
+const clearSessionCookieHintMock = vi.hoisted(() => vi.fn());
+
+vi.mock('../api/apiClient', () => ({
+    api: { post: apiPostMock },
+}));
+
+vi.mock('../api/authSession', () => ({
+    clearSessionCookieHint: clearSessionCookieHintMock,
+}));
+
+import { parseJwt, getToken, getRefreshToken, setToken, removeToken, getAdminToken, setAdminToken, removeAdminToken, logout } from '../utils';
 
 describe('utils', () => {
+    const originalLocation = window.location;
+
     beforeEach(() => {
         localStorage.clear();
         sessionStorage.clear();
-        vi.resetModules();
+        vi.clearAllMocks();
+    });
+
+    afterEach(() => {
+        Object.defineProperty(window, 'location', {
+            value: originalLocation,
+            writable: true,
+            configurable: true,
+        });
     });
 
     describe('parseJwt', () => {
@@ -67,6 +89,52 @@ describe('utils', () => {
         });
     });
 
-    // Note: logout() is an async function that calls the API
-    // It's tested in integration tests, not unit tests
+    describe('logout()', () => {
+        it('clears session cookie hints BEFORE redirecting to /login when API logout succeeds', async () => {
+            const callOrder = [];
+            let currentHref = '';
+            apiPostMock.mockResolvedValueOnce({ status: 200 });
+            clearSessionCookieHintMock.mockImplementation(() => callOrder.push('clear_hint'));
+
+            Object.defineProperty(window, 'location', {
+                value: {
+                    get href() { return currentHref; },
+                    set href(val) {
+                        currentHref = val;
+                        callOrder.push(`set_href:${val}`);
+                    },
+                },
+                writable: true,
+                configurable: true,
+            });
+
+            await logout();
+
+            expect(apiPostMock).toHaveBeenCalledWith('/api/v1/auth/logout');
+            expect(callOrder).toEqual(['clear_hint', 'set_href:/login']);
+        });
+
+        it('still clears session cookie hints BEFORE redirecting to /login when API logout fails (401/offline)', async () => {
+            const callOrder = [];
+            let currentHref = '';
+            apiPostMock.mockRejectedValueOnce({ response: { status: 401 } });
+            clearSessionCookieHintMock.mockImplementation(() => callOrder.push('clear_hint'));
+
+            Object.defineProperty(window, 'location', {
+                value: {
+                    get href() { return currentHref; },
+                    set href(val) {
+                        currentHref = val;
+                        callOrder.push(`set_href:${val}`);
+                    },
+                },
+                writable: true,
+                configurable: true,
+            });
+
+            await logout();
+
+            expect(callOrder).toEqual(['clear_hint', 'set_href:/login']);
+        });
+    });
 });

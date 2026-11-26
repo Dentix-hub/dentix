@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
+import { resolvePostLoginPath } from '@/auth/postLoginRedirect';
 import { Sun, Moon, Globe, Loader2, Eye, EyeOff } from 'lucide-react';
 export default function Login({ isDarkMode, toggleDarkMode }) {
     const { t, i18n } = useTranslation();    const [username, setUsername] = useState('');
@@ -12,12 +13,15 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams] = useSearchParams();
     const { login, verify2FA } = useAuth();
     const [show2FA, setShow2FA] = useState(false);
     const [twoFACode, setTwoFACode] = useState('');
     const [tempToken, setTempToken] = useState('');
     const reason = searchParams.get('reason');
+    const registrationSuccessMessage = typeof location.state?.message === 'string' ? location.state.message : '';
+    const postLoginDestination = (role) => resolvePostLoginPath(role, location.state?.from);
     const sessionNoticeMessage = reason === 'session_mismatch'
         ? t('auth.login.errors.session_mismatch')
         : reason === 'session_expired'
@@ -39,9 +43,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                 return;
             }
 
-            if (data.role === 'super_admin') {
-                navigate('/admin', { replace: true });
-            }
+            navigate(postLoginDestination(data.role), { replace: true });
         } catch (err) {
             logger.error("Login Error:", err);
             setError(err.response?.data?.detail || t('auth.login.errors.server'));
@@ -57,9 +59,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
         setError('');
         try {
             const data = await verify2FA(twoFACode, tempToken);
-            if (data.role === 'super_admin') {
-                navigate('/admin', { replace: true });
-            }
+            navigate(postLoginDestination(data.role), { replace: true });
         } catch (err) {
             setError(err.response?.data?.detail || 'رمز التحقق غير صحيح');
         } finally {
@@ -103,6 +103,11 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                 {(error || sessionNoticeMessage) && (
                     <div className="bg-red-50 border border-red-200 text-red-700 dark:bg-red-950 dark:border-red-800 dark:text-red-200 p-4 rounded-2xl text-sm font-bold mb-6 animate-shake" role="alert">
                         {error || sessionNoticeMessage}
+                    </div>
+                )}
+                {registrationSuccessMessage && !error && !sessionNoticeMessage && (
+                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-200 p-4 rounded-2xl text-sm font-bold mb-6" role="status">
+                        {registrationSuccessMessage}
                     </div>
                 )}
                 {!show2FA ? (

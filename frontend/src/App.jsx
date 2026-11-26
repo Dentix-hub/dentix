@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import AuthProvider from '@/auth/AuthProvider';
 import { useAuth } from '@/auth/useAuth';
 import ProtectedRoute from '@/auth/ProtectedRoute';
+import { resolvePostLoginPath } from '@/auth/postLoginRedirect';
 import ToastProvider from '@/shared/ui/ToastProvider';
 // Components
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
@@ -78,7 +79,7 @@ import NetworkStatusBanner from '@/shared/ui/NetworkStatusBanner';
 import { BUILD_INFO } from '@/config/buildInfo';
 
 function AppRoutes() {
-    const { isAuthenticated, isBooting } = useAuth();
+    const { isAuthenticated, isBooting, user } = useAuth();
     const location = useLocation();
     const { darkMode, setDarkMode, toggleDarkMode } = useUIStore();
     const { i18n } = useTranslation();
@@ -141,6 +142,8 @@ function AppRoutes() {
         );
     }
 
+    const postLoginTarget = resolvePostLoginPath(user?.role, location.state?.from);
+
     return (
         <ProceduresProvider>
             <>
@@ -150,6 +153,8 @@ function AppRoutes() {
                 <NetworkStatusBanner />
                 <Suspense fallback={<LoadingSpinner />}>
                     <Routes>
+                        <Route path="/login" element={<Navigate to={postLoginTarget} replace />} />
+                        <Route path="/register" element={<Navigate to={user?.role === 'super_admin' ? '/admin' : '/'} replace />} />
                         <Route path="/print/invoice/:id" element={<PrintInvoice />} />
                         <Route path="/print/rx/:id" element={<PrintRx />} />
                         <Route element={

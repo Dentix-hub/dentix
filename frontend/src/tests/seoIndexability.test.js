@@ -108,4 +108,18 @@ describe('Public indexing regression protection', () => {
             expect(result.passed).toBe(true);
         }
     });
+
+    it('enforces root 307 redirect for anonymous traffic and 200 SPA shell for PWA/hinted traffic', () => {
+        const anonRoot = routeTests.find(test => test.path === '/');
+        expect(anonRoot?.expected).toMatchObject({ status: 307, location: '/ar' });
+
+        const anonUtm = routeTests.find(test => test.path === '/?utm_source=preview_test');
+        expect(anonUtm?.expected).toMatchObject({ status: 307, location: '/ar', locationSearch: '?utm_source=preview_test' });
+
+        const pwaRoot = routeTests.find(test => test.path === '/?source=pwa');
+        expect(pwaRoot?.expected).toMatchObject({ status: 200, contentType: 'text/html' });
+
+        const hintedRoot = routeTests.find(test => test.path === '/' && test.expected?.requestHeaders?.Cookie === 'dentix_session_hint=1');
+        expect(hintedRoot?.expected).toMatchObject({ status: 200, contentType: 'text/html' });
+    });
 });
