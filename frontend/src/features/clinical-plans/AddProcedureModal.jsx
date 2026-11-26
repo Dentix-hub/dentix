@@ -2,6 +2,12 @@ import PropTypes from 'prop-types';
 import { useTranslation } from 'react-i18next';
 import { Loader2 } from 'lucide-react';
 import { DentixDialog } from '@/shared/ui';
+import {
+    formatClinicalPlanStatus,
+    formatPhaseName,
+    formatWorkItemLabel,
+    formatWorkItemTargets,
+} from './planDisplayUtils';
 
 export default function AddProcedureModal({
     open,
@@ -15,7 +21,9 @@ export default function AddProcedureModal({
     isPending,
     isRtl,
 }) {
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
+    const displayPhaseName = formatPhaseName(phaseName, t);
+    const dialogTitle = t('clinical_plans.add_procedure_dialog.title', 'Add Procedure to Phase');
 
     return (
         <DentixDialog
@@ -23,7 +31,7 @@ export default function AddProcedureModal({
             onOpenChange={(isOpen) => {
                 if (!isOpen) onClose();
             }}
-            title={`${t('clinical_plans.add_procedure_dialog.title', 'Add Procedure to Phase')} — ${phaseName}`}
+            title={displayPhaseName ? `${dialogTitle} — ${displayPhaseName}` : dialogTitle}
             size="md"
             closeLabel={t('common.close', 'Close')}
             closeOnOutside={!isPending}
@@ -73,11 +81,14 @@ export default function AddProcedureModal({
                                 {t('clinical_plans.add_procedure_dialog.choose_placeholder', '-- Select a procedure --')}
                             </option>
                             {candidates.map((candidate) => {
-                                const targetStr = (candidate.targets || [])
-                                    .map((tg) => (tg.tooth_key ? `${tg.tooth_key}${tg.surface ? ` (${tg.surface})` : ''}` : ''))
-                                    .filter(Boolean)
-                                    .join(', ');
-                                const label = `${candidate.display_name || candidate.procedure_code}${targetStr ? ` — [${targetStr}]` : ''} (${candidate.status})`;
+                                const targetStr = formatWorkItemTargets(candidate.targets);
+                                const procedureLabel = formatWorkItemLabel(candidate, {
+                                    language: i18n?.language,
+                                    t,
+                                    fallbackId: candidate.id,
+                                });
+                                const statusLabel = formatClinicalPlanStatus(candidate.status, t);
+                                const label = `${procedureLabel}${targetStr ? ` — [${targetStr}]` : ''}${statusLabel ? ` (${statusLabel})` : ''}`;
 
                                 return (
                                     <option key={candidate.id} value={candidate.id}>

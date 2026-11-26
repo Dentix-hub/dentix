@@ -8,6 +8,11 @@ import {
 } from 'lucide-react';
 import { DentixDialog } from '@/shared/ui';
 import { formatCurrency } from '@/utils/formatters';
+import {
+    formatPhaseName,
+    formatWorkItemLabel,
+    formatWorkItemTargets,
+} from './planDisplayUtils';
 
 const getStatusBadgeClass = (status) => {
     switch (status) {
@@ -239,7 +244,7 @@ const PlanComparisonModal = memo(({
                             >
                                 <div className="flex items-center justify-between gap-2 border-b border-slate-200/50 pb-2 dark:border-slate-700/50">
                                     <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
-                                        {phase.name}
+                                        {formatPhaseName(phase.name, t)}
                                     </span>
                                     <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
                                         {formatCurrency(phase.phase_estimated_total ?? 0, 'EGP', i18n.language)}
@@ -254,11 +259,7 @@ const PlanComparisonModal = memo(({
                                     ) : (
                                         (phase.items || []).map((item) => {
                                             const isShared = sharedWorkItemIds.has(item.work_item_id);
-                                            const targets = item.work_item?.targets || [];
-                                            const toothLabels = targets
-                                                .map((t) => (t.surface ? `${t.tooth_key} (${t.surface})` : t.tooth_key))
-                                                .filter(Boolean)
-                                                .join(', ');
+                                            const toothLabels = formatWorkItemTargets(item.work_item?.targets);
 
                                             return (
                                                 <div
@@ -267,7 +268,11 @@ const PlanComparisonModal = memo(({
                                                 >
                                                     <div className="flex items-start justify-between gap-2">
                                                         <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                                            {item.work_item?.display_name || item.work_item?.procedure_code || `#${item.work_item_id}`}
+                                                            {formatWorkItemLabel(item.work_item, {
+                                                                language: i18n?.language,
+                                                                t,
+                                                                fallbackId: item.work_item_id ?? item.id,
+                                                            })}
                                                         </span>
                                                         {isShared ? (
                                                             <span

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +6,7 @@ import { getDoctors } from '@/api';
 import { useAuth } from '@/auth/useAuth';
 import { useCreatePatient, useSearchPatients } from '@/hooks/usePatients';
 import { Modal, Button, Input, toast } from '@/shared/ui';
+import { formatApiError } from '@/utils/formatApiError';
 
 const MEDICAL_CONDITION_KEYS = [
     'none',
@@ -53,6 +54,8 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
     const [hasExactDob, setHasExactDob] = useState(false);
     const [formData, setFormData] = useState(EMPTY_FORM);
     const [duplicateQuery, setDuplicateQuery] = useState('');
+    const isSubmittingRef = useRef(false);
+    const todayIso = new Date().toISOString().split('T')[0];
 
     const doctorsQuery = useQuery({
         queryKey: ['doctors', 'patient-form'],
@@ -82,6 +85,7 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
 
     useEffect(() => {
         if (!isOpen) {
+            isSubmittingRef.current = false;
             setFormData(EMPTY_FORM);
             setHasExactDob(false);
             setDuplicateQuery('');
@@ -118,9 +122,13 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
 
     const handleSubmit = async (event) => {
         event.preventDefault();
-        if (createPatientMutation.isPending) return;
+        if (isSubmittingRef.current || createPatientMutation.isPending) return;
         if (!formData.name.trim()) {
             toast.error(t('patients.form.name_required', 'Patient name is required'));
+            return;
+        }
+        if (hasExactDob && formData.date_of_birth && formData.date_of_birth > todayIso) {
+            toast.error(t('patients.form.future_dob_error', 'تاريخ الميلاد لا يمكن أن يكون في المستقبل'));
             return;
         }
 
@@ -134,13 +142,16 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
         };
         if (hasExactDob && formData.date_of_birth) payload.date_of_birth = formData.date_of_birth;
 
+        isSubmittingRef.current = true;
         try {
             const response = await createPatientMutation.mutateAsync(payload);
             toast.success(t('patients.form.success_msg'));
             onSuccess?.(response?.data);
             onClose();
         } catch (err) {
-            toast.error(err.response?.data?.detail || t('patients.form.error_msg'));
+            toast.error(formatApiError(err, t('patients.form.error_msg')));
+        } finally {
+            isSubmittingRef.current = false;
         }
     };
 
@@ -197,6 +208,7 @@ export default function PatientModal({ isOpen, onClose, onSuccess }) {
                             <Input
                                 label={t('patients.date_of_birth')}
                                 type="date"
+                                max={todayIso}
                                 value={formData.date_of_birth}
                                 onChange={(e) => handleInputChange('date_of_birth', e.target.value)}
                             />

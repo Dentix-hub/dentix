@@ -2,9 +2,11 @@
 """Run Safety fail-closed while tolerating its transient feed mismatch."""
 
 from collections.abc import Callable, Sequence
+from pathlib import Path
 import re
 import subprocess
 import sys
+from tempfile import TemporaryDirectory
 import time
 
 
@@ -58,7 +60,20 @@ def run_safety_check(
 
 
 def main() -> int:
-    return run_safety_check()
+    installed = subprocess.run(
+        ("uv", "pip", "freeze", "--python", sys.executable),
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    # Safety 3.8.1 requires filelock < 4. Keep its tools out of the app environment
+    # and scan every installed app and test dependency from the frozen environment.
+    with TemporaryDirectory(prefix="dentix-safety-") as tmp_dir:
+        requirements = Path(tmp_dir) / "requirements.txt"
+        requirements.write_text(installed.stdout, encoding="utf-8")
+        return run_safety_check(
+            command=("uvx", "--from", "safety==3.8.1", *DEFAULT_COMMAND, "--file", str(requirements))
+        )
 
 
 if __name__ == "__main__":

@@ -83,7 +83,7 @@ class ClinicalRolloutService:
         """Determine clinical workspace read mode from flag states."""
         if flags.get(FEATURE_FLAG_CLINICAL_SHADOW):
             return "SHADOW"
-        if flags.get(FEATURE_FLAG_CLINICAL_PRIMARY):
+        if flags.get(FEATURE_FLAG_CLINICAL_PRIMARY) or flags.get(FEATURE_FLAG_CLINICAL_NATIVE_WRITES):
             return "VNEXT_PRIMARY"
         return "LEGACY_ONLY"
 

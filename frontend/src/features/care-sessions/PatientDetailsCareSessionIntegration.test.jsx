@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import PatientDetails from '@/pages/PatientDetails';
 import { useAuthStore } from '@/store/auth.store';
+import { getPatientClinicalWorkItems } from '@/api/patients';
 
 const {
     mockRecord, mockFinish, mockFlush, mockDiscard,
@@ -27,7 +28,16 @@ vi.mock('@/auth/useAuth', () => ({
     }),
 }));
 
-vi.mock('@/api/patients', async (original) => ({ ...await original(), getPatientCareSessions: vi.fn().mockResolvedValue({ data: [] }) }));
+vi.mock('@/api/patients', async (original) => ({
+    ...await original(),
+    getPatientCareSessions: vi.fn().mockResolvedValue({ data: [] }),
+    getPatientClinicalWorkItems: vi.fn(),
+}));
+
+vi.mock('@/api/labs', async (original) => ({
+    ...await original(),
+    getLaboratories: vi.fn().mockResolvedValue({ data: [] }),
+}));
 
 vi.mock('@/shared/context/ProceduresContext', () => ({
     useProcedures: () => ({ procedures: [] }),
@@ -145,7 +155,7 @@ vi.mock('@/features/care-sessions/useCareSessionDraft', () => ({
     }),
 }));
 
-function renderActivePatient() {
+function renderActivePatient(session = {}) {
     mockRecord.mockClear();
     mockFinish.mockClear();
     mockFlush.mockClear();
@@ -169,6 +179,7 @@ function renderActivePatient() {
             ],
             steps: [],
             observations: [],
+            ...session,
         },
         isLoading: false,
         refetch: vi.fn(),
@@ -186,6 +197,12 @@ function renderActivePatient() {
 describe('PatientDetails Care Session Integration', () => {
     beforeEach(() => {
         Object.defineProperty(window.HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
+        getPatientClinicalWorkItems.mockResolvedValue({
+            data: [{
+                id: 101, kind: 'procedure', code: 'ENDO_RCT', status: 'active',
+                targets: [{ target_kind: 'canal', tooth_key: '46', root_id: 'mesial', canal_id: 'MB' }],
+            }],
+        });
         useAuthStore.setState({ user: { id: 1, role: 'doctor', permissions: ['clinical:write'] } });
         mockUseTenantFeatures.mockReturnValue({ data: ['clinical_vnext_native_writes'], refetch: vi.fn(), isLoading: false });
     });
@@ -210,6 +227,24 @@ describe('PatientDetails Care Session Integration', () => {
             work_item_id: 101,
             structured_value: { length_mm: 21.5, taper: 0.06 },
         });
+    });
+
+    it('loads the linked lab procedure when the chart projection lacks that procedure', async () => {
+        getPatientClinicalWorkItems.mockResolvedValueOnce({
+            data: [{
+                id: 202, kind: 'procedure', code: 'PROS_CROWN', status: 'active',
+                targets: [{ target_kind: 'tooth', tooth_key: '21' }],
+            }],
+        });
+        renderActivePatient({
+            procedures: [{ id: 12, work_item_id: 202, work_item_status: 'active' }],
+            steps: [{ id: 5, work_item_id: 202, step_code: 'impression_scan', status: 'completed' }],
+        });
+        fireEvent.click(await screen.findByTestId('btn-banner-finish-session'));
+        await waitFor(() => expect(screen.getByTestId('open-lab-handoff-button')).toBeEnabled());
+        expect(getPatientClinicalWorkItems).toHaveBeenCalledWith('123');
+        fireEvent.click(screen.getByTestId('open-lab-handoff-button'));
+        expect(await screen.findByTestId('tooth-number-input')).toHaveValue('21');
     });
 
     it('keeps the finish sheet and typed notes when draft flushing fails', async () => {

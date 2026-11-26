@@ -5,15 +5,16 @@ import { API_URL } from '@/api';
  */
 export const buildAttachmentUrl = (filePath) => {
     if (!filePath) return '';
-    if (filePath.startsWith('/api/v1/upload/drive/')) return filePath;
-    if (filePath.startsWith('http://') || filePath.startsWith('https://')) return filePath;
+    if (filePath.startsWith('/api/v1/upload/drive/') || filePath.startsWith('/api/v1/upload/file/')) return filePath;
+    if (filePath.startsWith('http://') || filePath.startsWith('https://') || filePath.startsWith('blob:') || filePath.startsWith('data:')) return filePath;
     if (filePath.includes('http://') || filePath.includes('https://')) {
         const httpIdx = filePath.indexOf('http');
         return filePath.substring(httpIdx);
     }
     const base = (API_URL || '').replace(/\/+$/, '');
+    if (filePath.startsWith('/api/')) return `${base}${filePath}`;
     const path = String(filePath).replace(/^\/+/, '');
-    return `${base}/${path}`;
+    return `${base}/api/v1/upload/file/${path}`;
 };
 
 /**

@@ -22,7 +22,11 @@ export default function ProtectedImage({
     }, [filePath, thumbnail, storageStatus, retryGeneration, manualRetryCount]);
 
     let src = buildAttachmentUrl(filePath);
-    if (thumbnail && src.includes('/api/v1/upload/drive/')) src += '?variant=thumbnail';
+    const isDriveImage = src.includes('/api/v1/upload/drive/');
+    if (thumbnail && isDriveImage) src += '?variant=thumbnail';
+    const unavailableLabel = isDriveImage
+        ? t('backup.image_unavailable')
+        : t('backup.local_image_unavailable', 'الصورة غير متاحة حاليًا');
 
     if (storageStatus === 'pending') {
         return (
@@ -42,10 +46,10 @@ export default function ProtectedImage({
             <div
                 {...rest}
                 role="img"
-                aria-label={t('backup.image_unavailable')}
+                aria-label={unavailableLabel}
                 className={`${className || ''} flex flex-col items-center justify-center bg-slate-100 p-2 text-center text-xs text-slate-600`}
             >
-                <span>{t('backup.image_unavailable')}</span>
+                <span>{unavailableLabel}</span>
                 <button
                     type="button"
                     onClick={(e) => {
