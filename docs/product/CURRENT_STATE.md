@@ -4,6 +4,15 @@ Updated by the executor at the end of every task PR (max 10 lines changed). New 
 
 - Staging CD (2026-11-26): synchronize the authoritative workflow from main (`fd285fbb`, #379). The staging deployment job uses Ubuntu 24.04. Hosted browser smoke is pending.
 
+- UX screenshots (2026-11-26): refreshed six bilingual captures from fictional data and corrected the dashboard greeting. Built assets and registration CTA verified at 390px and 1440px.
+- UX verification: Frontend 1,239 passed, 0 failed/skipped. Backend 1,947 passed, 123 skipped (122 require isolated PostgreSQL, 1 TestClient host limitation), 0 failures. Build, lint and design guardrails passed. Marketing Playwright 142 passed, 2 skipped (no JavaScript), 1 Chromium teardown error; that mobile case passed three isolated repeats.
+- PR #377 CI (2026-11-26): merged staging #378 hotfix reconciliation (`uv.lock` & isolated Safety runner), confirmed the patient archive dialog in the critical path, and refreshed the three patient-list visual baselines for the trial clinic and higher-contrast button.
+- UX dashboard (2026-11-22): independent source loading and retries, verified zeros, same-clinic stale notices, missing business date feedback and localized EGP. Local verification passed 11 Vitest and 7 Chromium tests, including independent request failures and recovery, denied data eviction and language switching.
+- UX patient archive: the localized confirmation shows the selected patient and restores focus on cancel. A pending archive blocks duplicate writes and removes the recent entry only after success.
+- UX login: visible username and password labels, accessible focus, higher contrast for filled buttons and connectivity status text. Device-offline and backend-degraded states remain distinct.
+- UX patient identity: hide the clinical workspace until identity is available, preserve the requested tab, flag transient stale data, and discard cached clinical data on terminal denial.
+- UX calendar (2026-11-22): click or tap opens the existing appointment editor for the selected record. Local verification passed 7 Vitest and 5 Chromium tests covering two records, zero writes on close, one save to the selected ID, empty-slot booking and drag rescheduling.
+
 - Production hotfix reconciliation (2026-11-26): backported #374, #375 and #376 from `d2128440` onto staging `04cfaf0c`.
   - Product and workflow files match the production revision. Focused verification passed 53 backend and 56 frontend tests, frozen dependency installation, Ruff, ESLint, and actionlint.
   - Staging CI, deployment smoke, and owner acceptance are pending. UX delivery is tracked in #377.
