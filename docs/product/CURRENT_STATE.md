@@ -2,6 +2,8 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Staging CD (2026-11-26): synchronize the authoritative workflow from main (`fd285fbb`, #379). The staging deployment job uses Ubuntu 24.04. Hosted browser smoke is pending.
+
 - Production hotfix reconciliation (2026-11-26): backported #374, #375 and #376 from `d2128440` onto staging `04cfaf0c`.
   - Product and workflow files match the production revision. Focused verification passed 53 backend and 56 frontend tests, frozen dependency installation, Ruff, ESLint, and actionlint.
   - Staging CI, deployment smoke, and owner acceptance are pending. UX delivery is tracked in #377.
