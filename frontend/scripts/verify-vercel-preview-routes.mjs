@@ -14,7 +14,7 @@
 
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { CURRENT_ACTIVE_INDEXABLE_ROUTES, APPLICATION_SHELL_ROUTES, PROTECTED_ROUTES, publicPageOptions } from './routeInventory.mjs';
+import { CURRENT_ACTIVE_INDEXABLE_ROUTES, DIRECT_APPLICATION_SHELL_ROUTES, PROTECTED_ROUTES, publicPageOptions } from './routeInventory.mjs';
 
 import {
   validateApplicationShellNoindex,
@@ -34,7 +34,11 @@ export async function checkRoute(description, path, expected, deploymentBaseUrl 
   const result = { description, path, passed: true, details: [] };
 
   try {
-    const res = await fetch(url, { redirect: 'manual' });
+    const fetchOptions = { redirect: 'manual' };
+    if (expected.requestHeaders) {
+      fetchOptions.headers = expected.requestHeaders;
+    }
+    const res = await fetch(url, fetchOptions);
 
     // 1. Check HTTP status code
     if (expected.status !== undefined && res.status !== expected.status) {
@@ -42,7 +46,7 @@ export async function checkRoute(description, path, expected, deploymentBaseUrl 
       result.details.push(`Status mismatch: expected ${expected.status}, got ${res.status}`);
     }
 
-    // 2. Strict Redirect Location validation (origin + pathname)
+    // 2. Strict Redirect Location validation (origin + pathname + optional search)
     if (expected.location !== undefined) {
       const locHeader = res.headers.get('location');
       if (!locHeader) {
@@ -60,6 +64,10 @@ export async function checkRoute(description, path, expected, deploymentBaseUrl 
           if (resolvedLoc.pathname !== expected.location) {
             result.passed = false;
             result.details.push(`Location pathname mismatch: expected '${expected.location}', got '${resolvedLoc.pathname}'`);
+          }
+          if (expected.locationSearch !== undefined && resolvedLoc.search !== expected.locationSearch) {
+            result.passed = false;
+            result.details.push(`Location search mismatch: expected '${expected.locationSearch}', got '${resolvedLoc.search}'`);
           }
         } catch (e) {
           result.passed = false;
@@ -172,7 +180,32 @@ export const routeTests = [
     desc: `Legacy ${alias} redirects to public legal content`,
     path: alias, expected: { status: 308, location: `/ar/${page}` },
   }))),
-  ...[...APPLICATION_SHELL_ROUTES, ...PROTECTED_ROUTES].map(pathname => ({
+  {
+    desc: 'Anonymous / redirects temporarily (307) to /ar',
+    path: '/',
+    expected: { status: 307, location: '/ar' },
+  },
+  {
+    desc: 'Anonymous / preserves query parameters when redirecting to /ar',
+    path: '/?utm_source=preview_test',
+    expected: { status: 307, location: '/ar', locationSearch: '?utm_source=preview_test' },
+  },
+  {
+    desc: 'PWA start_url /?source=pwa serves the noindexed SPA shell',
+    path: '/?source=pwa',
+    expected: { status: 200, contentType: 'text/html', validator: validateApplicationShellNoindex },
+  },
+  {
+    desc: 'Authenticated/hinted / serves the noindexed SPA shell',
+    path: '/',
+    expected: {
+      status: 200,
+      contentType: 'text/html',
+      requestHeaders: { Cookie: 'dentix_session_hint=1' },
+      validator: validateApplicationShellNoindex,
+    },
+  },
+  ...[...DIRECT_APPLICATION_SHELL_ROUTES, ...PROTECTED_ROUTES].map(pathname => ({
     desc: `Application ${pathname} retains the noindexed SPA shell`,
     path: pathname,
     expected: { status: 200, contentType: 'text/html', validator: validateApplicationShellNoindex },

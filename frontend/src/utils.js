@@ -1,4 +1,5 @@
 import logger from '@/utils/logger';
+import { clearSessionCookieHint } from './api/authSession';
 export function parseJwt(token) {
     try {
         if (!token) return null;
@@ -97,7 +98,9 @@ export async function logout() {
     } catch (e) {
         // Even if the request fails, clear any potential local state
         logger.warn('Logout request failed:', e);
+    } finally {
+        clearSessionCookieHint();
     }
     // Force reload to clear any cached state
-    window.location.href = '/';
+    window.location.href = '/login';
 }

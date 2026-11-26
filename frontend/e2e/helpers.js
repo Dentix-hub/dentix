@@ -17,7 +17,7 @@ export const E2E_CREDENTIALS = {
 };
 
 export async function loginAs(page, username, password) {
-  await page.goto(`${BASE_URL}/`);
+  await page.goto(`${BASE_URL}/login`);
   await page.locator('input[type="text"]').fill(username);
   await page.locator('input[type="password"]').fill(password);
   await page.locator('button[type="submit"]').click();

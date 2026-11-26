@@ -13,7 +13,7 @@ function egyptInternationalPhone(localPhone: string) {
 }
 
 async function loginWithUi(page, username: string, password: string) {
-  await page.goto(`${BASE_URL}/`);
+  await page.goto(`${BASE_URL}/login`);
   await page.locator('input[type="text"]').fill(username);
   await page.locator('input[type="password"]').fill(password);
   await page.locator('button[type="submit"]').click();
@@ -81,11 +81,10 @@ test.describe('Dentix Critical Path', () => {
 
     await directorySearch.fill(`#${patient.id}`);
     await expect(page.getByText(patientName, { exact: true }).first()).toBeVisible({ timeout: 10000 });
-    page.once('dialog', async (dialog) => {
-      expect(dialog.type()).toBe('confirm');
-      await dialog.accept();
-    });
     await page.getByRole('button', { name: /Archive patient|أرشفة المريض/i }).first().click();
+    const archiveDialog = page.getByRole('dialog', { name: /Archive patient|أرشفة المريض/i });
+    await expect(archiveDialog.getByText(patientName)).toBeVisible({ timeout: 10000 });
+    await archiveDialog.getByRole('button', { name: /Confirm|تأكيد/i }).click();
     await expect(page.getByText(patientName, { exact: true })).toHaveCount(0, { timeout: 10000 });
 
     await page.goto(`${BASE_URL}/billing`);

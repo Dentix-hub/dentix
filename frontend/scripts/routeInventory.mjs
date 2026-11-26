@@ -72,10 +72,14 @@ export function publicPageOptions(canonical) {
 }
 
 // 3. Application-only routes (entry point, noindex in raw HTML)
-export const APPLICATION_SHELL_ROUTES = [
-  '/',
+export const ROOT_REDIRECT_ROUTE = '/';
+export const DIRECT_APPLICATION_SHELL_ROUTES = [
   '/login',
   '/register',
+];
+export const APPLICATION_SHELL_ROUTES = [
+  ROOT_REDIRECT_ROUTE,
+  ...DIRECT_APPLICATION_SHELL_ROUTES,
 ];
 
 // 4. Protected clinical & administrative routes (noindex, auth-required)

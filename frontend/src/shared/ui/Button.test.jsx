@@ -56,4 +56,41 @@ describe('Dentix shared Button public contract', () => {
         expect(iconWrapper).toHaveClass('me-2');
         expect(screen.getByRole('button', { name: 'Favorite' })).toBeInTheDocument();
     });
+
+    it('uses high-contrast #0369A1 primary filled styling with accessible hover and focus ring', () => {
+        render(<Button variant="primary">Primary Action</Button>);
+        const button = screen.getByRole('button', { name: 'Primary Action' });
+        expect(button).toHaveClass(
+            'bg-primary-700',
+            'text-white',
+            'hover:bg-primary-800',
+            'focus-visible:ring-2',
+            'focus-visible:ring-primary-700',
+        );
+    });
+
+    it('uses high-contrast #B91C1C danger filled styling with accessible hover and focus ring', () => {
+        render(<Button variant="danger">Delete Record</Button>);
+        const button = screen.getByRole('button', { name: 'Delete Record' });
+        expect(button).toHaveClass(
+            'bg-red-700',
+            'text-white',
+            'hover:bg-red-800',
+            'focus-visible:ring-2',
+            'focus-visible:ring-red-700',
+        );
+    });
+
+    it('uses high-contrast light and dark classes on outline and ghost variants', () => {
+        render(
+            <>
+                <Button variant="outline">Outline Action</Button>
+                <Button variant="ghost">Ghost Action</Button>
+            </>,
+        );
+        const outlineBtn = screen.getByRole('button', { name: 'Outline Action' });
+        const ghostBtn = screen.getByRole('button', { name: 'Ghost Action' });
+        expect(outlineBtn).toHaveClass('text-primary-700', 'dark:text-primary-300', 'focus-visible:ring-2');
+        expect(ghostBtn).toHaveClass('hover:text-primary-700', 'dark:hover:text-primary-300', 'focus-visible:ring-2');
+    });
 });

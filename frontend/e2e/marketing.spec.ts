@@ -17,7 +17,7 @@ for (const canonical of CURRENT_ACTIVE_INDEXABLE_ROUTES.filter(url => new URL(ur
     await expect(page.locator('#root')).toHaveCount(0);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', canonical);
     await expect(page.locator(`link[hreflang="${otherLanguage}"]`)).toHaveAttribute('href', canonical.replace(`/${language}`, `/${otherLanguage}`));
-    await expect(page.locator('.site-footer a[href="/"]')).toBeVisible();
+    await expect(page.locator('.site-footer a[href="/login"]')).toBeVisible();
     await expect(page.locator('.site-footer a[href="/register"]')).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth), pathname).toBe(false);
@@ -94,7 +94,7 @@ test.describe('Dentix Arabic Marketing Page', () => {
     await expect(firstFaq).toHaveAttribute('open', '');
   });
 
-  test('enforces strict contract on action links: login points to / (NOT /login) and switcher points to /en', async ({ page }) => {
+  test('enforces strict contract on action links: login points to /login (NOT /) and switcher points to /en', async ({ page }) => {
     await page.goto('/ar/index.html');
 
     // Check all login buttons/links on the marketing page
@@ -104,8 +104,8 @@ test.describe('Dentix Arabic Marketing Page', () => {
 
     for (let i = 0; i < count; i++) {
       const href = await loginLinks.nth(i).getAttribute('href');
-      expect(href, 'Login link must point to /').toBe('/');
-      expect(href).not.toBe('/login');
+      expect(href, 'Login link must point to /login').toBe('/login');
+      expect(href).not.toBe('/');
     }
 
     // Check register link
@@ -192,7 +192,7 @@ test.describe('Dentix English Marketing Page', () => {
     await expect(firstFaq).toHaveAttribute('open', '');
   });
 
-  test('enforces strict contract on action links: login points to / (NOT /login) and switcher points to /ar', async ({ page }) => {
+  test('enforces strict contract on action links: login points to /login (NOT /) and switcher points to /ar', async ({ page }) => {
     await page.goto('/en/index.html');
 
     // Check all login buttons/links on the marketing page
@@ -202,8 +202,8 @@ test.describe('Dentix English Marketing Page', () => {
 
     for (let i = 0; i < count; i++) {
       const href = await loginLinks.nth(i).getAttribute('href');
-      expect(href, 'Login link must point to /').toBe('/');
-      expect(href).not.toBe('/login');
+      expect(href, 'Login link must point to /login').toBe('/login');
+      expect(href).not.toBe('/');
     }
 
     // Check register link
@@ -254,7 +254,7 @@ test.describe('Dentix English Marketing Page', () => {
 test.describe('Dentix Marketing Discovery & PWA Lifecycle', () => {
   test('verifies bidirectional discovery link on login page dynamically adapts to active language', async ({ page, javaScriptEnabled }) => {
     test.skip(!javaScriptEnabled, 'Login page is a React SPA requiring JavaScript execution to mount');
-    await page.goto('/');
+    await page.goto('/login');
 
     // Initially in Arabic, discovery link points to /ar
     const arDiscoveryLink = page.locator('a[href="/ar"]');

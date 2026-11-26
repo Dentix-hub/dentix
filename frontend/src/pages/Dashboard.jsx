@@ -1,5 +1,6 @@
-import { lazy, memo, useCallback, useMemo, useState } from 'react';
+import { lazy, memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
     Users,
     Calendar,
@@ -13,17 +14,37 @@ import {
 import { useTranslation } from 'react-i18next';
 import { LazyChart } from '@/components/charts/LazyChart';
 import { motion } from '@/lib/motion';
+import { queryKeys } from '@/lib/queryClient';
 import { getTodayPayments, getTodayDebtors } from '@/api';
 import { useDashboardStats } from '@/hooks/useDashboard';
 import { useAppointments } from '@/hooks/useAppointments';
 import { useAuth } from '@/auth/useAuth';
+import { useTenantStore } from '@/store/tenant.store';
 import { Card, Button, Modal, PageHeader, toast, AdvancedTable } from '@/shared/ui';
 import DashboardQuickActions from '@/features/dashboard/DashboardQuickActions';
+import {
+    DashboardSourceError,
+    DashboardStaleWarning,
+    DashboardUnavailableNotice,
+} from '@/features/dashboard/DashboardStateFeedback';
+import {
+    buildDashboardSessionScopeKey,
+    computeStatusDistribution,
+    discardDeniedData,
+    formatDashboardCurrency,
+    isAuthorizationError,
+    isUsableAppointmentsData,
+    isUsableStatsData,
+    resolveSourceState,
+    resolveTodaySectionState,
+} from '@/features/dashboard/dashboardDataState';
 import PatientModal from '@/features/patients/modals/PatientModal.jsx';
-import { selectAppointmentsForBusinessDate } from '@/utils/dateTime';
 
 const RevenueChart = lazy(() => import('@/features/dashboard/DashboardCharts').then(module => ({ default: module.RevenueChart })));
 const StatusChart = lazy(() => import('@/features/dashboard/DashboardCharts').then(module => ({ default: module.StatusChart })));
+
+// Tracks only the last clinic/actor scope key seen per QueryClient instance (never stores data).
+const lastDashboardScopeByClient = new WeakMap();
 
 const GradientCard = memo(({ title, value, subtext, icon: Icon, gradient, onClick }) => (
     <button
@@ -52,11 +73,37 @@ GradientCard.displayName = 'GradientCard';
 
 export default function Dashboard() {
     const navigate = useNavigate();
+    const queryClient = useQueryClient();
     const { user } = useAuth();
+    const tenant = useTenantStore((state) => state.tenant);
     const { t, i18n } = useTranslation();
-    const { data: statsData, isLoading: statsLoading } = useDashboardStats();
-    const { data: appointments = [], isLoading: apptsLoading } = useAppointments();
-    const loading = statsLoading || apptsLoading;
+
+    const sessionScopeKey = buildDashboardSessionScopeKey({ user, tenant });
+    const [activeScopeKey, setActiveScopeKey] = useState(
+        () => lastDashboardScopeByClient.get(queryClient) ?? sessionScopeKey,
+    );
+    const scopeMatches = activeScopeKey === sessionScopeKey;
+
+    const statsQuery = useDashboardStats();
+    const appointmentsQuery = useAppointments();
+    const { refetch: refetchStats, error: statsError, failureReason: statsFailure } = statsQuery;
+    const { refetch: refetchAppointments, error: appointmentsError, failureReason: appointmentsFailure } = appointmentsQuery;
+    const isStatsDataRevoked = isAuthorizationError(statsError) || isAuthorizationError(statsFailure);
+    const isAppointmentsDataRevoked = isAuthorizationError(appointmentsError) || isAuthorizationError(appointmentsFailure);
+
+    useEffect(() => {
+        if (!scopeMatches) {
+            queryClient.resetQueries({ queryKey: queryKeys.dashboardStats, exact: true });
+            queryClient.resetQueries({ queryKey: queryKeys.appointments, exact: true });
+            setActiveScopeKey(sessionScopeKey);
+        }
+        lastDashboardScopeByClient.set(queryClient, sessionScopeKey);
+    }, [scopeMatches, sessionScopeKey, queryClient]);
+
+    useEffect(() => {
+        if (isStatsDataRevoked) discardDeniedData(queryClient, queryKeys.dashboardStats);
+        if (isAppointmentsDataRevoked) discardDeniedData(queryClient, queryKeys.appointments);
+    }, [isStatsDataRevoked, isAppointmentsDataRevoked, queryClient]);
 
     const [modalOpen, setModalOpen] = useState(false);
     const [modalTitle, setModalTitle] = useState('');
@@ -65,31 +112,103 @@ export default function Dashboard() {
     const [modalType, setModalType] = useState(null);
     const [isPatientModalOpen, setIsPatientModalOpen] = useState(false);
 
-    const formatCurrency = useCallback((amount) => new Intl.NumberFormat('en-EG', {
-        style: 'currency',
-        currency: 'EGP',
-        maximumFractionDigits: 0
-    }).format(amount), []);
+    const uiLanguage = i18n.resolvedLanguage || i18n.language || 'ar';
+    const isArabic = String(uiLanguage).toLowerCase().startsWith('ar');
 
-    const stats = useMemo(() => {
-        const businessDate = statsData?.business_date;
-        const todayAppts = selectAppointmentsForBusinessDate(appointments, businessDate);
-        const visibleTodayAppts = todayAppts.filter(appointment => appointment.status !== 'Cancelled');
-        const completed = visibleTodayAppts.filter(appointment => appointment.status === 'Completed').length;
-        const efficiency = visibleTodayAppts.length > 0
-            ? Math.round((completed / visibleTodayAppts.length) * 100)
-            : 0;
+    const formatCurrency = useCallback(
+        (amount) => formatDashboardCurrency(amount, uiLanguage),
+        [uiLanguage],
+    );
 
+    const statsState = useMemo(() => resolveSourceState({
+        data: statsQuery.data,
+        isPending: statsQuery.isPending,
+        isError: statsQuery.isError,
+        error: statsQuery.error,
+        isFetching: statsQuery.isFetching,
+        isUsable: isUsableStatsData,
+        scopeMatches,
+        isDataRevoked: isStatsDataRevoked,
+    }), [
+        statsQuery.data,
+        statsQuery.isPending,
+        statsQuery.isError,
+        statsQuery.error,
+        statsQuery.isFetching,
+        scopeMatches,
+        isStatsDataRevoked,
+    ]);
+
+    const appointmentsState = useMemo(() => resolveSourceState({
+        data: appointmentsQuery.data,
+        isPending: appointmentsQuery.isPending,
+        isError: appointmentsQuery.isError,
+        error: appointmentsQuery.error,
+        isFetching: appointmentsQuery.isFetching,
+        isUsable: isUsableAppointmentsData,
+        scopeMatches,
+        isDataRevoked: isAppointmentsDataRevoked,
+    }), [
+        appointmentsQuery.data,
+        appointmentsQuery.isPending,
+        appointmentsQuery.isError,
+        appointmentsQuery.error,
+        appointmentsQuery.isFetching,
+        scopeMatches,
+        isAppointmentsDataRevoked,
+    ]);
+
+    const statsMetrics = useMemo(() => {
+        if (!statsState.data) return null;
         return {
-            new_patients_today: statsData?.new_patients_today ?? 0,
-            appointments: statsData?.total_appointments_today ?? 0,
-            revenue: statsData?.today_received ?? 0,
-            outstanding: statsData?.today_outstanding ?? 0,
-            chartData: statsData?.revenue_chart ?? [],
-            efficiency,
-            todaysAppointments: [...visibleTodayAppts].sort((a, b) => String(a.date_time || '').localeCompare(String(b.date_time || '')))
+            new_patients_today: statsState.data.new_patients_today,
+            appointments: statsState.data.total_appointments_today,
+            revenue: statsState.data.today_received,
+            outstanding: statsState.data.today_outstanding,
+            chartData: Array.isArray(statsState.data.revenue_chart) ? statsState.data.revenue_chart : [],
         };
-    }, [statsData, appointments]);
+    }, [statsState.data]);
+
+    const todayState = useMemo(
+        () => resolveTodaySectionState({ statsState, appointmentsState }),
+        [statsState, appointmentsState],
+    );
+
+    const statusDistribution = useMemo(
+        () => (appointmentsState.data ? computeStatusDistribution(appointmentsState.data, t) : []),
+        [appointmentsState.data, t],
+    );
+
+    const handleRetryStats = useCallback(() => {
+        refetchStats();
+    }, [refetchStats]);
+
+    const handleRetryAppointments = useCallback(() => {
+        refetchAppointments();
+    }, [refetchAppointments]);
+
+    const statsRetryAction = useMemo(() => ({
+        key: 'retry-stats',
+        label: t('dashboard.retry_stats'),
+        loadingLabel: t('dashboard.retrying'),
+        loading: statsState.isRetrying,
+        onClick: handleRetryStats,
+    }), [t, statsState.isRetrying, handleRetryStats]);
+
+    const appointmentsRetryAction = useMemo(() => ({
+        key: 'retry-appointments',
+        label: t('dashboard.retry_appointments'),
+        loadingLabel: t('dashboard.retrying'),
+        loading: appointmentsState.isRetrying,
+        onClick: handleRetryAppointments,
+    }), [t, appointmentsState.isRetrying, handleRetryAppointments]);
+
+    const todayErrorActions = useMemo(() => {
+        const actions = [];
+        if (todayState.statsFailed) actions.push(statsRetryAction);
+        if (todayState.appointmentsFailed) actions.push(appointmentsRetryAction);
+        return actions;
+    }, [todayState.statsFailed, todayState.appointmentsFailed, statsRetryAction, appointmentsRetryAction]);
 
     const handleRevenueClick = useCallback(async () => {
         setModalTitle(t('dashboard.daily_income_details'));
@@ -145,7 +264,7 @@ export default function Dashboard() {
                     const value = getValue();
                     return (
                         <span className="font-medium text-slate-500" dir="ltr">
-                            {value ? new Date(value).toLocaleTimeString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                            {value ? new Date(value).toLocaleTimeString(isArabic ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' }) : '-'}
                         </span>
                     );
                 }
@@ -155,18 +274,51 @@ export default function Dashboard() {
         columns.push({
             header: t('common.amount', 'Amount'),
             accessorKey: 'amount',
-            cell: ({ getValue }) => <span className="break-words text-base font-bold text-primary sm:text-lg" dir="ltr">{formatCurrency(getValue())}</span>
+            cell: ({ getValue }) => <span className="break-words text-base font-bold text-primary sm:text-lg" dir="auto">{formatCurrency(getValue())}</span>
         });
 
         return columns;
-    }, [modalType, t, formatCurrency, i18n.language]);
+    }, [modalType, t, formatCurrency, isArabic]);
 
-    const statusDistribution = useMemo(() => [
-        { name: t('appointments.status.completed'), value: appointments.filter(appointment => appointment.status === 'Completed').length, fill: '#10b981' },
-        { name: t('appointments.status.scheduled'), value: appointments.filter(appointment => appointment.status === 'Scheduled').length, fill: '#0891B2' },
-        { name: t('appointments.status.waiting'), value: appointments.filter(appointment => appointment.status === 'Waiting').length, fill: '#f59e0b' },
-        { name: t('appointments.status.cancelled'), value: appointments.filter(appointment => appointment.status === 'Cancelled' || appointment.status === 'No Show').length, fill: '#ef4444' },
-    ].filter(item => item.value > 0), [appointments, t]);
+    const todayCountLabel = useMemo(() => {
+        if (todayState.status === 'loading') {
+            return t('dashboard.appointments_count', { val: '...' });
+        }
+        if (todayState.status === 'ready') {
+            return t('dashboard.appointments_count', { val: todayState.todaysAppointments.length });
+        }
+        return t('dashboard.unavailable');
+    }, [todayState, t]);
+
+    const todayErrorCopy = useMemo(() => {
+        if (todayState.statsFailed && todayState.appointmentsFailed) {
+            return {
+                title: t('common.error_loading_data'),
+                scheduleDesc: t('dashboard.today_both_error_desc'),
+                efficiencyDesc: t('dashboard.efficiency_both_error_desc'),
+            };
+        }
+        if (todayState.statsFailed) {
+            return {
+                title: todayState.statsAuthError ? t('common.access_denied') : t('dashboard.stats_load_error_title'),
+                scheduleDesc: todayState.statsAuthError
+                    ? t('dashboard.access_denied_stats')
+                    : t('dashboard.today_stats_error_desc'),
+                efficiencyDesc: todayState.statsAuthError
+                    ? t('dashboard.access_denied_stats')
+                    : t('dashboard.efficiency_stats_error_desc'),
+            };
+        }
+        return {
+            title: todayState.appointmentsAuthError ? t('common.access_denied') : t('dashboard.appointments_load_error_title'),
+            scheduleDesc: todayState.appointmentsAuthError
+                ? t('dashboard.access_denied_appointments')
+                : t('dashboard.appointments_load_error_desc'),
+            efficiencyDesc: todayState.appointmentsAuthError
+                ? t('dashboard.access_denied_appointments')
+                : t('dashboard.efficiency_appointments_error_desc'),
+        };
+    }, [todayState, t]);
 
     return (
         <div className="min-w-0 space-y-5 pb-8 animate-in fade-in zoom-in-95 duration-500 sm:space-y-6 sm:pb-10">
@@ -178,8 +330,35 @@ export default function Dashboard() {
 
             <DashboardQuickActions onAddPatient={() => setIsPatientModalOpen(true)} />
 
+            {(statsState.isStale || appointmentsState.isStale) && (
+                <div className="space-y-2.5">
+                    {statsState.isStale && (
+                        <DashboardStaleWarning
+                            testId="dashboard-stats-stale-warning"
+                            retryTestId="dashboard-retry-stats-stale"
+                            message={t('dashboard.stale_stats_warning')}
+                            retryLabel={t('dashboard.retry_stats')}
+                            retryingLabel={t('dashboard.retrying')}
+                            isRetrying={statsState.isRetrying}
+                            onRetry={handleRetryStats}
+                        />
+                    )}
+                    {appointmentsState.isStale && (
+                        <DashboardStaleWarning
+                            testId="dashboard-appointments-stale-warning"
+                            retryTestId="dashboard-retry-appointments-stale"
+                            message={t('dashboard.stale_appointments_warning')}
+                            retryLabel={t('dashboard.retry_appointments')}
+                            retryingLabel={t('dashboard.retrying')}
+                            isRetrying={appointmentsState.isRetrying}
+                            onRetry={handleRetryAppointments}
+                        />
+                    )}
+                </div>
+            )}
+
             <div className="stats-grid grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4 lg:gap-6">
-                {loading ? (
+                {statsState.status === 'loading' ? (
                     Array.from({ length: 4 }).map((_, index) => (
                         <div key={index} className="flex min-h-36 min-w-0 flex-col justify-between rounded-2xl border border-slate-100 bg-white p-3 shadow-sm dark:border-slate-800 dark:bg-slate-800 sm:min-h-40 sm:rounded-3xl sm:p-5">
                             <div className="h-10 w-10 rounded-xl bg-slate-200 animate-pulse dark:bg-slate-700 sm:h-12 sm:w-12" />
@@ -189,11 +368,20 @@ export default function Dashboard() {
                             </div>
                         </div>
                     ))
+                ) : statsState.status === 'error' ? (
+                    <div className="col-span-2 lg:col-span-4">
+                        <DashboardSourceError
+                            testId="dashboard-stats-error"
+                            title={statsState.isAuthError ? t('common.access_denied') : t('dashboard.stats_load_error_title')}
+                            description={statsState.isAuthError ? t('dashboard.access_denied_stats') : t('dashboard.stats_load_error_desc')}
+                            actions={[statsRetryAction]}
+                        />
+                    </div>
                 ) : (
                     <>
                         <GradientCard
                             title={t('dashboard.new_patients_today')}
-                            value={stats.new_patients_today}
+                            value={statsMetrics.new_patients_today}
                             subtext={t('dashboard.registered_today')}
                             icon={Users}
                             gradient="bg-gradient-to-br from-primary to-primary-700"
@@ -201,7 +389,7 @@ export default function Dashboard() {
                         />
                         <GradientCard
                             title={t('dashboard.appointments_today')}
-                            value={stats.appointments}
+                            value={statsMetrics.appointments}
                             subtext={t('dashboard.confirmed_booking')}
                             icon={Calendar}
                             gradient="bg-gradient-to-br from-teal-500 to-cyan-600"
@@ -209,7 +397,7 @@ export default function Dashboard() {
                         />
                         <GradientCard
                             title={t('dashboard.daily_income')}
-                            value={formatCurrency(stats.revenue)}
+                            value={formatCurrency(statsMetrics.revenue)}
                             subtext={t('dashboard.cash_collection')}
                             icon={Wallet}
                             gradient="bg-gradient-to-br from-emerald-500 to-emerald-700"
@@ -217,7 +405,7 @@ export default function Dashboard() {
                         />
                         <GradientCard
                             title={t('dashboard.outstanding_today')}
-                            value={formatCurrency(stats.outstanding)}
+                            value={formatCurrency(statsMetrics.outstanding)}
                             subtext={t('dashboard.to_collect')}
                             icon={Activity}
                             gradient="bg-gradient-to-br from-amber-500 to-orange-600"
@@ -239,13 +427,25 @@ export default function Dashboard() {
                                 <p className="mt-1 break-words text-xs text-text-secondary sm:text-sm">{t('dashboard.revenue_growth')}</p>
                             </div>
                         </div>
-                        <div className="h-[230px] min-w-0 w-full sm:h-[280px] lg:h-[320px]" style={{ direction: 'ltr' }}>
-                            {loading ? (
+                        <div className="h-[230px] min-w-0 w-full sm:h-[280px] lg:h-[320px]">
+                            {statsState.status === 'loading' ? (
                                 <div className="h-full w-full rounded-2xl bg-slate-100 animate-pulse dark:bg-slate-800/50 sm:rounded-3xl" />
-                            ) : stats.chartData.some(point => Number(point.revenue) !== 0) ? (
-                                <LazyChart>
-                                    <RevenueChart data={stats.chartData} formatCurrency={formatCurrency} revenueLabel={t('dashboard.revenue')} />
-                                </LazyChart>
+                            ) : statsState.status === 'error' ? (
+                                <div className="flex h-full items-center justify-center">
+                                    <DashboardSourceError
+                                        testId="dashboard-revenue-error"
+                                        compact
+                                        title={statsState.isAuthError ? t('common.access_denied') : t('dashboard.stats_load_error_title')}
+                                        description={statsState.isAuthError ? t('dashboard.access_denied_stats') : t('dashboard.revenue_load_error_desc')}
+                                        actions={[statsRetryAction]}
+                                    />
+                                </div>
+                            ) : statsMetrics.chartData.some(point => Number(point.revenue) !== 0) ? (
+                                <div className="h-full w-full" style={{ direction: 'ltr' }}>
+                                    <LazyChart>
+                                        <RevenueChart data={statsMetrics.chartData} formatCurrency={formatCurrency} revenueLabel={t('dashboard.revenue')} />
+                                    </LazyChart>
+                                </div>
                             ) : (
                                 <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-text-secondary">
                                     <div className="flex h-14 w-14 items-center justify-center rounded-full bg-surface-hover text-2xl">📊</div>
@@ -261,13 +461,27 @@ export default function Dashboard() {
                                 <Activity className="shrink-0 text-primary" size={18} aria-hidden="true" />
                                 <span className="break-words">{t('dashboard.status_distribution')}</span>
                             </h4>
-                            <div className="h-[180px] min-w-0 w-full sm:h-[200px]" style={{ direction: 'ltr' }}>
-                                {statusDistribution.length > 0 ? (
-                                    <LazyChart>
-                                        <StatusChart data={statusDistribution} />
-                                    </LazyChart>
+                            <div className="min-h-[180px] min-w-0 w-full sm:min-h-[200px]">
+                                {appointmentsState.status === 'loading' ? (
+                                    <div className="h-[180px] w-full rounded-2xl bg-slate-100 animate-pulse dark:bg-slate-800/50 sm:h-[200px]" />
+                                ) : appointmentsState.status === 'error' ? (
+                                    <div className="flex min-h-[180px] items-center justify-center sm:min-h-[200px]">
+                                        <DashboardSourceError
+                                            testId="dashboard-status-error"
+                                            compact
+                                            title={appointmentsState.isAuthError ? t('common.access_denied') : t('dashboard.appointments_load_error_title')}
+                                            description={appointmentsState.isAuthError ? t('dashboard.access_denied_appointments') : t('dashboard.status_load_error_desc')}
+                                            actions={[appointmentsRetryAction]}
+                                        />
+                                    </div>
+                                ) : statusDistribution.length > 0 ? (
+                                    <div className="h-[180px] w-full sm:h-[200px]" style={{ direction: 'ltr' }}>
+                                        <LazyChart>
+                                            <StatusChart data={statusDistribution} />
+                                        </LazyChart>
+                                    </div>
                                 ) : (
-                                    <div className="flex h-full items-center justify-center text-sm text-text-secondary">
+                                    <div className="flex h-[180px] items-center justify-center text-sm text-text-secondary sm:h-[200px]">
                                         {t('dashboard.no_data')}
                                     </div>
                                 )}
@@ -280,13 +494,41 @@ export default function Dashboard() {
                             </div>
                             <h4 className="mb-2 break-words text-base font-bold text-text-primary sm:text-lg">{t('dashboard.clinic_efficiency')}</h4>
                             <p className="mb-4 break-words text-xs text-text-secondary sm:mb-6 sm:text-sm">{t('dashboard.efficiency_description')}</p>
-                            <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-                                <motion.div initial={{ width: 0 }} animate={{ width: `${stats.efficiency}%` }} className="h-full bg-primary" />
-                            </div>
-                            <div className="mt-2 flex w-full items-center justify-between gap-2">
-                                <span className="min-w-0 break-words text-[10px] font-bold uppercase tracking-wide text-slate-500">{t('dashboard.efficiency_rate')}</span>
-                                <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-primary">{stats.efficiency}%</span>
-                            </div>
+                            {todayState.status === 'loading' ? (
+                                <div className="w-full space-y-2" data-testid="dashboard-efficiency-loading">
+                                    <div className="h-2 w-full rounded-full bg-slate-200 animate-pulse dark:bg-slate-700" />
+                                    <div className="flex w-full items-center justify-between gap-2">
+                                        <span className="h-3 w-24 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
+                                        <span className="h-3 w-10 rounded bg-slate-200 animate-pulse dark:bg-slate-700" />
+                                    </div>
+                                </div>
+                            ) : todayState.status === 'error' ? (
+                                <DashboardSourceError
+                                    testId="dashboard-efficiency-error"
+                                    compact
+                                    title={todayErrorCopy.title}
+                                    description={todayErrorCopy.efficiencyDesc}
+                                    actions={todayErrorActions}
+                                />
+                            ) : todayState.status === 'missing_business_date' ? (
+                                <DashboardUnavailableNotice
+                                    testId="dashboard-efficiency-unavailable"
+                                    compact
+                                    title={t('dashboard.business_date_unavailable_title')}
+                                    description={t('dashboard.business_date_unavailable_efficiency')}
+                                    action={statsRetryAction}
+                                />
+                            ) : (
+                                <>
+                                    <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                                        <motion.div initial={{ width: 0 }} animate={{ width: `${todayState.efficiency}%` }} className="h-full bg-primary" />
+                                    </div>
+                                    <div className="mt-2 flex w-full items-center justify-between gap-2">
+                                        <span className="min-w-0 break-words text-[10px] font-bold uppercase tracking-wide text-slate-500">{t('dashboard.efficiency_rate')}</span>
+                                        <span className="shrink-0 text-[10px] font-bold uppercase tracking-widest text-primary">{todayState.efficiency}%</span>
+                                    </div>
+                                </>
+                            )}
                         </Card>
                     </div>
                 </div>
@@ -298,16 +540,38 @@ export default function Dashboard() {
                                 <Calendar className="shrink-0 text-primary" size={20} aria-hidden="true" />
                                 <span className="break-words">{t('dashboard.appointments_today')}</span>
                             </h3>
-                            <span className="shrink-0 rounded-lg bg-primary/10 px-2 py-1 text-xs font-bold text-primary sm:px-3">
-                                {t('dashboard.appointments_count', { val: loading ? '...' : stats.todaysAppointments.length })}
+                            <span
+                                data-testid="dashboard-today-count"
+                                className="shrink-0 rounded-lg bg-primary/10 px-2 py-1 text-xs font-bold text-primary sm:px-3"
+                            >
+                                {todayCountLabel}
                             </span>
                         </div>
 
-                        <div className="max-h-[420px] min-w-0 space-y-2 overflow-y-auto overscroll-contain pe-1 sm:max-h-[500px] sm:space-y-3">
-                            {loading ? (
+                        <div
+                            data-testid="dashboard-today-list"
+                            className="max-h-[420px] min-w-0 space-y-2 overflow-y-auto overscroll-contain pe-1 sm:max-h-[500px] sm:space-y-3"
+                        >
+                            {todayState.status === 'loading' ? (
                                 Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-16 w-full rounded-xl bg-slate-100 animate-pulse dark:bg-slate-800" />)
-                            ) : stats.todaysAppointments.length > 0 ? (
-                                stats.todaysAppointments.map((appointment) => (
+                            ) : todayState.status === 'error' ? (
+                                <DashboardSourceError
+                                    testId="dashboard-today-error"
+                                    compact
+                                    title={todayErrorCopy.title}
+                                    description={todayErrorCopy.scheduleDesc}
+                                    actions={todayErrorActions}
+                                />
+                            ) : todayState.status === 'missing_business_date' ? (
+                                <DashboardUnavailableNotice
+                                    testId="dashboard-today-unavailable"
+                                    compact
+                                    title={t('dashboard.business_date_unavailable_title')}
+                                    description={t('dashboard.business_date_unavailable_schedule')}
+                                    action={statsRetryAction}
+                                />
+                            ) : todayState.todaysAppointments.length > 0 ? (
+                                todayState.todaysAppointments.map((appointment) => (
                                     <button
                                         key={appointment.id}
                                         type="button"
@@ -320,7 +584,7 @@ export default function Dashboard() {
                                                 <strong className="min-w-0 break-words text-sm text-text-primary" dir="auto">{appointment.patient_name}</strong>
                                                 <span className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-border bg-background px-2 py-1 text-xs font-bold text-text-secondary" dir="ltr">
                                                     <Clock size={12} aria-hidden="true" />
-                                                    {new Date(appointment.date_time).toLocaleTimeString(i18n.language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
+                                                    {new Date(appointment.date_time).toLocaleTimeString(isArabic ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                                                 </span>
                                             </span>
                                             <span className="mt-1 line-clamp-2 block break-words text-xs text-text-secondary">{appointment.notes || t('appointments.table.regular_visit')}</span>
@@ -340,7 +604,7 @@ export default function Dashboard() {
                             )}
                         </div>
 
-                        {!loading && stats.todaysAppointments.length > 0 && (
+                        {(todayState.status === 'ready') && todayState.todaysAppointments.length > 0 && (
                             <Button variant="secondary" className="mt-4 min-h-11 w-full justify-center rounded-2xl sm:mt-6" onClick={() => navigate('/appointments')}>
                                 {t('dashboard.view_full_schedule')}
                                 <ChevronLeft size={16} className="me-2 rtl:rotate-180" aria-hidden="true" />

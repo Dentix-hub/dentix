@@ -106,7 +106,7 @@ ${JSON.stringify(structuredData, null, 2)}
         </ul>
         <div class="nav-actions">
           <a class="btn-lang" href="${targetLangUrl}" hreflang="${targetLangCode}" aria-label="${targetLangAria}">${targetLangText}</a>
-          <a class="nav-login" href="/">${isAr ? 'تسجيل الدخول' : 'Log in'}</a>
+          <a class="nav-login" href="/login">${isAr ? 'تسجيل الدخول' : 'Log in'}</a>
           <a class="btn btn-primary" href="/register">${isAr ? 'إنشاء حساب عيادة' : 'Create Clinic Account'}</a>
         </div>
       </nav>
@@ -141,7 +141,7 @@ ${contentHtml}
           <a href="${isAr ? '/ar/appointments-finance' : '/en/appointments-finance'}">${isAr ? 'المواعيد والحسابات' : 'Appointments & Finance'}</a>
           <a href="${isAr ? '/ar/terms' : '/en/terms'}">${isAr ? 'الشروط والأحكام' : 'Terms'}</a>
           <a href="${isAr ? '/ar/privacy' : '/en/privacy'}">${isAr ? 'سياسة الخصوصية' : 'Privacy'}</a>
-          <a href="/">${isAr ? 'تسجيل الدخول' : 'Log in'}</a>
+          <a href="/login">${isAr ? 'تسجيل الدخول' : 'Log in'}</a>
           <a href="/register">${isAr ? 'تسجيل عيادة جديدة' : 'Create Clinic'}</a>
         </nav>
       </div>
@@ -208,7 +208,7 @@ function getAboutAr() {
 
         <section class="prose-section">
           <h2>كيف تبدأ استخدام Dentix؟</h2>
-          <p>يمكنك البدء فوراً بإنشاء حساب عيادتك عبر <a href="/register" style="color: var(--color-primary-dark); font-weight: 700;">صفحة إنشاء حساب عيادة</a>، أو تسجيل الدخول من <a href="/" style="color: var(--color-primary-dark); font-weight: 700;">بوابة الدخول</a>. كما يمكنك الاطلاع على <a href="/ar/plans" style="color: var(--color-primary-dark); font-weight: 700;">خيارات الاشتراك</a> والتواصل مع فريق الدعم عبر <a href="/ar/contact" style="color: var(--color-primary-dark); font-weight: 700;">صفحة الاتصال والدعم</a>.</p>
+          <p>يمكنك البدء فوراً بإنشاء حساب عيادتك عبر <a href="/register" style="color: var(--color-primary-dark); font-weight: 700;">صفحة إنشاء حساب عيادة</a>، أو تسجيل الدخول من <a href="/login" style="color: var(--color-primary-dark); font-weight: 700;">بوابة الدخول</a>. كما يمكنك الاطلاع على <a href="/ar/plans" style="color: var(--color-primary-dark); font-weight: 700;">خيارات الاشتراك</a> والتواصل مع فريق الدعم عبر <a href="/ar/contact" style="color: var(--color-primary-dark); font-weight: 700;">صفحة الاتصال والدعم</a>.</p>
         </section>
       </article>
   `;
@@ -307,7 +307,7 @@ function getAboutEn() {
 
         <section class="prose-section">
           <h2>Getting Started with Dentix</h2>
-          <p>You can begin today by opening your clinic account via the <a href="/register" style="color: var(--color-primary-dark); font-weight: 700;">Clinic Registration page</a>, or access your existing portal through <a href="/" style="color: var(--color-primary-dark); font-weight: 700;">Login</a>. Explore our <a href="/en/plans" style="color: var(--color-primary-dark); font-weight: 700;">Subscription Inquiries</a> and get in touch with our team via the <a href="/en/contact" style="color: var(--color-primary-dark); font-weight: 700;">Contact & Support page</a>.</p>
+          <p>You can begin today by opening your clinic account via the <a href="/register" style="color: var(--color-primary-dark); font-weight: 700;">Clinic Registration page</a>, or access your existing portal through <a href="/login" style="color: var(--color-primary-dark); font-weight: 700;">Login</a>. Explore our <a href="/en/plans" style="color: var(--color-primary-dark); font-weight: 700;">Subscription Inquiries</a> and get in touch with our team via the <a href="/en/contact" style="color: var(--color-primary-dark); font-weight: 700;">Contact & Support page</a>.</p>
         </section>
       </article>
   `;
@@ -565,7 +565,7 @@ function getPlans(lang) {
         <section class="prose-section">
           <h2>تواصل للاستفسار عن الاشتراك</h2>
           <p>راسلنا عبر <a href="https://wa.me/201010285288" dir="ltr">WhatsApp +201010285288</a> أو <a href="mailto:smartsentalclinicapp@gmail.com" dir="ltr">smartsentalclinicapp@gmail.com</a>.</p>
-          <p>للمعلومات العامة، راجع <a href="/ar/contact">صفحة الاتصال والدعم</a>. لإنشاء ملف عيادتك، انتقل إلى <a href="/register">صفحة تسجيل عيادة جديدة</a>، أو استخدم <a href="/">تسجيل الدخول</a> إذا كان لديك حساب.</p>
+          <p>للمعلومات العامة، راجع <a href="/ar/contact">صفحة الاتصال والدعم</a>. لإنشاء ملف عيادتك، انتقل إلى <a href="/register">صفحة تسجيل عيادة جديدة</a>، أو استخدم <a href="/login">تسجيل الدخول</a> إذا كان لديك حساب.</p>
         </section>
       </article>` : `
       <header class="legal-header">
@@ -581,7 +581,7 @@ function getPlans(lang) {
         <section class="prose-section">
           <h2>Ask About a Subscription</h2>
           <p>Message us on <a href="https://wa.me/201010285288">WhatsApp +201010285288</a> or email <a href="mailto:smartsentalclinicapp@gmail.com">smartsentalclinicapp@gmail.com</a>.</p>
-          <p>For general inquiries, visit <a href="/en/contact">Contact & Support</a>. To set up your clinic account, use <a href="/register">clinic registration</a>, or <a href="/">log in</a> if you already have an account.</p>
+          <p>For general inquiries, visit <a href="/en/contact">Contact & Support</a>. To set up your clinic account, use <a href="/register">clinic registration</a>, or <a href="/login">log in</a> if you already have an account.</p>
         </section>
       </article>`;
   return renderBaseLayout({

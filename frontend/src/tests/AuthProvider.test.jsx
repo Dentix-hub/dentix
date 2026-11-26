@@ -16,7 +16,7 @@ describe('ProtectedRoute', () => {
             <MemoryRouter initialEntries={['/protected']}>
                 <MockAuthProvider>
                     <Routes>
-                        <Route path="/" element={<div>Login Page</div>} />
+                        <Route path="/login" element={<div>Login Page</div>} />
                         <Route path="/protected" element={ui} />
                         <Route path="/unauthorized" element={<div>Unauthorized</div>} />
                     </Routes>

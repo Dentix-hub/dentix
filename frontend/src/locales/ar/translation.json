@@ -382,7 +382,7 @@
     }
   },
   "dashboard": {
-    "welcome": "أهلاً د. {{name}} 👋",
+    "welcome": "أهلاً د. {{name}}",
     "clinic_overview_today": "نظرة عامة على أداء العيادة اليوم",
     "new_patients_today": "مرضى جدد",
     "registered_today": "تم التسجيل اليوم",
@@ -412,7 +412,29 @@
     "efficiency_rate": "معدل الكفاءة",
     "status_distribution": "توزيع الحالات",
     "no_data": "لا توجد بيانات",
-    "revenue": "الإيرادات"
+    "revenue": "الإيرادات",
+    "unavailable": "غير متاح",
+    "stats_load_error_title": "تعذر تحميل إحصائيات العيادة",
+    "stats_load_error_desc": "تعذر تحميل ملخص اليوم ومؤشرات الإيرادات حالياً.",
+    "revenue_load_error_desc": "تعذر تحميل تحليل الإيرادات حالياً.",
+    "appointments_load_error_title": "تعذر تحميل المواعيد",
+    "appointments_load_error_desc": "تعذر تحميل سجل المواعيد حالياً.",
+    "status_load_error_desc": "تعذر تحميل توزيع حالات المواعيد حالياً.",
+    "efficiency_stats_error_desc": "لا يمكن حساب كفاءة العيادة حتى يتم تحميل إحصائيات العيادة وتاريخ العمل.",
+    "efficiency_appointments_error_desc": "لا يمكن حساب كفاءة العيادة حتى يتم تحميل المواعيد.",
+    "today_stats_error_desc": "يتطلب جدول اليوم تاريخ عمل العيادة من الإحصائيات.",
+    "today_both_error_desc": "تعذر تحميل جدول اليوم بسبب فشل تحميل إحصائيات العيادة والمواعيد.",
+    "efficiency_both_error_desc": "تعذر حساب كفاءة العيادة بسبب فشل تحميل إحصائيات العيادة والمواعيد.",
+    "business_date_unavailable_title": "تاريخ عمل العيادة غير متاح",
+    "business_date_unavailable_schedule": "يتعذّر تحديد مواعيد اليوم وعددها لأن تاريخ عمل العيادة غير متاح.",
+    "business_date_unavailable_efficiency": "يتعذّر حساب كفاءة العيادة لأن تاريخ عمل العيادة غير متاح.",
+    "stale_stats_warning": "تعذّر تحديث إحصاءات العيادة. تُعرض آخر إحصاءات تم تحميلها.",
+    "stale_appointments_warning": "تعذّر تحديث المواعيد. تُعرض آخر مواعيد تم تحميلها.",
+    "retry_stats": "إعادة تحميل الإحصاءات",
+    "retry_appointments": "إعادة تحميل المواعيد",
+    "retrying": "جاري إعادة المحاولة...",
+    "access_denied_stats": "ليست لديك صلاحية لعرض إحصائيات العيادة.",
+    "access_denied_appointments": "ليست لديك صلاحية لعرض المواعيد."
   },
   "patients": {
     "title": "سجلات المرضى",
@@ -482,7 +504,7 @@
       "title": "لا يوجد مرضى",
       "desc": "لم يتم العثور على مرضى مطابقين للبحث. ابدأ بإضافة مريض جديد."
     },
-    "archive_confirm": "هل أنت متأكد من أرشفة هذا المريض؟",
+    "archive_confirm": "هل أنت متأكد من أرشفة المريض {{name}}؟",
     "archive_success": "تم أرشفة المريض بنجاح",
     "archive_error": "فشل أرشفة المريض",
     "patient_name": "المريض",
@@ -1007,6 +1029,11 @@
     "retry": "إعادة المحاولة",
     "login": "تسجيل دخول",
     "no_data": "لم يتم العثور على بيانات المريض.",
+    "stale_title": "يتم عرض معلومات المريض المحمّلة سابقًا",
+    "stale_message": "فشل التحديث الأخير. قد تكون هذه المعلومات غير محدثة.",
+    "access_denied": "لم تعد تملك صلاحية الوصول إلى هذا المريض.",
+    "not_found": "ملف هذا المريض غير متاح.",
+    "identity_missing": "لم يتم اختيار مريض.",
     "tabs": {
       "chart": "مخطط الأسنان",
       "history": "سجل العلاج",
@@ -2103,6 +2130,7 @@
     "show_password": "إظهار كلمة المرور",
     "hide_password": "إخفاء كلمة المرور",
     "login": {
+      "dark_mode": "الوضع الداكن",
       "title": "Smart Clinic",
       "subtitle": "نظام إدارة العيادات الذكي",
       "username": "اسم المستخدم",
