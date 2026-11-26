@@ -26,3 +26,12 @@ export function rememberRecentPatientId(patientId) {
         JSON.stringify([id, ...recent].slice(0, MAX_RECENT_PATIENTS)),
     );
 }
+
+export function forgetRecentPatientId(patientId) {
+    try {
+        const ids = getRecentPatientIds().filter((id) => id !== patientId);
+        window.localStorage.setItem(RECENT_PATIENT_IDS_KEY, JSON.stringify(ids));
+    } catch {
+        // Archiving still succeeds when local storage is unavailable.
+    }
+}

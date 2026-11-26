@@ -125,11 +125,16 @@ test.describe('Patient Workspace V2', () => {
     await searchFor(page, `#${patient.id}`);
     await expect(page.getByRole('link', { name: patient.name, exact: true })).toBeVisible({ timeout: 10000 });
 
-    page.once('dialog', async (dialog) => {
-      expect(dialog.type()).toBe('confirm');
-      await dialog.accept();
-    });
-    await page.getByRole('button', { name: /Archive patient|أرشفة المريض/i }).first().click();
+    const archiveButton = page.getByRole('button', { name: /Archive patient|أرشفة المريض/i }).first();
+    await archiveButton.click();
+    const confirmation = page.getByRole('dialog', { name: /Archive patient|أرشفة المريض/i });
+    await expect(confirmation.getByText(patient.name)).toBeVisible();
+    await confirmation.getByRole('button', { name: /Cancel|إلغاء/i }).click();
+    await expect(archiveButton).toBeFocused();
+    await expect(page.getByRole('link', { name: patient.name, exact: true })).toBeVisible();
+
+    await archiveButton.click();
+    await confirmation.getByRole('button', { name: /Confirm|تأكيد/i }).click();
 
     await expect(page.getByRole('link', { name: patient.name, exact: true })).toHaveCount(0, { timeout: 10000 });
   });

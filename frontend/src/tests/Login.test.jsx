@@ -140,4 +140,86 @@ describe('Login Component', () => {
         expect(aboutLink).toBeInTheDocument();
         expect(aboutLink.closest('a')).toHaveAttribute('href', '/en');
     });
+
+    it('associates visible localized labels with username and password inputs and preserves autocomplete and tab order', () => {
+        const { container } = renderLogin();
+        const usernameInput = screen.getByLabelText('auth.login.username');
+        const passwordInput = screen.getByLabelText('auth.login.password');
+        const usernameLabel = container.querySelector(`label[for="${usernameInput.id}"]`);
+        const passwordLabel = container.querySelector(`label[for="${passwordInput.id}"]`);
+        const toggleButton = screen.getByRole('button', { name: 'auth.show_password' });
+        const rememberCheckbox = screen.getByRole('checkbox', { name: 'auth.login.remember_me' });
+        const submitButton = screen.getByRole('button', { name: 'auth.login.submit' });
+
+        expect(usernameInput.id).toBeTruthy();
+        expect(passwordInput.id).toBeTruthy();
+        expect(usernameLabel).toBeInTheDocument();
+        expect(passwordLabel).toBeInTheDocument();
+        expect(usernameLabel).not.toHaveClass('sr-only');
+        expect(passwordLabel).not.toHaveClass('sr-only');
+        expect(usernameInput).toHaveAttribute('autocomplete', 'username');
+        expect(passwordInput).toHaveAttribute('autocomplete', 'current-password');
+        expect(toggleButton).toHaveAttribute('aria-pressed', 'false');
+
+        const formFocusables = Array.from(
+            container.querySelectorAll('form input, form button, form a'),
+        );
+        expect(formFocusables.indexOf(usernameInput)).toBeLessThan(formFocusables.indexOf(passwordInput));
+        expect(formFocusables.indexOf(passwordInput)).toBeLessThan(formFocusables.indexOf(toggleButton));
+        expect(formFocusables.indexOf(toggleButton)).toBeLessThan(formFocusables.indexOf(rememberCheckbox));
+        expect(formFocusables.indexOf(rememberCheckbox)).toBeLessThan(formFocusables.indexOf(submitButton));
+    });
+
+    it('applies high-contrast #0369A1 submit, hover, focus, link, and error styles on the login form', async () => {
+        loginMock.mockRejectedValueOnce({ response: { data: { detail: 'Invalid credentials' } } });
+        renderLogin();
+
+        const submitButton = screen.getByRole('button', { name: 'auth.login.submit' });
+        const forgotLink = screen.getByRole('link', { name: 'auth.login.forgot_password' });
+        const registerLink = screen.getByRole('link', { name: 'auth.login.register_new' });
+
+        expect(submitButton).toBeEnabled();
+        expect(submitButton).toHaveClass(
+            'bg-primary-700',
+            'text-white',
+            'hover:bg-primary-800',
+            'focus-visible:ring-2',
+        );
+        expect(forgotLink).toHaveClass('text-primary-700', 'dark:text-primary-300', 'focus-visible:ring-2');
+        expect(registerLink).toHaveClass('text-primary-700', 'dark:text-primary-300', 'focus-visible:ring-2');
+
+        fireEvent.change(screen.getByLabelText('auth.login.username'), { target: { value: 'user1' } });
+        fireEvent.change(screen.getByLabelText('auth.login.password'), { target: { value: 'badpass' } });
+        fireEvent.click(submitButton);
+
+        const alert = await screen.findByRole('alert');
+        expect(alert).toHaveClass('text-red-700', 'dark:text-red-200');
+    });
+
+    it('renders accessible enabled 2FA verify submit contrast and submits verification code', async () => {
+        loginMock.mockResolvedValueOnce({ user_status: '2fa_required', access_token: 'temp-2fa-token' });
+        verify2FAMock.mockResolvedValueOnce({ role: 'admin' });
+        currentLanguage = 'en';
+        renderLogin();
+
+        fireEvent.change(screen.getByLabelText('auth.login.username'), { target: { value: 'admin' } });
+        fireEvent.change(screen.getByLabelText('auth.login.password'), { target: { value: 'pass123' } });
+        fireEvent.click(screen.getByRole('button', { name: 'auth.login.submit' }));
+
+        const codeInput = await screen.findByPlaceholderText('000000');
+        const verifyButton = screen.getByRole('button', { name: 'Verify Code' });
+        expect(verifyButton).toBeDisabled();
+
+        fireEvent.change(codeInput, { target: { value: '123456' } });
+        expect(verifyButton).toBeEnabled();
+        expect(verifyButton).toHaveClass(
+            'bg-emerald-700',
+            'text-white',
+            'hover:bg-emerald-800',
+            'focus-visible:ring-2',
+        );
+
+        fireEvent.click(verifyButton);
+        await waitFor(() => expect(verify2FAMock).toHaveBeenCalledWith('123456', 'temp-2fa-token'));
+    });
 });

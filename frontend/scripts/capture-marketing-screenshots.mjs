@@ -52,6 +52,10 @@ try {
                 else if (path === '/api/v1/onboarding/events') data = {};
                 else if (path === '/api/v1/global-settings') data = {};
                 else if (path === '/api/v1/settings/tenant') data = tenant;
+                else if (path === '/api/v1/settings/entitlements') data = {
+                    tenant_id: tenant.id, tenant_name: tenant.name, plan_name: tenant.plan,
+                    can_read_clinical: true, is_hard_disabled: false, capabilities: {},
+                };
                 else if (/\/(notifications|procedures|doctors|users|price-lists|insurance-providers|payments|treatments|attachments|prescriptions|lab-orders|lab_orders|tooth_status|care-sessions|clinical-plans|clinical-attachment-links)(\/.*)?$/.test(path)) data = [];
                 else {
                     unknown.add(`${request.method()} ${path}`);
@@ -65,7 +69,7 @@ try {
             return route.abort('blockedbyclient');
         });
         for (const [name, path, ready] of [
-            ['dashboard', '/', '.stats-grid'],
+            ['dashboard', '/', '.stats-grid button'],
             ['patients', '/patients', 'a[href="/patients/1"]'],
             ['chart', '/patients/1?tab=chart', '[data-layer="crown"][data-tooth-key="16"]'],
         ]) {

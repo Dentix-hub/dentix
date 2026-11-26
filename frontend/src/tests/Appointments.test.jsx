@@ -3,7 +3,7 @@
  * Verifies page rendering and modal interactions against the current hook architecture.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import Appointments from '@/pages/Appointments';
 import { toast } from '@/shared/ui';
 
@@ -50,8 +50,23 @@ vi.mock('@/shared/ui', async (importOriginal) => {
 
 // Keep this page test focused on Dentix behavior rather than FullCalendar internals.
 // The real calendar owns observers/listeners/timers that are irrelevant to these unit assertions.
+// The adapter contract (onEventClick receives the appointment) is exercised here; the
+// actual FullCalendar click/tap path is covered by the focused Playwright spec.
 vi.mock('@/shared/ui/WeeklyCalendar', () => ({
-    default: () => <div data-testid="weekly-calendar">Weekly Calendar</div>,
+    default: ({ appointments = [], onEventClick }) => (
+        <div data-testid="weekly-calendar">
+            {appointments.map((appt) => (
+                <button
+                    key={appt.id}
+                    type="button"
+                    data-testid={`calendar-event-${appt.id}`}
+                    onClick={() => onEventClick?.(appt)}
+                >
+                    {appt.patient_name}
+                </button>
+            ))}
+        </div>
+    ),
 }));
 
 const mockAppointments = [
@@ -146,6 +161,60 @@ describe('Appointments Page', () => {
                 })
             );
         });
+    });
+
+    it('opens the matching edit modal for each calendar event and closes without mutating', async () => {
+        render(<Appointments />);
+
+        fireEvent.click(screen.getByTestId('calendar-event-1'));
+        let dialog = screen.getByRole('dialog');
+        expect(within(dialog).getByText('appointments.edit_form.title')).toBeInTheDocument();
+        expect(within(dialog).getByText('Patient A')).toBeInTheDocument();
+        expect(within(dialog).getByDisplayValue('Checkup')).toBeInTheDocument();
+        fireEvent.click(within(dialog).getByText('appointments.edit_form.cancel_btn'));
+        await waitFor(() => {
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByTestId('calendar-event-2'));
+        dialog = screen.getByRole('dialog');
+        expect(within(dialog).getByText('appointments.edit_form.title')).toBeInTheDocument();
+        expect(within(dialog).getByText('Patient B')).toBeInTheDocument();
+        expect(within(dialog).getByDisplayValue('Filling')).toBeInTheDocument();
+        fireEvent.click(within(dialog).getByText('appointments.edit_form.cancel_btn'));
+        await waitFor(() => {
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        });
+
+        expect(mockUpdateMutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('saves a calendar-opened appointment exactly once for the selected record', async () => {
+        render(<Appointments />);
+
+        fireEvent.click(screen.getByTestId('calendar-event-2'));
+        const dialog = screen.getByRole('dialog');
+        fireEvent.change(within(dialog).getByDisplayValue('Filling'), {
+            target: { value: 'Filling updated from calendar' },
+        });
+        fireEvent.click(within(dialog).getByText('appointments.edit_form.save_btn'));
+
+        await waitFor(() => {
+            expect(mockUpdateMutateAsync).toHaveBeenCalledTimes(1);
+        });
+        expect(mockUpdateMutateAsync).toHaveBeenCalledWith({
+            id: 2,
+            data: {
+                date_time: '2026-02-10T11:00',
+                duration_minutes: 30,
+                doctor_id: null,
+                notes: 'Filling updated from calendar',
+            },
+        });
+        await waitFor(() => {
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        });
+        expect(mockRefetch).toHaveBeenCalled();
     });
 
     it('opens postpone modal and postpones appointment', async () => {

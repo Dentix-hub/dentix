@@ -382,7 +382,7 @@
     }
   },
   "dashboard": {
-    "welcome": "Welcome Dr. {{name}} 👋",
+    "welcome": "Welcome Dr. {{name}}",
     "clinic_overview_today": "Overview of today's clinic performance",
     "new_patients_today": "New Patients",
     "registered_today": "Registered Today",
@@ -412,7 +412,29 @@
     "efficiency_rate": "Efficiency Rate",
     "status_distribution": "Appointment Status",
     "no_data": "No Data",
-    "revenue": "Revenue"
+    "revenue": "Revenue",
+    "unavailable": "Unavailable",
+    "stats_load_error_title": "Unable to load clinic statistics",
+    "stats_load_error_desc": "Today's summary and revenue metrics could not be loaded right now.",
+    "revenue_load_error_desc": "Revenue analysis could not be loaded right now.",
+    "appointments_load_error_title": "Unable to load appointments",
+    "appointments_load_error_desc": "Appointment records could not be loaded right now.",
+    "status_load_error_desc": "Appointment status distribution could not be loaded right now.",
+    "efficiency_stats_error_desc": "Clinic efficiency cannot be calculated until clinic statistics and business date load.",
+    "efficiency_appointments_error_desc": "Clinic efficiency cannot be calculated until appointments load.",
+    "today_stats_error_desc": "Today's schedule requires the clinic business date from statistics.",
+    "today_both_error_desc": "Today's schedule could not be loaded because both clinic statistics and appointments failed.",
+    "efficiency_both_error_desc": "Clinic efficiency could not be calculated because both clinic statistics and appointments failed.",
+    "business_date_unavailable_title": "Clinic date unavailable",
+    "business_date_unavailable_schedule": "Today's appointment list and count are unavailable because the clinic business date is missing or invalid.",
+    "business_date_unavailable_efficiency": "Clinic efficiency is unavailable because the clinic business date is missing or invalid.",
+    "stale_stats_warning": "Could not refresh clinic statistics. Showing the last loaded numbers.",
+    "stale_appointments_warning": "Could not refresh appointments. Showing the last loaded schedule.",
+    "retry_stats": "Retry Statistics",
+    "retry_appointments": "Retry Appointments",
+    "retrying": "Retrying...",
+    "access_denied_stats": "You do not have permission to view clinic statistics.",
+    "access_denied_appointments": "You do not have permission to view appointments."
   },
   "patients": {
     "title": "Patient Records",
@@ -482,7 +504,7 @@
       "smoking": "Smoking",
       "other": "Other"
     },
-    "archive_confirm": "Are you sure you want to archive this patient?",
+    "archive_confirm": "Are you sure you want to archive {{name}}?",
     "archive_success": "Patient archived successfully",
     "archive_error": "Failed to archive patient",
     "patient_name": "Patient",
@@ -1007,6 +1029,11 @@
     "retry": "Retry",
     "login": "Login",
     "no_data": "Patient data not found.",
+    "stale_title": "Showing previously loaded patient information",
+    "stale_message": "The latest refresh failed. This information may be out of date.",
+    "access_denied": "You no longer have access to this patient.",
+    "not_found": "This patient record is not available.",
+    "identity_missing": "No patient was selected.",
     "tabs": {
       "chart": "Dental Chart",
       "history": "Treatment History",
@@ -1974,6 +2001,7 @@
     "show_password": "Show password",
     "hide_password": "Hide password",
     "login": {
+      "dark_mode": "Dark mode",
       "title": "Smart Clinic",
       "subtitle": "Smart Clinic Management System",
       "username": "Username",
