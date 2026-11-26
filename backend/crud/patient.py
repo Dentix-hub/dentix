@@ -207,7 +207,13 @@ async def get_tooth_status(db: AsyncSession, patient_id: int, tenant_id: int):
     return result.scalars().all()
 
 
-async def update_tooth_status(db: AsyncSession, status: schemas.ToothStatusCreate, tenant_id: int):
+async def update_tooth_status(
+    db: AsyncSession,
+    status: schemas.ToothStatusCreate,
+    tenant_id: int,
+    *,
+    commit: bool = True,
+):
     _validate_tenant(tenant_id)
     result = await db.execute(
         select(models.ToothStatus).join(models.Patient).where(
@@ -224,8 +230,11 @@ async def update_tooth_status(db: AsyncSession, status: schemas.ToothStatusCreat
     else:
         db_status = models.ToothStatus(**status.dict(), tenant_id=tenant_id)
         db.add(db_status)
-    await db.commit()
-    await db.refresh(db_status)
+    if commit:
+        await db.commit()
+        await db.refresh(db_status)
+    else:
+        await db.flush()
     return db_status
 
 

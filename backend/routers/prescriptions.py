@@ -1,6 +1,6 @@
 """Prescriptions Router — patient visibility is enforced before every mutation."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -87,4 +87,9 @@ async def delete_prescription(
         details=f"Deleted prescription #{prescription_id}",
     )
     result = await crud.delete_prescription(db, prescription_id, current_user.tenant_id)
-    return success_response(data=result, message="Prescription deleted")
+    if result is None:
+        raise HTTPException(status_code=404, detail="Prescription not found")
+    return success_response(
+        data={"id": result.id, "deleted": True},
+        message="Prescription deleted",
+    )

@@ -131,3 +131,25 @@ def test_feed_mismatch_exhaustion_remains_failure():
 def test_invalid_attempt_count_is_rejected():
     with pytest.raises(ValueError, match="max_attempts must be at least 1"):
         run_safety_check(max_attempts=0)
+
+
+def test_audits_the_application_environment_with_an_isolated_safety_cli(monkeypatch):
+    import run_safety_check as safety_runner
+
+    frozen = "filelock==4.3.0\npytest==9.1.1\n"
+
+    def freeze_environment(command, **kwargs):
+        assert command == ("uv", "pip", "freeze", "--python", sys.executable)
+        assert kwargs == {"check": True, "capture_output": True, "text": True}
+        return subprocess.CompletedProcess(command, 0, stdout=frozen)
+
+    def scan(*, command):
+        assert command[:4] == ("uvx", "--from", "safety==3.8.1", "safety")
+        assert command[4:-2] == ("check", "--full-report")
+        assert command[-2] == "--file"
+        assert Path(command[-1]).read_text(encoding="utf-8") == frozen
+        return 64
+
+    monkeypatch.setattr(safety_runner.subprocess, "run", freeze_environment)
+    monkeypatch.setattr(safety_runner, "run_safety_check", scan)
+    assert safety_runner.main() == 64

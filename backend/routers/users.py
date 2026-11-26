@@ -11,7 +11,7 @@ from typing import List, Optional
 from .. import models, schemas, crud, auth
 from backend.database import get_async_db
 from .auth.dependencies import validate_password, get_current_user
-from ..core.permissions import Permission, require_permission
+from ..core.permissions import Permission, Role, require_permission
 from ..core.tenant_context import require_tenant_id
 from ..services.auth_service import AuthService
 from backend.core.response import success_response, StandardResponse
@@ -28,11 +28,19 @@ def _require_tenant_user_admin(current_user: models.User) -> int:
 
 
 def _validate_tenant_role(role: str | None) -> None:
-    """Platform super-admin is never a tenant-managed role."""
+    """Platform super-admin is never a tenant-managed role; reject unknown roles."""
+    if role is None:
+        return
     if role == "super_admin":
         raise HTTPException(
             status_code=403,
             detail="super_admin is a platform role and cannot be assigned from tenant user management",
+        )
+    allowed_tenant_roles = {r.value for r in Role if r != Role.SUPER_ADMIN}
+    if role not in allowed_tenant_roles:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid role '{role}'",
         )
 
 

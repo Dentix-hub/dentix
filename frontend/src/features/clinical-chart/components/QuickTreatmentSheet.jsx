@@ -186,6 +186,8 @@ export default function QuickTreatmentSheet({
         () => (Array.isArray(procedures) ? procedures : []),
         [procedures],
     );
+    const safeProceduresRef = useRef(safeProcedures);
+    safeProceduresRef.current = safeProcedures;
 
     const matchedProcedure = useMemo(() => {
         if (!treatment?.procedure) return null;
@@ -299,6 +301,7 @@ export default function QuickTreatmentSheet({
     // Reset and initialize data on open
     useEffect(() => {
         if (!isOpen) return;
+        let isCancelled = false;
         const normalized = normalizeSheetData(initialData);
         setTreatment(normalized);
         setHighlightedInvalidTeeth([]);
@@ -319,8 +322,9 @@ export default function QuickTreatmentSheet({
         setPaymentNotes('');
         setPaymentError('');
 
-        const initialCondition = initialData?.explicit_tooth_condition || initialData?.diagnosis || selectedToothCondition || 'Healthy';
-        setExplicitToothCondition(initialCondition);
+        // Only preserve an explicit condition choice if one was explicitly passed in initialData;
+        // do NOT treat incidental initial diagnosis or parent selectedToothCondition as an explicit write.
+        setExplicitToothCondition(initialData?.explicit_tooth_condition || null);
 
         const procName = normalized?.procedure;
         if (procName) {
@@ -329,10 +333,11 @@ export default function QuickTreatmentSheet({
 
             resolveProcedureSelection({
                 procedureName: procName,
-                procedures: safeProcedures,
+                procedures: safeProceduresRef.current,
                 defaultPriceListId: normalized?.default_price_list_id,
                 currentPriceListId: normalized?.price_list_id,
             }).then(({ found, cost, price_list_id, autoMaterials }) => {
+                if (isCancelled) return;
                 if (!found) {
                     setIsManualProcedure(true);
                     setTreatment((prev) => (prev ? {
@@ -349,7 +354,9 @@ export default function QuickTreatmentSheet({
                     setTreatment((prev) => (prev ? {
                         ...prev,
                         procedure: procName,
-                        cost: resolvedCost,
+                        cost: prev.cost !== '' && prev.cost !== undefined && prev.cost !== normalized?.cost
+                            ? prev.cost
+                            : resolvedCost,
                         price_list_id,
                     } : prev));
                     setConsumedMaterials(initialData?.consumedMaterials?.length ? initialData.consumedMaterials : (autoMaterials || []));
@@ -365,7 +372,11 @@ export default function QuickTreatmentSheet({
                 handleSaveErrorRef.current?.(normalized.escalation_error, false);
             }, 0);
         }
-    }, [isOpen, initialData, safeProcedures, selectedToothCondition]);
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [isOpen, initialData]);
 
     // Find linked lab order for this treatment if editing
     const linkedLabOrder = useMemo(() => {
@@ -1132,7 +1143,7 @@ export default function QuickTreatmentSheet({
                                 type="text"
                                 value={treatment.diagnosis || ''}
                                 onChange={(e) => setTreatment((prev) => ({ ...prev, diagnosis: e.target.value }))}
-                                placeholder="التشخيص (e.g. Dental caries, Pulpitis)"
+                                placeholder={t('quick_treatment_sheet.diagnosis_placeholder', 'التشخيص (مثال: تسوس أسنان، التهاب عصب)')}
                                 className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                             />
                         </div>
@@ -1300,7 +1311,7 @@ export default function QuickTreatmentSheet({
                             className="w-full py-2 text-xs text-blue-600 font-bold border border-blue-200 dark:border-blue-800 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-950/40 transition-colors flex items-center justify-center gap-1.5"
                         >
                             <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
-                            <span>{showAdvanced ? t('quick_treatment_sheet.hide_details', '- إخفاء التفاصيل') : t('quick_treatment_sheet.more_details_button', 'تفاصيل إضافية (More details)')}</span>
+                            <span>{showAdvanced ? t('quick_treatment_sheet.hide_details', '- إخفاء التفاصيل') : t('quick_treatment_sheet.more_details_button', 'تفاصيل إضافية')}</span>
                         </button>
 
                         {showAdvanced && (

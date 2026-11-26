@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Modal from '@/shared/ui/Modal';
 import { getLaboratories, dispatchLabHandoff } from '@/api/labs';
+import { formatApiError } from '@/utils/formatApiError';
 
 const COMMON_SHADES = ['A1', 'A2', 'A3', 'A3.5', 'B1', 'B2', 'BL1'];
 const COMMON_MATERIALS = ['Zirconia', 'E-Max', 'PFM (Porcelain)', 'PMMA (Temp)', 'Titanium'];
@@ -110,9 +111,23 @@ export default function LabHandoffSheet({
 
     const activeShade = customShade.trim() || shade;
     const activeMaterial = customMaterial.trim() || material;
+    const rawWorkItemId = workItem?.id ?? workItem?.work_item_id;
+    const resolvedWorkItemId =
+        rawWorkItemId !== null && rawWorkItemId !== undefined && Number.isInteger(Number(rawWorkItemId)) && Number(rawWorkItemId) > 0
+            ? Number(rawWorkItemId)
+            : null;
 
     const handleSubmit = async (e) => {
         if (e) e.preventDefault();
+        if (!resolvedWorkItemId) {
+            setErrorMessage(
+                t(
+                    'lab_handoff.error_missing_work_item',
+                    'No eligible linked procedure is selected for this lab order.'
+                )
+            );
+            return;
+        }
         if (!selectedLabId) {
             setErrorMessage(t('lab_handoff.error_select_lab', 'Please select a laboratory.'));
             return;
@@ -134,8 +149,7 @@ export default function LabHandoffSheet({
         };
 
         try {
-            const workItemId = workItem?.id || workItem?.work_item_id;
-            const res = await dispatchLabHandoff(patientId, workItemId, payload);
+            const res = await dispatchLabHandoff(patientId, resolvedWorkItemId, payload);
             const orderData = res?.data?.data || res?.data;
             setSuccessOrder(orderData);
             if (queryClient && patientId) {
@@ -145,11 +159,9 @@ export default function LabHandoffSheet({
                 onSuccess(orderData);
             }
         } catch (err) {
-            const detail =
-                err?.response?.data?.detail ||
-                err?.message ||
-                t('lab_handoff.error_submitting', 'Failed to dispatch lab handoff.');
-            setErrorMessage(detail);
+            setErrorMessage(
+                formatApiError(err, t('lab_handoff.error_submitting', 'Failed to dispatch lab handoff.'))
+            );
         } finally {
             setSubmitting(false);
         }
@@ -455,7 +467,7 @@ export default function LabHandoffSheet({
                             </button>
                             <button
                                 type="submit"
-                                disabled={submitting || loadingLabs || !selectedLabId}
+                                disabled={submitting || loadingLabs || !selectedLabId || !resolvedWorkItemId}
                                 data-testid="submit-lab-handoff"
                                 className="inline-flex items-center gap-2 rounded-control bg-teal-600 px-5 py-2 font-bold text-white shadow-low hover:bg-teal-700 disabled:opacity-50"
                             >

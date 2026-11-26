@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import FullCalendar from '@fullcalendar/react';
+import arLocale from '@fullcalendar/core/locales/ar';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -33,7 +34,14 @@ const WeeklyCalendar = ({ appointments, onEventClick, onEventDrop, onSelectSlot 
                     right: isRtl ? 'prev,next today' : 'dayGridMonth,timeGridWeek,listWeek'
                 }}
                 direction={isRtl ? 'rtl' : 'ltr'}
+                locales={[arLocale]}
                 locale={i18n.language}
+                buttonText={{
+                    today: t('appointments.calendar.today', isRtl ? 'اليوم' : 'Today'),
+                    month: t('appointments.calendar.month', isRtl ? 'شهر' : 'Month'),
+                    week: t('appointments.calendar.week', isRtl ? 'أسبوع' : 'Week'),
+                    list: t('appointments.calendar.list', isRtl ? 'قائمة' : 'List'),
+                }}
                 events={events}
                 editable={true}
                 selectable={true}

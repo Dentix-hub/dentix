@@ -130,6 +130,7 @@ async def get_category_materials(
     tenant_id = require_tenant_id(current_user)
     stmt = (
         select(inv_models.Material)
+        .options(joinedload(inv_models.Material.category))
         .where(
             inv_models.Material.category_id == category_id,
             inv_models.Material.tenant_id == tenant_id,
@@ -223,15 +224,18 @@ async def receive_stock(
     tenant_id = require_tenant_id(current_user)
     await _require_material(db, data.material_id, tenant_id)
     await _require_warehouse(db, data.warehouse_id, tenant_id)
-    res = await inventory_service.add_stock(
-        material_id=data.material_id,
-        warehouse_id=data.warehouse_id,
-        batch_data=data.batch,
-        quantity=data.quantity,
-        tenant_id=tenant_id,
-        user_id=current_user.id,
-        db=db,
-    )
+    try:
+        res = await inventory_service.add_stock(
+            material_id=data.material_id,
+            warehouse_id=data.warehouse_id,
+            batch_data=data.batch,
+            quantity=data.quantity,
+            tenant_id=tenant_id,
+            user_id=current_user.id,
+            db=db,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     return success_response(data=res, message="Stock received")
 
 

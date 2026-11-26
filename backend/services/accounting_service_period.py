@@ -363,6 +363,7 @@ class AccountingService(LegacyAccountingService):
     ) -> tuple[List[Dict[str, Any]], float]:
         stmt = select(models.User).where(
             models.User.tenant_id == self.tenant_id,
+            models.User.is_deleted == False,  # noqa: E712
             models.User.role.in_(["receptionist", "nurse", "assistant", "accountant"]),
         )
         staff = (await self.db.execute(stmt)).scalars().all()

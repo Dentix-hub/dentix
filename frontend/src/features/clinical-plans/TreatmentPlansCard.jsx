@@ -16,6 +16,7 @@ import AddProcedureModal from './AddProcedureModal';
 import EditPhaseModal from './EditPhaseModal';
 import DeletePhaseConfirm from './DeletePhaseConfirm';
 import PlanCard from './PlanCard';
+import { formatPhaseName } from './planDisplayUtils';
 import {
     usePatientClinicalPlans,
     useCreatePatientClinicalPlan,
@@ -287,7 +288,7 @@ const TreatmentPlansCard = memo(({
         setEditingPhase({
             planId,
             phaseId: phase.id,
-            name: phase.name,
+            name: formatPhaseName(phase.name, t),
             notes: phase.notes || '',
         });
     };

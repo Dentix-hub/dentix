@@ -5,6 +5,7 @@ import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { createTreatment, updateTreatment, updateToothStatus, createLabOrder } from '@/api';
 import { palmerToFdi } from '@/utils/toothUtils';
+import { formatApiError } from '@/utils/formatApiError';
 import { toast } from '@/shared/ui';
 
 export const useTreatmentOperations = ({
@@ -65,6 +66,37 @@ export const useTreatmentOperations = ({
             delete cleanData.explicit_tooth_condition;
             const labOrderData = cleanData.lab_order;
             delete cleanData.lab_order;
+
+            // Condition-only action (e.g. explicitly marking a tooth Missing without selecting a procedure):
+            // persist through the supported tooth_status endpoint without creating unnecessary treatment/finance rows.
+            const isConditionOnlyAction =
+                !editingTreatmentId &&
+                !String(cleanData.procedure || '').trim() &&
+                Boolean(data.explicit_tooth_condition) &&
+                Boolean(fdiToothNumber);
+
+            if (isConditionOnlyAction) {
+                const statusRes = await updateToothStatus({
+                    patient_id: parseInt(patientId, 10),
+                    tooth_number: fdiToothNumber,
+                    condition: data.explicit_tooth_condition,
+                });
+                await refetchTeeth();
+                if (!keepSheetOpen) {
+                    setIsTreatmentSheetOpen?.(false);
+                    setEditingTreatmentId(null);
+                }
+                if (!skipRefetch) {
+                    await refetchClinicalData();
+                }
+                if (!skipToast) {
+                    toast.success(t('patient_details.alerts.treatment_save_success'));
+                }
+                return statusRes?.data || statusRes || {
+                    tooth_number: fdiToothNumber,
+                    condition: data.explicit_tooth_condition,
+                };
+            }
 
             const payload = {
                 ...cleanData,
@@ -212,7 +244,7 @@ export const useTreatmentOperations = ({
                 throw err; // Let QuickTreatmentSheet handle with specialized UI
             }
 
-            const finalMsg = typeof msg === 'object' ? JSON.stringify(msg) : (msg || t('patient_details.alerts.treatment_save_fail'));
+            const finalMsg = formatApiError(err, t('patient_details.alerts.treatment_save_fail'));
             toast.error(finalMsg);
             err.alreadyNotified = true;
             throw err;

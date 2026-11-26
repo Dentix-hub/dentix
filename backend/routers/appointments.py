@@ -233,6 +233,11 @@ async def update_appointment_status(
     current_user: schemas.User = Depends(require_permission(Permission.APPOINTMENT_UPDATE)),
 ):
     """Update appointment status."""
+    try:
+        status = schemas.clinical.validate_appointment_status_value(status)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     log_admin_action(
         db=db,
         admin_user=current_user,

@@ -9,14 +9,17 @@ Security measures:
 - UUID filenames (prevent path traversal)
 """
 
+import io
 import os
 import uuid
 import logging
 import mimetypes
+import warnings
 from pathlib import Path
 from typing import Optional
 
 from fastapi import UploadFile, HTTPException
+from PIL import Image, UnidentifiedImageError
 
 logger = logging.getLogger("smart_clinic.file_service")
 
@@ -142,11 +145,13 @@ def validate_file(file: UploadFile) -> tuple[str, str]:
     if file_size == 0:
         raise HTTPException(status_code=400, detail="الملف فارغ")
 
-    # 4. Verify magic bytes (basic check)
+    # 4. Verify magic bytes & image payload decodability
     header = file.file.read(16)
     file.file.seek(0)
 
     _verify_magic_bytes(header, original_ext, content_type)
+    if original_ext in _IMAGE_EXTENSIONS or content_type.startswith("image/"):
+        _verify_image_payload(file)
 
     # 5. Generate safe filename (UUID + original extension)
     safe_filename = f"{uuid.uuid4()}{original_ext}"
@@ -154,16 +159,64 @@ def validate_file(file: UploadFile) -> tuple[str, str]:
     return safe_filename, content_type
 
 
+_IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"}
+_SUPPORTED_PIL_IMAGE_FORMATS = {"JPEG", "PNG", "WEBP", "BMP", "TIFF"}
+_MAX_IMAGE_PIXELS = 40_000_000
+
+
+def _has_known_image_magic(header: bytes) -> bool:
+    if header.startswith(b"\xff\xd8\xff") or header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return True
+    if len(header) >= 12 and header[:4] == b"RIFF" and header[8:12] == b"WEBP":
+        return True
+    if header.startswith(b"BM"):
+        return True
+    if header.startswith(b"II*\x00") or header.startswith(b"MM\x00*"):
+        return True
+    return False
+
+
+def _verify_image_payload(file: UploadFile) -> None:
+    """Decode and verify image bytes with Pillow regardless of storage backend."""
+    try:
+        file.file.seek(0)
+        raw = file.file.read()
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(raw)) as probe:
+                if probe.format not in _SUPPORTED_PIL_IMAGE_FORMATS or probe.width * probe.height > _MAX_IMAGE_PIXELS:
+                    raise HTTPException(
+                        status_code=400,
+                        detail="ملف الصورة غير صالح أو أبعاده غير مدعومة",
+                    )
+                probe.verify()
+            with Image.open(io.BytesIO(raw)) as image:
+                image.seek(0)
+                image.load()
+    except HTTPException:
+        raise
+    except (UnidentifiedImageError, OSError, SyntaxError, ValueError, Image.DecompressionBombError, Image.DecompressionBombWarning):
+        logger.warning("[FILE_SECURITY] Rejected invalid/corrupt image payload for file: %s", file.filename)
+        raise HTTPException(
+            status_code=400,
+            detail="ملف الصورة غير صالح أو تالف",
+        )
+    finally:
+        file.file.seek(0)
+
+
 def _verify_magic_bytes(header: bytes, extension: str, content_type: str):
     """Verify that file header matches expected type (defense against renamed executables)."""
     if not header:
         return
 
+    is_image = extension in _IMAGE_EXTENSIONS or content_type.startswith("image/")
+
     # Check known signatures
     for magic, expected_mime in MAGIC_BYTES.items():
         if header.startswith(magic):
             # If we found a match, verify it's consistent
-            if content_type.startswith("image/") and not expected_mime.startswith("image/"):
+            if is_image and not expected_mime.startswith("image/"):
                 logger.warning(
                     "[FILE_SECURITY] Magic bytes mismatch: header says '%s' but MIME is '%s'",
                     expected_mime, content_type
@@ -172,16 +225,20 @@ def _verify_magic_bytes(header: bytes, extension: str, content_type: str):
                     status_code=400,
                     detail="محتوى الملف لا يتطابق مع نوع الملف المُعلن"
                 )
-            return
+            if not is_image:
+                return
+            break
 
-    # For images, we should have found a magic byte match
-    if extension in {".jpg", ".jpeg", ".png"} and not any(header.startswith(m) for m in MAGIC_BYTES):
+    # For images, reject files lacking valid image magic bytes
+    if is_image and not _has_known_image_magic(header):
         logger.warning(
-            "[FILE_SECURITY] No magic bytes match for supposed image file: %s",
+            "[FILE_SECURITY] Invalid magic bytes for supposed image file: %s",
             extension
         )
-        # Don't block — some valid image formats may have unusual headers
-        # But log for monitoring
+        raise HTTPException(
+            status_code=400,
+            detail="محتوى الملف لا يتطابق مع نوع الصورة المُعلن"
+        )
 
 
 def save_file_locally(

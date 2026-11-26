@@ -1,4 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import joinedload
 from typing import List, Optional, Tuple
 from datetime import datetime, timezone, timedelta
 from sqlalchemy import func, select, or_
@@ -157,12 +158,15 @@ class InventoryService:
         mat = Material(**data.model_dump(), tenant_id=tenant_id)
         db.add(mat)
         await db.commit()
-        await db.refresh(mat)
-        return mat
+        stmt = (
+            select(Material)
+            .options(joinedload(Material.category))
+            .where(Material.id == mat.id, Material.tenant_id == tenant_id)
+        )
+        return (await db.execute(stmt)).scalars().first()
 
     async def get_materials(self, tenant_id: int, db: AsyncSession = None) -> List[Material]:
         db = self._get_db(db)
-        from sqlalchemy.orm import joinedload
         stmt = (
             select(Material)
             .options(joinedload(Material.category))
@@ -193,8 +197,12 @@ class InventoryService:
             setattr(mat, key, value)
 
         await db.commit()
-        await db.refresh(mat)
-        return mat
+        stmt_loaded = (
+            select(Material)
+            .options(joinedload(Material.category))
+            .where(Material.id == mat.id, Material.tenant_id == tenant_id)
+        )
+        return (await db.execute(stmt_loaded)).scalars().first()
 
     # --- STOCK LOGIC ---
     async def get_material_stock_summary(
@@ -288,9 +296,9 @@ class InventoryService:
         Creates SEPARATE StockItems for each unit so each can have its own session.
         """
         await self.ensure_commercial_writes_enabled(tenant_id, db)
+        if quantity is None or quantity <= 0:
+            raise ValueError("Quantity must be greater than zero")
         db = self._get_db(db)
-
-        # 1. Check Batch
         stmt_batch = select(Batch).where(
             Batch.batch_number == batch_data.batch_number,
             Batch.material_id == material_id,
@@ -368,10 +376,22 @@ class InventoryService:
 
         await db.commit()
 
-        # Return the first created item (for API compatibility)
+        # Return the first created item with eager-loaded relationships for StockItemRead
         if created_items:
-            await db.refresh(created_items[0])
-            return created_items[0]
+            stmt_item = (
+                select(StockItem)
+                .options(
+                    joinedload(StockItem.warehouse),
+                    joinedload(StockItem.batch)
+                    .joinedload(Batch.material)
+                    .joinedload(Material.category),
+                )
+                .where(
+                    StockItem.id == created_items[0].id,
+                    StockItem.tenant_id == tenant_id,
+                )
+            )
+            return (await db.execute(stmt_item)).scalars().first()
 
         # Fallback: if quantity was 0 or less, return empty item
         return StockItem(
@@ -575,9 +595,9 @@ class InventoryService:
         - If item is not 'Open' (no active session), requires auto_open=True or fails.
         """
         await self.ensure_commercial_writes_enabled(tenant_id, db)
+        if quantity is None or quantity <= 0:
+            raise ValueError("Quantity must be greater than zero")
         db = self._get_db(db)
-
-        # 0. Resolve Warehouse (Default to CLINIC if not specified)
         if not warehouse_id:
             clinic_wh_stmt = select(Warehouse).where(
                 Warehouse.tenant_id == tenant_id, Warehouse.type == "CLINIC"
@@ -656,7 +676,6 @@ class InventoryService:
         stmt_items = stmt_items.order_by(Batch.expiry_date.asc())
 
         # Load relations eagerly
-        from sqlalchemy.orm import joinedload
         stmt_items = stmt_items.options(joinedload(StockItem.batch).joinedload(Batch.material))
 
         result_items = await db.execute(stmt_items)
@@ -982,10 +1001,16 @@ class InventoryService:
         Transfer stock between warehouses (e.g., MAIN -> CLINIC).
         """
         await self.ensure_commercial_writes_enabled(tenant_id, db)
+        if quantity is None or quantity <= 0:
+            raise ValueError("Quantity must be greater than zero")
         db = self._get_db(db)
 
         # 1. Source Item
-        stmt_src = select(StockItem).where(StockItem.id == stock_item_id)
+        stmt_src = (
+            select(StockItem)
+            .options(joinedload(StockItem.batch))
+            .where(StockItem.id == stock_item_id, StockItem.tenant_id == tenant_id)
+        )
         source_item = (await db.execute(stmt_src)).scalars().first()
         if not source_item:
             raise ValueError("Source stock item not found")
@@ -1017,8 +1042,13 @@ class InventoryService:
             await db.flush()
 
         # 3. Validation: Non-Divisible Check
-        stmt_mat = select(Material).where(Material.id == source_item.batch.material_id)
+        stmt_mat = select(Material).where(
+            Material.id == source_item.batch.material_id,
+            Material.tenant_id == tenant_id,
+        )
         mat = (await db.execute(stmt_mat)).scalars().first()
+        if not mat:
+            raise ValueError("Material not found")
         if mat.type == "NON_DIVISIBLE" and not float(quantity).is_integer():
             raise ValueError(
                 f"Invalid Transfer Quantity: {mat.name} cannot be transferred in fractional amounts."
