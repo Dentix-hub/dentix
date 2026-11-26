@@ -23,6 +23,8 @@ export const queryKeys = {
     patientRecent: (filters = {}) => ['patients', 'recent', filters],
     patientSearch: (query) => ['patients', 'search', query],
     patient: (id) => ['patient', id],
+    patientIdentity: (id, tenantKey) => ['patient', id, 'identity', tenantKey ?? 'session'],
+    patientIdentityDenial: (id, tenantKey) => ['patientIdentityDenial', tenantKey ?? 'session', id],
     patientTeeth: (id) => ['patient', id, 'teeth'],
     patientClinicalWorkspace: (id) => ['patient', id, 'clinical-workspace'],
     patientTreatments: (id) => ['patient', id, 'treatments'],

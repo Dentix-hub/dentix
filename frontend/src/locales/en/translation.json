@@ -1022,6 +1022,11 @@
     "retry": "Retry",
     "login": "Login",
     "no_data": "Patient data not found.",
+    "stale_title": "Showing previously loaded patient information",
+    "stale_message": "The latest refresh failed. This information may be out of date.",
+    "access_denied": "You no longer have access to this patient.",
+    "not_found": "This patient record is not available.",
+    "identity_missing": "No patient was selected.",
     "tabs": {
       "chart": "Dental Chart",
       "history": "Treatment History",

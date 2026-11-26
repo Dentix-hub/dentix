@@ -36,20 +36,31 @@ import {
     createClinicalAttachmentLink,
     deleteClinicalAttachmentLink,
 } from '@/api';
+import { isTerminalPatientIdentityError } from '@/hooks/usePatientIdentityAccess';
 
 
 /**
- * Hook for patient core data (basic info) - loads immediately
+ * Hook for patient core data (basic info) - loads immediately.
+ * tenantKey keeps identity resolution scoped to the active clinic session.
  */
-export function usePatient(patientId) {
+export function usePatient(patientId, { tenantKey, enabled = true } = {}) {
+    const hasTenantKey = tenantKey !== undefined && tenantKey !== null && tenantKey !== '';
+    const queryKey = hasTenantKey
+        ? queryKeys.patientIdentity(patientId, tenantKey)
+        : ['patient', patientId];
+
     return useQuery({
-        queryKey: ['patient', patientId],
+        queryKey,
         queryFn: async () => {
             const res = await getPatient(patientId);
             return res.data;
         },
-        enabled: !!patientId,
+        enabled: !!patientId && enabled,
         staleTime: 60 * 1000, // 1 minute
+        retry: (failureCount, error) => {
+            if (isTerminalPatientIdentityError(error)) return false;
+            return failureCount < 1;
+        },
     });
 }
 
