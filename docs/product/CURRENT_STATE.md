@@ -2,21 +2,19 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- UX screenshots (2026-11-26): refreshed six bilingual captures from fictional data and corrected the dashboard greeting. Built assets and registration CTA verified at 390px and 1440px.
+- UX verification: Frontend 1,239 passed, 0 failed/skipped. Backend 1,947 passed, 123 skipped (122 require isolated PostgreSQL, 1 TestClient host limitation), 0 failures. Build, lint and design guardrails passed. Marketing Playwright 142 passed, 2 skipped (no JavaScript), 1 Chromium teardown error; that mobile case passed three isolated repeats.
 - UX dashboard (2026-11-22): independent source loading and retries, verified zeros, same-clinic stale notices, missing business date feedback and localized EGP. Local verification passed 11 Vitest and 7 Chromium tests, including independent request failures and recovery, denied data eviction and language switching.
-
 - UX patient archive: the localized confirmation shows the selected patient and restores focus on cancel. A pending archive blocks duplicate writes and removes the recent entry only after success.
-
 - UX login: visible username and password labels, accessible focus, higher contrast for filled buttons and connectivity status text. Device-offline and backend-degraded states remain distinct.
-
 - UX patient identity: hide the clinical workspace until identity is available, preserve the requested tab, flag transient stale data, and discard cached clinical data on terminal denial.
+- UX calendar (2026-11-22): click or tap opens the existing appointment editor for the selected record. Local verification passed 7 Vitest and 5 Chromium tests covering two records, zero writes on close, one save to the selected ID, empty-slot booking and drag rescheduling.
 
 - Groq compatibility (2026-11-09): local shared fast/complex model defaults updated for current developer-tier support across chat/direct analysis/Scribe, with account overrides. Legacy cards/cost estimates, recorded costs, privacy, clinical semantics and quota accounting preserved; legacy offers unchanged per owner decision.
 - Follow-up: corrected static system/schema labels falsely rejected by the unchanged privacy confidence gate; dynamic messages/context still scanned. Verification: 44 focused tests PASS (18 new), real PostgreSQL egress/accounting coverage and Ruff/whitespace PASS.
 - Genuine Groq smoke PASS on both models; actual AIService/local PostgreSQL request consumed one unit (10→9), replay left quota at nine and provider call count one. No patient rows or hosted configuration changes; synthetic clusters removed.
 - Status: local code/provider compatibility DONE; owner authorized push/PR to Staging. Hosted delivery/clinical activation PARTIAL; no deployment or clinical privacy approval. Report: docs/reports/groq-model-compatibility-2026-11-09.md.
 - PR #371 CI follow-up: Safety blocked on unused APScheduler 3.11.3 (SFTY-20261008-90293). Removed only that dependency; all other locked packages and security policies unchanged. Frozen sync/lock, exact CI compatibility smoke and Safety PASS; 46 focused tests PASS, 0 failed/skipped. Remote CI remains pending after correction.
-
-- UX calendar (2026-11-22): click or tap opens the existing appointment editor for the selected record. Local verification passed 7 Vitest and 5 Chromium tests covering two records, zero writes on close, one save to the selected ID, empty-slot booking and drag rescheduling.
 
 - AI privacy-denial accounting (2026-11-06): typed pre-dispatch denial now releases chat/direct/preallocated analysis reservations; Scribe's existing deny-before-reserve ordering verified. Privacy settings, generic provider accounting and historical rows preserved.
 - Verification: 74 focused backend tests PASS (18 new PostgreSQL cases), plus overlapping final denial-audit acceptance; Ruff/whitespace PASS. Hosted acceptance/paid launch remain PARTIAL; staging mode OFF and real-provider approval unchanged. Report: docs/reports/ai-pre-dispatch-accounting-2026-11-06.md.

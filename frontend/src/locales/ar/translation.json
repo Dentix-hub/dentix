@@ -382,7 +382,7 @@
     }
   },
   "dashboard": {
-    "welcome": "أهلاً د. {{name}} 👋",
+    "welcome": "أهلاً د. {{name}}",
     "clinic_overview_today": "نظرة عامة على أداء العيادة اليوم",
     "new_patients_today": "مرضى جدد",
     "registered_today": "تم التسجيل اليوم",
