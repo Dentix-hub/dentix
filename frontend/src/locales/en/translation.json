@@ -1981,6 +1981,7 @@
     "show_password": "Show password",
     "hide_password": "Hide password",
     "login": {
+      "dark_mode": "Dark mode",
       "title": "Smart Clinic",
       "subtitle": "Smart Clinic Management System",
       "username": "Username",

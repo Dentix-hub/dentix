@@ -2110,6 +2110,7 @@
     "show_password": "إظهار كلمة المرور",
     "hide_password": "إخفاء كلمة المرور",
     "login": {
+      "dark_mode": "الوضع الداكن",
       "title": "Smart Clinic",
       "subtitle": "نظام إدارة العيادات الذكي",
       "username": "اسم المستخدم",

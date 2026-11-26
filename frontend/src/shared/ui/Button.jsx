@@ -13,14 +13,14 @@ const Button = ({
     type = 'button',
     ...props
 }) => {
-    const baseStyles = 'inline-flex items-center justify-center rounded-control font-bold transition-colors duration-fast disabled:opacity-50 disabled:cursor-not-allowed';
+    const baseStyles = 'inline-flex items-center justify-center rounded-control font-bold transition-colors duration-fast focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-50 disabled:cursor-not-allowed';
 
     const variants = {
-        primary: 'bg-primary text-white hover:bg-primary-600 shadow-low',
-        secondary: 'bg-surface-subtle text-text-primary hover:bg-surface-hover border border-border',
-        outline: 'border border-primary text-primary hover:bg-primary/5',
-        ghost: 'text-text-secondary hover:text-primary hover:bg-primary/5',
-        danger: 'bg-danger text-white hover:bg-red-600 shadow-low',
+        primary: 'bg-primary-700 text-white hover:bg-primary-800 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 shadow-low',
+        secondary: 'bg-surface-subtle text-text-primary hover:bg-surface-hover border border-border focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400',
+        outline: 'border border-primary-700 text-primary-700 hover:bg-primary-50 hover:text-primary-800 dark:border-primary-400 dark:text-primary-300 dark:hover:bg-primary-950 dark:hover:text-primary-200 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400',
+        ghost: 'text-text-secondary hover:text-primary-700 hover:bg-primary-50 dark:hover:text-primary-300 dark:hover:bg-primary-950 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400',
+        danger: 'bg-red-700 text-white hover:bg-red-800 focus-visible:ring-red-700 dark:focus-visible:ring-red-400 shadow-low',
     };
 
     const sizes = {
