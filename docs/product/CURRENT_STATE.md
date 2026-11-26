@@ -2,6 +2,8 @@
 # DENTIX Current State Card
 Updated by the executor at the end of every task PR (max 10 lines changed). New Claude/Argon chats start from this file.
 
+- Staging CD (2026-11-26): synchronize the authoritative workflow from main (`fd285fbb`, #379). The staging deployment job uses Ubuntu 24.04. Hosted browser smoke is pending.
+
 - UX screenshots (2026-11-26): refreshed six bilingual captures from fictional data and corrected the dashboard greeting. Built assets and registration CTA verified at 390px and 1440px.
 - UX verification: Frontend 1,239 passed, 0 failed/skipped. Backend 1,947 passed, 123 skipped (122 require isolated PostgreSQL, 1 TestClient host limitation), 0 failures. Build, lint and design guardrails passed. Marketing Playwright 142 passed, 2 skipped (no JavaScript), 1 Chromium teardown error; that mobile case passed three isolated repeats.
 - PR #377 CI (2026-11-26): merged staging #378 hotfix reconciliation (`uv.lock` & isolated Safety runner), confirmed the patient archive dialog in the critical path, and refreshed the three patient-list visual baselines for the trial clinic and higher-contrast button.
