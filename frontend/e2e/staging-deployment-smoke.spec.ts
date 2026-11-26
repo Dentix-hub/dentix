@@ -145,7 +145,7 @@ test('HF staging passes production-like auth/patient/appointment/finance/file/RB
   // Use an allowlisted file type with a real matching magic signature. The
   // production upload validator intentionally rejects text/plain/.txt.
   const onePixelPng = Buffer.from(
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Z6GQAAAAASUVORK5CYII=',
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGP4//8/AAX+Av4N70a4AAAAAElFTkSuQmCC',
     'base64',
   );
   const upload = await page.request.post(`${API_URL}/upload?patient_id=${patient.id}&note=staging-smoke`, {
@@ -186,6 +186,20 @@ test('HF staging passes production-like auth/patient/appointment/finance/file/RB
 
   const forbiddenSuperAdminRoute = await page.request.get(`${API_URL}/admin/tenants`);
   expect(forbiddenSuperAdminRoute.status()).toBe(403);
+
+  const anonymousRoot = await playwrightRequest.newContext();
+  try {
+    const anonRootRes = await anonymousRoot.get(`${BASE_URL}/`, { maxRedirects: 0 });
+    expect(anonRootRes.status()).toBe(307);
+    const location = anonRootRes.headers()['location'];
+    expect(location).toBeTruthy();
+    expect(new URL(location, BASE_URL).pathname).toBe('/ar');
+
+    const anonLoginRes = await anonymousRoot.get(`${BASE_URL}/login`, { maxRedirects: 0 });
+    expect(anonLoginRes.status()).toBe(200);
+  } finally {
+    await anonymousRoot.dispose();
+  }
 
   await page.goto(`${BASE_URL}/`, { waitUntil: 'domcontentloaded' });
   await expect(page.locator('nav').first()).toBeVisible({ timeout: 20_000 });

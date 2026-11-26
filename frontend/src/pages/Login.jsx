@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
-import { useNavigate, Link, useSearchParams } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../auth/useAuth';
+import { resolvePostLoginPath } from '@/auth/postLoginRedirect';
 import { Sun, Moon, Globe, Loader2, Eye, EyeOff } from 'lucide-react';
 export default function Login({ isDarkMode, toggleDarkMode }) {
     const { t, i18n } = useTranslation();    const [username, setUsername] = useState('');
@@ -12,12 +13,15 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
     const [searchParams] = useSearchParams();
     const { login, verify2FA } = useAuth();
     const [show2FA, setShow2FA] = useState(false);
     const [twoFACode, setTwoFACode] = useState('');
     const [tempToken, setTempToken] = useState('');
     const reason = searchParams.get('reason');
+    const registrationSuccessMessage = typeof location.state?.message === 'string' ? location.state.message : '';
+    const postLoginDestination = (role) => resolvePostLoginPath(role, location.state?.from);
     const sessionNoticeMessage = reason === 'session_mismatch'
         ? t('auth.login.errors.session_mismatch')
         : reason === 'session_expired'
@@ -39,9 +43,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                 return;
             }
 
-            if (data.role === 'super_admin') {
-                navigate('/admin', { replace: true });
-            }
+            navigate(postLoginDestination(data.role), { replace: true });
         } catch (err) {
             logger.error("Login Error:", err);
             setError(err.response?.data?.detail || t('auth.login.errors.server'));
@@ -57,9 +59,7 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
         setError('');
         try {
             const data = await verify2FA(twoFACode, tempToken);
-            if (data.role === 'super_admin') {
-                navigate('/admin', { replace: true });
-            }
+            navigate(postLoginDestination(data.role), { replace: true });
         } catch (err) {
             setError(err.response?.data?.detail || 'رمز التحقق غير صحيح');
         } finally {
@@ -68,18 +68,20 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
     };
     return (
         <div dir={(i18n.resolvedLanguage || i18n.language)?.startsWith('ar') ? 'rtl' : 'ltr'} className={`min-h-screen flex items-center justify-center p-4 transition-colors duration-500 bg-background`}>
-            <div className={`w-full max-w-md p-8 rounded-2xl shadow-2xl border transition-all duration-300 bg-surface border-white/10 text-center`}>
+            <div className={`w-full max-w-md p-8 rounded-2xl shadow-2xl border transition-all duration-300 bg-surface border-border dark:border-white/10 text-center`}>
                 <div className="flex justify-between items-start mb-6 w-full">
                     {/* Language Switcher */}
                     <button
+                        type="button"
                         onClick={() => {
                             const newLang = i18n.language === 'ar' ? 'en' : 'ar';
                             i18n.changeLanguage(newLang);
                         }}
-                        className={`p-3 rounded-2xl transition-colors bg-surface-hover text-text-secondary hover:text-text-primary hover:bg-primary/5`}
+                        className="p-3 rounded-2xl transition-colors bg-surface-hover text-text-secondary hover:text-text-primary hover:bg-primary-50 dark:hover:bg-primary-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
                         title={i18n.language === 'ar' ? 'Switch to English' : 'تغيير للعربية'}
+                        aria-label={i18n.language === 'ar' ? 'Switch to English' : 'تغيير للعربية'}
                     >
-                        <Globe size={20} />
+                        <Globe size={20} aria-hidden="true" />
                     </button>
                     <div className="h-44 w-full overflow-hidden flex items-center justify-center">
                         <img 
@@ -89,53 +91,92 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         />
                     </div>
                     <button
+                        type="button"
                         onClick={toggleDarkMode}
-                        className={`p-3 rounded-2xl transition-colors bg-surface-hover text-text-secondary hover:text-text-primary hover:bg-primary/5`}
+                        className="p-3 rounded-2xl transition-colors bg-surface-hover text-text-secondary hover:text-text-primary hover:bg-primary-50 dark:hover:bg-primary-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                        aria-label={t('auth.login.dark_mode')}
+                        aria-pressed={isDarkMode}
                     >
-                        {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
+                        {isDarkMode ? <Sun size={20} aria-hidden="true" /> : <Moon size={20} aria-hidden="true" />}
                     </button>
                 </div>
                 {(error || sessionNoticeMessage) && (
-                    <div className="bg-red-500/10 border border-red-500/20 text-red-500 p-4 rounded-2xl text-sm font-bold mb-6 animate-shake" role="alert">
+                    <div className="bg-red-50 border border-red-200 text-red-700 dark:bg-red-950 dark:border-red-800 dark:text-red-200 p-4 rounded-2xl text-sm font-bold mb-6 animate-shake" role="alert">
                         {error || sessionNoticeMessage}
+                    </div>
+                )}
+                {registrationSuccessMessage && !error && !sessionNoticeMessage && (
+                    <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 dark:bg-emerald-950 dark:border-emerald-800 dark:text-emerald-200 p-4 rounded-2xl text-sm font-bold mb-6" role="status">
+                        {registrationSuccessMessage}
                     </div>
                 )}
                 {!show2FA ? (
                     <form onSubmit={handleLogin} className="space-y-5 animate-in slide-in-from-right duration-300">
-                        <div className="relative group">
+                        <div className="space-y-1.5 text-start">
+                            <label
+                                htmlFor="login-username"
+                                className="block text-sm font-semibold text-text-primary dark:text-text-primary"
+                            >
+                                {t('auth.login.username')}
+                            </label>
                             <input
+                                id="login-username"
                                 type="text"
                                 name="username"
                                 autoComplete="username"
                                 dir="auto"
                                 placeholder={t('auth.login.username')}
-                                className={`w-full p-4 rounded-2xl border outline-none transition-all text-start bg-input border-border text-text-primary focus:border-primary focus:ring-1 focus:ring-primary`}
+                                className="w-full p-4 rounded-2xl border outline-none transition-all text-start bg-input border-border text-text-primary dark:bg-input dark:border-border dark:text-text-primary placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-primary-700 focus:ring-2 focus:ring-primary-700/30 dark:focus:border-primary-400 dark:focus:ring-primary-400/30 focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-0"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 required
                             />
                         </div>
-                        <div className="flex items-center rounded-2xl border border-border bg-input text-text-primary transition-all focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
-                            <input
-                                type={showPassword ? "text" : "password"}
-                                name="password"
-                                autoComplete="current-password"
-                                dir="auto"
-                                placeholder={t('auth.login.password')}
-                                className="min-w-0 flex-1 rounded-2xl border-0 bg-transparent p-4 text-start text-text-primary outline-none focus-visible:ring-0 [&::-ms-reveal]:hidden"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                required
-                            />
-                            <button type="button" aria-label={t(showPassword ? 'auth.hide_password' : 'auth.show_password')} aria-pressed={showPassword} onClick={() => setShowPassword(!showPassword)} className="me-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-secondary hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary">
-                                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                            </button>
+                        <div className="space-y-1.5 text-start">
+                            <label
+                                htmlFor="login-password"
+                                className="block text-sm font-semibold text-text-primary dark:text-text-primary"
+                            >
+                                {t('auth.login.password')}
+                            </label>
+                            <div className="flex items-center rounded-2xl border border-border bg-input text-text-primary transition-all focus-within:border-primary-700 focus-within:ring-2 focus-within:ring-primary-700/30 dark:focus-within:border-primary-400 dark:focus-within:ring-primary-400/30">
+                                <input
+                                    id="login-password"
+                                    type={showPassword ? "text" : "password"}
+                                    name="password"
+                                    autoComplete="current-password"
+                                    dir="auto"
+                                    placeholder={t('auth.login.password')}
+                                    className="min-w-0 flex-1 rounded-2xl border-0 bg-transparent dark:bg-transparent p-4 text-start text-text-primary dark:text-text-primary placeholder:text-slate-500 dark:placeholder:text-slate-400 outline-none focus-visible:ring-0 focus-visible:ring-offset-0 [&::-ms-reveal]:hidden"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    required
+                                />
+                                <button
+                                    type="button"
+                                    aria-label={t(showPassword ? 'auth.hide_password' : 'auth.show_password')}
+                                    aria-pressed={showPassword}
+                                    onClick={() => setShowPassword(!showPassword)}
+                                    className="me-1 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-text-secondary hover:text-text-primary hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-0"
+                                >
+                                    {showPassword ? <EyeOff size={20} aria-hidden="true" /> : <Eye size={20} aria-hidden="true" />}
+                                </button>
+                            </div>
                         </div>
                         <div className="flex items-center justify-between px-1">
-                            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm"><input type="checkbox" name="remember_me" className="h-5 w-5 shrink-0 cursor-pointer accent-primary" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />{t('auth.login.remember_me')}</label>
+                            <label className="flex min-h-11 cursor-pointer items-center gap-3 text-sm text-text-primary dark:text-text-primary">
+                                <input
+                                    type="checkbox"
+                                    name="remember_me"
+                                    className="h-5 w-5 shrink-0 cursor-pointer accent-primary-700 dark:accent-primary-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+                                    checked={rememberMe}
+                                    onChange={(e) => setRememberMe(e.target.checked)}
+                                />
+                                {t('auth.login.remember_me')}
+                            </label>
                             <Link
                                 to="/forgot-password"
-                                className={`text-sm font-bold hover:underline text-primary`}
+                                className="text-sm font-bold text-primary-700 hover:text-primary-800 hover:underline dark:text-primary-300 dark:hover:text-primary-200 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
                             >
                                 {t('auth.login.forgot_password')}
                             </Link>
@@ -143,18 +184,18 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="w-full py-4 bg-primary text-white font-bold rounded-2xl hover:brightness-110 shadow-xl shadow-primary/25 transition-all active:scale-[0.98] transform flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="w-full py-4 bg-primary-700 text-white font-bold rounded-2xl hover:bg-primary-800 shadow-xl shadow-primary-700/25 transition-all active:scale-[0.98] transform flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                            {isSubmitting && <Loader2 size={20} className="animate-spin" />}
+                            {isSubmitting && <Loader2 size={20} className="animate-spin" aria-hidden="true" />}
                             {t('auth.login.submit')}
                         </button>
                         <div className="text-center mt-4">
-                            <span className="text-sm font-medium text-text-secondary me-2">
+                            <span className="text-sm font-medium text-text-secondary dark:text-text-secondary me-2">
                                 {i18n.language === 'ar' ? 'لا تملك حساب عيادة؟' : "Don't have a clinic account?"}
                             </span>
                             <Link
                                 to="/register"
-                                className="text-sm font-bold text-primary hover:underline transition-all"
+                                className="text-sm font-bold text-primary-700 hover:text-primary-800 hover:underline dark:text-primary-300 dark:hover:text-primary-200 transition-all rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
                             >
                                 {t('auth.login.register_new')}
                             </Link>
@@ -162,19 +203,23 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                     </form>
                 ) : (
                     <form onSubmit={handleVerify2FA} className="space-y-5 animate-in slide-in-from-left duration-300">
-                        <div className="p-4 bg-primary/5 rounded-2xl mb-4">
-                            <p className="text-sm font-bold text-primary text-center">
+                        <div className="p-4 bg-primary-50 dark:bg-primary-950 rounded-2xl mb-4">
+                            <label
+                                htmlFor="login-2fa-code"
+                                className="block text-sm font-bold text-primary-800 dark:text-primary-200 text-center"
+                            >
                                 {i18n.language === 'ar' 
                                     ? 'تم تفعيل التحقق بخطوتين. يرجى إدخال الرمز من تطبيق المصادقة.' 
                                     : 'Two-factor authentication is enabled. Please enter the code from your authenticator app.'}
-                            </p>
+                            </label>
                         </div>
                         <div className="relative group">
                             <input
+                                id="login-2fa-code"
                                 type="text"
                                 maxLength="6"
                                 placeholder="000000"
-                                className={`w-full p-5 rounded-2xl border outline-none transition-all text-center text-2xl tracking-[1em] bg-input border-border text-text-primary focus:border-primary focus:ring-2 focus:ring-primary font-black`}
+                                className="w-full p-5 rounded-2xl border outline-none transition-all text-center text-2xl tracking-[1em] bg-input border-border text-text-primary dark:bg-input dark:border-border dark:text-text-primary placeholder:text-slate-500 dark:placeholder:text-slate-400 focus:border-primary-700 focus:ring-2 focus:ring-primary-700 dark:focus:border-primary-400 dark:focus:ring-primary-400 focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-0 font-black"
                                 value={twoFACode}
                                 onChange={(e) => setTwoFACode(e.target.value.replace(/\D/g, ''))}
                                 required
@@ -184,33 +229,33 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                         <button
                             type="submit"
                             disabled={isSubmitting || twoFACode.length < 6}
-                            className="w-full py-4 bg-emerald-600 text-white font-bold rounded-2xl hover:bg-emerald-700 shadow-xl shadow-emerald-500/25 transition-all active:scale-[0.98] transform flex items-center justify-center gap-2 disabled:opacity-70"
+                            className="w-full py-4 bg-emerald-700 text-white font-bold rounded-2xl hover:bg-emerald-800 shadow-xl shadow-emerald-700/25 transition-all active:scale-[0.98] transform flex items-center justify-center gap-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 dark:focus-visible:ring-emerald-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface disabled:opacity-70 disabled:cursor-not-allowed"
                         >
-                            {isSubmitting && <Loader2 size={20} className="animate-spin" />}
+                            {isSubmitting && <Loader2 size={20} className="animate-spin" aria-hidden="true" />}
                             {i18n.language === 'ar' ? 'تأكيد الرمز' : 'Verify Code'}
                         </button>
                         <button
                             type="button"
                             onClick={() => setShow2FA(false)}
-                            className="w-full py-3 text-sm font-bold text-slate-500 hover:text-slate-700 transition-colors"
+                            className="w-full py-3 text-sm font-bold text-text-secondary hover:text-text-primary transition-colors rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
                         >
                             {i18n.language === 'ar' ? 'العودة لتسجيل الدخول' : 'Back to Login'}
                         </button>
                     </form>
                 )}
-                <div className="mt-8 pt-6 border-t border-slate-100/10 flex flex-col gap-2">
+                <div className="mt-8 pt-6 border-t border-border dark:border-slate-100/10 flex flex-col gap-2">
                     <div className="flex flex-wrap justify-center gap-3 text-xs font-medium text-text-secondary">
-                        <a href={i18n.language === 'ar' || i18n.language?.startsWith('ar') ? '/ar' : '/en'} className="hover:text-primary transition-colors">{t('auth.login.about')}</a>
-                        <span>•</span>
-                        <a href={i18n.language === 'ar' || i18n.language?.startsWith('ar') ? '/en' : '/ar'} className="hover:text-primary transition-colors" aria-label="Switch marketing language">
+                        <a href={i18n.language === 'ar' || i18n.language?.startsWith('ar') ? '/ar' : '/en'} className="text-text-secondary hover:text-primary-700 dark:hover:text-primary-300 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface">{t('auth.login.about')}</a>
+                        <span className="text-text-secondary dark:text-text-secondary" aria-hidden="true">•</span>
+                        <a href={i18n.language === 'ar' || i18n.language?.startsWith('ar') ? '/en' : '/ar'} className="text-text-secondary hover:text-primary-700 dark:hover:text-primary-300 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface" aria-label="Switch marketing language">
                             {i18n.language === 'ar' || i18n.language?.startsWith('ar') ? 'English' : 'عربي'}
                         </a>
-                        <span>•</span>
-                        <a href={i18n.language === 'en' ? '/en/terms' : '/ar/terms'} className="hover:text-primary transition-colors">{t('auth.login.terms')}</a>
-                        <span>•</span>
-                        <a href={i18n.language === 'en' ? '/en/privacy' : '/ar/privacy'} className="hover:text-primary transition-colors">{t('auth.login.privacy')}</a>
+                        <span className="text-text-secondary dark:text-text-secondary" aria-hidden="true">•</span>
+                        <a href={i18n.language === 'en' ? '/en/terms' : '/ar/terms'} className="text-text-secondary hover:text-primary-700 dark:hover:text-primary-300 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface">{t('auth.login.terms')}</a>
+                        <span className="text-text-secondary dark:text-text-secondary" aria-hidden="true">•</span>
+                        <a href={i18n.language === 'en' ? '/en/privacy' : '/ar/privacy'} className="text-text-secondary hover:text-primary-700 dark:hover:text-primary-300 transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface">{t('auth.login.privacy')}</a>
                     </div>
-                    <p className={`text-xs ${isDarkMode ? 'text-slate-500' : 'text-slate-500'}`}>
+                    <p className="text-xs text-text-secondary dark:text-text-secondary">
                         {t('auth.login.copyright')}
                     </p>
                 </div>

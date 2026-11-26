@@ -514,9 +514,7 @@ export default function Appointments() {
                 <div className="min-w-0 overflow-hidden rounded-2xl border border-border bg-surface-elevated sm:rounded-3xl">
                     <WeeklyCalendar
                         appointments={appointments}
-                        onEventClick={(appt) => {
-                            toast(`${t('appointments.table.patient')}: ${appt.patient_name}`, { icon: 'ℹ️' });
-                        }}
+                        onEventClick={handleOpenEdit}
                         onEventDrop={handleEventDrop}
                         onSelectSlot={handleSelectSlot}
                     />

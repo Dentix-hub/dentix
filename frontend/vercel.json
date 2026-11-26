@@ -15,9 +15,27 @@
           "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self' https://dentix-dentix.hf.space https://dentix-dentix-staging.hf.space; frame-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'self'"
         }
       ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        { "key": "Vary", "value": "Cookie" },
+        { "key": "Cache-Control", "value": "private, no-cache, no-store, must-revalidate" }
+      ]
     }
   ],
   "redirects": [
+    {
+      "source": "/",
+      "destination": "/ar",
+      "statusCode": 307,
+      "missing": [
+        { "type": "cookie", "key": "dentix_session_hint" },
+        { "type": "cookie", "key": "access_token" },
+        { "type": "cookie", "key": "csrf_token" },
+        { "type": "query", "key": "source", "value": "pwa" }
+      ]
+    },
     {
       "source": "/privacy",
       "destination": "/ar/privacy",

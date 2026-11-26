@@ -76,14 +76,14 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(html).not.toContain('127.0.0.1');
         });
 
-        it('enforces navigation links contract: login points to / (NOT /login) and language switcher points to /en', () => {
+        it('enforces navigation links contract: login points to /login (NOT /) and language switcher points to /en', () => {
             const html = readFileSync(arHtmlPath, 'utf8');
 
             const loginLinkMatches = html.match(/<a\b[^>]*href=["']([^"']*)["'][^>]*>تسجيل الدخول[^<]*<\/a>/gi) || [];
             expect(loginLinkMatches.length).toBeGreaterThanOrEqual(2);
             for (const match of loginLinkMatches) {
-                expect(match).toMatch(/href=["']\/["']/);
-                expect(match).not.toMatch(/href=["']\/login["']/);
+                expect(match).toMatch(/href=["']\/login["']/);
+                expect(match).not.toMatch(/href=["']\/["']/);
             }
 
             expect(html).toContain('href="/register"');
@@ -178,14 +178,14 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(html).not.toContain('127.0.0.1');
         });
 
-        it('enforces navigation links contract: login points strictly to / (NOT /login) and language switcher points to /ar', () => {
+        it('enforces navigation links contract: login points strictly to /login (NOT /) and language switcher points to /ar', () => {
             const html = readFileSync(enHtmlPath, 'utf8');
 
             const loginLinkMatches = html.match(/<a\b[^>]*href=["']([^"']*)["'][^>]*>Log in[^<]*<\/a>/gi) || [];
             expect(loginLinkMatches.length).toBeGreaterThanOrEqual(2);
             for (const match of loginLinkMatches) {
-                expect(match).toMatch(/href=["']\/["']/);
-                expect(match).not.toMatch(/href=["']\/login["']/);
+                expect(match).toMatch(/href=["']\/login["']/);
+                expect(match).not.toMatch(/href=["']\/["']/);
             }
 
             expect(html).toContain('href="/register"');
@@ -250,7 +250,8 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(arHtml).toContain('<link rel="alternate" hreflang="en" href="https://www.dentixs.app/en/privacy">');
             expect(arHtml).toContain('<link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar/privacy">');
             expect(arHtml).not.toContain('<script src=');
-            expect(arHtml).toContain('href="/"');
+            expect(arHtml).toContain('href="/login"');
+            expect(arHtml).not.toContain('href="/"');
 
             const enHtml = readFileSync(enPrivacyPath, 'utf8');
             expect(enHtml).toContain('<title>Dentix — Privacy Policy</title>');
@@ -259,7 +260,8 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(enHtml).toContain('<link rel="alternate" hreflang="en" href="https://www.dentixs.app/en/privacy">');
             expect(enHtml).toContain('<link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar/privacy">');
             expect(enHtml).not.toContain('<script src=');
-            expect(enHtml).toContain('href="/"');
+            expect(enHtml).toContain('href="/login"');
+            expect(enHtml).not.toContain('href="/"');
         });
 
         it('verifies Arabic and English Terms of Service static pages exist with valid metadata and zero JS', () => {
@@ -273,7 +275,8 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(arHtml).toContain('<link rel="alternate" hreflang="en" href="https://www.dentixs.app/en/terms">');
             expect(arHtml).toContain('<link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar/terms">');
             expect(arHtml).not.toContain('<script src=');
-            expect(arHtml).toContain('href="/"');
+            expect(arHtml).toContain('href="/login"');
+            expect(arHtml).not.toContain('href="/"');
 
             const enHtml = readFileSync(enTermsPath, 'utf8');
             expect(enHtml).toContain('<title>Dentix — Terms of Service</title>');
@@ -282,7 +285,8 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(enHtml).toContain('<link rel="alternate" hreflang="en" href="https://www.dentixs.app/en/terms">');
             expect(enHtml).toContain('<link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar/terms">');
             expect(enHtml).not.toContain('<script src=');
-            expect(enHtml).toContain('href="/"');
+            expect(enHtml).toContain('href="/login"');
+            expect(enHtml).not.toContain('href="/"');
         });
     });
 
@@ -442,8 +446,34 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(existsSync(vercelJsonPath)).toBe(true);
             const config = JSON.parse(readFileSync(vercelJsonPath, 'utf8'));
 
+            // Headers: root varies on Cookie and is uncacheable in shared CDNs
+            const rootHeaders = config.headers?.find((h) => h.source === '/');
+            expect(rootHeaders).toEqual({
+                source: '/',
+                headers: [
+                    { key: 'Vary', value: 'Cookie' },
+                    { key: 'Cache-Control', value: 'private, no-cache, no-store, must-revalidate' },
+                ],
+            });
+
             // Redirects
             expect(config.redirects).toBeDefined();
+
+            // Root landing redirect for anonymous web traffic (runs before filesystem index.html)
+            const rootRedirect = config.redirects[0];
+            expect(rootRedirect).toEqual({
+                source: '/',
+                destination: '/ar',
+                statusCode: 307,
+                missing: [
+                    { type: 'cookie', key: 'dentix_session_hint' },
+                    { type: 'cookie', key: 'access_token' },
+                    { type: 'cookie', key: 'csrf_token' },
+                    { type: 'query', key: 'source', value: 'pwa' },
+                ],
+            });
+            expect(rootRedirect.permanent).toBeUndefined();
+            expect(rootRedirect.missing.some((m) => m.key === 'refresh_token')).toBe(false);
 
             // Legal legacy and clean redirects
             const privacyRedirect = config.redirects.find((r) => r.source === '/privacy');
@@ -588,7 +618,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
         });
 
         it('proves rejection of missing stylesheet or icon in <link> elements', () => {
-            const htmlWithMissingCss = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>Test</title><link rel="canonical" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="en" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar"><link rel="stylesheet" href="/marketing/nonexistent-css-file.css"></head><body><a href="/en">English</a><a href="/">تسجيل الدخول</a><a href="/">تسجيل الدخول</a></body></html>`;
+            const htmlWithMissingCss = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>Test</title><meta name="description" content="desc"><link rel="canonical" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="en" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar"><link rel="stylesheet" href="/marketing/nonexistent-css-file.css"></head><body><h1>Title</h1><a href="/en">English</a><a href="/login">تسجيل الدخول</a><a href="/login">تسجيل الدخول</a></body></html>`;
             const errorsCss = validateMarketingHtml(htmlWithMissingCss, path.resolve('public'), {
                 lang: 'ar',
                 dir: 'rtl',
@@ -599,7 +629,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(errorsCss.length).toBeGreaterThan(0);
             expect(errorsCss.some((e) => e.includes('Referenced <link rel="stylesheet"> asset not found on disk'))).toBe(true);
 
-            const htmlWithMissingIcon = `<!DOCTYPE html><html lang="en" dir="ltr"><head><title>Test</title><link rel="canonical" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="en" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar"><link rel="icon" href="/icons/missing-icon-file.png"></head><body><a href="/ar">العربية</a><a href="/">Log in</a><a href="/">Log in</a></body></html>`;
+            const htmlWithMissingIcon = `<!DOCTYPE html><html lang="en" dir="ltr"><head><title>Test</title><meta name="description" content="desc"><link rel="canonical" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="en" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar"><link rel="icon" href="/icons/missing-icon-file.png"></head><body><h1>Title</h1><a href="/ar">العربية</a><a href="/login">Log in</a><a href="/login">Log in</a></body></html>`;
             const errorsIcon = validateMarketingHtml(htmlWithMissingIcon, path.resolve('public'), {
                 lang: 'en',
                 dir: 'ltr',
@@ -609,6 +639,18 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             });
             expect(errorsIcon.length).toBeGreaterThan(0);
             expect(errorsIcon.some((e) => e.includes('Referenced <link rel="icon"> asset not found on disk'))).toBe(true);
+        });
+
+        it('proves rejection of login links pointing to bare / instead of /login', () => {
+            const htmlWithRootLogin = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>Test</title><meta name="description" content="desc"><link rel="canonical" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="en" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar"></head><body><h1>Title</h1><a href="/en">English</a><a href="/">تسجيل الدخول</a><a href="/">تسجيل الدخول</a></body></html>`;
+            const errors = validateMarketingHtml(htmlWithRootLogin, null, {
+                lang: 'ar',
+                dir: 'rtl',
+                canonical: 'https://www.dentixs.app/ar',
+                loginTexts: ['تسجيل الدخول'],
+                targetLangSwitch: '/en',
+            });
+            expect(errors.some((e) => e.includes("Login link must point to '/login'"))).toBe(true);
         });
 
         it('proves rejection of disallowed or private routes like /patients in sitemap.xml', () => {
@@ -632,7 +674,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
 
         it('proves rejection of executable JavaScript inside marketing HTML', () => {
             // Case A: inline executable <script>
-            const htmlWithScript = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>Test</title><link rel="canonical" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="en" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar"><script>alert(1)</script></head><body><a href="/en">English</a><a href="/">تسجيل الدخول</a><a href="/">تسجيل الدخول</a></body></html>`;
+            const htmlWithScript = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>Test</title><meta name="description" content="desc"><link rel="canonical" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="en" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar"><script>alert(1)</script></head><body><h1>Title</h1><a href="/en">English</a><a href="/login">تسجيل الدخول</a><a href="/login">تسجيل الدخول</a></body></html>`;
             const errorsA = validateMarketingHtml(htmlWithScript, null, {
                 lang: 'ar',
                 dir: 'rtl',
@@ -644,7 +686,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(errorsA.some((e) => e.includes('Executable script found'))).toBe(true);
 
             // Case B: external <script src="...">
-            const htmlWithSrc = `<!DOCTYPE html><html lang="en" dir="ltr"><head><title>Test</title><link rel="canonical" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="en" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar"><script src="/assets/index-app.js"></script></head><body><a href="/ar">العربية</a><a href="/">Log in</a><a href="/">Log in</a></body></html>`;
+            const htmlWithSrc = `<!DOCTYPE html><html lang="en" dir="ltr"><head><title>Test</title><meta name="description" content="desc"><link rel="canonical" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="en" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar"><script src="/assets/index-app.js"></script></head><body><h1>Title</h1><a href="/ar">العربية</a><a href="/login">Log in</a><a href="/login">Log in</a></body></html>`;
             const errorsB = validateMarketingHtml(htmlWithSrc, null, {
                 lang: 'en',
                 dir: 'ltr',
@@ -656,7 +698,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(errorsB.some((e) => e.includes('External script tag found'))).toBe(true);
 
             // Case C: inline event handler (e.g. onclick)
-            const htmlWithEvent = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>Test</title><link rel="canonical" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="en" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar"></head><body><button onclick="console.log(1)">Click</button><a href="/en">English</a><a href="/">تسجيل الدخول</a><a href="/">تسجيل الدخول</a></body></html>`;
+            const htmlWithEvent = `<!DOCTYPE html><html lang="ar" dir="rtl"><head><title>Test</title><meta name="description" content="desc"><link rel="canonical" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="ar" href="https://www.dentixs.app/ar"><link rel="alternate" hreflang="en" href="https://www.dentixs.app/en"><link rel="alternate" hreflang="x-default" href="https://www.dentixs.app/ar"></head><body><h1>Title</h1><button onclick="console.log(1)">Click</button><a href="/en">English</a><a href="/login">تسجيل الدخول</a><a href="/login">تسجيل الدخول</a></body></html>`;
             const errorsC = validateMarketingHtml(htmlWithEvent, null, {
                 lang: 'ar',
                 dir: 'rtl',

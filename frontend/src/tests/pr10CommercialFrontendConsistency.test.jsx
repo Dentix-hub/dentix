@@ -35,7 +35,7 @@ describe('PR-10 Commercial Frontend Consistency & Gating', () => {
                 <MemoryRouter initialEntries={['/guarded']}>
                     <AuthContext.Provider value={authValue}>
                         <Routes>
-                            <Route path="/" element={<div>Root Login</div>} />
+                            <Route path="/login" element={<div>Root Login</div>} />
                             <Route path="/guarded" element={ui} />
                             <Route path="/unauthorized" element={<div>Access Denied</div>} />
                         </Routes>
