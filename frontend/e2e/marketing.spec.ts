@@ -32,15 +32,14 @@ for (const language of ['ar', 'en']) {
       if (new URL(request.url()).origin !== expectedOrigin) externalRequests.push(request.url());
     });
     await page.goto(`/${language}/index.html`);
-    const screenshots = page.locator('img[src^="/marketing/screens/"]');
-    await expect(screenshots).toHaveCount(6);
-    for (const screenshot of await screenshots.all()) {
-      // Tour scenes deliberately alternate visibility. The section screenshots
-      // remain visible; every tour asset must still load at its declared size.
-      if (await screenshot.locator('xpath=ancestor::a[contains(@class,"motion-scene")]').count() === 0) {
-        await screenshot.scrollIntoViewIfNeeded();
-        await expect(screenshot).toBeVisible();
-      }
+    const screenshots = page.locator('.inspection img');
+    const views = ['chart', 'appointments', 'patients', 'dashboard', 'finance'];
+    await expect(screenshots).toHaveCount(views.length);
+    for (const view of views) {
+      await page.locator(`label[for="view-${view}"]`).click();
+      const screenshot = page.locator(`#screen-${view} img`);
+      await screenshot.scrollIntoViewIfNeeded();
+      await expect(screenshot).toBeVisible();
       await expect.poll(() => screenshot.evaluate((image: HTMLImageElement) => image.complete && image.naturalWidth > 0)).toBe(true);
       const dimensions = await screenshot.evaluate((image: HTMLImageElement) => ({
         width: image.naturalWidth, height: image.naturalHeight,
@@ -67,7 +66,7 @@ test.describe('Dentix Arabic Marketing Page', () => {
 
     // Heading H1
     const h1 = page.locator('h1');
-    await expect(h1).toHaveText('من أول حجز لآخر حساب.');
+    await expect(h1).toHaveText('نظّم عيادتك، وركّز مع مرضاك.');
 
     // Canonical link
     const canonical = page.locator('link[rel="canonical"]');
@@ -85,7 +84,7 @@ test.describe('Dentix Arabic Marketing Page', () => {
 
     // Feature cards are present
     const featureCards = page.locator('.feature-card');
-    await expect(featureCards).toHaveCount(4);
+    await expect(featureCards).toHaveCount(5);
 
     // FAQ details can be toggled without JavaScript
     const firstFaq = page.locator('.faq-item').first();
@@ -165,7 +164,7 @@ test.describe('Dentix English Marketing Page', () => {
 
     // Heading H1
     const h1 = page.locator('h1');
-    await expect(h1).toHaveText('From the first booking to the final balance.');
+    await expect(h1).toHaveText('Run a calmer clinic. Focus on your patients.');
 
     // Canonical link
     const canonical = page.locator('link[rel="canonical"]');
@@ -183,7 +182,7 @@ test.describe('Dentix English Marketing Page', () => {
 
     // Feature cards are present
     const featureCards = page.locator('.feature-card');
-    await expect(featureCards).toHaveCount(4);
+    await expect(featureCards).toHaveCount(5);
 
     // FAQ details can be toggled without JavaScript
     const firstFaq = page.locator('.faq-item').first();
@@ -465,12 +464,12 @@ test.describe('Dentix Marketing Discovery & PWA Lifecycle', () => {
     // 9. Verify public marketing pages after update:
     // /ar/index.html reaches the static marketing page directly
     await page.goto('/ar/index.html');
-    await expect(page.locator('h1')).toHaveText('من أول حجز لآخر حساب.');
+    await expect(page.locator('h1')).toHaveText('نظّم عيادتك، وركّز مع مرضاك.');
     await expect(page.locator('#root')).toHaveCount(0);
 
     // /en/index.html reaches the English marketing page directly
     await page.goto('/en/index.html');
-    await expect(page.locator('h1')).toHaveText('From the first booking to the final balance.');
+    await expect(page.locator('h1')).toHaveText('Run a calmer clinic. Focus on your patients.');
     await expect(page.locator('#root')).toHaveCount(0);
 
     // 10. Verify known application route after update:
