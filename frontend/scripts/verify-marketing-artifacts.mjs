@@ -403,11 +403,11 @@ export function validateRobotsTxt(robotsTxt) {
   return errors;
 }
 
-export function validateCssBudget(cssContent, maxGzipBytes = 25 * 1024) {
+export function validateCssBudget(cssContent, maxGzipBytes = 25 * 1024, label = 'marketing.css') {
   const errors = [];
   const gzipped = gzipSync(Buffer.from(cssContent, 'utf8'));
   if (gzipped.length > maxGzipBytes) {
-    errors.push(`marketing.css exceeds gzip budget: ${gzipped.length} bytes > ${maxGzipBytes} bytes`);
+    errors.push(`${label} exceeds gzip budget: ${gzipped.length} bytes > ${maxGzipBytes} bytes`);
   }
   return { errors, gzipBytes: gzipped.length, rawBytes: cssContent.length };
 }
@@ -419,7 +419,8 @@ export function validatePrecacheExclusions(swContent) {
     swContent.includes('"ar/index') ||
     swContent.includes('en/index.html') ||
     swContent.includes('"en/index') ||
-    swContent.includes('marketing/marketing.css')
+    swContent.includes('marketing/marketing.css') ||
+    swContent.includes('marketing/landing.css')
   ) {
     errors.push('sw.js precache manifest illegally contains marketing artifacts (ar/**, en/**, or marketing/**)');
   }
@@ -459,6 +460,7 @@ export function runVerification(distDir = 'dist') {
     'index.html',
     ...CURRENT_ACTIVE_INDEXABLE_ROUTES.map(url => `${new URL(url).pathname.slice(1)}/index.html`),
     'marketing/marketing.css',
+    'marketing/landing.css',
     'robots.txt',
     'sitemap.xml',
     'sw.js',
@@ -493,10 +495,13 @@ export function runVerification(distDir = 'dist') {
   allErrors.push(...validateRobotsTxt(robotsTxt));
 
   // 9. Validate CSS Budget
-  const cssContent = readFileSync(path.join(resolvedDist, 'marketing/marketing.css'), 'utf8');
-  const cssResult = validateCssBudget(cssContent);
-  allErrors.push(...cssResult.errors);
-  console.log(`[verify-marketing] marketing.css raw size: ${(cssResult.rawBytes / 1024).toFixed(2)} KiB, gzip: ${(cssResult.gzipBytes / 1024).toFixed(2)} KiB`);
+  for (const cssRel of ['marketing/marketing.css', 'marketing/landing.css']) {
+    const cssContent = readFileSync(path.join(resolvedDist, cssRel), 'utf8');
+    const cssName = path.basename(cssRel);
+    const cssResult = validateCssBudget(cssContent, 25 * 1024, cssName);
+    allErrors.push(...cssResult.errors);
+    console.log(`[verify-marketing] ${cssName} raw size: ${(cssResult.rawBytes / 1024).toFixed(2)} KiB, gzip: ${(cssResult.gzipBytes / 1024).toFixed(2)} KiB`);
+  }
 
   // 10. Validate Precache
   const swContent = readFileSync(path.join(resolvedDist, 'sw.js'), 'utf8');

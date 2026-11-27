@@ -30,7 +30,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(html).toContain('<meta name="description" content="نظّم ملفات المرضى والمواعيد ومخطط الأسنان وتقارير العيادة مع Dentix، نظام سحابي لإدارة عيادات الأسنان بواجهة عربية وإنجليزية.">');
 
             // H1 and Core headings
-            expect(html).toContain('<h1 class="hero-title">من أول حجز<br> <span>لآخر حساب.</span></h1>');
+            expect(html).toContain('<h1 class="hero-title">نظّم عيادتك، <span>وركّز مع مرضاك.</span></h1>');
 
             // Canonical URL
             expect(html).toContain('<link rel="canonical" href="https://www.dentixs.app/ar">');
@@ -55,7 +55,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(html).toContain('<meta name="twitter:image" content="https://www.dentixs.app/logo.webp">');
 
             // Local CSS reference
-            expect(html).toContain('<link rel="stylesheet" href="/marketing/marketing.css">');
+            expect(html).toContain('<link rel="stylesheet" href="/marketing/landing.css">');
         });
 
         it('guarantees zero executable scripts, zero react bundles, zero service worker or manifest in ar/index.html', () => {
@@ -108,6 +108,13 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(types).toContain('WebSite');
             expect(types).toContain('SoftwareApplication');
 
+            const org = data['@graph'].find((item) => item['@type'] === 'Organization');
+            expect(org.sameAs).toEqual([
+                'https://www.facebook.com/profile.php?id=61586735714862',
+                'https://www.instagram.com/dentix_eg/',
+                'https://www.youtube.com/playlist?list=PLZuw61AKifXQ',
+            ]);
+
             expect(types).not.toContain('Dentist');
             expect(types).not.toContain('LocalBusiness');
             const fullJson = JSON.stringify(data);
@@ -132,7 +139,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(html).toContain('<meta name="description" content="Manage patient records, appointments, dental charts, and clinic finances with Dentix — cloud-based dental practice management software with bilingual Arabic and English support.">');
 
             // H1 and Core headings
-            expect(html).toContain('<h1 class="hero-title">From the first booking<br> <span>to the final balance.</span></h1>');
+            expect(html).toContain('<h1 class="hero-title">Run a calmer clinic. <span>Focus on your patients.</span></h1>');
 
             // Canonical URL
             expect(html).toContain('<link rel="canonical" href="https://www.dentixs.app/en">');
@@ -157,7 +164,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(html).toContain('<meta name="twitter:image" content="https://www.dentixs.app/logo.webp">');
 
             // Local CSS reference
-            expect(html).toContain('<link rel="stylesheet" href="/marketing/marketing.css">');
+            expect(html).toContain('<link rel="stylesheet" href="/marketing/landing.css">');
         });
 
         it('guarantees zero executable scripts, zero react bundles, zero service worker or manifest in en/index.html', () => {
@@ -209,6 +216,13 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(types).toContain('Organization');
             expect(types).toContain('WebSite');
             expect(types).toContain('SoftwareApplication');
+
+            const org = data['@graph'].find((item) => item['@type'] === 'Organization');
+            expect(org.sameAs).toEqual([
+                'https://www.facebook.com/profile.php?id=61586735714862',
+                'https://www.instagram.com/dentix_eg/',
+                'https://www.youtube.com/playlist?list=PLZuw61AKifXQ',
+            ]);
 
             expect(types).not.toContain('Dentist');
             expect(types).not.toContain('LocalBusiness');
@@ -428,7 +442,7 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(sitemap).not.toContain('/index.html');
         });
 
-        it('verifies marketing.css exists, is responsive, and supports LTR and RTL', () => {
+        it('verifies marketing.css and landing.css exist, are responsive, and support LTR/RTL & reduced motion', () => {
             expect(existsSync(cssPath)).toBe(true);
             const css = readFileSync(cssPath, 'utf8');
             expect(css).toContain('--color-primary:');
@@ -438,6 +452,15 @@ describe('Marketing Static Arabic & English Pages Contract', () => {
             expect(css).toContain('.btn-lang');
             expect(css).toContain('@media');
             expect(css).toContain('max-width: 640px');
+
+            const landingCssPath = path.resolve('public/marketing/landing.css');
+            expect(existsSync(landingCssPath)).toBe(true);
+            const landingCss = readFileSync(landingCssPath, 'utf8');
+            expect(landingCss).toContain('--navy:');
+            expect(landingCss).toContain('[dir="rtl"]');
+            expect(landingCss).toContain('prefers-reduced-motion: reduce');
+            expect(landingCss).toContain('#reel-pause:checked');
+            expect(landingCss).toContain('@media (max-width: 480px)');
         });
     });
 
