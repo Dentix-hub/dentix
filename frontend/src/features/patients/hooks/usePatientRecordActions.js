@@ -107,6 +107,7 @@ export function usePatientRecordActions({
         setEditingTreatmentId(null);
         setNewTreatment({
             ...getInitialTreatment(),
+            prefill_source: 'manual',
             tooth_number: '',
             surface: '',
             surfaces: [],

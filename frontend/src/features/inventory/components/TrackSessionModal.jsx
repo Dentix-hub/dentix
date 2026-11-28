@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import logger from '@/utils/logger';
 import { Play, Square, AlertCircle, Clock } from 'lucide-react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { openSession, closeSession, getMaterialStock } from '@/api/inventory';
 import LoadingSpinner from '@/shared/ui/LoadingSpinner';
 import Modal from '@/shared/ui/Modal';
+import { toast } from '@/shared/ui';
 import { useTranslation } from 'react-i18next';
 
 const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode = 'OPEN', onSuccess }) => {
@@ -32,10 +33,35 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
         if (stockItem) setSelectedStockId(stockItem.id);
     }, [stockItem]);
 
+    const dedupedBatches = useMemo(() => {
+        const grouped = new Map();
+        for (const item of batches) {
+            if (!item || Number(item.quantity) <= 0) continue;
+            const whKey = item.warehouse_id ?? item.warehouse?.id ?? item.warehouse?.name ?? '';
+            const batchKey = item.batch_id ?? item.batch?.id ?? item.batch?.batch_number ?? '';
+            const key = `${whKey}|${batchKey}|${item.quantity}`;
+            const existing = grouped.get(key);
+            if (existing) {
+                existing.count += 1;
+            } else {
+                grouped.set(key, {
+                    id: item.id,
+                    warehouse: item.warehouse,
+                    batch: item.batch,
+                    quantity: item.quantity,
+                    count: 1,
+                });
+            }
+        }
+        return Array.from(grouped.values());
+    }, [batches]);
+
     const openMutation = useMutation({
         mutationFn: openSession,
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['active-sessions'] });
+            queryClient.invalidateQueries({ queryKey: ['inventory-stock'] });
+            queryClient.invalidateQueries({ queryKey: ['material-stock'] });
             if (onSuccess) onSuccess();
             onClose();
         }
@@ -46,6 +72,8 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['active-sessions'] });
             queryClient.invalidateQueries({ queryKey: ['procedure-weights'] });
+            queryClient.invalidateQueries({ queryKey: ['inventory-stock'] });
+            queryClient.invalidateQueries({ queryKey: ['material-stock'] });
             if (onSuccess) onSuccess();
             onClose();
         }
@@ -57,26 +85,26 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
         try {
             if (mode === 'OPEN') {
                 if (!selectedStockId) {
-                    alert(t('inventory.track_session.messages.select_error'));
+                    toast.error(t('inventory.track_session.messages.select_error'));
                     return;
                 }
                 const payload = {
-                    stock_item_id: parseInt(selectedStockId),
+                    stock_item_id: parseInt(selectedStockId, 10),
                     status: 'ACTIVE'
                 };
                 logger.log("Sending Open Payload:", payload);
                 await openMutation.mutateAsync(payload);
-                alert(t('inventory.track_session.messages.success_open'));
+                toast.success(t('inventory.track_session.messages.success_open'));
             } else {
                 // Close session - no quantity needed, auto-calculates
                 await closeMutation.mutateAsync({});
-                alert(t('inventory.track_session.messages.success_close'));
+                toast.success(t('inventory.track_session.messages.success_close'));
             }
         } catch (e) {
             logger.error("Operation Failed:", e);
             const res = e.response?.data;
             const msg = res?.error?.message || res?.detail || e.message;
-            alert(t('inventory.track_session.messages.error_prefix') + msg);
+            toast.error(t('inventory.track_session.messages.error_prefix') + msg);
         } finally {
             setIsSubmitting(false);
         }
@@ -139,14 +167,14 @@ const TrackSessionModal = ({ isOpen, onClose, session, material, stockItem, mode
                                         onChange={e => setSelectedStockId(e.target.value)}
                                     >
                                         <option value="">{t('inventory.track_session.select_placeholder')}</option>
-                                        {batches.map(b => (
+                                        {dedupedBatches.map(b => (
                                             <option key={b.id} value={b.id}>
-                                                {b.warehouse?.name || 'مخزن'} - Batch: {b.batch?.batch_number} (Exp: {b.batch?.expiry_date}) - Qty: {b.quantity}
+                                                {b.warehouse?.name || 'مخزن'} - Batch: {b.batch?.batch_number} (Exp: {b.batch?.expiry_date}) - Qty: {b.quantity}{b.count > 1 ? ` (× ${b.count})` : ''}
                                             </option>
                                         ))}
                                     </select>
                                 )}
-                                {!isLoadingBatches && !isBatchesError && batches.length === 0 && (
+                                {!isLoadingBatches && !isBatchesError && dedupedBatches.length === 0 && (
                                     <p className="mt-1 text-sm text-red-500">{t('inventory.track_session.empty_stock')}</p>
                                 )}
                             </div>

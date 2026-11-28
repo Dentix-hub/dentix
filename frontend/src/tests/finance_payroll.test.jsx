@@ -255,4 +255,60 @@ describe('Finance Payroll V2', () => {
             });
         });
     });
+
+    describe('Mid-month salary proration clarity (2000 -> 1,600)', () => {
+        it('shows hire date and proration formula on PayrollPage and SalaryPaymentDrawer', async () => {
+            const proratedEmployee = {
+                id: 9,
+                username: 'سارة حسن',
+                role: 'receptionist',
+                base_salary: 2000,
+                days_in_month: 30,
+                is_new_this_month: true,
+                days_worked: 24,
+                prorated_salary: 1600,
+                payable_amount: 1600,
+                paid_amount: 0,
+                remaining_amount: 1600,
+                hire_date: '2026-08-07',
+                payment: null,
+                is_paid: false,
+            };
+
+            financialsApi.getSalariesStatus.mockResolvedValue({
+                data: {
+                    data: {
+                        month: '2026-08',
+                        employees: [proratedEmployee],
+                    },
+                },
+            });
+
+            render(
+                <QueryClientProvider client={createTestQueryClient()}>
+                    <MemoryRouter initialEntries={['/finance/compensation/payroll?month=2026-08']}>
+                        <PayrollPage />
+                    </MemoryRouter>
+                </QueryClientProvider>
+            );
+
+            await waitFor(() => expect(screen.getAllByText('سارة حسن').length).toBeGreaterThan(0));
+            expect(screen.getByTestId('payroll-proration-formula')).toHaveTextContent('2,000 × 24 / 30');
+            expect(screen.getByTestId('mobile-payroll-proration-info')).toHaveTextContent('2026-08-07');
+
+            render(
+                <SalaryPaymentDrawer
+                    employee={proratedEmployee}
+                    month="2026-08"
+                    isOpen={true}
+                    onClose={vi.fn()}
+                    onSave={vi.fn()}
+                    isSaving={false}
+                />
+            );
+
+            expect(screen.getByTestId('salary-drawer-proration-breakdown')).toHaveTextContent('2026-08-07');
+            expect(screen.getByTestId('salary-drawer-proration-breakdown')).toHaveTextContent('2,000 × 24 / 30');
+        });
+    });
 });

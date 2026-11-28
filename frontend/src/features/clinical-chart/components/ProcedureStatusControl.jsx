@@ -6,6 +6,7 @@ import { CheckCircle2, RotateCcw, AlertTriangle, Loader2, Info } from 'lucide-re
 import { updateClinicalWorkItemStatus } from '@/api/patients';
 import Modal from '@/shared/ui/Modal';
 import { invalidatePatientClinicalQueries } from '@/features/patients/utils/invalidatePatientClinicalQueries';
+import { formatApiError } from '@/utils/formatApiError';
 
 /**
  * Normalizes status strings from either native ('active' | 'completed')
@@ -123,8 +124,7 @@ export default function ProcedureStatusControl({
             if (isOverrideReasonRequired) {
                 setIsCompleteModalOpen(true);
             } else {
-                const msg = typeof detail === 'string' ? detail : detail?.message || err.message || 'Failed to update status';
-                setErrorMessage(msg);
+                setErrorMessage(formatApiError(err, 'Failed to update status'));
             }
         } finally {
             setIsLoading(false);

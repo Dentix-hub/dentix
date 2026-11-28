@@ -325,8 +325,10 @@ class InventoryService:
         ratio = mat.packaging_ratio if mat and mat.packaging_ratio > 0 else 1.0
         ratio_decimal = as_decimal(ratio)
 
-        # Update Material Standard Price with latest cost
-        if batch_data.cost_per_unit > 0:
+        # Populate Reference Standard Price only if not explicitly configured (> 0)
+        if batch_data.cost_per_unit > 0 and (
+            mat.standard_price is None or mat.standard_price <= 0
+        ):
             new_package_price = as_decimal(batch_data.cost_per_unit) * ratio_decimal
             mat.standard_price = new_package_price
             db.add(mat)
@@ -598,13 +600,15 @@ class InventoryService:
         if quantity is None or quantity <= 0:
             raise ValueError("Quantity must be greater than zero")
         db = self._get_db(db)
-        if not warehouse_id:
+        explicit_warehouse_id = warehouse_id
+        preferred_clinic_wh_id = None
+        if not explicit_warehouse_id:
             clinic_wh_stmt = select(Warehouse).where(
                 Warehouse.tenant_id == tenant_id, Warehouse.type == "CLINIC"
             )
             clinic_wh = (await db.execute(clinic_wh_stmt)).scalars().first()
             if clinic_wh:
-                warehouse_id = clinic_wh.id
+                preferred_clinic_wh_id = clinic_wh.id
 
         # 1. Validation: Non-Divisible Integer Check (SKIP if active session exists)
         stmt_mat = select(Material).where(
@@ -616,14 +620,16 @@ class InventoryService:
         if not mat:
             raise ValueError(f"Material {material_id} not found")
 
-        # Check if this material has an active session
+        # Check if this material has an active session within the tenant boundary
         stmt_active_sess = (
             select(func.count(MaterialSession.id))
             .join(StockItem)
             .join(Batch)
             .where(
                 Batch.material_id == material_id,
-                MaterialSession.status == "ACTIVE"
+                StockItem.tenant_id == tenant_id,
+                MaterialSession.tenant_id == tenant_id,
+                MaterialSession.status == "ACTIVE",
             )
         )
 
@@ -650,7 +656,8 @@ class InventoryService:
 
         # Find eligible StockItems
         active_session_subquery = select(MaterialSession.stock_item_id).where(
-            MaterialSession.status == "ACTIVE"
+            MaterialSession.tenant_id == tenant_id,
+            MaterialSession.status == "ACTIVE",
         )
 
         stmt_items = (
@@ -666,8 +673,8 @@ class InventoryService:
             )
         )
 
-        if warehouse_id:
-            stmt_items = stmt_items.where(StockItem.warehouse_id == warehouse_id)
+        if explicit_warehouse_id:
+            stmt_items = stmt_items.where(StockItem.warehouse_id == explicit_warehouse_id)
 
         if batch_id:
             stmt_items = stmt_items.where(Batch.id == batch_id)
@@ -681,7 +688,7 @@ class InventoryService:
         result_items = await db.execute(stmt_items)
         stock_items_raw = result_items.scalars().all()
 
-        # Reorder: Active session items first, then rest by expiry
+        # Reorder: Active session items first, preferring CLINIC warehouse when warehouse_id wasn't specified, then FIFO by expiry
         items_with_session = []
         items_without_session = []
         for si in stock_items_raw:
@@ -690,6 +697,14 @@ class InventoryService:
                 items_with_session.append(si)
             else:
                 items_without_session.append(si)
+
+        if preferred_clinic_wh_id is not None:
+            items_with_session.sort(
+                key=lambda si: 0 if si.warehouse_id == preferred_clinic_wh_id else 1
+            )
+            items_without_session.sort(
+                key=lambda si: 0 if si.warehouse_id == preferred_clinic_wh_id else 1
+            )
 
         stock_items = items_with_session + items_without_session
 

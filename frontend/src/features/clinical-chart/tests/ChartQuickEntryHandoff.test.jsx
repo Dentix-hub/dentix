@@ -292,4 +292,34 @@ describe('U1 & S36: Chart Quick Entry Hand-off & Multi-State Flows', () => {
             unmount();
         }
     });
+
+    it('8. Header Advanced Entry transitions cleanly from tooth-picker modal to QuickTreatmentSheet and saves without leaking chart teeth', async () => {
+        mockTenantFeatures = ['clinical_vnext_native_writes'];
+        const { container } = renderPatientDetails();
+
+        // First select a tooth on the chart so stale selection exists in parent state
+        fireEvent.click(getTooth(container, '16'));
+
+        // Open Header Advanced Entry -> click Continue without tooth
+        fireEvent.click(screen.getByTestId('header-advanced-entry-button'));
+        const continueNoToothBtn = await screen.findByText(/continue_no_tooth/i);
+        fireEvent.click(continueNoToothBtn);
+
+        // QuickTreatmentSheet opens cleanly without multi-tooth leak from chart selection
+        const procSelect = await screen.findByLabelText('الإجراء العلاجي');
+        expect(screen.queryByTestId('quick-treatment-multi-tooth-count')).not.toBeInTheDocument();
+
+        fireEvent.change(procSelect, { target: { value: 'Custom Whitening Procedure' } });
+        fireEvent.change(screen.getByTestId('quick-treatment-cost-input'), { target: { value: '125.5' } });
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+
+        await waitFor(() => {
+            expect(api.createTreatment).toHaveBeenCalledTimes(1);
+        });
+        expect(api.createTreatment.mock.calls[0][0]).toMatchObject({
+            procedure: 'Custom Whitening Procedure',
+            tooth_number: null,
+            cost: 125.5,
+        });
+    });
 });

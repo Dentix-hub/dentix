@@ -104,6 +104,8 @@ export default function ExpenseCategoryReportView({ data = [], isLoading, isErro
                 <MetricCard
                     title={t('finance.reports.categories_count', 'عدد البنود التشغيلية')}
                     amount={categoryList.length}
+                    isCurrency={false}
+                    maximumFractionDigits={0}
                     scope="period"
                     subtitle={t('finance.reports.categories_sub', 'تصنيفات المصروفات النشطة')}
                     icon={Layers}

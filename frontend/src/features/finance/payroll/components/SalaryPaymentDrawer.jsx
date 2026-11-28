@@ -109,10 +109,28 @@ export default function SalaryPaymentDrawer({
                         )}
 
                         <div className="space-y-3 rounded-xl border border-border bg-muted/20 p-4">
+                            {employee.base_salary != null && (employee.is_new_this_month || Number(employee.base_salary) !== payable) && (
+                                <div className="flex items-center justify-between gap-3 text-xs">
+                                    <span className="text-text-secondary">{t('finance.payroll.base_salary', 'الراتب الأساسي')}:</span>
+                                    <Money amount={employee.base_salary} size="sm" />
+                                </div>
+                            )}
                             <div className="flex items-center justify-between gap-3 text-xs">
                                 <span className="text-text-secondary">{t('finance.payroll.payable', 'الراتب المستحق')}:</span>
                                 <Money amount={payable} size="sm" />
                             </div>
+                            {employee.is_new_this_month && employee.days_worked && employee.days_in_month && (
+                                <p
+                                    data-testid="salary-drawer-proration-breakdown"
+                                    className="rounded-lg bg-primary/5 px-2.5 py-1.5 text-[11px] font-medium text-primary"
+                                >
+                                    {t('finance.payroll.prorated_explanation', 'محتسب بالتناسب منذ تاريخ التعيين')}{' '}
+                                    (<bdi dir="ltr">{employee.hire_date || month}</bdi>):{' '}
+                                    <bdi dir="ltr" className="font-mono">
+                                        {Number(employee.base_salary || 0).toLocaleString('en-US')} × {employee.days_worked} / {employee.days_in_month}
+                                    </bdi>
+                                </p>
+                            )}
                             {alreadyPaid > 0 && (
                                 <div className="flex items-center justify-between gap-3 text-xs">
                                     <span className="text-text-secondary">{t('finance.payroll.already_paid', 'المسدد سابقاً')}:</span>
@@ -188,6 +206,12 @@ export default function SalaryPaymentDrawer({
                                 onChange={(e) => setDaysWorked(e.target.value)}
                                 className="w-full rounded-xl border border-border bg-background px-3 py-2 text-xs font-mono text-text-primary transition-all focus:outline-none focus:ring-2 focus:ring-primary/20"
                             />
+                            <p className="text-[11px] text-text-secondary">
+                                {t(
+                                    'finance.payroll.days_worked_hint',
+                                    'الراتب المستحق يُحسب تلقائياً حسب تاريخ التعيين؛ هذا الحقل لتوثيق أيام العمل في إيصال الصرف.'
+                                )}
+                            </p>
                         </div>
 
                         <div className="space-y-1.5">

@@ -74,4 +74,65 @@ describe('TrackSessionModal', () => {
         expect(errorMsg).toBeInTheDocument();
         expect(/[\u0600-\u06FF]/.test(errorMsg.textContent)).toBe(true);
     });
+
+    it('deduplicates identical unopened StockItems for the same batch and skips active zero-quantity items', async () => {
+        getMaterialStock.mockResolvedValue({
+            data: [
+                {
+                    id: 101,
+                    warehouse_id: 1,
+                    warehouse: { id: 1, name: 'Main WH' },
+                    batch_id: 50,
+                    batch: { id: 50, batch_number: 'EXP-20270531-5930', expiry_date: '2027-05-31' },
+                    quantity: 5,
+                },
+                {
+                    id: 102,
+                    warehouse_id: 1,
+                    warehouse: { id: 1, name: 'Main WH' },
+                    batch_id: 50,
+                    batch: { id: 50, batch_number: 'EXP-20270531-5930', expiry_date: '2027-05-31' },
+                    quantity: 5,
+                },
+                {
+                    id: 103,
+                    warehouse_id: 1,
+                    warehouse: { id: 1, name: 'Main WH' },
+                    batch_id: 50,
+                    batch: { id: 50, batch_number: 'EXP-20270531-5930', expiry_date: '2027-05-31' },
+                    quantity: 5,
+                },
+                {
+                    id: 104,
+                    warehouse_id: 1,
+                    warehouse: { id: 1, name: 'Main WH' },
+                    batch_id: 50,
+                    batch: { id: 50, batch_number: 'EXP-20270531-5930', expiry_date: '2027-05-31' },
+                    quantity: 5,
+                },
+                {
+                    id: 105,
+                    warehouse_id: 1,
+                    warehouse: { id: 1, name: 'Main WH' },
+                    batch_id: 50,
+                    batch: { id: 50, batch_number: 'EXP-20270531-5930', expiry_date: '2027-05-31' },
+                    quantity: 5,
+                },
+                {
+                    id: 106,
+                    warehouse_id: 1,
+                    warehouse: { id: 1, name: 'Main WH' },
+                    batch_id: 51,
+                    batch: { id: 51, batch_number: 'ACTIVE-OPEN-0', expiry_date: '2027-05-31' },
+                    quantity: 0,
+                },
+            ],
+        });
+
+        renderDialog({ stockItem: null });
+        const option = await screen.findByRole('option', { name: /EXP-20270531-5930.*\(× 5\)/ });
+        expect(option).toHaveValue('101');
+        expect(screen.queryByRole('option', { name: /ACTIVE-OPEN-0/ })).not.toBeInTheDocument();
+        expect(screen.getAllByRole('option')).toHaveLength(2);
+    });
 });

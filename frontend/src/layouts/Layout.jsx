@@ -405,15 +405,23 @@ const Layout = () => {
                             )}
 
                             <div className={`grid ${isDesktop && isSidebarCollapsed ? 'grid-cols-1 gap-2' : 'grid-cols-2 gap-3'} mb-3`}>
-                                <button
-                                    type="button"
-                                    onClick={() => i18n.changeLanguage(i18n.language === 'ar' ? 'en' : 'ar')}
-                                    className="flex min-h-11 items-center justify-center rounded-2xl bg-surface-hover text-slate-600 transition-all hover:bg-primary/10 hover:text-primary dark:text-slate-300"
-                                    title={t('common.language')}
-                                    aria-label={t('common.language')}
-                                >
-                                    <Globe size={20} aria-hidden="true" />
-                                </button>
+                                {(() => {
+                                    const isArabicUi = (i18n.resolvedLanguage || i18n.language || 'ar').startsWith('ar');
+                                    return (
+                                        <button
+                                            type="button"
+                                            onClick={() => i18n.changeLanguage(isArabicUi ? 'en' : 'ar')}
+                                            className="flex min-h-11 items-center justify-center gap-1.5 rounded-2xl bg-surface-hover text-slate-600 transition-all hover:bg-primary/10 hover:text-primary dark:text-slate-300"
+                                            title={t('common.language')}
+                                            aria-label={t('common.language')}
+                                        >
+                                            <Globe size={18} aria-hidden="true" />
+                                            {!(isDesktop && isSidebarCollapsed) && (
+                                                <span className="text-xs font-bold">{isArabicUi ? 'EN' : 'عربي'}</span>
+                                            )}
+                                        </button>
+                                    );
+                                })()}
                                 <button
                                     type="button"
                                     onClick={toggleDarkMode}

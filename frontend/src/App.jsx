@@ -95,9 +95,10 @@ function AppRoutes() {
     }, [location.pathname, isAuthenticated, isBooting]);
 
     useEffect(() => {
-        document.documentElement.dir = i18n.language === 'ar' ? 'rtl' : 'ltr';
-        document.documentElement.lang = i18n.language;
-    }, [i18n.language]);
+        const activeLang = (i18n.resolvedLanguage || i18n.language || 'ar').startsWith('ar') ? 'ar' : 'en';
+        document.documentElement.dir = activeLang === 'ar' ? 'rtl' : 'ltr';
+        document.documentElement.lang = activeLang;
+    }, [i18n.language, i18n.resolvedLanguage]);
 
     useEffect(() => {
         const storedTheme = localStorage.getItem('theme');

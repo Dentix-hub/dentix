@@ -34,6 +34,9 @@
     "retry": "إعادة المحاولة",
     "saving": "جاري الحفظ...",
     "confirm": "تأكيد",
+    "select_month": "اختر الشهر والسنة",
+    "select_date": "اختر التاريخ",
+    "select_date_time": "اختر التاريخ والوقت",
     "searching": "جاري البحث...",
     "close": "إغلاق",
     "error": "خطأ",
@@ -572,7 +575,8 @@
       "procedures_view": "الإجراءات",
       "sessions_view": "الزيارات وجلسات الرعاية",
       "care_sessions_count": "جلسات الرعاية ({{count}})",
-      "record_past_visit": "+ تسجيل جلسة"
+      "record_past_visit": "+ تسجيل جلسة",
+      "linked_lab_order_badge": "مرتبط بطلب معمل #{{id}}"
     },
     "files": {
       "title": "ملفات الأشعة والمرفقات",
@@ -1496,6 +1500,8 @@
       "select_warehouse": "المخزن المستلم",
       "quantity": "الكمية المستلمة",
       "expiry_date": "تاريخ الصلاحية (شهر / سنة)",
+      "expiry_placeholder": "اختر شهر وسنة الانتهاء",
+      "expiry_required": "تاريخ الصلاحية مطلوب",
       "expiry_note": "سيتم تعيين الصلاحية لنهاية الشهر المختار",
       "package_price": "سعر العبوة (Package Price)",
       "price_note": "* سيتم حساب تكلفة الوحدة تلقائياً بناءً على حجم العبوة.",
@@ -3423,7 +3429,11 @@
       "staff_settings_title": "قواعد راتب الموظف",
       "base_salary_label": "الراتب الأساسي الشهري (جنيه)",
       "hire_date_label": "تاريخ بداية العمل / التعيين",
-      "hire_date_hint": "يستخدم لاحتساب نسبة الأيام الفعلية للموظف في شهر التعيين"
+      "hire_date_hint": "يستخدم لاحتساب نسبة الأيام الفعلية للموظف في شهر التعيين",
+      "hired_on": "تعيين:",
+      "prorated_formula": "الحسبة:",
+      "prorated_explanation": "محتسب بالتناسب منذ تاريخ التعيين",
+      "days_worked_hint": "الراتب المستحق يُحسب تلقائياً حسب تاريخ التعيين؛ هذا الحقل لتوثيق أيام العمل في إيصال الصرف."
     },
     "activity": {
       "title": "سجل الحركات المالية",
@@ -3537,7 +3547,15 @@
       "no_procedures_data": "لا توجد بيانات تكاليف للإجراءات",
       "doctor_labs_sub": "تكاليف المعامل المخصومة من الأطباء",
       "provider_performance_title": "تقرير الأداء المالي للأطباء",
-      "provider_performance_sub": "الإنتاجية، المبالغ المحصلة، الخصومات المعملية، وصافي العمولات"
+      "provider_performance_sub": "الإنتاجية، المبالغ المحصلة، الخصومات المعملية، وصافي العمولات",
+      "metric_net_invoiced": "صافي الإيراد المحتسب",
+      "metric_collected": "التحصيلات النقدية",
+      "metric_manual_expenses": "المصروفات التشغيلية",
+      "metric_lab_costs": "تكاليف المعامل",
+      "metric_doctor_dues": "مستحقات الأطباء",
+      "metric_staff_dues": "رواتب الموظفين",
+      "metric_total_deductions": "إجمالي الاستقطاعات",
+      "metric_net_operational_result": "صافي النتيجة التشغيلية"
     },
     "permissions": {
       "access_denied": "غير مصرح بالوصول إلى هذا القسم",
@@ -3872,6 +3890,9 @@
     "proc_short": "إجراء",
     "procedure_label": "إجراء",
     "selected_procedure": "الإجراء المحدد",
+    "step_update_error": "تعذر تحديث حالة الخطوة، حاول مرة أخرى",
+    "confirm_skip": "تأكيد التخطي",
+    "in_progress": "قيد التنفيذ",
     "notes_require_procedure": "اربط إجراءً علاجيًا بهذه الجلسة لحفظ ملاحظات الإجراء والخطوة القادمة. يمكنك أيضًا كتابة ملخص الزيارة عند إنهاء الجلسة."
   },
   "dental_chart": {
@@ -3925,6 +3946,7 @@
     "lab_select": "اختر المعمل",
     "in_clinic": "بدون معمل (داخل العيادة)",
     "lab_choice_required": "يرجى اختيار معمل أو بدون معمل داخل العيادة",
+    "go_to_lab_select": "اختر المعمل الآن",
     "shade_label": "درجة اللون (Shade)",
     "material_label": "المادة (Material)",
     "delivery_date_label": "موعد الاستلام المتوقع",
@@ -3964,7 +3986,9 @@
     "errors": {
       "surfaces_required_for_teeth": "يرجى تحديد أسطح للأسنان التالية: {{teeth}}",
       "tooth_prefix": "السن",
-      "save_failed": "فشل حفظ الإجراء"
+      "save_failed": "فشل حفظ الإجراء",
+      "negative_values": "لا يمكن أن تكون التكلفة أو الخصم قيمة سالبة",
+      "discount_exceeds_cost": "الخصم لا يمكن أن يتجاوز التكلفة"
     }
   },
   "insurance": {

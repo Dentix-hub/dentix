@@ -61,6 +61,8 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ['inventory-stock'] });
+            queryClient.invalidateQueries({ queryKey: ['inventory-materials'] });
+            queryClient.invalidateQueries({ queryKey: ['material-stock'] });
             toast.success(t('inventory.receive.success'));
             onClose();
             setFormData(prev => ({ ...prev, batch_number: '', quantity: 1 }));
@@ -77,7 +79,7 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
             return;
         }
         if (!formData.expiry_date) {
-            toast.error(`${t('inventory.receive.expiry_date')} is required.`);
+            toast.error(t('inventory.receive.expiry_required', 'تاريخ الصلاحية مطلوب'));
             return;
         }
 
@@ -175,6 +177,7 @@ const ReceiveStockModal = ({ isOpen, onClose }) => {
                         <DateTimePicker
                             mode="month"
                             required
+                            placeholder={t('inventory.receive.expiry_placeholder', 'اختر شهر وسنة الانتهاء')}
                             value={formData.expiry_date ? formData.expiry_date.slice(0, 7) : ''}
                             onChange={event => setFormData({ ...formData, expiry_date: event.target.value })}
                         />

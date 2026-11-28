@@ -161,4 +161,69 @@ describe('GenericVisitWorkspace and TreatmentHistory regressions', () => {
         const props = historicalProps.mock.lastCall[0];
         expect(props.patientWorkItems).toEqual([]);
     });
+
+    it('sends an object payload when skipping, toggling, or starting a workflow step', async () => {
+        const onUpdateStepStatus = vi.fn().mockResolvedValue(true);
+        const refetchSession = vi.fn().mockResolvedValue();
+        wrap(
+            workspace('ENDO_RCT', {
+                onUpdateStepStatus,
+                refetchSession,
+                session: {
+                    id: 1,
+                    patient_id: 1,
+                    status: 'in_progress',
+                    procedures: [{ id: 11, work_item_id: 10, template_snapshot: { custom_fields: [] } }],
+                    steps: [{ id: 55, work_item_id: 10, title: 'Access Cavity', status: 'pending' }],
+                    observations: [],
+                },
+            })
+        );
+
+        fireEvent.click(screen.getByTestId('btn-toggle-step-55'));
+        expect(onUpdateStepStatus).toHaveBeenCalledWith(55, { status: 'completed' });
+
+        fireEvent.click(screen.getByTestId('btn-in-progress-step-55'));
+        expect(onUpdateStepStatus).toHaveBeenCalledWith(55, { status: 'in_progress' });
+
+        fireEvent.click(screen.getByTestId('btn-skip-step-55'));
+        fireEvent.change(screen.getByTestId('input-skip-step-reason'), {
+            target: { value: 'Patient declined anesthesia' },
+        });
+        fireEvent.click(screen.getByTestId('btn-confirm-skip-step'));
+
+        await waitFor(() => {
+            expect(onUpdateStepStatus).toHaveBeenCalledWith(55, {
+                status: 'skipped',
+                notes: 'Patient declined anesthesia',
+            });
+        });
+        expect(refetchSession).toHaveBeenCalled();
+    });
+
+    it('keeps skip prompt open with reason preserved if step skip fails', async () => {
+        const onUpdateStepStatus = vi.fn().mockResolvedValue(false);
+        wrap(
+            workspace('ENDO_RCT', {
+                onUpdateStepStatus,
+                session: {
+                    id: 1,
+                    patient_id: 1,
+                    status: 'in_progress',
+                    procedures: [{ id: 11, work_item_id: 10, template_snapshot: { custom_fields: [] } }],
+                    steps: [{ id: 56, work_item_id: 10, title: 'Working Length', status: 'pending' }],
+                    observations: [],
+                },
+            })
+        );
+
+        fireEvent.click(screen.getByTestId('btn-skip-step-56'));
+        fireEvent.change(screen.getByTestId('input-skip-step-reason'), {
+            target: { value: 'Retry reason' },
+        });
+        fireEvent.click(screen.getByTestId('btn-confirm-skip-step'));
+
+        await waitFor(() => expect(onUpdateStepStatus).toHaveBeenCalledTimes(1));
+        expect(screen.getByTestId('input-skip-step-reason')).toHaveValue('Retry reason');
+    });
 });

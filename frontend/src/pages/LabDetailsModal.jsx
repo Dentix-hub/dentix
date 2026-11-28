@@ -1,4 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
+import { queryKeys } from '@/lib/queryClient';
+import { financeKeys } from '@/features/finance/queryKeys';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import { X, FlaskConical, Plus, AlertCircle, Check } from 'lucide-react';
@@ -14,6 +17,7 @@ import {
 
 const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
     const { t } = useTranslation();
+    const queryClient = useContext(QueryClientContext);
     const [activeTab, setActiveTab] = useState('overview'); // overview, orders, payments
     const [stats, setStats] = useState(null);
     const [orders, setOrders] = useState([]);
@@ -40,6 +44,19 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
     const [isSubmittingAllocate, setIsSubmittingAllocate] = useState(false);
 
     const labId = lab?.id;
+
+    const invalidateLabCaches = useCallback(() => {
+        if (!queryClient) return;
+        queryClient.invalidateQueries({ queryKey: financeKeys.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+        queryClient.invalidateQueries({
+            predicate: (query) => (
+                Array.isArray(query.queryKey)
+                && query.queryKey[0] === 'patient'
+                && (query.queryKey[2] === 'lab-orders' || query.queryKey[2] === 'treatments')
+            ),
+        });
+    }, [queryClient]);
 
     const loadData = useCallback(async () => {
         if (!labId) return;
@@ -145,6 +162,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
             setPaymentData({ amount: '', notes: '', method: 'Cash', lab_order_id: null });
             setSelectedOrderForPayment(null);
             setShowPaymentForm(false);
+            invalidateLabCaches();
             await loadData();
             onUpdate?.();
         } catch (error) {
@@ -172,6 +190,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                 lab_order_id: settleSheetOrder.id,
             });
             setSettleSheetOrder(null);
+            invalidateLabCaches();
             await loadData();
             onUpdate?.();
         } catch (error) {
@@ -226,6 +245,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
             await allocateLabPayment(lab.id, allocateModalPayment.id, Number(selectedAllocationOrderId));
             setAllocateModalPayment(null);
             setSelectedAllocationOrderId('');
+            invalidateLabCaches();
             await loadData();
             onUpdate?.();
         } catch (error) {
@@ -241,6 +261,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
         if (!window.confirm(msg)) return;
         try {
             await deallocateLabPayment(lab.id, payment.id);
+            invalidateLabCaches();
             await loadData();
             onUpdate?.();
         } catch (error) {
@@ -317,50 +338,53 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
 
     return (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="bg-surface-elevated text-text-primary border border-border dark:bg-slate-900 dark:text-slate-100 w-full max-w-4xl rounded-2xl shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
                 {/* Header */}
-                <div className="p-6 bg-slate-50 border-b flex justify-between items-center">
+                <div className="p-6 bg-slate-50 dark:bg-slate-800/80 border-b border-border flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <div className="p-3 bg-teal-100 rounded-xl text-teal-600">
+                        <div className="p-3 bg-teal-100 dark:bg-teal-950/70 rounded-xl text-teal-600 dark:text-teal-400">
                             <FlaskConical size={24} />
                         </div>
                         <div>
-                            <h2 className="text-xl font-bold text-slate-800">{lab.name}</h2>
-                            <div className="flex gap-3 text-sm text-slate-500">
+                            <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100">{lab.name}</h2>
+                            <div className="flex gap-3 text-sm text-slate-600 dark:text-slate-300">
                                 {lab.phone && <span>{lab.phone}</span>}
                                 {lab.contact_person && <span>• {lab.contact_person}</span>}
                             </div>
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors" aria-label="Close">
-                        <X size={20} className="text-slate-500" />
+                    <button type="button" onClick={onClose} className="p-2 text-slate-600 hover:bg-slate-200 dark:text-slate-300 dark:hover:bg-slate-700 rounded-full transition-colors" aria-label="Close">
+                        <X size={20} />
                     </button>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b px-6 bg-white shrink-0">
+                <div className="flex border-b border-border px-6 bg-white dark:bg-slate-900 shrink-0">
                     <button
+                        type="button"
                         onClick={() => setActiveTab('overview')}
-                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'overview' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'overview' ? 'border-teal-600 text-teal-600 dark:text-teal-400' : 'border-transparent text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}`}
                     >
                         {t('labs.details.tabs.overview')}
                     </button>
                     <button
+                        type="button"
                         onClick={() => setActiveTab('orders')}
-                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'orders' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'orders' ? 'border-teal-600 text-teal-600 dark:text-teal-400' : 'border-transparent text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}`}
                     >
                         {t('labs.details.tabs.orders')} ({stats?.total_orders || 0})
                     </button>
                     <button
+                        type="button"
                         onClick={() => setActiveTab('payments')}
-                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'payments' ? 'border-teal-600 text-teal-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+                        className={`px-4 py-3 text-sm font-bold border-b-2 transition-colors ${activeTab === 'payments' ? 'border-teal-600 text-teal-600 dark:text-teal-400' : 'border-transparent text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'}`}
                     >
                         {t('labs.details.tabs.payments')}
                     </button>
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
+                <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-slate-950/40">
                     {loading && !stats ? (
                         <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600"></div></div>
                     ) : (
@@ -372,10 +396,10 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                     {Number(stats.unallocated_payments_total || 0) > 0 && (
                                         <div
                                             data-testid="unallocated-banner"
-                                            className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 shadow-sm"
+                                            className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-amber-900 dark:text-amber-200 shadow-sm"
                                         >
                                             <div className="flex items-center gap-3">
-                                                <AlertCircle size={22} className="text-amber-600 shrink-0" />
+                                                <AlertCircle size={22} className="text-amber-600 dark:text-amber-400 shrink-0" />
                                                 <span className="text-sm font-medium">
                                                     {t(
                                                         'labs.details.overview.unallocated_alert',
@@ -395,29 +419,29 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                     )}
 
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                                        <div className="bg-white p-4 rounded-xl border shadow-sm">
-                                            <div className="text-sm text-slate-500 mb-1">{t('labs.details.overview.total_cost')}</div>
-                                            <div className="text-2xl font-bold text-slate-800">{stats.total_cost}</div>
+                                        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                            <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">{t('labs.details.overview.total_cost')}</div>
+                                            <div className="text-2xl font-bold text-slate-800 dark:text-slate-100">{stats.total_cost}</div>
                                         </div>
-                                        <div className="bg-white p-4 rounded-xl border shadow-sm">
-                                            <div className="text-sm text-slate-500 mb-1">{t('labs.details.overview.paid')}</div>
-                                            <div className="text-2xl font-bold text-emerald-600">{stats.total_paid}</div>
+                                        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                            <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">{t('labs.details.overview.paid')}</div>
+                                            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{stats.total_paid}</div>
                                         </div>
-                                        <div className={`bg-white p-4 rounded-xl border shadow-sm ${stats.balance > 0 ? 'border-red-200 bg-red-50' : 'border-emerald-200 bg-emerald-50'}`}>
-                                            <div className="text-sm text-slate-500 mb-1">
+                                        <div className={`p-4 rounded-xl border shadow-sm ${stats.balance > 0 ? 'border-red-200 bg-red-50 dark:border-red-900 dark:bg-red-950/30' : 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30'}`}>
+                                            <div className="text-sm text-slate-600 dark:text-slate-300 mb-1">
                                                 {stats.balance < 0
                                                     ? t('labs.details.overview.clinic_credit', 'رصيد لصالح العيادة')
                                                     : t('labs.details.overview.balance', 'المستحق للمعمل (مديونية)')}
                                             </div>
-                                            <div className={`text-2xl font-bold ${stats.balance > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                                            <div className={`text-2xl font-bold ${stats.balance > 0 ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
                                                 {stats.balance < 0 ? Math.abs(stats.balance) : stats.balance}
                                             </div>
                                         </div>
-                                        <div className="bg-white p-4 rounded-xl border shadow-sm">
-                                            <div className="text-sm text-slate-500 mb-1">{t('labs.details.overview.order_status')}</div>
+                                        <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                                            <div className="text-sm text-slate-500 dark:text-slate-400 mb-1">{t('labs.details.overview.order_status')}</div>
                                             <div className="flex gap-2 text-sm mt-1">
-                                                <span className="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-xs font-bold">{stats.pending_orders} {t('labs.details.overview.status_pending')}</span>
-                                                <span className="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded text-xs font-bold">{stats.completed_orders} {t('labs.details.overview.status_completed')}</span>
+                                                <span className="bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 px-2 py-0.5 rounded text-xs font-bold">{stats.pending_orders} {t('labs.details.overview.status_pending')}</span>
+                                                <span className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 px-2 py-0.5 rounded text-xs font-bold">{stats.completed_orders} {t('labs.details.overview.status_completed')}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -431,7 +455,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                     <div className="flex flex-wrap gap-2 mb-4">
                                         <select
                                             aria-label={t('labs.details.orders.filter_all', 'كل الحالات')}
-                                            className="p-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-teal-500 outline-none"
+                                            className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500 outline-none"
                                             value={orderStatus}
                                             onChange={(e) => setOrderStatus(e.target.value)}
                                         >
@@ -443,7 +467,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
 
                                         <select
                                             aria-label={t('labs.details.orders.filter_payment_all', 'كل حالات السداد')}
-                                            className="p-2 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-teal-500 outline-none"
+                                            className="p-2 border border-slate-200 dark:border-slate-700 rounded-lg text-sm bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500 outline-none"
                                             value={paymentStatusFilter}
                                             onChange={(e) => setPaymentStatusFilter(e.target.value)}
                                         >
@@ -466,14 +490,14 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                 <div
                                                     key={order.id}
                                                     data-testid={`order-card-${order.id}`}
-                                                    className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-3"
+                                                    className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-3"
                                                 >
                                                     {/* Top row: Patient + Work + Chips */}
                                                     <div className="flex justify-between items-start gap-2">
                                                         <div>
-                                                            <div className="font-bold text-slate-800 text-base">{order.patient_name}</div>
-                                                            <div className="text-xs text-slate-500 mt-0.5">
-                                                                <span className="font-medium text-slate-700">{order.work_type}</span>
+                                                            <div className="font-bold text-slate-800 dark:text-slate-100 text-base">{order.patient_name}</div>
+                                                            <div className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                                                                <span className="font-medium text-slate-700 dark:text-slate-300">{order.work_type}</span>
                                                                 {order.material && <span> • {order.material}</span>}
                                                                 {order.shade && <span> ({order.shade})</span>}
                                                                 {order.tooth_number && <span> • #{order.tooth_number}</span>}
@@ -486,23 +510,23 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                     </div>
 
                                                     {/* 3-cell Row: Cost / Paid / Remaining */}
-                                                    <div className="grid grid-cols-3 gap-2 bg-slate-50 rounded-lg p-2.5 text-center text-xs border border-slate-100">
+                                                    <div className="grid grid-cols-3 gap-2 bg-slate-50 dark:bg-slate-800/80 rounded-lg p-2.5 text-center text-xs border border-slate-100 dark:border-slate-700">
                                                         <div>
-                                                            <div className="text-slate-500 font-medium mb-0.5">{t('labs.details.orders.table.cost', 'التكلفة')}</div>
-                                                            <div className="font-bold text-slate-800 font-mono text-sm">{cost}</div>
+                                                            <div className="text-slate-500 dark:text-slate-400 font-medium mb-0.5">{t('labs.details.orders.table.cost', 'التكلفة')}</div>
+                                                            <div className="font-bold text-slate-800 dark:text-slate-100 font-mono text-sm">{cost}</div>
                                                         </div>
                                                         <div>
-                                                            <div className="text-slate-500 font-medium mb-0.5">{t('labs.details.orders.table.paid', 'المدفوع')}</div>
-                                                            <div className="font-bold text-emerald-600 font-mono text-sm">{paid}</div>
+                                                            <div className="text-slate-500 dark:text-slate-400 font-medium mb-0.5">{t('labs.details.orders.table.paid', 'المدفوع')}</div>
+                                                            <div className="font-bold text-emerald-600 dark:text-emerald-400 font-mono text-sm">{paid}</div>
                                                         </div>
                                                         <div>
-                                                            <div className="text-slate-500 font-medium mb-0.5">{t('labs.details.orders.table.remaining', 'المتبقي')}</div>
-                                                            <div className="font-bold text-amber-600 font-mono text-sm">{remaining}</div>
+                                                            <div className="text-slate-500 dark:text-slate-400 font-medium mb-0.5">{t('labs.details.orders.table.remaining', 'المتبقي')}</div>
+                                                            <div className="font-bold text-amber-600 dark:text-amber-400 font-mono text-sm">{remaining}</div>
                                                         </div>
                                                     </div>
 
                                                     {/* Date */}
-                                                    <div className="text-[11px] text-slate-400">
+                                                    <div className="text-[11px] text-slate-400 dark:text-slate-500">
                                                         {t('labs.details.orders.table.date', 'التاريخ')}: {new Date(order.order_date).toLocaleDateString('ar-EG')}
                                                     </div>
 
@@ -520,7 +544,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleOpenPartialPayment(order)}
-                                                                className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border border-slate-200"
+                                                                className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-1.5 border border-slate-200 dark:border-slate-700"
                                                             >
                                                                 {t('labs.details.orders.partial_payment', 'دفعة جزئية')}
                                                             </button>
@@ -530,16 +554,16 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                             );
                                         })}
                                         {filteredOrders.length === 0 && (
-                                            <div className="p-8 text-center text-slate-500 bg-white rounded-xl border">
+                                            <div className="p-8 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                                                 {t('labs.details.orders.table.empty', 'لا توجد طلبات')}
                                             </div>
                                         )}
                                     </div>
 
                                     {/* Desktop Table (md+) */}
-                                    <div className="hidden md:block bg-white rounded-xl border shadow-sm overflow-x-auto">
+                                    <div className="hidden md:block bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
                                         <table className="w-full text-sm text-right">
-                                            <thead className="bg-slate-50 border-b text-slate-500">
+                                            <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-border text-slate-600 dark:text-slate-300">
                                                 <tr>
                                                     <th className="p-3 font-medium">{t('labs.details.orders.table.patient', 'المريض')}</th>
                                                     <th className="p-3 font-medium">{t('labs.details.orders.table.work', 'العمل')}</th>
@@ -551,7 +575,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                     <th className="p-3 font-medium text-center">{t('labs.details.orders.table.actions', 'إجراءات')}</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y">
+                                            <tbody className="divide-y divide-border">
                                                 {filteredOrders.map((order) => {
                                                     const paid = Number(order.paid_amount || 0);
                                                     const cost = Number(order.cost || 0);
@@ -559,11 +583,11 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                     const isCancelled = order.status === 'cancelled';
 
                                                     return (
-                                                        <tr key={order.id} className="hover:bg-slate-50/50">
-                                                            <td className="p-3 font-bold text-slate-700">{order.patient_name}</td>
+                                                        <tr key={order.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                                                            <td className="p-3 font-bold text-slate-700 dark:text-slate-200">{order.patient_name}</td>
                                                             <td className="p-3">
-                                                                <div className="font-medium">{order.work_type}</div>
-                                                                <div className="text-xs text-slate-500">{order.material} {order.shade && `(${order.shade})`}</div>
+                                                                <div className="font-medium text-slate-800 dark:text-slate-100">{order.work_type}</div>
+                                                                <div className="text-xs text-slate-500 dark:text-slate-400">{order.material} {order.shade && `(${order.shade})`}</div>
                                                             </td>
                                                             <td className="p-3">
                                                                 <div className="flex flex-col gap-1 items-start">
@@ -572,9 +596,9 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                                 </div>
                                                             </td>
                                                             <td className="p-3 font-mono">{cost}</td>
-                                                            <td className="p-3 font-mono text-emerald-600 font-medium">{paid}</td>
-                                                            <td className="p-3 font-mono text-amber-600 font-bold">{remaining}</td>
-                                                            <td className="p-3 text-slate-500">{new Date(order.order_date).toLocaleDateString('ar-EG')}</td>
+                                                            <td className="p-3 font-mono text-emerald-600 dark:text-emerald-400 font-medium">{paid}</td>
+                                                            <td className="p-3 font-mono text-amber-600 dark:text-amber-400 font-bold">{remaining}</td>
+                                                            <td className="p-3 text-slate-500 dark:text-slate-400">{new Date(order.order_date).toLocaleDateString('ar-EG')}</td>
                                                             <td className="p-3 text-center">
                                                                 {!isCancelled && remaining > 0 && (
                                                                     <div className="flex items-center justify-center gap-1.5">
@@ -588,7 +612,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                                         <button
                                                                             type="button"
                                                                             onClick={() => handleOpenPartialPayment(order)}
-                                                                            className="px-2.5 py-1 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg transition-colors border border-slate-200"
+                                                                            className="px-2.5 py-1 text-xs font-bold bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
                                                                         >
                                                                             {t('labs.details.orders.partial_payment', 'دفعة جزئية')}
                                                                         </button>
@@ -600,7 +624,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                 })}
                                                 {filteredOrders.length === 0 && (
                                                     <tr>
-                                                        <td colSpan="8" className="p-8 text-center text-slate-500">{t('labs.details.orders.table.empty', 'لا توجد طلبات')}</td>
+                                                        <td colSpan="8" className="p-8 text-center text-slate-500 dark:text-slate-400">{t('labs.details.orders.table.empty', 'لا توجد طلبات')}</td>
                                                     </tr>
                                                 )}
                                             </tbody>
@@ -613,8 +637,9 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                             {activeTab === 'payments' && (
                                 <div className="space-y-4 animate-in slide-in-from-bottom-2 fade-in duration-300">
                                     <div className="flex justify-between items-center mb-4">
-                                        <h3 className="font-bold text-slate-700">{t('labs.details.payments.title')}</h3>
+                                        <h3 className="font-bold text-slate-800 dark:text-slate-100">{t('labs.details.payments.title')}</h3>
                                         <button
+                                            type="button"
                                             onClick={() => setShowPaymentForm(!showPaymentForm)}
                                             className="flex items-center gap-2 px-3 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-bold"
                                         >
@@ -625,10 +650,10 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
 
                                     {/* Payment Form */}
                                     {showPaymentForm && (
-                                        <form onSubmit={handleAddPayment} className="bg-indigo-50 p-4 rounded-xl mb-4 border border-indigo-100 animate-in fade-in slide-in-from-top-2 space-y-3">
+                                        <form onSubmit={handleAddPayment} className="bg-indigo-50 dark:bg-indigo-950/30 p-4 rounded-xl mb-4 border border-indigo-100 dark:border-indigo-900 animate-in fade-in slide-in-from-top-2 space-y-3">
                                             {paymentData.lab_order_id && (
-                                                <div className="flex items-center justify-between bg-white/80 p-2.5 rounded-lg border border-indigo-200 text-xs">
-                                                    <span className="font-bold text-indigo-900">
+                                                <div className="flex items-center justify-between bg-white/80 dark:bg-slate-900/80 p-2.5 rounded-lg border border-indigo-200 dark:border-indigo-800 text-xs">
+                                                    <span className="font-bold text-indigo-900 dark:text-indigo-200">
                                                         {t('labs.details.payments.allocated_to_order', 'دفعة مخصصة للطلب')}: #{paymentData.lab_order_id}
                                                         {selectedOrderForPayment ? ` — ${selectedOrderForPayment.work_type} (${selectedOrderForPayment.patient_name})` : ''}
                                                     </span>
@@ -638,7 +663,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                             setPaymentData((prev) => ({ ...prev, lab_order_id: null }));
                                                             setSelectedOrderForPayment(null);
                                                         }}
-                                                        className="text-indigo-600 hover:underline font-bold text-[11px]"
+                                                        className="text-indigo-600 dark:text-indigo-400 hover:underline font-bold text-[11px]"
                                                     >
                                                         {t('labs.details.payments.clear_allocation', 'إلغاء التخصيص (على الحساب)')}
                                                     </button>
@@ -647,14 +672,14 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
 
                                             {/* Order select dropdown */}
                                             <div>
-                                                <label htmlFor="lab-payment-order-select" className="block text-xs font-bold text-indigo-800 mb-1">
+                                                <label htmlFor="lab-payment-order-select" className="block text-xs font-bold text-indigo-800 dark:text-indigo-300 mb-1">
                                                     {t('labs.details.payments.form.order_label', 'الطلب')}
                                                 </label>
                                                 <select
                                                     id="lab-payment-order-select"
                                                     value={paymentData.lab_order_id || ''}
                                                     onChange={handleOrderSelectChange}
-                                                    className="w-full p-2 rounded border focus:ring-2 focus:ring-indigo-500 outline-none text-xs bg-white"
+                                                    className="w-full p-2 rounded border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
                                                 >
                                                     <option value="">{t('labs.details.payments.form.unallocated_option', 'على الحساب (غير مخصص)')}</option>
                                                     {orders
@@ -672,7 +697,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
 
                                             <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
                                                 <div>
-                                                    <label htmlFor="lab-payment-amount" className="block text-xs font-bold text-indigo-800 mb-1">{t('labs.details.payments.form.amount')}</label>
+                                                    <label htmlFor="lab-payment-amount" className="block text-xs font-bold text-indigo-800 dark:text-indigo-300 mb-1">{t('labs.details.payments.form.amount')}</label>
                                                     <input
                                                         id="lab-payment-amount"
                                                         type="number"
@@ -680,16 +705,16 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                         min="0.01"
                                                         value={paymentData.amount}
                                                         onChange={(e) => setPaymentData({ ...paymentData, amount: e.target.value })}
-                                                        className="w-full p-2 rounded border focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-xs"
+                                                        className="w-full p-2 rounded border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs"
                                                         required
                                                     />
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-bold text-indigo-800 mb-1">{t('labs.details.payments.form.method')}</label>
+                                                    <label className="block text-xs font-bold text-indigo-800 dark:text-indigo-300 mb-1">{t('labs.details.payments.form.method')}</label>
                                                     <select
                                                         value={paymentData.method}
                                                         onChange={(e) => setPaymentData({ ...paymentData, method: e.target.value })}
-                                                        className="w-full p-2 rounded border focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-xs"
+                                                        className="w-full p-2 rounded border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs"
                                                     >
                                                         <option>Cash</option>
                                                         <option>Bank Transfer</option>
@@ -698,12 +723,12 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                     </select>
                                                 </div>
                                                 <div>
-                                                    <label className="block text-xs font-bold text-indigo-800 mb-1">{t('labs.details.payments.form.notes')}</label>
+                                                    <label className="block text-xs font-bold text-indigo-800 dark:text-indigo-300 mb-1">{t('labs.details.payments.form.notes')}</label>
                                                     <input
                                                         type="text"
                                                         value={paymentData.notes}
                                                         onChange={(e) => setPaymentData({ ...paymentData, notes: e.target.value })}
-                                                        className="w-full p-2 rounded border focus:ring-2 focus:ring-indigo-500 outline-none bg-white text-xs"
+                                                        className="w-full p-2 rounded border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-indigo-500 outline-none bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 text-xs"
                                                     />
                                                 </div>
                                             </div>
@@ -726,33 +751,33 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                 <div
                                                     key={payment.id}
                                                     data-testid={`payment-card-${payment.id}`}
-                                                    className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm space-y-2.5"
+                                                    className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-2.5"
                                                 >
                                                     <div className="flex justify-between items-center">
-                                                        <span className="text-lg font-bold text-emerald-600 font-mono">
+                                                        <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400 font-mono">
                                                             {payment.amount}
                                                         </span>
-                                                        <span className="text-xs text-slate-500">
+                                                        <span className="text-xs text-slate-500 dark:text-slate-400">
                                                             {pDate ? new Date(pDate).toLocaleDateString('ar-EG') : '-'}
                                                         </span>
                                                     </div>
 
-                                                    <div className="flex items-center justify-between text-xs text-slate-600">
-                                                        <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-700 font-medium">{pMethod}</span>
-                                                        {payment.notes && <span className="text-slate-500 italic max-w-[200px] truncate">{payment.notes}</span>}
+                                                    <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300">
+                                                        <span className="bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded text-slate-700 dark:text-slate-200 font-medium">{pMethod}</span>
+                                                        {payment.notes && <span className="text-slate-500 dark:text-slate-400 italic max-w-[200px] truncate">{payment.notes}</span>}
                                                     </div>
 
-                                                    <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                                                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
                                                         <div className="text-xs">
                                                             {linkedOrder ? (
-                                                                <div className="flex items-center gap-1 font-medium text-slate-700">
-                                                                    <span className="text-teal-600 font-bold">{linkedOrder.work_type}</span>
+                                                                <div className="flex items-center gap-1 font-medium text-slate-700 dark:text-slate-200">
+                                                                    <span className="text-teal-600 dark:text-teal-400 font-bold">{linkedOrder.work_type}</span>
                                                                     <span>({linkedOrder.patient_name})</span>
                                                                 </div>
                                                             ) : payment.lab_order_id ? (
-                                                                <span className="font-mono text-slate-500">#{payment.lab_order_id}</span>
+                                                                <span className="font-mono text-slate-500 dark:text-slate-400">#{payment.lab_order_id}</span>
                                                             ) : (
-                                                                <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full text-xs font-semibold">
+                                                                <span className="text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-full text-xs font-semibold">
                                                                     {t('labs.details.payments.on_account', 'على الحساب')}
                                                                 </span>
                                                             )}
@@ -763,7 +788,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleDeallocate(payment)}
-                                                                className="px-2.5 py-1 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200 shrink-0"
+                                                                className="px-2.5 py-1 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200 dark:border-rose-800 shrink-0"
                                                             >
                                                                 {t('labs.details.payments.deallocate_button', 'إلغاء الربط')}
                                                             </button>
@@ -771,7 +796,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                             <button
                                                                 type="button"
                                                                 onClick={() => handleOpenAllocateModal(payment)}
-                                                                className="px-2.5 py-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors border border-teal-200 shrink-0"
+                                                                className="px-2.5 py-1 text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 rounded-lg transition-colors border border-teal-200 dark:border-teal-800 shrink-0"
                                                             >
                                                                 {t('labs.details.payments.allocate_button', 'ربط بطلب')}
                                                             </button>
@@ -781,16 +806,16 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                             );
                                         })}
                                         {payments.length === 0 && (
-                                            <div className="p-8 text-center text-slate-500 bg-white rounded-xl border">
+                                            <div className="p-8 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
                                                 {t('labs.details.payments.table.empty', 'لا توجد مدفوعات مسجلة')}
                                             </div>
                                         )}
                                     </div>
 
                                     {/* Desktop Table (md+) */}
-                                    <div className="hidden md:block bg-white rounded-xl border shadow-sm overflow-x-auto">
+                                    <div className="hidden md:block bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-x-auto">
                                         <table className="w-full text-sm text-right">
-                                            <thead className="bg-slate-50 border-b text-slate-500">
+                                            <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-border text-slate-600 dark:text-slate-300">
                                                 <tr>
                                                     <th className="p-3 font-medium">{t('labs.details.payments.table.date')}</th>
                                                     <th className="p-3 font-medium">{t('labs.details.payments.table.amount')}</th>
@@ -800,7 +825,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                     <th className="p-3 font-medium text-center">{t('labs.details.orders.table.actions', 'إجراءات')}</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y">
+                                            <tbody className="divide-y divide-border">
                                                 {payments.map(payment => {
                                                     const linkedOrder = payment.lab_order_id
                                                         ? orders.find(o => o.id === payment.lab_order_id)
@@ -809,30 +834,30 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                     const pMethod = payment.method || payment.payment_method || 'Cash';
 
                                                     return (
-                                                        <tr key={payment.id} className="hover:bg-slate-50/50">
-                                                            <td className="p-3 text-slate-600">{pDate ? new Date(pDate).toLocaleDateString('ar-EG') : '-'}</td>
-                                                            <td className="p-3 font-bold text-emerald-600">{payment.amount}</td>
-                                                            <td className="p-3 text-slate-500">{pMethod}</td>
+                                                        <tr key={payment.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
+                                                            <td className="p-3 text-slate-600 dark:text-slate-300">{pDate ? new Date(pDate).toLocaleDateString('ar-EG') : '-'}</td>
+                                                            <td className="p-3 font-bold text-emerald-600 dark:text-emerald-400">{payment.amount}</td>
+                                                            <td className="p-3 text-slate-500 dark:text-slate-400">{pMethod}</td>
                                                             <td className="p-3 text-xs">
                                                                 {linkedOrder ? (
-                                                                    <span className="font-medium text-slate-700">
+                                                                    <span className="font-medium text-slate-700 dark:text-slate-200">
                                                                         {linkedOrder.work_type} ({linkedOrder.patient_name})
                                                                     </span>
                                                                 ) : payment.lab_order_id ? (
-                                                                    <span className="font-mono text-slate-500">#{payment.lab_order_id}</span>
+                                                                    <span className="font-mono text-slate-500 dark:text-slate-400">#{payment.lab_order_id}</span>
                                                                 ) : (
-                                                                    <span className="text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full text-xs font-semibold">
+                                                                    <span className="text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-full text-xs font-semibold">
                                                                         {t('labs.details.payments.on_account', 'على الحساب')}
                                                                     </span>
                                                                 )}
                                                             </td>
-                                                            <td className="p-3 text-slate-500 text-xs">{payment.notes || '-'}</td>
+                                                            <td className="p-3 text-slate-500 dark:text-slate-400 text-xs">{payment.notes || '-'}</td>
                                                             <td className="p-3 text-center">
                                                                 {payment.lab_order_id ? (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => handleDeallocate(payment)}
-                                                                        className="px-2.5 py-1 text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200"
+                                                                        className="px-2.5 py-1 text-xs font-bold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 rounded-lg transition-colors border border-rose-200 dark:border-rose-800"
                                                                     >
                                                                         {t('labs.details.payments.deallocate_button', 'إلغاء الربط')}
                                                                     </button>
@@ -840,7 +865,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => handleOpenAllocateModal(payment)}
-                                                                        className="px-2.5 py-1 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-lg transition-colors border border-teal-200"
+                                                                        className="px-2.5 py-1 text-xs font-bold text-teal-700 dark:text-teal-300 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 rounded-lg transition-colors border border-teal-200 dark:border-teal-800"
                                                                     >
                                                                         {t('labs.details.payments.allocate_button', 'ربط بطلب')}
                                                                     </button>
@@ -851,7 +876,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                                 })}
                                                 {payments.length === 0 && (
                                                     <tr>
-                                                        <td colSpan="6" className="p-8 text-center text-slate-500">{t('labs.details.payments.table.empty')}</td>
+                                                        <td colSpan="6" className="p-8 text-center text-slate-500 dark:text-slate-400">{t('labs.details.payments.table.empty')}</td>
                                                     </tr>
                                                 )}
                                             </tbody>
@@ -874,29 +899,29 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                     mobileVariant="sheet"
                 >
                     <div className="space-y-4">
-                        <p className="text-xs text-slate-500 -mt-2">
+                        <p className="text-xs text-slate-500 dark:text-slate-400 -mt-2">
                             {settleSheetOrder.work_type} — {settleSheetOrder.patient_name}
                         </p>
 
-                        <div className="bg-teal-50 border border-teal-100 p-3.5 rounded-xl text-center">
-                            <div className="text-xs text-teal-700 font-medium mb-1">
+                        <div className="bg-teal-50 dark:bg-teal-950/40 border border-teal-100 dark:border-teal-800 p-3.5 rounded-xl text-center">
+                            <div className="text-xs text-teal-700 dark:text-teal-300 font-medium mb-1">
                                 {t('labs.details.orders.settle_sheet.amount_label', 'المبلغ المسدد')}
                             </div>
-                            <div className="text-2xl font-bold text-teal-800 font-mono">
+                            <div className="text-2xl font-bold text-teal-800 dark:text-teal-200 font-mono">
                                 {getOrderRemaining(settleSheetOrder)}
                             </div>
                         </div>
 
                         <form onSubmit={handleConfirmSettle} className="space-y-3">
                             <div>
-                                <label htmlFor="settle-sheet-method" className="block text-xs font-bold text-slate-700 mb-1">
+                                <label htmlFor="settle-sheet-method" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                     {t('labs.details.orders.settle_sheet.method_label', 'طريقة الدفع')}
                                 </label>
                                 <select
                                     id="settle-sheet-method"
                                     value={settleSheetData.method}
                                     onChange={(e) => setSettleSheetData(prev => ({ ...prev, method: e.target.value }))}
-                                    className="w-full p-2.5 rounded-lg border text-xs bg-white focus:ring-2 focus:ring-teal-500 outline-none"
+                                    className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500 outline-none"
                                 >
                                     <option>Cash</option>
                                     <option>Bank Transfer</option>
@@ -906,7 +931,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                             </div>
 
                             <div>
-                                <label htmlFor="settle-sheet-notes" className="block text-xs font-bold text-slate-700 mb-1">
+                                <label htmlFor="settle-sheet-notes" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                     {t('labs.details.orders.settle_sheet.notes_label', 'ملاحظات (اختياري)')}
                                 </label>
                                 <input
@@ -915,7 +940,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                     value={settleSheetData.notes}
                                     onChange={(e) => setSettleSheetData(prev => ({ ...prev, notes: e.target.value }))}
                                     placeholder={t('labs.details.payments.form.notes', 'ملاحظات')}
-                                    className="w-full p-2.5 rounded-lg border text-xs focus:ring-2 focus:ring-teal-500 outline-none"
+                                    className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500 outline-none"
                                 />
                             </div>
 
@@ -930,7 +955,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                 <button
                                     type="button"
                                     onClick={() => setSettleSheetOrder(null)}
-                                    className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+                                    className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors"
                                 >
                                     {t('labs.details.orders.settle_sheet.cancel', 'إلغاء')}
                                 </button>
@@ -950,29 +975,29 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                     mobileVariant="sheet"
                 >
                     <div className="space-y-4">
-                        <div className="bg-slate-50 p-3 rounded-xl text-xs space-y-1 border border-slate-100">
-                            <div className="text-slate-500">
+                        <div className="bg-slate-50 dark:bg-slate-800/80 p-3 rounded-xl text-xs space-y-1 border border-slate-100 dark:border-slate-700">
+                            <div className="text-slate-500 dark:text-slate-400">
                                 {t('labs.details.payments.table.amount', 'المبلغ')}:{' '}
-                                <span className="font-bold text-emerald-600 font-mono text-sm">{allocateModalPayment.amount}</span>
+                                <span className="font-bold text-emerald-600 dark:text-emerald-400 font-mono text-sm">{allocateModalPayment.amount}</span>
                             </div>
-                            <div className="text-slate-500">
+                            <div className="text-slate-500 dark:text-slate-400">
                                 {t('labs.details.payments.table.method', 'الطريقة')}:{' '}
-                                <span className="font-medium text-slate-700">{allocateModalPayment.method || allocateModalPayment.payment_method || 'Cash'}</span>
+                                <span className="font-medium text-slate-700 dark:text-slate-200">{allocateModalPayment.method || allocateModalPayment.payment_method || 'Cash'}</span>
                             </div>
                             {allocateModalPayment.notes && (
-                                <div className="text-slate-500">
+                                <div className="text-slate-500 dark:text-slate-400">
                                     {t('labs.details.payments.table.notes', 'ملاحظات')}:{' '}
-                                    <span className="text-slate-700">{allocateModalPayment.notes}</span>
+                                    <span className="text-slate-700 dark:text-slate-200">{allocateModalPayment.notes}</span>
                                 </div>
                             )}
                         </div>
 
                         <div>
-                            <label htmlFor="allocate-order-select" className="block text-xs font-bold text-slate-700 mb-1">
+                            <label htmlFor="allocate-order-select" className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                                 {t('labs.details.payments.allocate_modal.select_order_label', 'اختر الطلب المراد ربط الدفعة به')}
                             </label>
                             {eligibleOrdersForAllocation.length === 0 ? (
-                                <p className="text-xs text-rose-600 bg-rose-50 p-3 rounded-lg border border-rose-200">
+                                <p className="text-xs text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 p-3 rounded-lg border border-rose-200 dark:border-rose-800">
                                     {t('labs.details.payments.allocate_modal.no_eligible_orders', 'لا توجد طلبات مؤهلة (متبقيها أكبر أو يساوي مبلغ الدفعة)')}
                                 </p>
                             ) : (
@@ -980,7 +1005,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                                     id="allocate-order-select"
                                     value={selectedAllocationOrderId}
                                     onChange={(e) => setSelectedAllocationOrderId(e.target.value)}
-                                    className="w-full p-2.5 rounded-lg border text-xs bg-white focus:ring-2 focus:ring-teal-500 outline-none"
+                                    className="w-full p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-teal-500 outline-none"
                                 >
                                     <option value="">-- {t('labs.details.payments.allocate_modal.select_order_label', 'اختر الطلب')} --</option>
                                     {eligibleOrdersForAllocation.map(o => {
@@ -1007,7 +1032,7 @@ const LabDetailsModal = ({ lab, isOpen, onClose, onUpdate }) => {
                             <button
                                 type="button"
                                 onClick={() => setAllocateModalPayment(null)}
-                                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-bold transition-colors"
+                                className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-colors"
                             >
                                 {t('labs.details.payments.allocate_modal.cancel', 'إلغاء')}
                             </button>

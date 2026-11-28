@@ -1,9 +1,18 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LabDetailsModal from './LabDetailsModal';
+import Labs from './Labs';
+import { financeKeys } from '@/features/finance/queryKeys';
 import * as api from '@/api';
 
 vi.mock('@/api', () => ({
+    getLaboratories: vi.fn(),
+    createLaboratory: vi.fn(),
+    updateLaboratory: vi.fn(),
+    deleteLaboratory: vi.fn(),
+    getLabOrdersStats: vi.fn(),
     getLabStats: vi.fn(),
     getLabOrders: vi.fn(),
     getLabPayments: vi.fn(),
@@ -419,5 +428,76 @@ describe('<LabDetailsModal /> (PR-2 mobile settlement UX)', () => {
         expect(screen.getAllByText('Crown Zirconia').length).toBeGreaterThanOrEqual(1);
         expect(screen.queryByText('Inlay')).toBeNull();
         expect(screen.queryByText('Bridge PFM')).toBeNull();
+    });
+
+    it('invalidates finance and dashboard queries on lab payment and includes dark-mode contrast classes', async () => {
+        api.createLabPayment.mockResolvedValue({ data: { id: 900 } });
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+        const onUpdate = vi.fn();
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <LabDetailsModal
+                    isOpen={true}
+                    onClose={vi.fn()}
+                    lab={mockLab}
+                    onUpdate={onUpdate}
+                />
+            </QueryClientProvider>
+        );
+
+        const heading = await screen.findByRole('heading', { name: 'Al-Amal Dental Lab', level: 2 });
+        expect(heading.className).toContain('dark:text-slate-100');
+        expect(heading.closest('.rounded-2xl').className).toContain('dark:bg-slate-900');
+
+        fireEvent.click(screen.getByRole('button', { name: /المعاملات المالية/i }));
+        fireEvent.click(screen.getByRole('button', { name: /إضافة دفعة/i }));
+        fireEvent.change(screen.getByLabelText(/المبلغ/i), { target: { value: '300' } });
+        fireEvent.click(screen.getByRole('button', { name: /تسجيل الدفعة/i }));
+
+        await waitFor(() => {
+            expect(api.createLabPayment).toHaveBeenCalledWith(10, expect.objectContaining({ amount: 300 }));
+        });
+        expect(onUpdate).toHaveBeenCalled();
+        expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: financeKeys.all }));
+    });
+
+    it('keeps LabDetailsModal open on the active payments tab when Labs parent silently refreshes stats after payment', async () => {
+        api.getLaboratories.mockResolvedValue({ data: [{ ...mockLab, is_active: true }] });
+        api.getLabOrdersStats.mockResolvedValue({
+            data: { total_labs: 1, pending_orders: 1, completed_orders: 1, profit: 500 },
+        });
+        api.createLabPayment.mockResolvedValue({ data: { id: 901 } });
+
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        render(
+            <QueryClientProvider client={queryClient}>
+                <MemoryRouter>
+                    <Labs />
+                </MemoryRouter>
+            </QueryClientProvider>
+        );
+
+        const labCardBtn = await screen.findByRole('button', { name: /Al-Amal Dental Lab/i });
+        fireEvent.click(labCardBtn);
+
+        const heading = await screen.findByRole('heading', { name: 'Al-Amal Dental Lab', level: 2 });
+        expect(heading).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /المعاملات المالية/i }));
+        expect(screen.getByText('سجل المدفوعات')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: /إضافة دفعة/i }));
+        fireEvent.change(screen.getByLabelText(/المبلغ/i), { target: { value: '200' } });
+        fireEvent.click(screen.getByRole('button', { name: /تسجيل الدفعة/i }));
+
+        await waitFor(() => {
+            expect(api.createLabPayment).toHaveBeenCalledWith(10, expect.objectContaining({ amount: 200 }));
+            expect(api.getLabOrdersStats).toHaveBeenCalledTimes(2);
+        });
+
+        // Modal stays mounted on the payments tab (not reset to overview)
+        expect(screen.getByText('سجل المدفوعات')).toBeInTheDocument();
     });
 });

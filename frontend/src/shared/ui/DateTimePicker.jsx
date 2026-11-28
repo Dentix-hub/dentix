@@ -158,8 +158,16 @@ export default function DateTimePicker({
         setViewMode(current => current === 'days' ? 'months' : current === 'months' ? 'years' : 'days');
     };
 
-    const displayValue = !value && placeholder
-        ? placeholder
+    const emptyPlaceholder = placeholder || (
+        isMonthOnly
+            ? t('common.select_month', 'اختر الشهر والسنة')
+            : isDateOnly
+                ? t('common.select_date', 'اختر التاريخ')
+                : t('common.select_date_time', 'اختر التاريخ والوقت')
+    );
+    const isShowingPlaceholder = !value;
+    const displayValue = isShowingPlaceholder
+        ? emptyPlaceholder
         : isMonthOnly
             ? format(initialDate, 'MMMM yyyy', { locale })
             : isDateOnly
@@ -187,7 +195,7 @@ export default function DateTimePicker({
                     <span className={`shrink-0 rounded-lg p-1.5 transition-colors ${isOpen ? 'bg-primary text-white' : 'bg-primary/10 text-primary'}`}>
                         {isDateOnly || isMonthOnly ? <CalendarIcon size={compact ? 12 : 14} aria-hidden="true" /> : <Clock size={compact ? 12 : 14} aria-hidden="true" />}
                     </span>
-                    <span dir={isArabic ? 'rtl' : 'ltr'} className={`min-w-0 truncate ${!value && placeholder ? 'font-medium text-slate-500' : ''} ${compact ? 'text-xs' : 'text-sm'}`}>
+                    <span dir={isArabic ? 'rtl' : 'ltr'} className={`min-w-0 truncate ${isShowingPlaceholder ? 'font-medium text-slate-500 dark:text-slate-400' : ''} ${compact ? 'text-xs' : 'text-sm'}`}>
                         {displayValue}
                     </span>
                 </span>

@@ -719,5 +719,24 @@ describe('DentalChartSVG whole-crown visual layer coordinate normalization', () 
         expect(screen.getByTestId('plan-overlay-check-11')).toBeInTheDocument();
         expect(screen.getByTestId('plan-overlay-active-12')).toBeInTheDocument();
     });
+
+    it('includes dark-mode contrast classes and compact desktop width classes while preserving SVG crown dimensions', () => {
+        const { container } = render(
+            <DentalChartSVG teethStatus={{}} onToothClick={vi.fn()} isPediatric={false} />,
+        );
+
+        const chartCard = container.querySelector('[data-dentition="permanent"]');
+        expect(chartCard.className).toContain('dark:bg-slate-900/70');
+        const heading = screen.getByRole('heading', { level: 3 });
+        expect(heading.className).toContain('dark:text-slate-100');
+
+        const firstToothButton = container.querySelector('button[data-tooth-key="18"]');
+        expect(firstToothButton.className).toContain('xl:w-[44px]');
+        expect(firstToothButton.className).toContain('2xl:w-[50px]');
+
+        const firstCrown = container.querySelector('svg[data-layer="crown"][data-tooth-key="18"]');
+        expect(firstCrown).toHaveAttribute('width', '50');
+        expect(firstCrown).toHaveAttribute('height', '60');
+    });
 });
 

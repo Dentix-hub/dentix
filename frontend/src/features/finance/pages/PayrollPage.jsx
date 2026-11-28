@@ -102,13 +102,20 @@ export default function PayrollPage() {
             id: 'prorating',
             header: t('finance.payroll.days_count', 'الأيام المحتسبة'),
             sortable: false,
-            width: '130px',
+            width: '150px',
             cell: (row) => (
                 <div className="text-xs text-text-secondary">
                     {row.is_new_this_month ? (
-                        <span className="text-primary font-semibold block">
-                            {row.days_worked} / {row.days_in_month} {t('common.days', 'يوم')}
-                        </span>
+                        <div className="space-y-0.5">
+                            <span className="text-primary font-semibold block">
+                                {row.days_worked} / {row.days_in_month} {t('common.days', 'يوم')}
+                            </span>
+                            {row.hire_date && (
+                                <span className="text-[11px] text-text-muted block">
+                                    {t('finance.payroll.hired_on', 'تعيين:')} <bdi dir="ltr">{row.hire_date}</bdi>
+                                </span>
+                            )}
+                        </div>
                     ) : (
                         <span>{row.days_in_month} {t('common.days', 'يوم')}</span>
                     )}
@@ -120,9 +127,32 @@ export default function PayrollPage() {
             header: t('finance.payroll.payable', 'المستحق'),
             align: 'end',
             sortable: false,
-            cell: (row) => (
-                <Money amount={row.payable_amount !== undefined ? row.payable_amount : row.prorated_salary} size="sm" />
-            ),
+            cell: (row) => {
+                const payableAmount = row.payable_amount !== undefined ? row.payable_amount : row.prorated_salary;
+                const isProrated = Boolean(
+                    row.is_new_this_month &&
+                    Number(row.base_salary) > 0 &&
+                    row.days_worked != null &&
+                    row.days_in_month != null &&
+                    row.days_worked < row.days_in_month
+                );
+                return (
+                    <div className="space-y-0.5 text-end">
+                        <Money amount={payableAmount} size="sm" />
+                        {isProrated && (
+                            <span
+                                data-testid="payroll-proration-formula"
+                                className="block text-[11px] text-text-muted"
+                            >
+                                {t('finance.payroll.prorated_formula', 'الحسبة:')}{' '}
+                                <bdi dir="ltr" className="font-mono">
+                                    {Number(row.base_salary).toLocaleString('en-US')} × {row.days_worked} / {row.days_in_month}
+                                </bdi>
+                            </span>
+                        )}
+                    </div>
+                );
+            },
         },
         {
             id: 'paid',
@@ -235,6 +265,24 @@ export default function PayrollPage() {
                         <span>{status.label}</span>
                     </span>
                 </div>
+
+                {row.is_new_this_month && Number(row.base_salary) > 0 && row.days_worked != null && row.days_in_month != null && (
+                    <div
+                        data-testid="mobile-payroll-proration-info"
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-primary/5 px-2.5 py-1.5 text-[11px] text-text-secondary"
+                    >
+                        <span>
+                            {t('finance.payroll.base_salary', 'الراتب الأساسي')}:{' '}
+                            <strong className="text-text-primary">{Number(row.base_salary).toLocaleString('en-US')}</strong>
+                            {row.hire_date && (
+                                <> · {t('finance.payroll.hired_on', 'تعيين:')} <bdi dir="ltr">{row.hire_date}</bdi></>
+                            )}
+                        </span>
+                        <span className="font-mono font-semibold text-primary" dir="ltr">
+                            {row.days_worked} / {row.days_in_month} ({Number(row.base_salary).toLocaleString('en-US')} × {row.days_worked} / {row.days_in_month})
+                        </span>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-3 gap-2 pt-2 border-t border-border/40 text-[11px]">
                     <div>

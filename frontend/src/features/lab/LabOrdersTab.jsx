@@ -1,26 +1,82 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useContext, useRef } from 'react';
+import { QueryClientContext } from '@tanstack/react-query';
 import logger from '@/utils/logger';
 import { FlaskConical, CheckCircle, Clock, AlertCircle, Plus, Edit2, Trash2, X } from 'lucide-react';
 import { getPatientLabOrders, getLaboratories, createLabOrder, updateLabOrder, deleteLabOrder, getPatientTreatments } from '@/api';
 import { useTranslation } from 'react-i18next';
+import { toast } from '@/shared/ui';
+import { formatApiError } from '@/utils/formatApiError';
+import { invalidatePatientClinicalQueries } from '@/features/patients/utils/invalidatePatientClinicalQueries';
+
+const STANDARD_WORK_TYPES = [
+    'Crown',
+    'Bridge',
+    'Veneer',
+    'Inlay',
+    'Onlay',
+    'Denture',
+    'Partial Denture',
+    'Implant Crown',
+    'Other',
+];
+
+const INITIAL_LAB_ORDER = {
+    laboratory_id: '',
+    treatment_id: '',
+    work_type: '',
+    tooth_number: '',
+    shade: '',
+    material: '',
+    cost: '',
+    paid_now: '',
+    price_to_patient: '',
+    notes: '',
+};
+
 const LabOrdersTab = ({ patientId, treatments = null }) => {
     const { t } = useTranslation();
+    const queryClient = useContext(QueryClientContext);
+    const treatmentsRef = useRef(treatments);
+    treatmentsRef.current = treatments;
+
     const [labOrders, setLabOrders] = useState([]);
     const [laboratories, setLaboratories] = useState([]);
     const [patientTreatments, setPatientTreatments] = useState(Array.isArray(treatments) ? treatments : []);
     const [loading, setLoading] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const [modalError, setModalError] = useState('');
     // Modal State
     const [isLabOrderModalOpen, setIsLabOrderModalOpen] = useState(false);
     const [editingLabOrder, setEditingLabOrder] = useState(null);
-    const initialLabOrder = { laboratory_id: '', treatment_id: '', work_type: '', tooth_number: '', shade: '', material: '', cost: '', paid_now: '', price_to_patient: '', notes: '' };
-    const [newLabOrder, setNewLabOrder] = useState(initialLabOrder);
+    const [newLabOrder, setNewLabOrder] = useState(INITIAL_LAB_ORDER);
+
+    useEffect(() => {
+        if (Array.isArray(treatments)) {
+            setPatientTreatments(treatments);
+        }
+    }, [treatments]);
+
+    const invalidateLabQueries = useCallback(() => {
+        if (!queryClient || !patientId) return;
+        const pid = String(patientId);
+        const pidNum = Number(patientId);
+        queryClient.invalidateQueries({ queryKey: ['patient', pid, 'lab-orders'] });
+        if (!Number.isNaN(pidNum) && pidNum !== pid) {
+            queryClient.invalidateQueries({ queryKey: ['patient', pidNum, 'lab-orders'] });
+        }
+        invalidatePatientClinicalQueries(queryClient, patientId);
+    }, [queryClient, patientId]);
+
     const loadData = useCallback(async () => {
         setLoading(true);
         try {
+            const currentTreatments = treatmentsRef.current;
             const [ordersRes, labsRes, treatmentsRes] = await Promise.all([
                 getPatientLabOrders(patientId),
                 getLaboratories(),
-                Array.isArray(treatments) ? Promise.resolve({ data: treatments }) : getPatientTreatments(patientId).catch(() => ({ data: [] }))
+                Array.isArray(currentTreatments)
+                    ? Promise.resolve({ data: currentTreatments })
+                    : getPatientTreatments(patientId).catch(() => ({ data: [] })),
             ]);
             setLabOrders(ordersRes.data || []);
             setLaboratories(labsRes.data || []);
@@ -30,7 +86,7 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
         } finally {
             setLoading(false);
         }
-    }, [patientId, treatments]);
+    }, [patientId]);
     useEffect(() => {
         if (patientId) {
             loadData();
@@ -40,22 +96,30 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
         if (!window.confirm(t('patientDetails.lab_orders.confirm_delete'))) return;
         try {
             await deleteLabOrder(orderId);
-            loadData();
+            invalidateLabQueries();
+            await loadData();
         } catch (err) {
-            alert(t('patientDetails.lab_orders.delete_failed'));
+            toast.error(formatApiError(err, t('patientDetails.lab_orders.delete_failed')));
         }
     };
     const handleSaveLabOrder = async () => {
+        if (isSaving) return;
         if (!newLabOrder.laboratory_id || !newLabOrder.work_type) {
-            alert(t('patientDetails.lab_orders.validation_error'));
+            const msg = t('patientDetails.lab_orders.validation_error');
+            setModalError(msg);
+            toast.error(msg);
             return;
         }
         const numCost = parseFloat(newLabOrder.cost) || 0;
         const numPaidNow = parseFloat(newLabOrder.paid_now) || 0;
         if (!editingLabOrder && numCost > 0 && numPaidNow > numCost) {
-            alert(t('patientDetails.lab_orders.paid_now_exceeds_cost', 'المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب'));
+            const msg = t('patientDetails.lab_orders.paid_now_exceeds_cost', 'المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب');
+            setModalError(msg);
+            toast.error(msg);
             return;
         }
+        setIsSaving(true);
+        setModalError('');
         try {
             const orderData = {
                 patient_id: parseInt(patientId),
@@ -81,13 +145,18 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                 await createLabOrder(orderData);
             }
             setIsLabOrderModalOpen(false);
-            setNewLabOrder(initialLabOrder);
+            setNewLabOrder(INITIAL_LAB_ORDER);
             setEditingLabOrder(null);
-            loadData();
+            setModalError('');
+            invalidateLabQueries();
+            await loadData();
         } catch (err) {
-            const detail = err.response?.data?.detail;
-            alert(typeof detail === 'string' ? detail : t('patientDetails.lab_orders.save_error'));
+            const msg = formatApiError(err, t('patientDetails.lab_orders.save_error'));
+            setModalError(msg);
+            toast.error(msg);
             logger.error(err);
+        } finally {
+            setIsSaving(false);
         }
     };
     const renderPaymentStatusChip = (order) => {
@@ -106,49 +175,58 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
         return <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-700">{t('patientDetails.lab_orders.status_unpaid', 'غير مدفوع')}</span>;
     };
 
+    const totalProstheticsCost = Math.round(
+        labOrders
+            .filter((order) => order.status !== 'cancelled')
+            .reduce((acc, curr) => acc + (Number(curr.cost) || 0), 0) * 100
+    ) / 100;
+    const linkableTreatments = patientTreatments.filter((tr) => tr?.lab_choice !== 'in_clinic');
+
     if (loading && labOrders.length === 0) return <div className="p-10 text-center">Loading...</div>;
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
             {/* Lab Stats */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                    <p className="text-xs text-slate-500 font-bold uppercase mb-1">{t('patientDetails.lab_orders.stats.total_orders')}</p>
-                    <p className="text-2xl font-bold text-slate-800">{labOrders.length}</p>
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase mb-1">{t('patientDetails.lab_orders.stats.total_orders')}</p>
+                    <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{labOrders.length}</p>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                    <p className="text-xs text-slate-500 font-bold uppercase mb-1">{t('patientDetails.lab_orders.stats.prosthetics_cost')}</p>
-                    <p className="text-2xl font-bold text-teal-600">
-                        {labOrders.reduce((acc, curr) => acc + (curr.price_to_patient || 0), 0)}
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase mb-1">{t('patientDetails.lab_orders.stats.prosthetics_cost')}</p>
+                    <p className="text-2xl font-bold text-teal-600 dark:text-teal-400" data-testid="lab-orders-prosthetics-cost">
+                        {totalProstheticsCost}
                     </p>
                 </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
-                    <p className="text-xs text-slate-500 font-bold uppercase mb-1">{t('patientDetails.lab_orders.stats.pending')}</p>
-                    <p className="text-2xl font-bold text-amber-600">
+                <div className="bg-white dark:bg-slate-900 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase mb-1">{t('patientDetails.lab_orders.stats.pending')}</p>
+                    <p className="text-2xl font-bold text-amber-600 dark:text-amber-400">
                         {labOrders.filter(o => o.status === 'pending' || o.status === 'in_progress').length}
                     </p>
                 </div>
             </div>
             {/* Lab Orders List */}
-            <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-                <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-slate-50/50">
-                    <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                        <FlaskConical size={20} className="text-teal-600" />
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 overflow-hidden">
+                <div className="p-4 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/60">
+                    <h3 className="font-bold text-slate-700 dark:text-slate-100 flex items-center gap-2">
+                        <FlaskConical size={20} className="text-teal-600 dark:text-teal-400" />
                         {t('patientDetails.lab_orders.title')}
                     </h3>
                     <button
+                        type="button"
                         onClick={() => {
                             setEditingLabOrder(null);
-                            setNewLabOrder(initialLabOrder);
+                            setNewLabOrder(INITIAL_LAB_ORDER);
+                            setModalError('');
                             setIsLabOrderModalOpen(true);
                         }}
-                        className="flex items-center gap-2 text-teal-600 text-sm font-bold hover:underline"
+                        className="flex items-center gap-2 text-teal-600 dark:text-teal-400 text-sm font-bold hover:underline"
                     >
                         <Plus size={16} /> {t('patientDetails.lab_orders.add_order')}
                     </button>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-right">
-                        <thead className="bg-slate-50 text-slate-600 text-sm font-bold">
+                        <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 text-sm font-bold">
                             <tr>
                                 <th className="p-4">{t('patientDetails.lab_orders.table.date')}</th>
                                 <th className="p-4">{t('patientDetails.lab_orders.table.lab')}</th>
@@ -165,21 +243,21 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                         </thead>
                         <tbody>
                             {labOrders.map(order => (
-                                <tr key={order.id} className="border-t border-slate-50 hover:bg-slate-50 transition-colors">
+                                <tr key={order.id} className="border-t border-slate-50 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                     <td className="p-4 whitespace-nowrap">{new Date(order.order_date).toLocaleDateString()}</td>
-                                    <td className="p-4 font-bold text-slate-700 whitespace-nowrap">{order.laboratory_name}</td>
+                                    <td className="p-4 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{order.laboratory_name}</td>
                                     <td className="p-4 whitespace-nowrap">
-                                        <span className="bg-teal-50 text-teal-700 px-2 py-1 rounded-lg text-sm font-medium">{order.work_type}</span>
-                                        {order.material && <span className="text-slate-500 text-xs ms-1">({order.material})</span>}
+                                        <span className="bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 px-2 py-1 rounded-lg text-sm font-medium">{order.work_type}</span>
+                                        {order.material && <span className="text-slate-500 dark:text-slate-400 text-xs ms-1">({order.material})</span>}
                                     </td>
-                                    <td className="p-4 font-bold text-slate-600 whitespace-nowrap">{order.tooth_number || '-'}</td>
+                                    <td className="p-4 font-bold text-slate-600 dark:text-slate-300 whitespace-nowrap">{order.tooth_number || '-'}</td>
                                     <td className="p-4 whitespace-nowrap">{order.shade || '-'}</td>
                                     <td className="p-4 whitespace-nowrap">
-                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${order.status === 'completed' ? 'bg-emerald-100 text-emerald-700' :
-                                            order.status === 'in_progress' ? 'bg-blue-100 text-blue-700' :
-                                                order.status === 'try_in' ? 'bg-indigo-100 text-indigo-700' :
-                                                    order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                                        'bg-amber-100 text-amber-700'
+                                        <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${order.status === 'completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300' :
+                                            order.status === 'in_progress' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300' :
+                                                order.status === 'try_in' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300' :
+                                                    order.status === 'cancelled' ? 'bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300' :
+                                                        'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
                                             }`}>
                                             {order.status === 'completed' && <><CheckCircle size={12} /> {t('patientDetails.lab_orders.status.completed')}</>}
                                             {order.status === 'in_progress' && <><Clock size={12} /> {t('patientDetails.lab_orders.status.in_progress')}</>}
@@ -189,11 +267,12 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                                         </span>
                                     </td>
                                     <td className="p-4 whitespace-nowrap">{renderPaymentStatusChip(order)}</td>
-                                    <td className="p-4 font-bold text-slate-700 whitespace-nowrap">{order.cost ?? 0}</td>
-                                    <td className="p-4 font-bold text-teal-600 whitespace-nowrap">{order.paid_amount ?? 0}</td>
-                                    <td className="p-4 font-bold text-teal-600 whitespace-nowrap">{order.price_to_patient}</td>
+                                    <td className="p-4 font-bold text-slate-700 dark:text-slate-200 whitespace-nowrap">{order.cost ?? 0}</td>
+                                    <td className="p-4 font-bold text-teal-600 dark:text-teal-400 whitespace-nowrap">{order.paid_amount ?? 0}</td>
+                                    <td className="p-4 font-bold text-teal-600 dark:text-teal-400 whitespace-nowrap">{order.price_to_patient}</td>
                                     <td className="p-4 flex gap-2 whitespace-nowrap">
                                         <button
+                                            type="button"
                                             onClick={() => {
                                                 setEditingLabOrder(order);
                                                 setNewLabOrder({
@@ -208,15 +287,17 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                                                     notes: order.notes || '',
                                                     status: order.status
                                                 });
+                                                setModalError('');
                                                 setIsLabOrderModalOpen(true);
                                             }}
-                                            className="p-2 text-slate-500 hover:text-blue-500 hover:bg-blue-50 rounded-lg"
+                                            className="p-2 text-slate-500 dark:text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/40 rounded-lg"
                                         >
                                             <Edit2 size={16} />
                                         </button>
                                         <button
+                                            type="button"
                                             onClick={() => handleDeleteLabOrder(order.id)}
-                                            className="p-2 text-slate-500 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                                            className="p-2 text-slate-500 dark:text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg"
                                         >
                                             <Trash2 size={16} />
                                         </button>
@@ -227,16 +308,18 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                     </table>
                 </div>
                 {labOrders.length === 0 && (
-                    <div className="p-12 text-center text-slate-500">
+                    <div className="p-12 text-center text-slate-500 dark:text-slate-400">
                         <FlaskConical size={48} className="mx-auto mb-3 opacity-20" />
                         <p>{t('patientDetails.lab_orders.empty')}</p>
                         <button
+                            type="button"
                             onClick={() => {
                                 setEditingLabOrder(null);
-                                setNewLabOrder(initialLabOrder);
+                                setNewLabOrder(INITIAL_LAB_ORDER);
+                                setModalError('');
                                 setIsLabOrderModalOpen(true);
                             }}
-                            className="mt-4 text-teal-600 font-bold hover:underline"
+                            className="mt-4 text-teal-600 dark:text-teal-400 font-bold hover:underline"
                         >
                             {t('patientDetails.lab_orders.add_empty')}
                         </button>
@@ -246,20 +329,37 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
             {/* Lab Order Modal */}
             {isLabOrderModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-                    <div className="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
+                    <div className="bg-surface-elevated text-text-primary border border-border dark:bg-slate-900 dark:text-slate-100 w-full max-w-lg rounded-2xl p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                                <FlaskConical className="text-teal-600" size={24} />
+                            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                <FlaskConical className="text-teal-600 dark:text-teal-400" size={24} />
                                 {editingLabOrder ? t('patientDetails.lab_orders.modal.title_edit') : t('patientDetails.lab_orders.modal.title_add')}
                             </h3>
-                            <button onClick={() => setIsLabOrderModalOpen(false)} className="p-2 hover:bg-slate-100 rounded-lg">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsLabOrderModalOpen(false);
+                                    setModalError('');
+                                }}
+                                className="p-2 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                            >
                                 <X size={20} />
                             </button>
                         </div>
                         <div className="space-y-4">
-                            {!editingLabOrder && patientTreatments.length > 0 && (
+                            {modalError && (
+                                <div
+                                    role="alert"
+                                    data-testid="lab-order-modal-error"
+                                    className="flex items-center gap-2 rounded-xl border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-950/40 p-3 text-xs font-semibold text-rose-700 dark:text-rose-300"
+                                >
+                                    <AlertCircle size={16} className="shrink-0" />
+                                    <span>{modalError}</span>
+                                </div>
+                            )}
+                            {!editingLabOrder && linkableTreatments.length > 0 && (
                                 <div>
-                                    <label htmlFor="lab-order-treatment-link" className="block text-sm font-bold text-slate-600 mb-1">
+                                    <label htmlFor="lab-order-treatment-link" className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">
                                         {t('patientDetails.lab_orders.modal.treatment_link_label', 'ربط بإجراء علاجي من السجل (Treatment)')}
                                     </label>
                                     <select
@@ -267,10 +367,11 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                                         value={newLabOrder.treatment_id || ''}
                                         onChange={e => {
                                             const val = e.target.value;
+                                            setModalError('');
                                             if (!val) {
                                                 setNewLabOrder(prev => ({ ...prev, treatment_id: '' }));
                                             } else {
-                                                const tr = patientTreatments.find(item => String(item.id) === String(val));
+                                                const tr = linkableTreatments.find(item => String(item.id) === String(val));
                                                 setNewLabOrder(prev => ({
                                                     ...prev,
                                                     treatment_id: val,
@@ -280,10 +381,10 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                                                 }));
                                             }
                                         }}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500 font-medium"
+                                        className="w-full p-3 bg-slate-50 text-slate-900 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border focus:border-teal-500 font-medium"
                                     >
                                         <option value="">{t('patientDetails.lab_orders.modal.unlinked_option', 'طلب بدون ربط (طلب حر - Free text)')}</option>
-                                        {patientTreatments.map(tr => (
+                                        {linkableTreatments.map(tr => (
                                             <option key={tr.id} value={tr.id}>
                                                 #{tr.id} — {tr.procedure || 'Treatment'} {tr.tooth_number ? `(السن ${tr.tooth_number})` : ''}
                                             </option>
@@ -292,13 +393,16 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                                 </div>
                             )}
                             <div>
-                                <label className="block text-sm font-bold text-slate-600 mb-1">
+                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">
                                     {t('patientDetails.lab_orders.modal.lab_label')} <span className="text-red-500">*</span>
                                 </label>
                                 <select
                                     value={newLabOrder.laboratory_id}
-                                    onChange={e => setNewLabOrder({ ...newLabOrder, laboratory_id: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
+                                    onChange={e => {
+                                        setModalError('');
+                                        setNewLabOrder({ ...newLabOrder, laboratory_id: e.target.value });
+                                    }}
+                                    className="w-full p-3 bg-slate-50 text-slate-900 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border focus:border-teal-500"
                                     required
                                 >
                                     <option value="">{t('patientDetails.lab_orders.modal.lab_placeholder')}</option>
@@ -308,16 +412,22 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                                 </select>
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-slate-600 mb-1">
+                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">
                                     {t('patientDetails.lab_orders.modal.work_type')} <span className="text-red-500">*</span>
                                 </label>
                                 <select
                                     value={newLabOrder.work_type}
-                                    onChange={e => setNewLabOrder({ ...newLabOrder, work_type: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
+                                    onChange={e => {
+                                        setModalError('');
+                                        setNewLabOrder({ ...newLabOrder, work_type: e.target.value });
+                                    }}
+                                    className="w-full p-3 bg-slate-50 text-slate-900 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border focus:border-teal-500"
                                     required
                                 >
                                     <option value="">{t('patientDetails.lab_orders.modal.work_type_placeholder')}</option>
+                                    {newLabOrder.work_type && !STANDARD_WORK_TYPES.includes(newLabOrder.work_type) && (
+                                        <option value={newLabOrder.work_type}>{newLabOrder.work_type}</option>
+                                    )}
                                     <option value="Crown">{t('patientDetails.lab_orders.modal.work_types.crown')}</option>
                                     <option value="Bridge">{t('patientDetails.lab_orders.modal.work_types.bridge')}</option>
                                     <option value="Veneer">{t('patientDetails.lab_orders.modal.work_types.veneer')}</option>
@@ -331,32 +441,32 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.tooth_label')}</label>
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">{t('patientDetails.lab_orders.modal.tooth_label')}</label>
                                     <input
                                         type="text"
                                         value={newLabOrder.tooth_number}
                                         onChange={e => setNewLabOrder({ ...newLabOrder, tooth_number: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
+                                        className="w-full p-3 bg-slate-50 text-slate-900 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border focus:border-teal-500"
                                         placeholder={t('patientDetails.lab_orders.modal.tooth_placeholder')}
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.shade_label')}</label>
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">{t('patientDetails.lab_orders.modal.shade_label')}</label>
                                     <input
                                         type="text"
                                         value={newLabOrder.shade}
                                         onChange={e => setNewLabOrder({ ...newLabOrder, shade: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
+                                        className="w-full p-3 bg-slate-50 text-slate-900 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border focus:border-teal-500"
                                         placeholder={t('patientDetails.lab_orders.modal.shade_placeholder')}
                                     />
                                 </div>
                             </div>
                             <div>
-                                <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.material_label')}</label>
+                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">{t('patientDetails.lab_orders.modal.material_label')}</label>
                                 <select
                                     value={newLabOrder.material}
                                     onChange={e => setNewLabOrder({ ...newLabOrder, material: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
+                                    className="w-full p-3 bg-slate-50 text-slate-900 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border focus:border-teal-500"
                                 >
                                     <option value="">{t('patientDetails.lab_orders.modal.material_placeholder')}</option>
                                     <option value="Zirconia">{t('patientDetails.lab_orders.modal.materials.zirconia')}</option>
@@ -370,29 +480,29 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.cost_label')}</label>
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">{t('patientDetails.lab_orders.modal.cost_label')}</label>
                                     <input
                                         type="number"
                                         value={newLabOrder.cost}
                                         onChange={e => setNewLabOrder({ ...newLabOrder, cost: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
+                                        className="w-full p-3 bg-slate-50 text-slate-900 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border focus:border-teal-500"
                                         placeholder="0"
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.price_label')}</label>
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">{t('patientDetails.lab_orders.modal.price_label')}</label>
                                     <input
                                         type="number"
                                         value={newLabOrder.price_to_patient}
                                         onChange={e => setNewLabOrder({ ...newLabOrder, price_to_patient: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
+                                        className="w-full p-3 bg-slate-50 text-slate-900 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border focus:border-teal-500"
                                         placeholder="0"
                                     />
                                 </div>
                             </div>
                             {!editingLabOrder && parseFloat(newLabOrder.cost) > 0 && (
                                 <div>
-                                    <label htmlFor="lab-order-paid-now" className="block text-sm font-bold text-slate-600 mb-1">
+                                    <label htmlFor="lab-order-paid-now" className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">
                                         {t('patientDetails.lab_orders.modal.paid_now_label', 'دفعت الآن للمعمل')}
                                     </label>
                                     <input
@@ -403,26 +513,26 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                                         step="any"
                                         value={newLabOrder.paid_now}
                                         onChange={e => setNewLabOrder({ ...newLabOrder, paid_now: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
+                                        className="w-full p-3 bg-slate-50 text-slate-900 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border focus:border-teal-500"
                                         placeholder="0"
                                     />
                                     {parseFloat(newLabOrder.paid_now) > parseFloat(newLabOrder.cost) && (
-                                        <p className="text-xs text-rose-600 font-medium mt-1">
+                                        <p className="text-xs text-rose-600 dark:text-rose-400 font-medium mt-1">
                                             {t('patientDetails.lab_orders.paid_now_exceeds_cost', 'المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب')}
                                         </p>
                                     )}
-                                    <p className="text-xs text-slate-500 mt-1">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                                         {t('patientDetails.lab_orders.modal.accounting_hint', 'التكلفة بتتسجل مديونية على المعمل، والمبلغ المدفوع بيتسجل كمصروف')}
                                     </p>
                                 </div>
                             )}
                             {editingLabOrder && (
                                 <div>
-                                    <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.status_label')}</label>
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">{t('patientDetails.lab_orders.modal.status_label')}</label>
                                     <select
                                         value={newLabOrder.status}
                                         onChange={e => setNewLabOrder({ ...newLabOrder, status: e.target.value })}
-                                        className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500"
+                                        className="w-full p-3 bg-slate-50 text-slate-900 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border focus:border-teal-500"
                                     >
                                         <option value="pending">{t('patientDetails.lab_orders.status.pending')}</option>
                                         <option value="in_progress">{t('patientDetails.lab_orders.status.in_progress')}</option>
@@ -433,26 +543,35 @@ const LabOrdersTab = ({ patientId, treatments = null }) => {
                                 </div>
                             )}
                             <div>
-                                <label className="block text-sm font-bold text-slate-600 mb-1">{t('patientDetails.lab_orders.modal.notes_label')}</label>
+                                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">{t('patientDetails.lab_orders.modal.notes_label')}</label>
                                 <textarea
                                     value={newLabOrder.notes}
                                     onChange={e => setNewLabOrder({ ...newLabOrder, notes: e.target.value })}
-                                    className="w-full p-3 bg-slate-50 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border border-transparent focus:border-teal-500 h-20 resize-none"
+                                    className="w-full p-3 bg-slate-50 text-slate-900 border-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-teal-500/20 border focus:border-teal-500 h-20 resize-none"
                                     placeholder={t('patientDetails.lab_orders.modal.notes_placeholder')}
                                 />
                             </div>
                             <div className="flex gap-3 pt-4">
                                 <button
-                                    onClick={() => setIsLabOrderModalOpen(false)}
-                                    className="flex-1 px-4 py-3 text-slate-600 hover:bg-slate-100 rounded-xl transition-colors font-bold"
+                                    type="button"
+                                    disabled={isSaving}
+                                    onClick={() => {
+                                        setIsLabOrderModalOpen(false);
+                                        setModalError('');
+                                    }}
+                                    className="flex-1 px-4 py-3 text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800 rounded-xl transition-colors font-bold disabled:opacity-60"
                                 >
                                     {t('patientDetails.lab_orders.modal.cancel')}
                                 </button>
                                 <button
+                                    type="button"
+                                    disabled={isSaving}
                                     onClick={handleSaveLabOrder}
-                                    className="flex-1 px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-colors font-bold shadow-lg shadow-teal-500/20"
+                                    className="flex-1 px-4 py-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-colors font-bold shadow-lg shadow-teal-500/20 disabled:opacity-60"
                                 >
-                                    {editingLabOrder ? t('patientDetails.lab_orders.modal.save_edit') : t('patientDetails.lab_orders.modal.save_add')}
+                                    {isSaving
+                                        ? t('common.saving', 'جاري الحفظ...')
+                                        : (editingLabOrder ? t('patientDetails.lab_orders.modal.save_edit') : t('patientDetails.lab_orders.modal.save_add'))}
                                 </button>
                             </div>
                         </div>

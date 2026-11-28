@@ -7,6 +7,7 @@ import { buildTreatmentPayload } from '@/features/patients/utils/buildTreatmentP
 import { palmerToFdi } from '@/utils/toothUtils';
 import PatientDetails from '@/pages/PatientDetails';
 import * as api from '@/api';
+import * as inventoryApi from '@/api/inventory';
 import { toast } from '@/shared/ui';
 
 vi.mock('react-i18next', () => ({
@@ -84,6 +85,7 @@ vi.mock('@/api/inventory', async (importOriginal) => {
         getStockSummary: vi.fn().mockResolvedValue({ data: [] }),
         getMaterials: vi.fn().mockResolvedValue({ data: [] }),
         getActiveSessions: vi.fn().mockResolvedValue({ data: [] }),
+        getSuggestedMaterials: vi.fn().mockResolvedValue({ data: [] }),
     };
 });
 
@@ -785,6 +787,8 @@ describe('N3: Multi-tooth quick treatment apply', () => {
                             target_kind: 'surface',
                             surfaces: ['O'],
                         }}
+                        isEditing={props.isEditing}
+                        isNativeWritesEnabled={props.isNativeWritesEnabled}
                         procedures={props.procedures || mockProcedures}
                         selectedTeeth={props.selectedTeeth}
                         selectedSurfacesByTooth={props.selectedSurfacesByTooth}
@@ -1066,6 +1070,268 @@ describe('N3: Multi-tooth quick treatment apply', () => {
             expect(onSave).toHaveBeenCalledTimes(1);
         });
         expect(onClose).toHaveBeenCalled();
+    });
+
+    it('saves decimal cost and discount, handles no-tooth picker without stale chart teeth, and shows validation/lab hints', async () => {
+        const onSave = vi.fn().mockResolvedValue({});
+        const onClose = vi.fn();
+        const prostheticProcedures = [
+            ...mockProcedures,
+            {
+                id: 9,
+                name: 'Crown Zirconia',
+                canonical_code: 'PROS_CROWN',
+                category: 'prosthetics',
+                price: 2000,
+                requires_lab: true,
+                suggestedMaterials: [],
+            },
+        ];
+
+        // 1. Header Advanced Entry ("continue without tooth") ignores stale selectedTeeth and saves decimal values
+        const { unmount } = renderSheet({
+            onSave,
+            onClose,
+            isNativeWritesEnabled: true,
+            selectedTeeth: ['16', '26'],
+            procedures: prostheticProcedures,
+            initialData: {
+                tooth_number: '',
+                prefill_source: 'tooth_picker_no_tooth',
+                procedure: 'حشوة تجميلي خاص',
+                cost: '150.5',
+                discount: '10.5',
+                target_kind: 'tooth',
+            },
+        });
+
+        // Should NOT show multi-tooth header from stale chart selection
+        expect(screen.queryByTestId('quick-treatment-multi-tooth-count')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+
+        await waitFor(() => {
+            expect(onSave).toHaveBeenCalledTimes(1);
+        });
+        expect(onSave.mock.calls[0][0]).toMatchObject({
+            tooth_number: null,
+            cost: 150.5,
+            discount: 10.5,
+        });
+        unmount();
+
+        // 2. Prosthetic procedure with native writes enabled displays inline required lab guidance near Save
+        onSave.mockClear();
+        const { unmount: unmountLab } = renderSheet({
+            onSave,
+            onClose: vi.fn(),
+            isNativeWritesEnabled: true,
+            procedures: prostheticProcedures,
+            initialData: {
+                tooth_number: '16',
+                prefill_source: 'tooth_picker',
+                procedure: 'Crown Zirconia',
+                cost: '2000',
+                discount: '0',
+                target_kind: 'tooth',
+            },
+        });
+
+        expect(screen.getByTestId('quick-treatment-lab-required-hint')).toBeInTheDocument();
+        expect(screen.getByTestId('quick-treatment-jump-to-lab')).toBeInTheDocument();
+        expect(screen.getByTestId('quick-treatment-save-button')).toBeDisabled();
+
+        // Choose in_clinic -> hint disappears and Save works
+        const labSelect = await screen.findByLabelText(/اختر المعمل/);
+        fireEvent.change(labSelect, { target: { value: 'in_clinic' } });
+        expect(screen.queryByTestId('quick-treatment-lab-required-hint')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        unmountLab();
+
+        // 3. Fallback when globalThis.crypto.randomUUID is unavailable + discount > cost inline validation
+        onSave.mockClear();
+        const origCrypto = globalThis.crypto;
+        Object.defineProperty(globalThis, 'crypto', {
+            configurable: true,
+            value: {},
+        });
+        try {
+            renderSheet({
+                onSave,
+                onClose: vi.fn(),
+                isNativeWritesEnabled: true,
+                procedures: prostheticProcedures,
+                initialData: {
+                    tooth_number: '16',
+                    prefill_source: 'tooth_picker',
+                    procedure: 'حشوة تجميلي خاص',
+                    cost: '100',
+                    discount: '150',
+                    target_kind: 'tooth',
+                },
+            });
+
+            fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+            expect(screen.getByTestId('quick-treatment-validation-error')).toBeInTheDocument();
+            expect(onSave).not.toHaveBeenCalled();
+
+            fireEvent.change(screen.getByLabelText('الخصم'), { target: { value: '10' } });
+            fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+            await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+            expect(onSave.mock.calls[0][0].idempotency_key).toMatch(/^[A-Za-z0-9_-]+$/);
+        } finally {
+            Object.defineProperty(globalThis, 'crypto', {
+                configurable: true,
+                value: origCrypto,
+            });
+        }
+    });
+
+    it('supports one-click in-clinic choice from lab hint, isolates manual prefill_source from stale chart teeth, and masks Link:LabOrder:N in edit mode while preserving it on save', async () => {
+        const onSave = vi.fn().mockResolvedValue({});
+        const onClose = vi.fn();
+        const prostheticProcedures = [
+            ...mockProcedures,
+            {
+                id: 9,
+                name: 'تاج زيركون – Zirconia Crown',
+                canonical_code: 'PROS_CROWN',
+                category: 'prosthetics',
+                price: 1200,
+                requires_lab: true,
+                suggestedMaterials: [],
+            },
+        ];
+
+        // 1. One-click "بدون معمل (داخل العيادة)" button in amber hint enables Save and saves cleanly
+        const { unmount } = renderSheet({
+            onSave,
+            onClose,
+            isNativeWritesEnabled: true,
+            selectedTeeth: ['16', '26'],
+            procedures: prostheticProcedures,
+            initialData: {
+                tooth_number: '',
+                prefill_source: 'manual',
+                procedure: 'تاج زيركون – Zirconia Crown',
+                cost: '1200',
+                discount: '0',
+                target_kind: 'tooth',
+            },
+        });
+
+        expect(screen.queryByTestId('quick-treatment-multi-tooth-count')).not.toBeInTheDocument();
+        expect(screen.getByTestId('quick-treatment-save-button')).toBeDisabled();
+        fireEvent.click(screen.getByTestId('quick-treatment-choose-in-clinic'));
+        expect(screen.queryByTestId('quick-treatment-lab-required-hint')).not.toBeInTheDocument();
+        expect(screen.getByTestId('quick-treatment-save-button')).toBeEnabled();
+
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave.mock.calls[0][0]).toMatchObject({
+            tooth_number: null,
+            lab_choice: 'in_clinic',
+        });
+        unmount();
+
+        // 2. Edit mode masks raw Link:LabOrder:17 in UI while preserving it verbatim on save
+        onSave.mockClear();
+        renderSheet({
+            onSave,
+            onClose: vi.fn(),
+            isEditing: true,
+            isNativeWritesEnabled: false,
+            procedures: prostheticProcedures,
+            initialData: {
+                id: 88,
+                tooth_number: 'UL6',
+                procedure: 'عمل معمل: تاج زيركون',
+                cost: '1500',
+                discount: '0',
+                notes: 'Link:LabOrder:17',
+                target_kind: 'tooth',
+            },
+        });
+
+        const badge = screen.getByTestId('treatment-notes-lab-link-badge');
+        expect(badge).toHaveTextContent(/مرتبط بطلب معمل #17/);
+        expect(screen.queryByText(/Link:LabOrder:17/)).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave.mock.calls[0][0].notes).toBe('Link:LabOrder:17');
+    });
+
+    it('clears previous procedure consumedMaterials when switching procedures and avoids duplicating category_id=null panel rows on edit', async () => {
+        queryClient.clear();
+        inventoryApi.getSuggestedMaterials.mockImplementation(async (procId) => {
+            if (procId === 2) {
+                return {
+                    data: [
+                        {
+                            category_id: null,
+                            category_name_ar: 'مادة مباشرة',
+                            material_type: 'NON_DIVISIBLE',
+                            base_unit: 'unit',
+                            weight: 1,
+                            material_id: 301,
+                            material_name: 'Bonding Bottle',
+                            is_direct_material: true,
+                            alternatives: [],
+                            has_active_session: false,
+                            session_id: null,
+                            confidence: 0.85,
+                            reason: 'مادة مرتبطة بالإجراء',
+                        },
+                    ],
+                };
+            }
+            return { data: [] };
+        });
+
+        const onSave = vi.fn().mockResolvedValue({ id: 501 });
+        renderSheet({
+            onSave,
+            onClose: vi.fn(),
+            procedures: mockProcedures,
+            initialData: {
+                tooth_number: 'UR6',
+                procedure: 'حشو كومبوزيت -- Composite Filling Class I',
+                cost: '550',
+                discount: '0',
+                default_price_list_id: 5,
+                prefill_source: 'quick_launcher',
+            },
+        });
+
+        await waitFor(() => {
+            expect(screen.getByTestId('quick-treatment-materials-list')).toHaveTextContent('Composite Tube');
+        });
+
+        // Switch from procedure 1 to procedure 2 ('حشوة تجميلي خاص' which has no BOM autoMaterials)
+        fireEvent.change(screen.getByLabelText('الإجراء العلاجي'), {
+            target: { value: 'حشوة تجميلي خاص' },
+        });
+
+        await waitFor(() => {
+            expect(screen.queryByText('Composite Tube')).not.toBeInTheDocument();
+            expect(screen.getByTestId('quick-treatment-materials-list')).toHaveTextContent('Bonding Bottle');
+        });
+
+        // Increment quantity on category_id=null direct material via MaterialConsumptionPanel
+        const plusIcon = document.body.querySelector('button svg[width="14"].lucide-plus');
+        expect(plusIcon).not.toBeNull();
+        fireEvent.click(plusIcon.closest('button'));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('quick-treatment-bom-summary')).toHaveTextContent('سيتم خصم 1 مواد');
+        });
+
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave.mock.calls[0][0].consumedMaterials).toEqual([
+            expect.objectContaining({ material_id: 301, quantity: 2 }),
+        ]);
     });
 });
 

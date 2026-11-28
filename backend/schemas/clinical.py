@@ -13,6 +13,9 @@ from backend.core.money import NonNegativeMoney
 ALLOWED_APPOINTMENT_STATUSES = {
     "scheduled": "Scheduled",
     "waiting": "Waiting",
+    "in-chair": "In-Chair",
+    "in chair": "In-Chair",
+    "in_chair": "In-Chair",
     "in progress": "In Progress",
     "in_progress": "In Progress",
     "completed": "Completed",

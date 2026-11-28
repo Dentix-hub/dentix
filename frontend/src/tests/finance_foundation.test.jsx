@@ -110,7 +110,11 @@ describe('Finance V2 Shared UI Primitives', () => {
             expect(posContainer.querySelector('span').className).toContain('text-emerald');
 
             const { container: negContainer } = render(<Money amount={-100} colored />);
-            expect(negContainer.querySelector('span').className).toContain('text-rose');
+            const negSpan = negContainer.querySelector('span');
+            expect(negSpan.className).toContain('text-rose');
+            expect(negSpan.className).toContain('whitespace-nowrap');
+            expect(negSpan.querySelectorAll('span')).toHaveLength(0);
+            expect(negSpan.textContent.startsWith('-')).toBe(true);
         });
     });
 
@@ -162,6 +166,16 @@ describe('Finance V2 Shared UI Primitives', () => {
 
             const link = screen.getByRole('link');
             expect(link.getAttribute('href')).toBe('/finance/expenses');
+        });
+
+        it('renders non-currency counts and percentages without EGP symbol when isCurrency=false', () => {
+            render(<MetricCard title="الحسابات النشطة" amount={3} isCurrency={false} maximumFractionDigits={0} />);
+            const countEl = screen.getByLabelText('3');
+            expect(countEl.textContent).toBe('٣');
+            expect(countEl.textContent).not.toMatch(/EGP|ج\.م/);
+
+            render(<MetricCard title="متوسط الهامش" amount={42.5} isCurrency={false} suffix="%" maximumFractionDigits={1} />);
+            expect(screen.getByLabelText('42.5%')).toHaveTextContent('%');
         });
     });
 

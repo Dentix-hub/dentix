@@ -55,9 +55,15 @@ export default function DentixDialog({
                     }}
                     onCloseAutoFocus={(event) => {
                         event.preventDefault();
-                        const target = previouslyFocusedRef.current;
-                        if (target && typeof target.focus === 'function' && document.contains(target)) {
-                            target.focus();
+                        if (typeof document !== 'undefined') {
+                            const activeOverlay = document.querySelector(
+                                '[data-dentix-overlay="bottom-sheet"], [data-dentix-overlay="dialog"], [data-dentix-overlay="drawer"]'
+                            );
+                            if (activeOverlay) return;
+                            const target = previouslyFocusedRef.current;
+                            if (target && typeof target.focus === 'function' && document.contains(target)) {
+                                target.focus();
+                            }
                         }
                     }}
                     className={`

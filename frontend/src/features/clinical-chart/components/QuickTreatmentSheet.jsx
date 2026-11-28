@@ -21,6 +21,10 @@ import { ar } from 'date-fns/locale';
 import DentixBottomSheet from '@/shared/ui/DentixBottomSheet';
 import { toast, Button } from '@/shared/ui';
 import logger from '@/utils/logger';
+import { formatApiError } from '@/utils/formatApiError';
+import { formatTreatmentNotesForDisplay, isInternalLabLinkNote } from '@/utils/formatClinicalNotes';
+import { queryKeys } from '@/lib/queryClient';
+import { financeKeys } from '@/features/finance/queryKeys';
 import { getMaterials, getStockSummary } from '@/api/inventory';
 import { getLaboratories, getPatientLabOrders, createLabPayment } from '@/api';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
@@ -100,6 +104,19 @@ const suggestConditionForProcedure = (procName) => {
     return null;
 };
 
+const generateIdempotencyKey = () => {
+    const cryptoObj = globalThis.crypto;
+    if (cryptoObj && typeof cryptoObj.randomUUID === 'function') {
+        return cryptoObj.randomUUID();
+    }
+    if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+        const bytes = new Uint8Array(16);
+        cryptoObj.getRandomValues(bytes);
+        return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+    }
+    return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+};
+
 /**
  * Unified Treatment Entry & Edit Sheet.
  * Built on `DentixBottomSheet`. Replaces the legacy treatment modal completely.
@@ -138,7 +155,7 @@ export default function QuickTreatmentSheet({
     }, [isOpen]);
     const requestKeyFor = (tooth) => {
         const key = String(tooth || 'no-tooth');
-        if (!requestKeys.current.has(key)) requestKeys.current.set(key, globalThis.crypto.randomUUID());
+        if (!requestKeys.current.has(key)) requestKeys.current.set(key, generateIdempotencyKey());
         return requestKeys.current.get(key);
     };
     const [highlightedInvalidTeeth, setHighlightedInvalidTeeth] = useState([]);
@@ -147,6 +164,7 @@ export default function QuickTreatmentSheet({
     const [showAdvanced, setShowAdvanced] = useState(false);
     const [isManualProcedure, setIsManualProcedure] = useState(false);
     const [linkError, setLinkError] = useState(null);
+    const [validationError, setValidationError] = useState(null);
     const [explicitToothCondition, setExplicitToothCondition] = useState(null);
     const [suggestedCondition, setSuggestedCondition] = useState(null);
 
@@ -215,7 +233,18 @@ export default function QuickTreatmentSheet({
     }, [chartBehavior, matchedProcedure, treatment?.procedure, isNativeWritesEnabled]);
 
     // Cap at 32 teeth (full adult dentition).
+    // When opened via Header Advanced Entry (tooth_picker / tooth_picker_no_tooth) or editing,
+    // ignore stale parent chart selection so choosing "Continue without tooth" or a specific tooth works as expected.
+    const isIsolatedToothPicker = (
+        isEditing ||
+        treatment?.prefill_source === 'tooth_picker' ||
+        treatment?.prefill_source === 'tooth_picker_no_tooth' ||
+        treatment?.prefill_source === 'manual'
+    );
     const effectiveTeeth = useMemo(() => {
+        if (isIsolatedToothPicker) {
+            return treatment?.tooth_number ? [treatment.tooth_number] : [];
+        }
         const raw = (Array.isArray(selectedTeeth) && selectedTeeth.length > 0)
             ? selectedTeeth
             : (Array.isArray(treatment?.selectedTeeth) && treatment.selectedTeeth.length > 0)
@@ -226,16 +255,19 @@ export default function QuickTreatmentSheet({
                         ? treatment.toothKeys
                         : (treatment?.tooth_number ? [treatment.tooth_number] : []);
         return raw.slice(0, 32);
-    }, [selectedTeeth, treatment?.selectedTeeth, treatment?.toothKeys, treatment?.tooth_number, initialData?.selectedTeeth]);
+    }, [isIsolatedToothPicker, selectedTeeth, treatment?.selectedTeeth, treatment?.toothKeys, treatment?.tooth_number, initialData?.selectedTeeth]);
 
     const isMultiTooth = !isEditing && effectiveTeeth.length > 1;
 
     const effectiveSurfacesByTooth = useMemo(() => {
+        if (isIsolatedToothPicker) {
+            return treatment?.selectedSurfacesByTooth || {};
+        }
         if (selectedSurfacesByTooth && Object.keys(selectedSurfacesByTooth).length > 0) {
             return selectedSurfacesByTooth;
         }
         return treatment?.selectedSurfacesByTooth || initialData?.selectedSurfacesByTooth || {};
-    }, [selectedSurfacesByTooth, treatment?.selectedSurfacesByTooth, initialData?.selectedSurfacesByTooth]);
+    }, [isIsolatedToothPicker, selectedSurfacesByTooth, treatment?.selectedSurfacesByTooth, initialData?.selectedSurfacesByTooth]);
 
     const getSurfacesForTooth = useCallback((toothKey) => {
         if (!toothKey) return [];
@@ -306,6 +338,7 @@ export default function QuickTreatmentSheet({
         setTreatment(normalized);
         setHighlightedInvalidTeeth([]);
         setLinkError(null);
+        setValidationError(null);
         setIsManualProcedure(false);
         setShowAdvanced(false);
         setLabData({
@@ -440,32 +473,40 @@ export default function QuickTreatmentSheet({
 
     const handleProcedureChange = async (e) => {
         const val = e.target.value;
+        setValidationError(null);
         if (val === 'MANUAL_ENTRY_OPTION') {
             setIsManualProcedure(true);
+            setConsumedMaterials([]);
             setTreatment((prev) => ({ ...prev, procedure: '', cost: '', price_list_id: null }));
             return;
         }
 
         const suggestion = suggestConditionForProcedure(val);
         setSuggestedCondition(suggestion);
+        setConsumedMaterials([]);
+        setTreatment((prev) => ({ ...prev, procedure: val }));
 
-        const { cost, price_list_id, autoMaterials } = await resolveProcedureSelection({
-            procedureName: val,
-            procedures: safeProcedures,
-            defaultPriceListId: treatment.default_price_list_id,
-            currentPriceListId: treatment.price_list_id,
-        });
+        try {
+            const { cost, price_list_id, autoMaterials } = await resolveProcedureSelection({
+                procedureName: val,
+                procedures: safeProcedures,
+                defaultPriceListId: treatment.default_price_list_id,
+                currentPriceListId: treatment.price_list_id,
+            });
 
-        if (autoMaterials && autoMaterials.length > 0) {
-            setConsumedMaterials(autoMaterials);
+            if (autoMaterials && autoMaterials.length > 0) {
+                setConsumedMaterials(autoMaterials);
+            }
+
+            setTreatment((prev) => ({
+                ...prev,
+                procedure: val,
+                cost,
+                price_list_id,
+            }));
+        } catch (err) {
+            logger.error('[QUICK_SHEET] Failed to resolve procedure selection:', err);
         }
-
-        setTreatment((prev) => ({
-            ...prev,
-            procedure: val,
-            cost,
-            price_list_id,
-        }));
     };
 
     // Conflict recovery helpers (F4)
@@ -584,9 +625,11 @@ export default function QuickTreatmentSheet({
             return;
         }
 
-        const errorEnvelope = responseData?.error;
-        const friendlyMsg = typeof errDetail === 'string' ? errDetail :
-            (errDetail?.message || errorEnvelope?.message || error.message || t('quick_treatment_sheet.errors.save_failed', 'فشل حفظ العلاج'));
+        const friendlyMsg = formatApiError(
+            error,
+            t('quick_treatment_sheet.errors.save_failed', 'فشل حفظ العلاج')
+        );
+        setValidationError(friendlyMsg);
 
         if (!error.alreadyNotified) {
             toast.error(friendlyMsg);
@@ -626,10 +669,19 @@ export default function QuickTreatmentSheet({
             setPaymentAmount('');
             setPaymentNotes('');
             const patientId = patient?.id || initialData?.patient_id;
+            if (queryClient) {
+                queryClient.invalidateQueries({ queryKey: financeKeys.all });
+                queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+                if (patientId) {
+                    queryClient.invalidateQueries({ queryKey: ['patient', String(patientId), 'lab-orders'] });
+                    queryClient.invalidateQueries({ queryKey: ['patient', Number(patientId), 'lab-orders'] });
+                }
+            }
             if (patientId) {
                 const res = await getPatientLabOrders(patientId);
                 setPatientLabOrdersList(Array.isArray(res?.data) ? res.data : []);
             }
+            await onRefetch?.();
         } catch (err) {
             const detail = err.response?.data?.detail;
             const msg = typeof detail === 'string' ? detail : t('labs.details.payments.messages.add_fail', 'فشل تسجيل الدفعة');
@@ -644,32 +696,53 @@ export default function QuickTreatmentSheet({
         if (e && typeof e.preventDefault === 'function') e.preventDefault();
         if (isSavingRef.current) return;
 
+        setValidationError(null);
+
+        const parsedCost = parseFloat(treatment.cost) || 0;
+        const parsedDiscount = parseFloat(treatment.discount) || 0;
+        if (parsedCost < 0 || parsedDiscount < 0) {
+            const msg = t('quick_treatment_sheet.errors.negative_values', 'لا يمكن أن تكون التكلفة أو الخصم قيمة سالبة');
+            setValidationError(msg);
+            toast.error(msg);
+            return;
+        }
+        if (parsedDiscount > parsedCost) {
+            const msg = t('quick_treatment_sheet.errors.discount_exceeds_cost', 'الخصم لا يمكن أن يتجاوز التكلفة');
+            setValidationError(msg);
+            toast.error(msg);
+            return;
+        }
+
         // Surface validation: if procedure requires surfaces, ensure every tooth has surfaces specified
         if (procedureRequiresSurfaces) {
             const invalidTeeth = effectiveTeeth.filter((t) => getSurfacesForTooth(t).length === 0);
             if (invalidTeeth.length > 0) {
                 setHighlightedInvalidTeeth(invalidTeeth);
                 const displayTeeth = invalidTeeth.map((t) => palmerToFdi(t) || t).join(', ');
-                toast.error(
-                    t(
-                        'quick_treatment_sheet.errors.surfaces_required_for_teeth',
-                        'يرجى تحديد أسطح للأسنان التالية: {{teeth}}',
-                        { teeth: displayTeeth }
-                    )
+                const msg = t(
+                    'quick_treatment_sheet.errors.surfaces_required_for_teeth',
+                    'يرجى تحديد أسطح للأسنان التالية: {{teeth}}',
+                    { teeth: displayTeeth }
                 );
+                setValidationError(msg);
+                toast.error(msg);
                 return;
             }
         }
 
         if (isNativeWritesEnabled && isProsthetic && !linkedLabOrder && !labData.laboratory_id) {
-            toast.error(t('quick_treatment_sheet.lab_choice_required', 'يرجى اختيار معمل أو بدون معمل داخل العيادة'));
+            const msg = t('quick_treatment_sheet.lab_choice_required', 'يرجى اختيار معمل أو بدون معمل داخل العيادة');
+            setValidationError(msg);
+            toast.error(msg);
             return;
         }
         if (isProsthetic && labData.laboratory_id && labData.laboratory_id !== 'in_clinic') {
             const numCost = parseFloat(labData.cost) || 0;
             const numPaid = parseFloat(labData.paid_now) || 0;
             if (numPaid > numCost) {
-                toast.error(t('quick_treatment_sheet.paid_now_exceeds_cost', 'المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب'));
+                const msg = t('quick_treatment_sheet.paid_now_exceeds_cost', 'المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب');
+                setValidationError(msg);
+                toast.error(msg);
                 return;
             }
         }
@@ -677,104 +750,101 @@ export default function QuickTreatmentSheet({
         isSavingRef.current = true;
         setIsSaving(true);
 
-        const cleanTreatment = { ...treatment };
-        delete cleanTreatment.escalated_from_quick_sheet;
-        delete cleanTreatment.escalation_error;
-        if (explicitToothCondition) {
-            cleanTreatment.explicit_tooth_condition = explicitToothCondition;
-        }
-        if (isProsthetic && labData.laboratory_id) {
-            if (isNativeWritesEnabled) cleanTreatment.lab_choice = labData.laboratory_id === 'in_clinic' ? 'in_clinic' : 'external_lab';
-            if (labData.laboratory_id !== 'in_clinic') cleanTreatment.lab_order = labData;
-        }
-        if (isNativeWritesEnabled && !isEditing && !isMultiTooth) {
-            cleanTreatment.idempotency_key = requestKeyFor(treatment.tooth_number);
-        }
-
-        if (!isMultiTooth) {
-            const payload = buildTreatmentPayload(
-                {
-                    ...cleanTreatment,
-                    status: currentStatus,
-                },
-                {
-                    consumedMaterials,
-                    procedures: safeProcedures,
-                    isEditing,
-                    forceSkipStock,
-                },
-            );
-
-            try {
-                setLinkError(null);
-                await onSave(payload);
-                onClose?.();
-            } catch (error) {
-                if (!isNativeWritesEnabled && typeof onOpenDetails === 'function') {
-                    onOpenDetails({
-                        ...cleanTreatment,
-                        cost: treatment.cost,
-                        status: currentStatus,
-                        consumedMaterials,
-                        selectedTeeth: effectiveTeeth,
-                        selectedSurfacesByTooth: effectiveSurfacesByTooth,
-                        escalated_from_quick_sheet: true,
-                        escalation_error: error,
-                    });
-                    onClose?.();
-                } else {
-                    handleSaveError(error, forceSkipStock);
-                }
-            } finally {
-                isSavingRef.current = false;
-                setIsSaving(false);
-            }
-            return;
-        }
-
-        // Multi-tooth sequential save
-        let failedIndex = -1;
-        let lastError = null;
-        let successCount = 0;
-
-        for (let i = 0; i < effectiveTeeth.length; i++) {
-            const toothKey = effectiveTeeth[i];
-            const toothSurfaces = getSurfacesForTooth(toothKey);
-            const toothFdi = palmerToFdi(toothKey) || toothKey;
-            const toothPalmer = fdiToPalmer(toothFdi) || String(toothKey);
-            const singleTargetKind = toothSurfaces.length > 0 ? 'surface' : (cleanTreatment.target_kind || 'tooth');
-
-            const singleTreatment = {
-                ...cleanTreatment,
-                ...(isNativeWritesEnabled ? { idempotency_key: requestKeyFor(toothFdi) } : {}),
-                tooth_number: toothPalmer,
-                surfaces: toothSurfaces,
-                surface: toothSurfaces.join(''),
-                target_kind: singleTargetKind,
-                status: currentStatus,
-            };
-
-            const singlePayload = buildTreatmentPayload(
-                singleTreatment,
-                {
-                    consumedMaterials,
-                    procedures: safeProcedures,
-                    isEditing: false,
-                    forceSkipStock,
-                },
-            );
-
-            try {
-                await onSave(singlePayload, { skipToast: true, skipRefetch: true, keepSheetOpen: true });
-                successCount++;
-            } catch (error) {
-                failedIndex = i;
-                lastError = error;
-                break;
-            }
-        }
-
         try {
+            const cleanTreatment = { ...treatment };
+            delete cleanTreatment.escalated_from_quick_sheet;
+            delete cleanTreatment.escalation_error;
+            if (explicitToothCondition) {
+                cleanTreatment.explicit_tooth_condition = explicitToothCondition;
+            }
+            if (isProsthetic && labData.laboratory_id) {
+                if (isNativeWritesEnabled) cleanTreatment.lab_choice = labData.laboratory_id === 'in_clinic' ? 'in_clinic' : 'external_lab';
+                if (labData.laboratory_id !== 'in_clinic') cleanTreatment.lab_order = labData;
+            }
+            if (isNativeWritesEnabled && !isEditing && !isMultiTooth) {
+                cleanTreatment.idempotency_key = requestKeyFor(treatment.tooth_number);
+            }
+
+            if (!isMultiTooth) {
+                const payload = buildTreatmentPayload(
+                    {
+                        ...cleanTreatment,
+                        status: currentStatus,
+                    },
+                    {
+                        consumedMaterials,
+                        procedures: safeProcedures,
+                        isEditing,
+                        forceSkipStock,
+                    },
+                );
+
+                try {
+                    setLinkError(null);
+                    await onSave(payload);
+                    onClose?.();
+                } catch (error) {
+                    if (!isNativeWritesEnabled && typeof onOpenDetails === 'function') {
+                        onOpenDetails({
+                            ...cleanTreatment,
+                            cost: treatment.cost,
+                            status: currentStatus,
+                            consumedMaterials,
+                            selectedTeeth: effectiveTeeth,
+                            selectedSurfacesByTooth: effectiveSurfacesByTooth,
+                            escalated_from_quick_sheet: true,
+                            escalation_error: error,
+                        });
+                        onClose?.();
+                    } else {
+                        handleSaveError(error, forceSkipStock);
+                    }
+                }
+                return;
+            }
+
+            // Multi-tooth sequential save
+            let failedIndex = -1;
+            let lastError = null;
+            let successCount = 0;
+
+            for (let i = 0; i < effectiveTeeth.length; i++) {
+                const toothKey = effectiveTeeth[i];
+                const toothSurfaces = getSurfacesForTooth(toothKey);
+                const toothFdi = palmerToFdi(toothKey) || toothKey;
+                const toothPalmer = fdiToPalmer(toothFdi) || String(toothKey);
+                const singleTargetKind = toothSurfaces.length > 0 ? 'surface' : (cleanTreatment.target_kind || 'tooth');
+
+                const singleTreatment = {
+                    ...cleanTreatment,
+                    ...(isNativeWritesEnabled ? { idempotency_key: requestKeyFor(toothFdi) } : {}),
+                    tooth_number: toothPalmer,
+                    surfaces: toothSurfaces,
+                    surface: toothSurfaces.join(''),
+                    target_kind: singleTargetKind,
+                    status: currentStatus,
+                };
+
+                const singlePayload = buildTreatmentPayload(
+                    singleTreatment,
+                    {
+                        consumedMaterials,
+                        procedures: safeProcedures,
+                        isEditing: false,
+                        forceSkipStock,
+                    },
+                );
+
+                try {
+                    await onSave(singlePayload, { skipToast: true, skipRefetch: true, keepSheetOpen: true });
+                    successCount++;
+                } catch (error) {
+                    failedIndex = i;
+                    lastError = error;
+                    break;
+                }
+            }
+
             if (successCount > 0 && typeof onRefetch === 'function') {
                 await onRefetch();
             }
@@ -793,6 +863,8 @@ export default function QuickTreatmentSheet({
                 onSelectionChange?.([]);
                 onClose?.();
             }
+        } catch (unexpectedError) {
+            handleSaveError(unexpectedError, forceSkipStock);
         } finally {
             isSavingRef.current = false;
             setIsSaving(false);
@@ -842,6 +914,7 @@ export default function QuickTreatmentSheet({
                 closeLabel={t('quick_treatment_sheet.close_button_label', 'إغلاق نافذة العلاج')}
             >
                 <form
+                    noValidate
                     onSubmit={handleSave}
                     data-testid="quick-treatment-sheet"
                     className="space-y-4"
@@ -1216,8 +1289,12 @@ export default function QuickTreatmentSheet({
                                     data-testid="quick-treatment-cost-input"
                                     aria-label="التكلفة"
                                     type="number"
+                                    step="any"
                                     value={treatment.cost ?? ''}
-                                    onChange={(e) => setTreatment((prev) => ({ ...prev, cost: e.target.value }))}
+                                    onChange={(e) => {
+                                        setValidationError(null);
+                                        setTreatment((prev) => ({ ...prev, cost: e.target.value }));
+                                    }}
                                     placeholder="0.00"
                                     className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-bold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                 />
@@ -1245,8 +1322,12 @@ export default function QuickTreatmentSheet({
                                     id="treatment-discount"
                                     aria-label="الخصم"
                                     type="number"
+                                    step="any"
                                     value={treatment.discount ?? ''}
-                                    onChange={(e) => setTreatment((prev) => ({ ...prev, discount: e.target.value }))}
+                                    onChange={(e) => {
+                                        setValidationError(null);
+                                        setTreatment((prev) => ({ ...prev, discount: e.target.value }));
+                                    }}
                                     placeholder="0.00"
                                     className="w-full rounded-xl border border-slate-200 bg-white p-2.5 font-bold text-slate-900 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                 />
@@ -1497,22 +1578,45 @@ export default function QuickTreatmentSheet({
                                     doctorId={treatment.doctor_id}
                                     initialMaterials={consumedMaterials}
                                     onMaterialsChange={(materials) => {
-                                        const formatted = materials.map((m) => ({
-                                            material_id: m.material_id,
-                                            quantity: m.material_type === 'NON_DIVISIBLE' ? m.quantity : m.weight,
-                                            unit: m.base_unit,
-                                            material_type: m.material_type,
-                                            weight_score: m.weight,
-                                            is_manual_override: m.is_manual_override,
-                                            session_id: m.session_id,
-                                            name: m.material_name,
-                                            category_id: m.category_id,
-                                        }));
+                                        const formatted = materials
+                                            .map((m) => {
+                                                const isCountBased = m.material_type === 'NON_DIVISIBLE' || m.material_type === 'REUSABLE';
+                                                const qty = isCountBased
+                                                    ? (Number.isFinite(parseFloat(m.quantity)) ? parseFloat(m.quantity) : 0)
+                                                    : m.weight;
+                                                return {
+                                                    material_id: m.material_id,
+                                                    quantity: qty,
+                                                    unit: m.base_unit,
+                                                    material_type: m.material_type,
+                                                    weight_score: m.weight,
+                                                    is_manual_override: m.is_manual_override,
+                                                    is_direct_material: Boolean(m.is_direct_material),
+                                                    source: 'panel',
+                                                    session_id: m.session_id,
+                                                    name: m.material_name,
+                                                    category_id: m.category_id ?? null,
+                                                };
+                                            })
+                                            .filter((m) => Number(m.quantity) > 0 && m.material_id);
 
                                         setConsumedMaterials((prev) => {
-                                            const incomingCategories = new Set(formatted.map((m) => m.category_id));
-                                            const manualMaterials = prev.filter((p) => !p.category_id || !incomingCategories.has(p.category_id));
-                                            return [...manualMaterials, ...formatted];
+                                            const incomingMaterialIds = new Set(formatted.map((m) => String(m.material_id)));
+                                            const incomingCategories = new Set(
+                                                formatted
+                                                    .filter((m) => !m.is_direct_material && m.category_id != null)
+                                                    .map((m) => m.category_id)
+                                            );
+                                            const preservedManual = prev.filter((p) => {
+                                                if (p.source === 'panel') return false;
+                                                const pid = String(p.material_id || p.id || '');
+                                                if (pid && incomingMaterialIds.has(pid)) return false;
+                                                if (!p.is_direct_material && p.category_id != null && incomingCategories.has(p.category_id)) {
+                                                    return false;
+                                                }
+                                                return true;
+                                            });
+                                            return [...preservedManual, ...formatted];
                                         });
                                     }}
                                 />
@@ -1688,12 +1792,18 @@ export default function QuickTreatmentSheet({
                                     <div>
                                         <label htmlFor="quick-treatment-lab-select" className="mb-1 block text-xs font-bold text-slate-700 dark:text-slate-300">
                                             {t('quick_treatment_sheet.lab_select', 'اختر المعمل')}
+                                            {isNativeWritesEnabled && !linkedLabOrder && (
+                                                <span className="ms-1 text-red-500" aria-hidden="true">*</span>
+                                            )}
                                         </label>
                                         <select
                                             id="quick-treatment-lab-select"
                                             aria-label={t('quick_treatment_sheet.lab_select', 'اختر المعمل')}
                                             value={labData.laboratory_id}
-                                            onChange={(e) => setLabData((prev) => ({ ...prev, laboratory_id: e.target.value }))}
+                                            onChange={(e) => {
+                                                setValidationError(null);
+                                                setLabData((prev) => ({ ...prev, laboratory_id: e.target.value }));
+                                            }}
                                             className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-bold text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                         >
                                             <option value="">{t('quick_treatment_sheet.lab_select', 'اختر المعمل...')}</option>
@@ -1714,9 +1824,12 @@ export default function QuickTreatmentSheet({
                                                 id="quick-treatment-lab-cost"
                                                 type="number"
                                                 min="0"
-                                                step="0.01"
+                                                step="any"
                                                 value={labData.cost}
-                                                onChange={(e) => setLabData((prev) => ({ ...prev, cost: e.target.value }))}
+                                                onChange={(e) => {
+                                                    setValidationError(null);
+                                                    setLabData((prev) => ({ ...prev, cost: e.target.value }));
+                                                }}
                                                 placeholder="0.00"
                                                 className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                             />
@@ -1730,10 +1843,12 @@ export default function QuickTreatmentSheet({
                                                     id="quick-treatment-lab-paid-now"
                                                     type="number"
                                                     min="0"
-                                                    max={labData.cost}
-                                                    step="0.01"
+                                                    step="any"
                                                     value={labData.paid_now}
-                                                    onChange={(e) => setLabData((prev) => ({ ...prev, paid_now: e.target.value }))}
+                                                    onChange={(e) => {
+                                                        setValidationError(null);
+                                                        setLabData((prev) => ({ ...prev, paid_now: e.target.value }));
+                                                    }}
                                                     placeholder="0.00"
                                                     className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-teal-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                                                 />
@@ -1878,20 +1993,83 @@ export default function QuickTreatmentSheet({
                         </div>
                     )}
 
-                    {/* Notes textarea */}
+                    {/* Notes textarea (mask raw Link:LabOrder:N internal tokens while preserving DB value) */}
                     <div>
                         <label htmlFor="treatment-notes" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
                             {t('quick_treatment_sheet.notes_label', 'ملاحظات عامة')}
                         </label>
-                        <textarea
-                            id="treatment-notes"
-                            aria-label="ملاحظات عامة"
-                            value={treatment.notes || ''}
-                            onChange={(e) => setTreatment((prev) => ({ ...prev, notes: e.target.value }))}
-                            placeholder="ملاحظات سريرية..."
-                            className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white min-h-[60px]"
-                        />
+                        {isInternalLabLinkNote(treatment.notes) ? (
+                            <div
+                                data-testid="treatment-notes-lab-link-badge"
+                                className="flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50/70 p-2.5 text-xs font-semibold text-teal-800 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-200"
+                            >
+                                <FlaskConical size={14} className="shrink-0" aria-hidden="true" />
+                                <span>{formatTreatmentNotesForDisplay(treatment.notes, t)}</span>
+                            </div>
+                        ) : (
+                            <textarea
+                                id="treatment-notes"
+                                aria-label="ملاحظات عامة"
+                                value={treatment.notes || ''}
+                                onChange={(e) => setTreatment((prev) => ({ ...prev, notes: e.target.value }))}
+                                placeholder="ملاحظات سريرية..."
+                                className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white min-h-[60px]"
+                            />
+                        )}
                     </div>
+
+                    {/* Inline validation or missing required lab guidance near Save */}
+                    {isNativeWritesEnabled && isProsthetic && !linkedLabOrder && !labData.laboratory_id && (
+                        <div
+                            data-testid="quick-treatment-lab-required-hint"
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200"
+                        >
+                            <div className="flex items-center gap-2">
+                                <AlertCircle size={16} className="shrink-0 text-amber-600 dark:text-amber-400" />
+                                <span>
+                                    {t('quick_treatment_sheet.lab_choice_required', 'يرجى اختيار معمل أو بدون معمل داخل العيادة')}
+                                </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    data-testid="quick-treatment-choose-in-clinic"
+                                    onClick={() => {
+                                        setValidationError(null);
+                                        setLabData((prev) => ({ ...prev, laboratory_id: 'in_clinic' }));
+                                    }}
+                                    className="rounded-lg border border-amber-300 bg-amber-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-amber-700 transition-colors"
+                                >
+                                    {t('quick_treatment_sheet.in_clinic', 'بدون معمل (داخل العيادة)')}
+                                </button>
+                                <button
+                                    type="button"
+                                    data-testid="quick-treatment-jump-to-lab"
+                                    onClick={() => {
+                                        const el = document.getElementById('quick-treatment-lab-select');
+                                        if (el) {
+                                            el.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+                                            el.focus();
+                                        }
+                                    }}
+                                    className="rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-slate-900 dark:text-amber-200"
+                                >
+                                    {t('quick_treatment_sheet.go_to_lab_select', 'اختر المعمل الآن')}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {validationError && (
+                        <div
+                            role="alert"
+                            data-testid="quick-treatment-validation-error"
+                            className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300"
+                        >
+                            <AlertCircle size={16} className="shrink-0 text-red-600 dark:text-red-400" />
+                            <span>{validationError}</span>
+                        </div>
+                    )}
 
                     {/* Action buttons: Cancel, Save */}
                     <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 pt-3 dark:border-slate-800">
