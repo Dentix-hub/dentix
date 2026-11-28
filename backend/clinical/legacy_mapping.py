@@ -36,7 +36,9 @@ from typing import Any, Mapping, Sequence
 from backend.clinical.catalog import (
     AttachmentPurposeCode,
     CANONICAL_ATTACHMENT_PURPOSE_CODES,
+    CANONICAL_PROCEDURE_CODES,
     FindingCode,
+    PROCEDURE_DEFINITIONS,
     ProcedureCode,
     ToothLifecycleCode,
     TreatmentLifecycleCode,
@@ -373,6 +375,32 @@ def map_legacy_procedure(raw_procedure: Any) -> tuple[str | None, LegacyMappingI
         )
 
     return canonical, None
+
+
+_LAB_DISPLAY_NAME_CODES: dict[str, str] = {
+    defn.display_name.casefold(): code
+    for code, defn in PROCEDURE_DEFINITIONS.items()
+}
+_LAB_WORK_TYPE_ALIASES: dict[str, str] = {
+    "bridge": ProcedureCode.PROS_BRIDGE.value,
+    "partial denture": ProcedureCode.PROS_DENTURE.value,
+    "complete denture": ProcedureCode.PROS_DENTURE.value,
+    "full denture": ProcedureCode.PROS_DENTURE.value,
+}
+
+
+def resolve_lab_work_type_code(name: str | None) -> str | None:
+    """Resolve a lab order work type or canonical/display name to a canonical ProcedureCode."""
+    if not isinstance(name, str):
+        return None
+    if name in CANONICAL_PROCEDURE_CODES:
+        return name
+    normalized = name.strip().casefold()
+    if normalized in _LAB_DISPLAY_NAME_CODES:
+        return _LAB_DISPLAY_NAME_CODES[normalized]
+    if normalized in _LAB_WORK_TYPE_ALIASES:
+        return _LAB_WORK_TYPE_ALIASES[normalized]
+    return map_legacy_procedure(name)[0]
 
 
 # ===========================================================================
@@ -779,11 +807,9 @@ def map_legacy_treatment(
             "طقم": ProcedureCode.PROS_DENTURE.value,
             "implant crown": ProcedureCode.IMPLANT_CROWN.value,
         }
-        from backend.clinical.lab_links import _single_code
-
         for candidate in work_candidates:
             resolved_code = (
-                _single_code(candidate)
+                resolve_lab_work_type_code(candidate)
                 or standalone_aliases.get(candidate.casefold())
             )
             if resolved_code in RENDERABLE_TEMPLATES:

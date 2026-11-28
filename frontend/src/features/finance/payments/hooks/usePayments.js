@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { getPayments, createPayment, deletePayment } from '@/api/billing';
+import { queryKeys } from '@/lib/queryClient';
 import { financeKeys } from '../../queryKeys';
 
 const positiveIntParam = (value) => {
@@ -133,6 +134,10 @@ export function usePayments(pageSize = 20) {
         queryClient.invalidateQueries({ queryKey: financeKeys.receivablesRoot() });
         queryClient.invalidateQueries({ queryKey: financeKeys.summaryRoot() });
         queryClient.invalidateQueries({ queryKey: financeKeys.activityRoot() });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+        queryClient.invalidateQueries({
+            predicate: (query) => Array.isArray(query.queryKey) && query.queryKey[0] === 'patient',
+        });
     };
 
     const createMutation = useMutation({

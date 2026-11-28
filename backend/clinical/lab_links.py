@@ -2,33 +2,9 @@
 from sqlalchemy import select
 
 from backend import models
-from backend.clinical.catalog import CANONICAL_PROCEDURE_CODES, PROCEDURE_DEFINITIONS
-from backend.clinical.legacy_mapping import map_legacy_procedure
+from backend.clinical.legacy_mapping import resolve_lab_work_type_code
 
-_DISPLAY_NAME_CODES = {
-    defn.display_name.casefold(): code
-    for code, defn in PROCEDURE_DEFINITIONS.items()
-}
-
-_WORK_TYPE_ALIASES = {
-    "bridge": "PROS_BRIDGE",
-    "partial denture": "PROS_DENTURE",
-    "complete denture": "PROS_DENTURE",
-    "full denture": "PROS_DENTURE",
-}
-
-
-def _single_code(name):
-    if not isinstance(name, str):
-        return None
-    if name in CANONICAL_PROCEDURE_CODES:
-        return name
-    normalized = name.strip().casefold()
-    if normalized in _DISPLAY_NAME_CODES:
-        return _DISPLAY_NAME_CODES[normalized]
-    if normalized in _WORK_TYPE_ALIASES:
-        return _WORK_TYPE_ALIASES[normalized]
-    return map_legacy_procedure(name)[0]
+_single_code = resolve_lab_work_type_code
 
 
 def _code(name):

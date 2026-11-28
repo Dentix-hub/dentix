@@ -252,7 +252,8 @@ async def test_material_resolution_includes_direct_material_weights_and_isolates
         tenant_id=tenant_b.id,
     )
     proc = models.Procedure(name="Filling", price=400.0, tenant_id=tenant_a.id)
-    async_db_session.add_all([mat_a, mat_deleted, mat_other_tenant, proc])
+    proc_b = models.Procedure(name="Filling", price=300.0, tenant_id=tenant_b.id)
+    async_db_session.add_all([mat_a, mat_deleted, mat_other_tenant, proc, proc_b])
     await async_db_session.flush()
 
     async_db_session.add_all([
@@ -285,6 +286,10 @@ async def test_material_resolution_includes_direct_material_weights_and_isolates
     assert [s["material_id"] for s in suggestions] == [mat_a.id]
     assert suggestions[0]["weight"] == 2.0
     assert suggestions[0]["category_id"] == cat.id
+    assert suggestions[0]["is_direct_material"] is True
+
+    # Explicit tenant boundary even when called outside HTTP tenant_scope ContextVar
+    assert await resolver.resolve_materials_for_procedure(proc_b.id, tenant_a.id) == []
 
 
 @pytest.mark.asyncio

@@ -7,6 +7,7 @@ import { buildTreatmentPayload } from '@/features/patients/utils/buildTreatmentP
 import { palmerToFdi } from '@/utils/toothUtils';
 import PatientDetails from '@/pages/PatientDetails';
 import * as api from '@/api';
+import * as inventoryApi from '@/api/inventory';
 import { toast } from '@/shared/ui';
 
 vi.mock('react-i18next', () => ({
@@ -84,6 +85,7 @@ vi.mock('@/api/inventory', async (importOriginal) => {
         getStockSummary: vi.fn().mockResolvedValue({ data: [] }),
         getMaterials: vi.fn().mockResolvedValue({ data: [] }),
         getActiveSessions: vi.fn().mockResolvedValue({ data: [] }),
+        getSuggestedMaterials: vi.fn().mockResolvedValue({ data: [] }),
     };
 });
 
@@ -1258,6 +1260,78 @@ describe('N3: Multi-tooth quick treatment apply', () => {
         fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
         await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
         expect(onSave.mock.calls[0][0].notes).toBe('Link:LabOrder:17');
+    });
+
+    it('clears previous procedure consumedMaterials when switching procedures and avoids duplicating category_id=null panel rows on edit', async () => {
+        queryClient.clear();
+        inventoryApi.getSuggestedMaterials.mockImplementation(async (procId) => {
+            if (procId === 2) {
+                return {
+                    data: [
+                        {
+                            category_id: null,
+                            category_name_ar: 'مادة مباشرة',
+                            material_type: 'NON_DIVISIBLE',
+                            base_unit: 'unit',
+                            weight: 1,
+                            material_id: 301,
+                            material_name: 'Bonding Bottle',
+                            is_direct_material: true,
+                            alternatives: [],
+                            has_active_session: false,
+                            session_id: null,
+                            confidence: 0.85,
+                            reason: 'مادة مرتبطة بالإجراء',
+                        },
+                    ],
+                };
+            }
+            return { data: [] };
+        });
+
+        const onSave = vi.fn().mockResolvedValue({ id: 501 });
+        renderSheet({
+            onSave,
+            onClose: vi.fn(),
+            procedures: mockProcedures,
+            initialData: {
+                tooth_number: 'UR6',
+                procedure: 'حشو كومبوزيت -- Composite Filling Class I',
+                cost: '550',
+                discount: '0',
+                default_price_list_id: 5,
+                prefill_source: 'quick_launcher',
+            },
+        });
+
+        await waitFor(() => {
+            expect(screen.getByTestId('quick-treatment-materials-list')).toHaveTextContent('Composite Tube');
+        });
+
+        // Switch from procedure 1 to procedure 2 ('حشوة تجميلي خاص' which has no BOM autoMaterials)
+        fireEvent.change(screen.getByLabelText('الإجراء العلاجي'), {
+            target: { value: 'حشوة تجميلي خاص' },
+        });
+
+        await waitFor(() => {
+            expect(screen.queryByText('Composite Tube')).not.toBeInTheDocument();
+            expect(screen.getByTestId('quick-treatment-materials-list')).toHaveTextContent('Bonding Bottle');
+        });
+
+        // Increment quantity on category_id=null direct material via MaterialConsumptionPanel
+        const plusIcon = document.body.querySelector('button svg[width="14"].lucide-plus');
+        expect(plusIcon).not.toBeNull();
+        fireEvent.click(plusIcon.closest('button'));
+
+        await waitFor(() => {
+            expect(screen.getByTestId('quick-treatment-bom-summary')).toHaveTextContent('سيتم خصم 1 مواد');
+        });
+
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave.mock.calls[0][0].consumedMaterials).toEqual([
+            expect.objectContaining({ material_id: 301, quantity: 2 }),
+        ]);
     });
 });
 

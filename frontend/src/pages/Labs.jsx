@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import logger from '@/utils/logger';
 import { useTranslation } from 'react-i18next';
 import {
@@ -52,13 +52,11 @@ export default function Labs() {
     const [formData, setFormData] = useState(emptyForm);
     const [saving, setSaving] = useState(false);
 
-    useEffect(() => {
-        loadData();
-    }, []);
-
-    const loadData = async () => {
+    const loadData = useCallback(async ({ silent = false } = {}) => {
         try {
-            setLoading(true);
+            if (!silent) {
+                setLoading(true);
+            }
             const [labsRes, statsRes] = await Promise.allSettled([
                 getLaboratories(),
                 getLabOrdersStats()
@@ -78,9 +76,15 @@ export default function Labs() {
         } catch (error) {
             logger.error('Critical error loading labs data:', error);
         } finally {
-            setLoading(false);
+            if (!silent) {
+                setLoading(false);
+            }
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        loadData();
+    }, [loadData]);
 
     const handleOpenModal = (lab = null) => {
         if (lab) {
@@ -437,7 +441,7 @@ export default function Labs() {
                 lab={selectedLab}
                 isOpen={isDetailsModalOpen}
                 onClose={() => setIsDetailsModalOpen(false)}
-                onUpdate={loadData}
+                onUpdate={() => loadData({ silent: true })}
             />
             <GlobalLabOrdersModal
                 isOpen={isGlobalModalOpen}

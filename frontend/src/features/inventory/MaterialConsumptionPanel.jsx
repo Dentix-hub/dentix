@@ -16,9 +16,9 @@ import { Package, Droplets, AlertCircle, CheckCircle2, Minus, Plus, Edit3 } from
 const EMPTY_MATERIALS = [];
 
 const getSuggestionKey = (item) => (
-    item?.category_id != null
-        ? `cat-${item.category_id}`
-        : `mat-${item?.material_id || item?.id}`
+    item?.is_direct_material || item?.category_id == null
+        ? `mat-${item?.material_id || item?.id}`
+        : `cat-${item.category_id}`
 );
 
 const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, initialMaterials = EMPTY_MATERIALS }) => {
@@ -70,7 +70,9 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                     base_unit: sugg.base_unit,
                     has_active_session: sugg.has_active_session,
                     session_id: sugg.session_id,
-                    is_manual_override: false
+                    is_manual_override: false,
+                    is_direct_material: Boolean(sugg.is_direct_material),
+                    source: 'panel',
                 };
             }
         });
@@ -94,15 +96,17 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                         category_id: mat.category_id ?? null,
                         material_id: mat.material_id || mat.id,
                         material_name: mat.material_name || mat.name,
-                        weight: mat.weight || 1.0,
+                        weight: mat.weight ?? mat.weight_score ?? 1.0,
                         quantity: mat.material_type === 'DIVISIBLE'
                             ? null
                             : (Number.isFinite(parseFloat(mat.quantity)) ? parseFloat(mat.quantity) : 1),
                         material_type: mat.material_type || 'NON_DIVISIBLE',
-                        base_unit: mat.base_unit,
+                        base_unit: mat.base_unit || mat.unit,
                         has_active_session: mat.has_active_session,
                         session_id: mat.session_id,
-                        is_manual_override: !!mat.is_manual_override
+                        is_manual_override: !!mat.is_manual_override,
+                        is_direct_material: Boolean(mat.is_direct_material),
+                        source: 'panel',
                     };
                 }
             });
@@ -114,50 +118,43 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
     }, [initialMaterials, procedureId]);
 
     const handleMaterialSelect = (categoryId, material) => {
-        setSelectedMaterials(prev => {
-            const updated = {
-                ...prev,
-                [categoryId]: {
-                    ...prev[categoryId],
-                    material_id: material.id,
-                    material_name: material.name,
-                    brand: material.brand
-                }
-            };
-            // Explicitly notify parent
-            onMaterialsChange?.(Object.values(updated).filter(m => m.material_id));
-            return updated;
-        });
+        const updated = {
+            ...selectedMaterials,
+            [categoryId]: {
+                ...selectedMaterials[categoryId],
+                material_id: material.id,
+                material_name: material.name,
+                brand: material.brand
+            }
+        };
+        setSelectedMaterials(updated);
+        onMaterialsChangeRef.current?.(Object.values(updated).filter(m => m.material_id));
     };
 
     const handleQuantityChange = (categoryId, delta) => {
-        setSelectedMaterials(prev => {
-            const updated = {
-                ...prev,
-                [categoryId]: {
-                    ...prev[categoryId],
-                    quantity: Math.max(0, (prev[categoryId]?.quantity || 0) + delta)
-                }
-            };
-            onMaterialsChange?.(Object.values(updated).filter(m => m.material_id));
-            return updated;
-        });
+        const updated = {
+            ...selectedMaterials,
+            [categoryId]: {
+                ...selectedMaterials[categoryId],
+                quantity: Math.max(0, (selectedMaterials[categoryId]?.quantity || 0) + delta)
+            }
+        };
+        setSelectedMaterials(updated);
+        onMaterialsChangeRef.current?.(Object.values(updated).filter(m => m.material_id));
     };
 
     const handleWeightChange = (categoryId, newWeight) => {
-        setSelectedMaterials(prev => {
-            const updated = {
-                ...prev,
-                [categoryId]: {
-                    ...prev[categoryId],
-                    weight: parseFloat(newWeight) || 1.0,
-                    is_manual_override: true
-                }
-            };
-            onMaterialsChange?.(Object.values(updated).filter(m => m.material_id));
-            return updated;
-        });
+        const updated = {
+            ...selectedMaterials,
+            [categoryId]: {
+                ...selectedMaterials[categoryId],
+                weight: parseFloat(newWeight) || 1.0,
+                is_manual_override: true
+            }
+        };
+        setSelectedMaterials(updated);
         setManualOverrides(prev => ({ ...prev, [categoryId]: true }));
+        onMaterialsChangeRef.current?.(Object.values(updated).filter(m => m.material_id));
     };
 
     const toggleManualOverride = (categoryId) => {

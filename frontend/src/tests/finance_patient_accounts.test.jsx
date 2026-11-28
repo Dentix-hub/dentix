@@ -5,7 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import PatientAccountsPage from '../features/finance/pages/PatientAccountsPage';
 import PatientStatementDrawer from '../features/finance/patient-accounts/components/PatientStatementDrawer';
+import { queryKeys } from '../lib/queryClient';
+import * as billingApi from '../api/billing';
 import * as financialsApi from '../api/financials';
+import * as patientsApi from '../api/patients';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({
@@ -32,6 +35,10 @@ vi.mock('../api/financials', () => ({
 
 vi.mock('../api/billing', () => ({
     createPayment: vi.fn(),
+}));
+
+vi.mock('../api/patients', () => ({
+    getPatients: vi.fn(),
 }));
 
 function createTestQueryClient() {
@@ -214,6 +221,56 @@ describe('Finance Patient Accounts & Receivables V2', () => {
             const countMetric = screen.getByLabelText('3');
             expect(countMetric).toBeInTheDocument();
             expect(countMetric.textContent).not.toMatch(/EGP|جنيه|ج\.م/);
+        });
+
+        it('invalidates patient and dashboardStats queries when recording a payment from PatientAccountsPage', async () => {
+            financialsApi.getPatientsReport.mockResolvedValue({
+                data: {
+                    data: {
+                        total: 1,
+                        summary: { total_outstanding: 1500 },
+                        patients: [accountRow],
+                    },
+                },
+            });
+            patientsApi.getPatients.mockResolvedValue({
+                data: { data: [{ id: 7, name: 'يوسف محمود', file_number: 7 }] },
+            });
+            billingApi.createPayment.mockResolvedValue({ data: { data: { id: 888 } } });
+
+            const queryClient = createTestQueryClient();
+            const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+            render(
+                <QueryClientProvider client={queryClient}>
+                    <MemoryRouter>
+                        <PatientAccountsPage />
+                    </MemoryRouter>
+                </QueryClientProvider>
+            );
+
+            await waitFor(() => expect(screen.getAllByText('يوسف محمود').length).toBeGreaterThan(0));
+            fireEvent.click(screen.getByTitle('تسجيل دفعة'));
+
+            await waitFor(() => expect(screen.getByText('يوسف محمود (#7)')).toBeInTheDocument());
+            fireEvent.change(screen.getByPlaceholderText('0.00'), { target: { value: '500' } });
+            fireEvent.click(screen.getByText('تسجيل السند'));
+
+            await waitFor(() => {
+                expect(billingApi.createPayment).toHaveBeenCalledWith({
+                    patient_id: 7,
+                    amount: 500,
+                    notes: undefined,
+                });
+            });
+
+            expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: queryKeys.dashboardStats }));
+            const predicateCall = invalidateSpy.mock.calls
+                .map(([arg]) => arg)
+                .find((arg) => typeof arg?.predicate === 'function');
+            expect(predicateCall).toBeDefined();
+            expect(predicateCall.predicate({ queryKey: ['patient', 7, 'payments'] })).toBe(true);
+            expect(predicateCall.predicate({ queryKey: ['finance'] })).toBe(false);
         });
     });
 

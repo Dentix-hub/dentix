@@ -476,12 +476,14 @@ export default function QuickTreatmentSheet({
         setValidationError(null);
         if (val === 'MANUAL_ENTRY_OPTION') {
             setIsManualProcedure(true);
+            setConsumedMaterials([]);
             setTreatment((prev) => ({ ...prev, procedure: '', cost: '', price_list_id: null }));
             return;
         }
 
         const suggestion = suggestConditionForProcedure(val);
         setSuggestedCondition(suggestion);
+        setConsumedMaterials([]);
         setTreatment((prev) => ({ ...prev, procedure: val }));
 
         try {
@@ -1576,22 +1578,45 @@ export default function QuickTreatmentSheet({
                                     doctorId={treatment.doctor_id}
                                     initialMaterials={consumedMaterials}
                                     onMaterialsChange={(materials) => {
-                                        const formatted = materials.map((m) => ({
-                                            material_id: m.material_id,
-                                            quantity: m.material_type === 'NON_DIVISIBLE' ? m.quantity : m.weight,
-                                            unit: m.base_unit,
-                                            material_type: m.material_type,
-                                            weight_score: m.weight,
-                                            is_manual_override: m.is_manual_override,
-                                            session_id: m.session_id,
-                                            name: m.material_name,
-                                            category_id: m.category_id,
-                                        }));
+                                        const formatted = materials
+                                            .map((m) => {
+                                                const isCountBased = m.material_type === 'NON_DIVISIBLE' || m.material_type === 'REUSABLE';
+                                                const qty = isCountBased
+                                                    ? (Number.isFinite(parseFloat(m.quantity)) ? parseFloat(m.quantity) : 0)
+                                                    : m.weight;
+                                                return {
+                                                    material_id: m.material_id,
+                                                    quantity: qty,
+                                                    unit: m.base_unit,
+                                                    material_type: m.material_type,
+                                                    weight_score: m.weight,
+                                                    is_manual_override: m.is_manual_override,
+                                                    is_direct_material: Boolean(m.is_direct_material),
+                                                    source: 'panel',
+                                                    session_id: m.session_id,
+                                                    name: m.material_name,
+                                                    category_id: m.category_id ?? null,
+                                                };
+                                            })
+                                            .filter((m) => Number(m.quantity) > 0 && m.material_id);
 
                                         setConsumedMaterials((prev) => {
-                                            const incomingCategories = new Set(formatted.map((m) => m.category_id));
-                                            const manualMaterials = prev.filter((p) => !p.category_id || !incomingCategories.has(p.category_id));
-                                            return [...manualMaterials, ...formatted];
+                                            const incomingMaterialIds = new Set(formatted.map((m) => String(m.material_id)));
+                                            const incomingCategories = new Set(
+                                                formatted
+                                                    .filter((m) => !m.is_direct_material && m.category_id != null)
+                                                    .map((m) => m.category_id)
+                                            );
+                                            const preservedManual = prev.filter((p) => {
+                                                if (p.source === 'panel') return false;
+                                                const pid = String(p.material_id || p.id || '');
+                                                if (pid && incomingMaterialIds.has(pid)) return false;
+                                                if (!p.is_direct_material && p.category_id != null && incomingCategories.has(p.category_id)) {
+                                                    return false;
+                                                }
+                                                return true;
+                                            });
+                                            return [...preservedManual, ...formatted];
                                         });
                                     }}
                                 />

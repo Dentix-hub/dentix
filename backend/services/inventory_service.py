@@ -620,14 +620,16 @@ class InventoryService:
         if not mat:
             raise ValueError(f"Material {material_id} not found")
 
-        # Check if this material has an active session
+        # Check if this material has an active session within the tenant boundary
         stmt_active_sess = (
             select(func.count(MaterialSession.id))
             .join(StockItem)
             .join(Batch)
             .where(
                 Batch.material_id == material_id,
-                MaterialSession.status == "ACTIVE"
+                StockItem.tenant_id == tenant_id,
+                MaterialSession.tenant_id == tenant_id,
+                MaterialSession.status == "ACTIVE",
             )
         )
 
@@ -654,7 +656,8 @@ class InventoryService:
 
         # Find eligible StockItems
         active_session_subquery = select(MaterialSession.stock_item_id).where(
-            MaterialSession.status == "ACTIVE"
+            MaterialSession.tenant_id == tenant_id,
+            MaterialSession.status == "ACTIVE",
         )
 
         stmt_items = (
