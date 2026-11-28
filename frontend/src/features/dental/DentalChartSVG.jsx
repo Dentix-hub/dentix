@@ -478,7 +478,7 @@ export default memo(function DentalChartSVG({
     const mixedRows = isMixedDentition ? createMixedRows(toothOrder) : [];
     const chartMinWidth = isMixedDentition
         ? 'min-w-[600px]'
-        : (isPediatric ? 'min-w-[440px]' : 'min-w-[680px]');
+        : (isPediatric ? 'min-w-[440px]' : 'min-w-[700px]');
     const chartTitle = isMixedDentition
         ? t('dental_chart.mixed', 'مخطط الأسنان (مختلط)')
         : (isPediatric ? t('dental_chart.pediatric', 'مخطط الأسنان (أطفال)') : t('dental_chart.adult', 'مخطط الأسنان (بالغين)'));
