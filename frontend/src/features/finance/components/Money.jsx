@@ -17,7 +17,7 @@ export default function Money({
     className = '',
 }) {
     const { i18n } = useTranslation();
-    const isArabic = i18n.language === 'ar';
+    const isArabic = (i18n.resolvedLanguage || i18n.language || 'ar').startsWith('ar');
     const num = Number(amount) || 0;
 
     const formatted = formatMoney(Math.abs(num), {
@@ -52,12 +52,11 @@ export default function Money({
 
     return (
         <span
-            className={`inline-flex items-center gap-0.5 font-mono ${sizeClasses} ${colorClass} ${className}`}
+            className={`inline-flex items-baseline whitespace-nowrap font-mono tabular-nums ${sizeClasses} ${colorClass} ${className}`}
             dir="ltr"
             aria-label={`${accessibleAmount} ${currency}`}
         >
-            {signPrefix && <span className="font-sans me-0.5">{signPrefix}</span>}
-            <span>{formatted}</span>
+            {signPrefix}{formatted}
         </span>
     );
 }

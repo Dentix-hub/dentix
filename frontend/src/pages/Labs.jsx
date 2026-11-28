@@ -437,6 +437,7 @@ export default function Labs() {
                 lab={selectedLab}
                 isOpen={isDetailsModalOpen}
                 onClose={() => setIsDetailsModalOpen(false)}
+                onUpdate={loadData}
             />
             <GlobalLabOrdersModal
                 isOpen={isGlobalModalOpen}

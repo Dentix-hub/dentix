@@ -363,4 +363,27 @@ describe('QA Report & Live Production Frontend Regressions', () => {
         expect(timeline).toHaveTextContent('توثيق تاريخي');
         expect(timeline).not.toHaveTextContent('WORKFLOW');
     });
+
+    it('Bug 16: TreatmentHistory masks raw Link:LabOrder:N notes in clinical display', () => {
+        wrap(
+            <TreatmentHistory
+                nativeWritesEnabled={false}
+                patientId={398}
+                history={[
+                    {
+                        id: 101,
+                        date: '2026-11-28T10:00:00Z',
+                        tooth_number: 26,
+                        procedure: 'عمل معمل: تاج زيركون',
+                        status: 'Done',
+                        notes: 'Link:LabOrder:17',
+                    },
+                ]}
+                careSessions={[]}
+            />
+        );
+
+        expect(screen.getByText(/مرتبط بطلب معمل #17/)).toBeInTheDocument();
+        expect(screen.queryByText(/Link:LabOrder:17/)).not.toBeInTheDocument();
+    });
 });

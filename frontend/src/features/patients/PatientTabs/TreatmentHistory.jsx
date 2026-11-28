@@ -15,6 +15,7 @@ import {
     History,
 } from 'lucide-react';
 import { fdiToPalmer } from '@/utils/toothUtils';
+import { formatTreatmentNotesForDisplay } from '@/utils/formatClinicalNotes';
 import { useTranslation } from 'react-i18next';
 import ProcedureStatusControl from '@/features/clinical-chart/components/ProcedureStatusControl';
 import { CANONICAL_PROCEDURES_BY_CODE } from '@/features/clinical-chart/domain/catalogDefinitions';
@@ -416,9 +417,9 @@ const TreatmentHistory = ({
                                                     ⚠ {item.complications}
                                                 </div>
                                             )}
-                                            {item.notes && (
+                                            {formatTreatmentNotesForDisplay(item.notes, t) && (
                                                 <div className="mt-1 text-slate-500 italic text-[11px] dark:text-slate-400">
-                                                    {item.notes}
+                                                    {formatTreatmentNotesForDisplay(item.notes, t)}
                                                 </div>
                                             )}
 
@@ -617,9 +618,9 @@ const TreatmentHistory = ({
                                         </td>
                                         <td className="block min-w-0 space-y-1 text-xs text-text-primary sm:table-cell sm:space-y-0 sm:p-3 col-span-2">
                                             <span className="block text-xs font-medium text-text-secondary sm:hidden">{t('patientDetails.treatment_history.details', 'Details & Sessions')}</span>
-                                            {item.notes && (
+                                            {formatTreatmentNotesForDisplay(item.notes, t) && (
                                                 <div className="mt-1 text-slate-500 italic text-[11px] dark:text-slate-400">
-                                                    {item.notes}
+                                                    {formatTreatmentNotesForDisplay(item.notes, t)}
                                                 </div>
                                             )}
                                             {matchedSessions.length > 0 && (

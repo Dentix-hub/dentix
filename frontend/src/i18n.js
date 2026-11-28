@@ -89,8 +89,10 @@ i18n
         resources,
         fallbackLng: 'ar',
         supportedLngs: ['ar', 'en'],
+        load: 'languageOnly',
+        nonExplicitSupportedLngs: true,
         detection: {
-            order: ['localStorage', 'htmlTag', 'path', 'subdomain'],
+            order: ['localStorage', 'htmlTag'],
             caches: ['localStorage'],
         },
         interpolation: {

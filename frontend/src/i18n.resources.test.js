@@ -95,4 +95,44 @@ describe('i18n resource integrity', () => {
         }
         expect(identical, 'AR values identical to EN values must be translated or allowlisted').toEqual([]);
     });
+
+    it('ensures English finance resources contain real copy instead of raw leaf-key stubs and include metric_* keys', () => {
+        const requiredNonStubKeys = [
+            'finance.metrics.net_revenue_sub',
+            'finance.obligations.section_title',
+            'finance.obligations.actionable_hint',
+            'finance.overview.trend_chart_title',
+            'finance.activity.preview_title',
+            'finance.compensation.dues_sub',
+            'finance.compensation.production_sub',
+            'finance.payments.record_btn',
+            'finance.payments.record_title',
+            'finance.payments.record_subtitle',
+            'finance.payments.notes_label',
+            'finance.payments.search_placeholder',
+            'finance.receivables.search_placeholder',
+        ];
+        for (const key of requiredNonStubKeys) {
+            const val = i18n.getResource('en', 'translation', key);
+            const leaf = key.split('.').pop();
+            const stub = leaf.replaceAll('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+            expect(val, `${key} should not equal title-cased stub "${stub}"`).toBeTruthy();
+            expect(val, `${key} should not equal title-cased stub "${stub}"`).not.toBe(stub);
+        }
+
+        const reportMetrics = [
+            'metric_net_invoiced',
+            'metric_collected',
+            'metric_manual_expenses',
+            'metric_lab_costs',
+            'metric_doctor_dues',
+            'metric_staff_dues',
+            'metric_total_deductions',
+            'metric_net_operational_result',
+        ];
+        for (const metricKey of reportMetrics) {
+            expect(i18n.getResource('ar', 'translation', `finance.reports.${metricKey}`)).toBeTruthy();
+            expect(i18n.getResource('en', 'translation', `finance.reports.${metricKey}`)).toBeTruthy();
+        }
+    });
 });

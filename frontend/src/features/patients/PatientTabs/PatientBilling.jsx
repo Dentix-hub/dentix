@@ -73,8 +73,8 @@ const PatientBilling = ({
         voidMutation.mutate({ chargeId: charge.id, versionId: charge.version_id });
     };
 
-    const totalTreatments = history.reduce((acc, curr) => acc + (curr.cost - (curr.discount || 0)), 0);
-    const totalPayments = payments.reduce((acc, curr) => acc + curr.amount, 0);
+    const totalTreatments = history.reduce((acc, curr) => acc + (Number(curr.cost || 0) - Number(curr.discount || 0)), 0);
+    const totalPayments = payments.reduce((acc, curr) => acc + Number(curr.amount || 0), 0);
     const totalRemaining = totalTreatments - totalPayments;
 
     return (

@@ -137,4 +137,21 @@ describe('Arabic calendar presentation and value compatibility', () => {
         fireEvent.click(november);
         expect(onChange).toHaveBeenCalledWith({ target: { value: '2026-11' } });
     });
+
+    it('renders a muted placeholder instead of current month when month picker value is empty', async () => {
+        await i18n.changeLanguage('ar');
+        render(
+            <I18nextProvider i18n={i18n}>
+                <DateTimePicker
+                    value=""
+                    mode="month"
+                    placeholder="اختر شهر وسنة الانتهاء"
+                    onChange={vi.fn()}
+                />
+            </I18nextProvider>,
+        );
+
+        const trigger = screen.getByRole('button', { name: 'اختر شهر وسنة الانتهاء' });
+        expect(trigger).toBeInTheDocument();
+    });
 });

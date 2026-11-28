@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { motion } from '@/lib/motion';
 import { CreditCard, CheckCircle2, Clock } from 'lucide-react';
+import { formatTreatmentNotesForDisplay } from '@/utils/formatClinicalNotes';
 
 const PatientTimeline = ({ history = [], payments = [], t }) => {
     // Merge and sort events
@@ -11,8 +12,8 @@ const PatientTimeline = ({ history = [], payments = [], t }) => {
             items.push({
                 date: new Date(h.date),
                 type: 'treatment',
-                title: h.procedure_name || t('patients.history.treatment'),
-                subtitle: h.notes,
+                title: h.procedure || h.procedure_name || t('patients.history.treatment'),
+                subtitle: formatTreatmentNotesForDisplay(h.notes, t),
                 icon: CheckCircle2,
                 color: 'text-emerald-500',
                 bg: 'bg-emerald-500/10'

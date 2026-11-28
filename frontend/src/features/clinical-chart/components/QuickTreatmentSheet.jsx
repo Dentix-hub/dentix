@@ -22,6 +22,9 @@ import DentixBottomSheet from '@/shared/ui/DentixBottomSheet';
 import { toast, Button } from '@/shared/ui';
 import logger from '@/utils/logger';
 import { formatApiError } from '@/utils/formatApiError';
+import { formatTreatmentNotesForDisplay, isInternalLabLinkNote } from '@/utils/formatClinicalNotes';
+import { queryKeys } from '@/lib/queryClient';
+import { financeKeys } from '@/features/finance/queryKeys';
 import { getMaterials, getStockSummary } from '@/api/inventory';
 import { getLaboratories, getPatientLabOrders, createLabPayment } from '@/api';
 import TrackSessionModal from '@/features/inventory/components/TrackSessionModal';
@@ -235,7 +238,8 @@ export default function QuickTreatmentSheet({
     const isIsolatedToothPicker = (
         isEditing ||
         treatment?.prefill_source === 'tooth_picker' ||
-        treatment?.prefill_source === 'tooth_picker_no_tooth'
+        treatment?.prefill_source === 'tooth_picker_no_tooth' ||
+        treatment?.prefill_source === 'manual'
     );
     const effectiveTeeth = useMemo(() => {
         if (isIsolatedToothPicker) {
@@ -663,10 +667,19 @@ export default function QuickTreatmentSheet({
             setPaymentAmount('');
             setPaymentNotes('');
             const patientId = patient?.id || initialData?.patient_id;
+            if (queryClient) {
+                queryClient.invalidateQueries({ queryKey: financeKeys.all });
+                queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+                if (patientId) {
+                    queryClient.invalidateQueries({ queryKey: ['patient', String(patientId), 'lab-orders'] });
+                    queryClient.invalidateQueries({ queryKey: ['patient', Number(patientId), 'lab-orders'] });
+                }
+            }
             if (patientId) {
                 const res = await getPatientLabOrders(patientId);
                 setPatientLabOrdersList(Array.isArray(res?.data) ? res.data : []);
             }
+            await onRefetch?.();
         } catch (err) {
             const detail = err.response?.data?.detail;
             const msg = typeof detail === 'string' ? detail : t('labs.details.payments.messages.add_fail', 'فشل تسجيل الدفعة');
@@ -1955,19 +1968,29 @@ export default function QuickTreatmentSheet({
                         </div>
                     )}
 
-                    {/* Notes textarea */}
+                    {/* Notes textarea (mask raw Link:LabOrder:N internal tokens while preserving DB value) */}
                     <div>
                         <label htmlFor="treatment-notes" className="mb-1 block text-xs font-bold text-slate-600 dark:text-slate-300">
                             {t('quick_treatment_sheet.notes_label', 'ملاحظات عامة')}
                         </label>
-                        <textarea
-                            id="treatment-notes"
-                            aria-label="ملاحظات عامة"
-                            value={treatment.notes || ''}
-                            onChange={(e) => setTreatment((prev) => ({ ...prev, notes: e.target.value }))}
-                            placeholder="ملاحظات سريرية..."
-                            className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white min-h-[60px]"
-                        />
+                        {isInternalLabLinkNote(treatment.notes) ? (
+                            <div
+                                data-testid="treatment-notes-lab-link-badge"
+                                className="flex items-center gap-2 rounded-xl border border-teal-200 bg-teal-50/70 p-2.5 text-xs font-semibold text-teal-800 dark:border-teal-800 dark:bg-teal-950/40 dark:text-teal-200"
+                            >
+                                <FlaskConical size={14} className="shrink-0" aria-hidden="true" />
+                                <span>{formatTreatmentNotesForDisplay(treatment.notes, t)}</span>
+                            </div>
+                        ) : (
+                            <textarea
+                                id="treatment-notes"
+                                aria-label="ملاحظات عامة"
+                                value={treatment.notes || ''}
+                                onChange={(e) => setTreatment((prev) => ({ ...prev, notes: e.target.value }))}
+                                placeholder="ملاحظات سريرية..."
+                                className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs text-slate-900 outline-none focus:border-blue-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white min-h-[60px]"
+                            />
+                        )}
                     </div>
 
                     {/* Inline validation or missing required lab guidance near Save */}
@@ -1982,20 +2005,33 @@ export default function QuickTreatmentSheet({
                                     {t('quick_treatment_sheet.lab_choice_required', 'يرجى اختيار معمل أو بدون معمل داخل العيادة')}
                                 </span>
                             </div>
-                            <button
-                                type="button"
-                                data-testid="quick-treatment-jump-to-lab"
-                                onClick={() => {
-                                    const el = document.getElementById('quick-treatment-lab-select');
-                                    if (el) {
-                                        el.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
-                                        el.focus();
-                                    }
-                                }}
-                                className="rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-slate-900 dark:text-amber-200"
-                            >
-                                {t('quick_treatment_sheet.go_to_lab_select', 'اختر المعمل الآن')}
-                            </button>
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    data-testid="quick-treatment-choose-in-clinic"
+                                    onClick={() => {
+                                        setValidationError(null);
+                                        setLabData((prev) => ({ ...prev, laboratory_id: 'in_clinic' }));
+                                    }}
+                                    className="rounded-lg border border-amber-300 bg-amber-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-amber-700 transition-colors"
+                                >
+                                    {t('quick_treatment_sheet.in_clinic', 'بدون معمل (داخل العيادة)')}
+                                </button>
+                                <button
+                                    type="button"
+                                    data-testid="quick-treatment-jump-to-lab"
+                                    onClick={() => {
+                                        const el = document.getElementById('quick-treatment-lab-select');
+                                        if (el) {
+                                            el.scrollIntoView?.({ behavior: 'smooth', block: 'center' });
+                                            el.focus();
+                                        }
+                                    }}
+                                    className="rounded-lg border border-amber-300 bg-white px-2.5 py-1 text-xs font-bold text-amber-800 hover:bg-amber-100 dark:border-amber-800 dark:bg-slate-900 dark:text-amber-200"
+                                >
+                                    {t('quick_treatment_sheet.go_to_lab_select', 'اختر المعمل الآن')}
+                                </button>
+                            </div>
                         </div>
                     )}
 

@@ -743,6 +743,12 @@ def map_legacy_treatment(
 
     # 2. Procedure Mapping (Rule 1)
     canonical_procedure, proc_issue = map_legacy_procedure(t_procedure)
+    lab_link_id, _ = parse_exact_lab_link_token(t_notes)
+    is_standalone_lab_treatment = (
+        lab_link_id is not None
+        and isinstance(t_procedure, str)
+        and t_procedure.strip().startswith("عمل معمل:")
+    )
     if (
         canonical_procedure is None
         and procedure_template_overrides
@@ -757,6 +763,34 @@ def map_legacy_treatment(
             canonical_procedure = None
             if proc_issue and proc_issue.code == "UNKNOWN_PROCEDURE_CODE":
                 proc_issue = None
+
+    if canonical_procedure is None and is_standalone_lab_treatment:
+        # Auto-created billing rows from standalone lab orders use "عمل معمل: ..."
+        # instead of clinical procedure catalog strings and must not flag clinical review warnings.
+        raw_work = t_procedure.strip()[len("عمل معمل:"):].strip()
+        work_candidates = [raw_work]
+        if " - " in raw_work:
+            work_candidates.append(raw_work.split(" - ", 1)[0].strip())
+        standalone_aliases = {
+            "تاج زيركون": ProcedureCode.PROS_CROWN.value,
+            "تاج بورسلين": ProcedureCode.PROS_CROWN.value,
+            "تاج": ProcedureCode.PROS_CROWN.value,
+            "جسر": ProcedureCode.PROS_BRIDGE.value,
+            "طقم": ProcedureCode.PROS_DENTURE.value,
+            "implant crown": ProcedureCode.IMPLANT_CROWN.value,
+        }
+        from backend.clinical.lab_links import _single_code
+
+        for candidate in work_candidates:
+            resolved_code = (
+                _single_code(candidate)
+                or standalone_aliases.get(candidate.casefold())
+            )
+            if resolved_code in RENDERABLE_TEMPLATES:
+                canonical_procedure = resolved_code
+                break
+        if proc_issue and proc_issue.code == "UNKNOWN_PROCEDURE_CODE":
+            proc_issue = None
 
     if proc_issue:
         issues.append(
@@ -786,6 +820,12 @@ def map_legacy_treatment(
 
     # 4. Target Mapping (Rule 3)
     canonical_tooth_key, tooth_issue = map_legacy_tooth_notation(t_tooth_number)
+    if (
+        is_standalone_lab_treatment
+        and tooth_issue
+        and tooth_issue.code == "MISSING_TOOTH_TARGET"
+    ):
+        tooth_issue = None
     if tooth_issue:
         issues.append(
             LegacyMappingIssue(

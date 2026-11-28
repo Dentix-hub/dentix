@@ -34,6 +34,9 @@
     "retry": "إعادة المحاولة",
     "saving": "جاري الحفظ...",
     "confirm": "تأكيد",
+    "select_month": "اختر الشهر والسنة",
+    "select_date": "اختر التاريخ",
+    "select_date_time": "اختر التاريخ والوقت",
     "searching": "جاري البحث...",
     "close": "إغلاق",
     "error": "خطأ",
@@ -572,7 +575,8 @@
       "procedures_view": "الإجراءات",
       "sessions_view": "الزيارات وجلسات الرعاية",
       "care_sessions_count": "جلسات الرعاية ({{count}})",
-      "record_past_visit": "+ تسجيل جلسة"
+      "record_past_visit": "+ تسجيل جلسة",
+      "linked_lab_order_badge": "مرتبط بطلب معمل #{{id}}"
     },
     "files": {
       "title": "ملفات الأشعة والمرفقات",
@@ -1496,6 +1500,8 @@
       "select_warehouse": "المخزن المستلم",
       "quantity": "الكمية المستلمة",
       "expiry_date": "تاريخ الصلاحية (شهر / سنة)",
+      "expiry_placeholder": "اختر شهر وسنة الانتهاء",
+      "expiry_required": "تاريخ الصلاحية مطلوب",
       "expiry_note": "سيتم تعيين الصلاحية لنهاية الشهر المختار",
       "package_price": "سعر العبوة (Package Price)",
       "price_note": "* سيتم حساب تكلفة الوحدة تلقائياً بناءً على حجم العبوة.",
@@ -3541,7 +3547,15 @@
       "no_procedures_data": "لا توجد بيانات تكاليف للإجراءات",
       "doctor_labs_sub": "تكاليف المعامل المخصومة من الأطباء",
       "provider_performance_title": "تقرير الأداء المالي للأطباء",
-      "provider_performance_sub": "الإنتاجية، المبالغ المحصلة، الخصومات المعملية، وصافي العمولات"
+      "provider_performance_sub": "الإنتاجية، المبالغ المحصلة، الخصومات المعملية، وصافي العمولات",
+      "metric_net_invoiced": "صافي الإيراد المحتسب",
+      "metric_collected": "التحصيلات النقدية",
+      "metric_manual_expenses": "المصروفات التشغيلية",
+      "metric_lab_costs": "تكاليف المعامل",
+      "metric_doctor_dues": "مستحقات الأطباء",
+      "metric_staff_dues": "رواتب الموظفين",
+      "metric_total_deductions": "إجمالي الاستقطاعات",
+      "metric_net_operational_result": "صافي النتيجة التشغيلية"
     },
     "permissions": {
       "access_denied": "غير مصرح بالوصول إلى هذا القسم",
@@ -3878,6 +3892,7 @@
     "selected_procedure": "الإجراء المحدد",
     "step_update_error": "تعذر تحديث حالة الخطوة، حاول مرة أخرى",
     "confirm_skip": "تأكيد التخطي",
+    "in_progress": "قيد التنفيذ",
     "notes_require_procedure": "اربط إجراءً علاجيًا بهذه الجلسة لحفظ ملاحظات الإجراء والخطوة القادمة. يمكنك أيضًا كتابة ملخص الزيارة عند إنهاء الجلسة."
   },
   "dental_chart": {

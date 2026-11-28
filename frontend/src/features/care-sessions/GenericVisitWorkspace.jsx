@@ -868,7 +868,9 @@ export default function GenericVisitWorkspace({
                                                         }`}
                                                     >
                                                         <Play className="h-3 w-3 inline me-1" />
-                                                        {isInProgress ? 'Active' : 'In Progress'}
+                                                        {isInProgress
+                                                            ? t('clinical.status.active', 'قيد التنفيذ')
+                                                            : t('care_session.in_progress', 'قيد التنفيذ')}
                                                     </button>
                                                 )}
 

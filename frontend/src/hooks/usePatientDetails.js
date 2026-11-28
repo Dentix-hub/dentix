@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { queryKeys } from '@/lib/queryClient';
+import { financeKeys } from '@/features/finance/queryKeys';
 import {
     getPatient,
     getPatientTeeth,
@@ -141,6 +142,16 @@ export function usePatientPayments(patientId, enabled = true) {
     });
 }
 
+function getNormalizedPatientKeys(patientId) {
+    if (patientId === undefined || patientId === null || patientId === '') return [];
+    const strId = String(patientId);
+    const numId = Number(patientId);
+    if (!Number.isNaN(numId) && numId !== strId) {
+        return [strId, numId];
+    }
+    return [patientId];
+}
+
 /**
  * Hook for creating a payment with optimistic update
  */
@@ -151,27 +162,43 @@ export function useCreatePayment() {
         mutationFn: createPayment,
         onMutate: async (newPayment) => {
             const patientId = newPayment.patient_id;
-            await queryClient.cancelQueries({ queryKey: ['patient', patientId, 'payments'] });
-            const previousPayments = queryClient.getQueryData(['patient', patientId, 'payments']);
+            const keys = getNormalizedPatientKeys(patientId);
+            const previousByKey = [];
 
-            if (previousPayments) {
-                queryClient.setQueryData(['patient', patientId, 'payments'], old => [
-                    ...old,
-                    { ...newPayment, id: 'temp-' + Date.now(), date: new Date().toISOString(), status: 'paid' }
-                ]);
+            for (const keyId of keys) {
+                await queryClient.cancelQueries({ queryKey: ['patient', keyId, 'payments'] });
+                const prev = queryClient.getQueryData(['patient', keyId, 'payments']);
+                if (prev) {
+                    previousByKey.push([keyId, prev]);
+                    queryClient.setQueryData(['patient', keyId, 'payments'], old => [
+                        ...old,
+                        {
+                            ...newPayment,
+                            amount: Number(newPayment.amount) || 0,
+                            id: 'temp-' + Date.now(),
+                            date: new Date().toISOString(),
+                            status: 'paid',
+                        },
+                    ]);
+                }
             }
 
-            return { previousPayments, patientId };
+            return { previousByKey, patientId };
         },
         onError: (err, newPayment, context) => {
-            if (context?.previousPayments) {
-                queryClient.setQueryData(['patient', context.patientId, 'payments'], context.previousPayments);
+            if (context?.previousByKey) {
+                for (const [keyId, prev] of context.previousByKey) {
+                    queryClient.setQueryData(['patient', keyId, 'payments'], prev);
+                }
             }
         },
         onSettled: (data, err, variables, context) => {
-            queryClient.invalidateQueries({ queryKey: ['patient', context.patientId, 'payments'] });
-            queryClient.invalidateQueries({ queryKey: ['patient', context.patientId] });
+            for (const keyId of getNormalizedPatientKeys(context?.patientId ?? variables?.patient_id)) {
+                queryClient.invalidateQueries({ queryKey: ['patient', keyId, 'payments'] });
+                queryClient.invalidateQueries({ queryKey: ['patient', keyId] });
+            }
             queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+            queryClient.invalidateQueries({ queryKey: financeKeys.all });
         },
     });
 }
@@ -185,26 +212,36 @@ export function useDeletePayment() {
     return useMutation({
         mutationFn: ({ paymentId }) => deletePayment(paymentId),
         onMutate: async ({ paymentId, patientId }) => {
-            await queryClient.cancelQueries({ queryKey: ['patient', patientId, 'payments'] });
-            const previousPayments = queryClient.getQueryData(['patient', patientId, 'payments']);
+            const keys = getNormalizedPatientKeys(patientId);
+            const previousByKey = [];
 
-            if (previousPayments) {
-                queryClient.setQueryData(['patient', patientId, 'payments'], old => 
-                    old.filter(p => p.id !== paymentId)
-                );
+            for (const keyId of keys) {
+                await queryClient.cancelQueries({ queryKey: ['patient', keyId, 'payments'] });
+                const prev = queryClient.getQueryData(['patient', keyId, 'payments']);
+                if (prev) {
+                    previousByKey.push([keyId, prev]);
+                    queryClient.setQueryData(['patient', keyId, 'payments'], old =>
+                        old.filter(p => p.id !== paymentId)
+                    );
+                }
             }
 
-            return { previousPayments, patientId };
+            return { previousByKey, patientId };
         },
         onError: (err, variables, context) => {
-            if (context?.previousPayments) {
-                queryClient.setQueryData(['patient', context.patientId, 'payments'], context.previousPayments);
+            if (context?.previousByKey) {
+                for (const [keyId, prev] of context.previousByKey) {
+                    queryClient.setQueryData(['patient', keyId, 'payments'], prev);
+                }
             }
         },
         onSettled: (data, err, variables, context) => {
-            queryClient.invalidateQueries({ queryKey: ['patient', context.patientId, 'payments'] });
-            queryClient.invalidateQueries({ queryKey: ['patient', context.patientId] });
+            for (const keyId of getNormalizedPatientKeys(context?.patientId ?? variables?.patientId)) {
+                queryClient.invalidateQueries({ queryKey: ['patient', keyId, 'payments'] });
+                queryClient.invalidateQueries({ queryKey: ['patient', keyId] });
+            }
             queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
+            queryClient.invalidateQueries({ queryKey: financeKeys.all });
         },
     });
 }

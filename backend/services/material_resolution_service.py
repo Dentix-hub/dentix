@@ -81,29 +81,33 @@ class MaterialResolutionService:
         except Exception:
             pass
 
-        # 2. Get all potential weights (Global + Tenant)
-        # We fetch all global weights and tenant weights once
-        # and then filter by normalized name in Python for maximum robustness
+        # 2. Get all potential weights (Global + Tenant), including category-level and material-level rules
         stmt_weights = (
             select(inv_models.ProcedureMaterialWeight)
             .options(
                 joinedload(inv_models.ProcedureMaterialWeight.category),
-                joinedload(inv_models.ProcedureMaterialWeight.procedure)
+                joinedload(inv_models.ProcedureMaterialWeight.procedure),
+                joinedload(inv_models.ProcedureMaterialWeight.material).joinedload(
+                    inv_models.Material.category
+                ),
             )
             .filter(
                 or_(
                     inv_models.ProcedureMaterialWeight.tenant_id == tenant_id,
-                    inv_models.ProcedureMaterialWeight.tenant_id.is_(None)
+                    inv_models.ProcedureMaterialWeight.tenant_id.is_(None),
                 ),
-                inv_models.ProcedureMaterialWeight.category_id.isnot(None),
+                or_(
+                    inv_models.ProcedureMaterialWeight.category_id.isnot(None),
+                    inv_models.ProcedureMaterialWeight.material_id.isnot(None),
+                ),
             )
         )
         result_weights = await self.db.execute(stmt_weights)
         all_potential_weights = result_weights.scalars().all()
 
         # Filter and deduplicate (Tenant overrides Global)
-        # weight_key = (category_id, normalized_proc_name)
         weights_by_cat = {}
+        weights_by_material = {}
 
         matches_found = 0
         for w in all_potential_weights:
@@ -112,14 +116,33 @@ class MaterialResolutionService:
 
             if w.procedure_id == procedure_id or w_norm == proc_norm:
                 matches_found += 1
-                cat_id = w.category_id
-                # Priority: Tenant-specific weight > Global weight
-                if cat_id not in weights_by_cat or w.tenant_id is not None:
-                    weights_by_cat[cat_id] = w
+                if w.category_id is not None:
+                    cat_id = w.category_id
+                    # Priority: Tenant-specific weight > Global weight
+                    if cat_id not in weights_by_cat or w.tenant_id is not None:
+                        weights_by_cat[cat_id] = w
+                elif w.material_id is not None:
+                    mat = w.material
+                    if mat and mat.tenant_id == tenant_id and not mat.is_deleted:
+                        if mat.id not in weights_by_material or w.tenant_id is not None:
+                            weights_by_material[mat.id] = w
+
+        tenant_material_cat_ids = {
+            w.material.category_id
+            for w in weights_by_material.values()
+            if w.tenant_id is not None and w.material and w.material.category_id is not None
+        }
+        final_weights = [
+            w
+            for cat_id, w in weights_by_cat.items()
+            if w.tenant_id is not None or cat_id not in tenant_material_cat_ids
+        ]
 
         try:
             with open(log_path, "a", encoding="utf-8") as f:
-                f.write(f"  -> Matches Found: {matches_found}, Unique Categories: {len(weights_by_cat)}\n")
+                f.write(
+                    f"  -> Matches Found: {matches_found}, Unique Categories: {len(final_weights)}, Direct Materials: {len(weights_by_material)}\n"
+                )
                 if matches_found == 0 and all_potential_weights:
                     f.write("  -> NO MATCHES. Sample weights names:\n")
                     for w in all_potential_weights[:5]:
@@ -128,9 +151,7 @@ class MaterialResolutionService:
         except Exception:
             pass
 
-        final_weights = list(weights_by_cat.values())
-
-        if not final_weights:
+        if not final_weights and not weights_by_material:
             return suggestions
 
         # Fetch all active sessions for this tenant once to avoid N+1 queries
@@ -150,6 +171,8 @@ class MaterialResolutionService:
         active_sessions = result_sessions.scalars().all()
         # Map material_id -> active_session
         session_map = {s.stock_item.batch.material_id: s for s in active_sessions}
+
+        emitted_material_ids = set()
 
         # 3. For each category weight, resolve actual materials
         for weight_record in final_weights:
@@ -201,6 +224,9 @@ class MaterialResolutionService:
                 confidence = 0.3
                 reason = f"لا توجد مواد في فئة {category.name_ar} — يجب إضافة مادة"
 
+            if primary:
+                emitted_material_ids.add(primary.id)
+
             suggestion = {
                 "category_id": category.id,
                 "category_name_en": category.name_en,
@@ -223,6 +249,39 @@ class MaterialResolutionService:
                 "reason": reason,
             }
             suggestions.append(suggestion)
+
+        # 4. Append explicit material-specific weights (e.g. linked via Settings -> Procedures)
+        for weight_record in weights_by_material.values():
+            mat = weight_record.material
+            if not mat or mat.id in emitted_material_ids:
+                continue
+            emitted_material_ids.add(mat.id)
+            active_session = session_map.get(mat.id)
+            mat_type = mat.type or (mat.category.default_type if mat.category else "NON_DIVISIBLE")
+            cat_name_ar = mat.category.name_ar if mat.category else mat.name
+            cat_name_en = mat.category.name_en if mat.category else mat.name
+            suggestions.append({
+                "category_id": mat.category_id,
+                "category_name_en": cat_name_en,
+                "category_name_ar": cat_name_ar,
+                "material_type": mat_type,
+                "base_unit": mat.base_unit,
+                "weight": weight_record.weight,
+                "material_id": mat.id,
+                "material_name": mat.name,
+                "brand": mat.brand,
+                "alternatives": [],
+                "has_active_session": active_session is not None,
+                "session_id": active_session.id if active_session else None,
+                "current_uses": active_session.current_uses if active_session else 0,
+                "max_uses": getattr(mat, "max_uses", 0) or 0,
+                "confidence": 0.95 if active_session else 0.85,
+                "reason": (
+                    "جلسة مفتوحة (استهلاك افتراضي)"
+                    if active_session
+                    else f"مادة مرتبطة بالإجراء: {mat.name}"
+                ),
+            })
 
         return suggestions
 

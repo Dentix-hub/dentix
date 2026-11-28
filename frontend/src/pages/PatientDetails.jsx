@@ -753,7 +753,7 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
                 toast.success(t('patient_details.alerts.treatment_save_success', 'Action recorded successfully'));
                 return true;
             } catch (err) {
-                toast.error(err.response?.data?.detail || t('patient_details.alerts.treatment_save_fail'));
+                toast.error(formatApiError(err, t('patient_details.alerts.treatment_save_fail')));
                 return false;
             }
         }
@@ -1010,7 +1010,7 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
                                         className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-700 sm:p-4"
                                     >
                                         <h4 className="font-bold">{t('patient_details.chart_error', 'Failed to load clinical workspace')}</h4>
-                                        <p className="mt-1 text-sm">{workspaceError?.response?.data?.detail || workspaceError?.message || t('patient_details.unknown_error')}</p>
+                                        <p className="mt-1 text-sm">{formatApiError(workspaceError, workspaceError?.message || t('patient_details.unknown_error'))}</p>
                                         <button
                                             type="button"
                                             onClick={() => refetchWorkspace()}

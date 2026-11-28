@@ -3,6 +3,9 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import PatientBilling from './PatientBilling';
 import * as clinicalChargesApi from '@/api/clinicalCharges';
+import * as rootApi from '@/api';
+import { usePatientPayments, useCreatePayment } from '@/hooks/usePatientDetails';
+import { financeKeys } from '@/features/finance/queryKeys';
 import enTranslations from '@/locales/en/translation.json';
 import arTranslations from '@/locales/ar/translation.json';
 
@@ -10,9 +13,23 @@ const { mockUseTenantFeatures } = vi.hoisted(() => ({
     mockUseTenantFeatures: vi.fn(),
 }));
 
-vi.mock('@/hooks/usePatientDetails', () => ({
-    useTenantFeatures: () => mockUseTenantFeatures(),
-}));
+vi.mock('@/hooks/usePatientDetails', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        useTenantFeatures: () => mockUseTenantFeatures(),
+    };
+});
+
+vi.mock('@/api', async (importOriginal) => {
+    const actual = await importOriginal();
+    return {
+        ...actual,
+        createPayment: vi.fn(),
+        deletePayment: vi.fn(),
+        getPatientPayments: vi.fn(),
+    };
+});
 
 vi.mock('@/api/clinicalCharges', () => ({
     getPatientClinicalCharges: vi.fn(),
@@ -277,5 +294,62 @@ describe('PatientBilling Component - Pending Clinical Charges', () => {
 
         expect(enPending.status_voided).toBe('Voided');
         expect(arPending.status_voided).toBe('ملغي');
+    });
+
+    it('normalizes string/number patient keys in useCreatePayment, prevents string concatenation, and invalidates finance queries', async () => {
+        const paymentsOnServer = [];
+        rootApi.getPatientPayments.mockImplementation(async () => ({ data: [...paymentsOnServer] }));
+        rootApi.createPayment.mockImplementation(async (payload) => {
+            const created = { id: 91, ...payload, amount: Number(payload.amount), date: '2026-11-28T10:00:00Z' };
+            paymentsOnServer.push(created);
+            return { data: created };
+        });
+
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+        function BillingPaymentHarness() {
+            const { data: payments = [] } = usePatientPayments('398', true);
+            const { mutateAsync } = useCreatePayment();
+            return (
+                <>
+                    <button
+                        type="button"
+                        onClick={() => mutateAsync({ patient_id: 398, amount: '150', notes: 'Cash' })}
+                    >
+                        record-payment-398
+                    </button>
+                    <PatientBilling
+                        patientId="398"
+                        tenantFeatures={[]}
+                        history={[{ id: 1, cost: 400, discount: 0, procedure: 'Filling', date: '2026-11-28' }]}
+                        payments={payments}
+                    />
+                </>
+            );
+        }
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <BillingPaymentHarness />
+            </QueryClientProvider>
+        );
+
+        await waitFor(() => expect(rootApi.getPatientPayments).toHaveBeenCalledWith('398'));
+        expect(screen.getAllByText('400').length).toBeGreaterThan(0);
+        const paidCard = screen.getByText('patientDetails.billing.stats.paid').parentElement;
+        const remainingCard = screen.getByText('patientDetails.billing.stats.remaining').parentElement;
+        expect(within(paidCard).getByText('0')).toBeInTheDocument();
+        expect(within(remainingCard).getByText('400')).toBeInTheDocument();
+
+        fireEvent.click(screen.getByRole('button', { name: 'record-payment-398' }));
+
+        await waitFor(() => {
+            expect(within(paidCard).getByText('150')).toBeInTheDocument();
+        });
+        expect(within(remainingCard).getByText('250')).toBeInTheDocument();
+        expect(screen.queryByText('0150')).not.toBeInTheDocument();
+        expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: ['patient', '398', 'payments'] }));
+        expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: financeKeys.all }));
     });
 });

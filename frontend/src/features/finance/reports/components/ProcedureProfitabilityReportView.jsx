@@ -88,6 +88,8 @@ export default function ProcedureProfitabilityReportView({ data = [], isLoading,
                 <MetricCard
                     title={t('finance.reports.procedures_analyzed', 'عدد الإجراءات المحللة')}
                     amount={totalProcedures}
+                    isCurrency={false}
+                    maximumFractionDigits={0}
                     scope="all_time"
                     subtitle={t('finance.reports.procedures_sub', 'الخدمات المربوطة بجدول تكلفة المواد')}
                     icon={Activity}
@@ -97,6 +99,9 @@ export default function ProcedureProfitabilityReportView({ data = [], isLoading,
                 <MetricCard
                     title={t('finance.reports.avg_margin', 'متوسط هامش الربح للإجراءات')}
                     amount={Number(avgMargin)}
+                    isCurrency={false}
+                    suffix="%"
+                    maximumFractionDigits={1}
                     scope="all_time"
                     subtitle={`${avgMargin}% ${t('finance.reports.avg_margin_sub', 'متوسط العائد على تكلفة الخامات')}`}
                     icon={Percent}

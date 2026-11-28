@@ -183,6 +183,38 @@ describe('Finance Patient Accounts & Receivables V2', () => {
                 }));
             });
         });
+
+        it('uses summary.total_outstanding directly even if getFinanceSummary fails and displays account count without currency', async () => {
+            financialsApi.getPatientsReport.mockResolvedValueOnce({
+                data: {
+                    data: {
+                        total: 3,
+                        summary: { total_outstanding: 4250 },
+                        patients: [
+                            { ...accountRow, patient_id: 1, all_time_outstanding: 1500 },
+                            { ...accountRow, patient_id: 2, all_time_outstanding: 2500 },
+                            { ...accountRow, patient_id: 3, all_time_outstanding: 250 },
+                        ],
+                    },
+                },
+            });
+            financialsApi.getFinanceSummary.mockRejectedValueOnce({ response: { status: 403 } });
+
+            render(
+                <QueryClientProvider client={createTestQueryClient()}>
+                    <MemoryRouter>
+                        <PatientAccountsPage />
+                    </MemoryRouter>
+                </QueryClientProvider>
+            );
+
+            await waitFor(() => {
+                expect(screen.getByLabelText('4250 EGP')).toBeInTheDocument();
+            });
+            const countMetric = screen.getByLabelText('3');
+            expect(countMetric).toBeInTheDocument();
+            expect(countMetric.textContent).not.toMatch(/EGP|جنيه|ج\.م/);
+        });
     });
 
     describe('<PatientStatementDrawer />', () => {

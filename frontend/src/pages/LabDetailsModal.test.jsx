@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LabDetailsModal from './LabDetailsModal';
+import { financeKeys } from '@/features/finance/queryKeys';
 import * as api from '@/api';
 
 vi.mock('@/api', () => ({
@@ -419,5 +421,38 @@ describe('<LabDetailsModal /> (PR-2 mobile settlement UX)', () => {
         expect(screen.getAllByText('Crown Zirconia').length).toBeGreaterThanOrEqual(1);
         expect(screen.queryByText('Inlay')).toBeNull();
         expect(screen.queryByText('Bridge PFM')).toBeNull();
+    });
+
+    it('invalidates finance and dashboard queries on lab payment and includes dark-mode contrast classes', async () => {
+        api.createLabPayment.mockResolvedValue({ data: { id: 900 } });
+        const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+        const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+        const onUpdate = vi.fn();
+
+        render(
+            <QueryClientProvider client={queryClient}>
+                <LabDetailsModal
+                    isOpen={true}
+                    onClose={vi.fn()}
+                    lab={mockLab}
+                    onUpdate={onUpdate}
+                />
+            </QueryClientProvider>
+        );
+
+        const heading = await screen.findByRole('heading', { name: 'Al-Amal Dental Lab' });
+        expect(heading.className).toContain('dark:text-slate-100');
+        expect(heading.closest('.rounded-2xl').className).toContain('dark:bg-slate-900');
+
+        fireEvent.click(screen.getByRole('button', { name: /المعاملات المالية/i }));
+        fireEvent.click(screen.getByRole('button', { name: /إضافة دفعة/i }));
+        fireEvent.change(screen.getByLabelText(/المبلغ/i), { target: { value: '300' } });
+        fireEvent.click(screen.getByRole('button', { name: /تسجيل الدفعة/i }));
+
+        await waitFor(() => {
+            expect(api.createLabPayment).toHaveBeenCalledWith(10, expect.objectContaining({ amount: 300 }));
+        });
+        expect(onUpdate).toHaveBeenCalled();
+        expect(invalidateSpy).toHaveBeenCalledWith(expect.objectContaining({ queryKey: financeKeys.all }));
     });
 });

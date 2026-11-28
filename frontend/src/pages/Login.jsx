@@ -74,12 +74,13 @@ export default function Login({ isDarkMode, toggleDarkMode }) {
                     <button
                         type="button"
                         onClick={() => {
-                            const newLang = i18n.language === 'ar' ? 'en' : 'ar';
+                            const isArabic = (i18n.resolvedLanguage || i18n.language || 'ar').startsWith('ar');
+                            const newLang = isArabic ? 'en' : 'ar';
                             i18n.changeLanguage(newLang);
                         }}
                         className="p-3 rounded-2xl transition-colors bg-surface-hover text-text-secondary hover:text-text-primary hover:bg-primary-50 dark:hover:bg-primary-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-700 dark:focus-visible:ring-primary-400 focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
-                        title={i18n.language === 'ar' ? 'Switch to English' : 'تغيير للعربية'}
-                        aria-label={i18n.language === 'ar' ? 'Switch to English' : 'تغيير للعربية'}
+                        title={(i18n.resolvedLanguage || i18n.language || 'ar').startsWith('ar') ? 'Switch to English' : 'تغيير للعربية'}
+                        aria-label={(i18n.resolvedLanguage || i18n.language || 'ar').startsWith('ar') ? 'Switch to English' : 'تغيير للعربية'}
                     >
                         <Globe size={20} aria-hidden="true" />
                     </button>

@@ -1184,5 +1184,80 @@ describe('N3: Multi-tooth quick treatment apply', () => {
             });
         }
     });
+
+    it('supports one-click in-clinic choice from lab hint, isolates manual prefill_source from stale chart teeth, and masks Link:LabOrder:N in edit mode while preserving it on save', async () => {
+        const onSave = vi.fn().mockResolvedValue({});
+        const onClose = vi.fn();
+        const prostheticProcedures = [
+            ...mockProcedures,
+            {
+                id: 9,
+                name: 'تاج زيركون – Zirconia Crown',
+                canonical_code: 'PROS_CROWN',
+                category: 'prosthetics',
+                price: 1200,
+                requires_lab: true,
+                suggestedMaterials: [],
+            },
+        ];
+
+        // 1. One-click "بدون معمل (داخل العيادة)" button in amber hint enables Save and saves cleanly
+        const { unmount } = renderSheet({
+            onSave,
+            onClose,
+            isNativeWritesEnabled: true,
+            selectedTeeth: ['16', '26'],
+            procedures: prostheticProcedures,
+            initialData: {
+                tooth_number: '',
+                prefill_source: 'manual',
+                procedure: 'تاج زيركون – Zirconia Crown',
+                cost: '1200',
+                discount: '0',
+                target_kind: 'tooth',
+            },
+        });
+
+        expect(screen.queryByTestId('quick-treatment-multi-tooth-count')).not.toBeInTheDocument();
+        expect(screen.getByTestId('quick-treatment-save-button')).toBeDisabled();
+        fireEvent.click(screen.getByTestId('quick-treatment-choose-in-clinic'));
+        expect(screen.queryByTestId('quick-treatment-lab-required-hint')).not.toBeInTheDocument();
+        expect(screen.getByTestId('quick-treatment-save-button')).toBeEnabled();
+
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave.mock.calls[0][0]).toMatchObject({
+            tooth_number: null,
+            lab_choice: 'in_clinic',
+        });
+        unmount();
+
+        // 2. Edit mode masks raw Link:LabOrder:17 in UI while preserving it verbatim on save
+        onSave.mockClear();
+        renderSheet({
+            onSave,
+            onClose: vi.fn(),
+            isEditing: true,
+            isNativeWritesEnabled: false,
+            procedures: prostheticProcedures,
+            initialData: {
+                id: 88,
+                tooth_number: 'UL6',
+                procedure: 'عمل معمل: تاج زيركون',
+                cost: '1500',
+                discount: '0',
+                notes: 'Link:LabOrder:17',
+                target_kind: 'tooth',
+            },
+        });
+
+        const badge = screen.getByTestId('treatment-notes-lab-link-badge');
+        expect(badge).toHaveTextContent(/مرتبط بطلب معمل #17/);
+        expect(screen.queryByText(/Link:LabOrder:17/)).not.toBeInTheDocument();
+
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        expect(onSave.mock.calls[0][0].notes).toBe('Link:LabOrder:17');
+    });
 });
 

@@ -64,22 +64,25 @@ export function usePatientAccounts(pageSize = 20) {
         staleTime: 30 * 1000,
     });
 
+    const accountsData = accountsQuery.data || { total: 0, patients: [] };
+    const items = accountsData.patients || [];
+    const totalCount = accountsData.total || 0;
+    const accountsSummaryOutstanding = accountsData?.summary?.total_outstanding;
+
     const statsQuery = useQuery({
         queryKey: financeKeys.summary({ from: statsFrom, to: statsTo }),
         queryFn: async () => {
             const res = await getFinanceSummary(statsFrom, statsTo);
             return res.data?.data || res.data;
         },
+        enabled: accountsQuery.isSuccess && accountsSummaryOutstanding == null,
         staleTime: 60 * 1000,
     });
 
-    const accountsData = accountsQuery.data || { total: 0, patients: [] };
-    const items = accountsData.patients || [];
-    const totalCount = accountsData.total || 0;
-
     const statsData = statsQuery.data;
     const allTimeOutstanding = Number(
-        statsData?.income?.all_time_outstanding
+        accountsSummaryOutstanding
+        ?? statsData?.income?.all_time_outstanding
         ?? statsData?.income?.outstanding
         ?? 0
     );
@@ -135,7 +138,7 @@ export function usePatientAccounts(pageSize = 20) {
         outstandingOnly,
         currentPage,
         pageSize,
-        isLoading: accountsQuery.isLoading,
+        isLoading: accountsQuery.isLoading || (accountsSummaryOutstanding == null && statsQuery.isLoading),
         isError: accountsQuery.isError,
         refetch: () => {
             accountsQuery.refetch();

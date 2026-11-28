@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ArrowUpRight, ArrowDownRight, ArrowRight } from 'lucide-react';
 import Money from './Money';
 import ScopeBadge from './ScopeBadge';
@@ -11,6 +12,8 @@ export default function MetricCard({
     title,
     amount = 0,
     currency = 'EGP',
+    isCurrency = true,
+    suffix = '',
     scope = 'period', // 'period' | 'all_time' | 'custom'
     scopeLabel,
     subtitle,
@@ -22,6 +25,8 @@ export default function MetricCard({
     maximumFractionDigits = 2,
     className = '',
 }) {
+    const { i18n } = useTranslation();
+    const isArabic = (i18n.resolvedLanguage || i18n.language || 'ar').startsWith('ar');
     if (isLoading) {
         return (
             <div className={`p-5 rounded-2xl border border-border bg-card shadow-sm animate-pulse space-y-3 ${className}`}>
@@ -34,6 +39,18 @@ export default function MetricCard({
             </div>
         );
     }
+
+    const numericAmount = Number(amount) || 0;
+    const plainColorClass = colored
+        ? (numericAmount > 0
+            ? 'text-emerald-600 dark:text-emerald-400'
+            : numericAmount < 0
+                ? 'text-rose-600 dark:text-rose-400'
+                : 'text-text-secondary')
+        : 'text-text-primary';
+    const formattedPlain = new Intl.NumberFormat(isArabic ? 'ar-EG' : 'en-US', {
+        maximumFractionDigits,
+    }).format(numericAmount);
 
     const CardContent = (
         <div className={`p-5 rounded-2xl border border-border bg-card hover:border-primary/30 transition-all duration-200 shadow-sm flex flex-col justify-between group ${to ? 'cursor-pointer hover:shadow-md' : ''} ${className}`}>
@@ -55,13 +72,23 @@ export default function MetricCard({
 
                 {/* Amount */}
                 <div className="pt-1">
-                    <Money
-                        amount={amount}
-                        currency={currency}
-                        colored={colored}
-                        size="2xl"
-                        maximumFractionDigits={maximumFractionDigits}
-                    />
+                    {isCurrency ? (
+                        <Money
+                            amount={amount}
+                            currency={currency}
+                            colored={colored}
+                            size="2xl"
+                            maximumFractionDigits={maximumFractionDigits}
+                        />
+                    ) : (
+                        <span
+                            dir="ltr"
+                            aria-label={`${numericAmount}${suffix}`}
+                            className={`inline-flex items-baseline whitespace-nowrap font-mono tabular-nums text-2xl lg:text-3xl font-black tracking-tight ${plainColorClass}`}
+                        >
+                            {formattedPlain}{suffix}
+                        </span>
+                    )}
                 </div>
             </div>
 

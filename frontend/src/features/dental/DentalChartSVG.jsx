@@ -145,7 +145,7 @@ const ToothRootLayer = memo(function ToothRootLayer({ toothKey, arch, opacity, t
     return (
         <svg
             aria-hidden="true"
-            className={`pointer-events-none absolute ${arch === 'upper' ? 'top-0' : 'bottom-0'}`}
+            className={`pointer-events-none absolute w-full h-auto ${arch === 'upper' ? 'top-0' : 'bottom-0'}`}
             data-layer="roots"
             data-root-count={roots.length}
             data-tooth-key={toothKey}
@@ -286,7 +286,7 @@ const SVGTooth = memo(function SVGTooth({
         <svg
             aria-hidden={enableSurfaceSelection ? undefined : true}
             aria-pressed={isSelected}
-            className={`${showRoots ? `absolute ${arch === 'upper' ? 'bottom-0' : 'top-0'}` : ''} transform transition-transform duration-200 group-hover:scale-105 group-focus-visible:scale-105`}
+            className={`w-full h-auto ${showRoots ? `absolute ${arch === 'upper' ? 'bottom-0' : 'top-0'}` : ''} transform transition-transform duration-200 group-hover:scale-105 group-focus-visible:scale-105`}
             data-layer="crown"
             data-selected={isSelected ? 'true' : 'false'}
             data-tooth-key={toothKey}
@@ -379,7 +379,7 @@ const SVGTooth = memo(function SVGTooth({
             {showRoots ? (
                 <span
                     aria-hidden={enableSurfaceSelection ? undefined : true}
-                    className={`relative block w-[50px] ${arch === 'upper' ? 'h-[96px]' : 'h-[82px]'}`}
+                    className={`relative block w-[42px] xl:w-[44px] 2xl:w-[50px] ${arch === 'upper' ? 'h-[82px] xl:h-[86px] 2xl:h-[96px]' : 'h-[70px] xl:h-[74px] 2xl:h-[82px]'}`}
                 >
                     <ToothRootLayer toothKey={toothKey} arch={arch} opacity={style.opacity} toothVisual={toothVisual} />
                     {crownSvg}
@@ -387,7 +387,7 @@ const SVGTooth = memo(function SVGTooth({
             ) : crownSvg}
             <span className="absolute -bottom-5 flex w-full flex-col items-center">
                 <span
-                    className="w-full whitespace-nowrap border-t border-slate-300 pt-1 text-center font-mono text-sm font-bold leading-none text-slate-600"
+                    className="w-full whitespace-nowrap border-t border-slate-300 dark:border-slate-700 pt-1 text-center font-mono text-xs xl:text-sm font-bold leading-none text-slate-600 dark:text-slate-300"
                     data-layer="notation-label"
                     data-notation-mode={notation.mode}
                     data-tooth-key={notation.toothKey}
@@ -406,7 +406,7 @@ const SVGTooth = memo(function SVGTooth({
         }
         : undefined;
 
-    const toothClassName = `group relative flex min-w-[50px] shrink-0 flex-col items-center gap-1 rounded-lg focus-visible:ring-focus ${showRoots ? (arch === 'upper' ? 'min-h-[112px]' : 'min-h-[98px]') : 'min-h-[76px]'}`;
+    const toothClassName = `group relative flex w-[42px] min-w-[42px] xl:w-[44px] xl:min-w-[44px] 2xl:w-[50px] 2xl:min-w-[50px] shrink-0 flex-col items-center gap-1 rounded-lg focus-visible:ring-focus ${showRoots ? (arch === 'upper' ? 'min-h-[100px] xl:min-h-[104px] 2xl:min-h-[112px]' : 'min-h-[86px] xl:min-h-[90px] 2xl:min-h-[98px]') : 'min-h-[68px] xl:min-h-[72px] 2xl:min-h-[76px]'}`;
 
     if (enableSurfaceSelection) {
         return (
@@ -478,7 +478,7 @@ export default memo(function DentalChartSVG({
     const mixedRows = isMixedDentition ? createMixedRows(toothOrder) : [];
     const chartMinWidth = isMixedDentition
         ? 'min-w-[600px]'
-        : (isPediatric ? 'min-w-[480px]' : 'min-w-[700px]');
+        : (isPediatric ? 'min-w-[440px]' : 'min-w-[680px]');
     const chartTitle = isMixedDentition
         ? t('dental_chart.mixed', 'مخطط الأسنان (مختلط)')
         : (isPediatric ? t('dental_chart.pediatric', 'مخطط الأسنان (أطفال)') : t('dental_chart.adult', 'مخطط الأسنان (بالغين)'));
@@ -510,14 +510,14 @@ export default memo(function DentalChartSVG({
 
     return (
         <div
-            className="min-w-0 rounded-2xl bg-slate-50 p-3 text-center shadow-inner sm:rounded-3xl sm:p-5 lg:p-8"
+            className="min-w-0 rounded-2xl bg-slate-50 dark:bg-slate-900/70 dark:border dark:border-slate-800 p-3 text-center shadow-inner sm:rounded-3xl sm:p-4 lg:p-5"
             data-dentition={isMixedDentition ? 'mixed' : (isPediatric ? 'primary' : 'permanent')}
             data-interaction-mode={readOnly ? 'read-only' : 'edit'}
             data-notation-mode={notationMode}
         >
-            <h3 className="mb-7 text-lg font-bold text-slate-700 sm:mb-8">
+            <h3 className="mb-7 text-lg font-bold text-slate-800 dark:text-slate-100 sm:mb-8">
                 {chartTitle}
-                <span className="mt-1 block text-xs font-normal text-slate-500">{notationConfig.displayName}</span>
+                <span className="mt-1 block text-xs font-normal text-slate-500 dark:text-slate-400">{notationConfig.displayName}</span>
             </h3>
 
             <div
@@ -532,22 +532,22 @@ export default memo(function DentalChartSVG({
                         <div className="inline-flex flex-col gap-5">
                             {mixedRows.map((row) => (
                                 <div key={row.id} data-dentition-row={row.id}>
-                                    <p className="mb-2 text-xs font-medium text-slate-500">
+                                    <p className="mb-2 text-xs font-medium text-slate-500 dark:text-slate-400">
                                         {row.primary
                                             ? t('dental_chart.primary_teeth', 'Primary teeth')
                                             : t('dental_chart.permanent_teeth', 'Permanent teeth')}
                                     </p>
                                     <div className="relative flex justify-center gap-1">
-                                        <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
-                                        <div className={`absolute inset-x-0 h-0.5 bg-slate-300 ${row.arch === 'upper' ? 'bottom-0' : 'top-0'}`} aria-hidden="true" />
+                                        <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300 dark:bg-slate-700" aria-hidden="true" />
+                                        <div className={`absolute inset-x-0 h-0.5 bg-slate-300 dark:bg-slate-700 ${row.arch === 'upper' ? 'bottom-0' : 'top-0'}`} aria-hidden="true" />
                                         {['left', 'right'].map((side) => (
                                             <div
                                                 key={side}
                                                 data-chart-quadrant={side}
-                                                className={`grid grid-cols-8 gap-1 px-3 sm:px-4 ${row.arch === 'upper' ? 'pb-4' : 'pt-4'}`}
+                                                className={`grid grid-cols-8 gap-0.5 px-1.5 sm:px-2 2xl:gap-1 2xl:px-4 ${row.arch === 'upper' ? 'pb-4' : 'pt-4'}`}
                                             >
                                                 {row[side].map((tooth, index) => (
-                                                    <div key={index} className="min-w-[50px] pb-6" data-tooth-slot={index}>
+                                                    <div key={index} className="w-[42px] min-w-[42px] xl:w-[44px] xl:min-w-[44px] 2xl:w-[50px] 2xl:min-w-[50px] pb-6" data-tooth-slot={index}>
                                                         {tooth ? renderTooth(tooth, row.arch) : null}
                                                     </div>
                                                 ))}
@@ -560,25 +560,25 @@ export default memo(function DentalChartSVG({
                     ) : (
                     <div className="inline-flex flex-col gap-14 sm:gap-16">
                         <div className="relative flex justify-center gap-1">
-                            <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
-                            <div className="absolute inset-x-0 bottom-0 h-0.5 bg-slate-300" aria-hidden="true" />
-                            <div className="flex gap-1 px-3 pb-4 sm:px-4">
+                            <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300 dark:bg-slate-700" aria-hidden="true" />
+                            <div className="absolute inset-x-0 bottom-0 h-0.5 bg-slate-300 dark:bg-slate-700" aria-hidden="true" />
+                            <div className="flex gap-0.5 px-1.5 pb-4 sm:px-2 2xl:gap-1 2xl:px-4">
                                 {layout.upperLeft.map((tooth) => renderTooth(tooth, 'upper'))}
                             </div>
                             <div className="w-0.5" />
-                            <div className="flex gap-1 px-3 pb-4 sm:px-4">
+                            <div className="flex gap-0.5 px-1.5 pb-4 sm:px-2 2xl:gap-1 2xl:px-4">
                                 {layout.upperRight.map((tooth) => renderTooth(tooth, 'upper'))}
                             </div>
                         </div>
 
                         <div className="relative flex justify-center gap-1">
-                            <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300" aria-hidden="true" />
-                            <div className="absolute inset-x-0 top-0 h-0.5 bg-slate-300" aria-hidden="true" />
-                            <div className="flex gap-1 px-3 pt-4 sm:px-4">
+                            <div className="absolute inset-y-0 start-1/2 w-0.5 bg-slate-300 dark:bg-slate-700" aria-hidden="true" />
+                            <div className="absolute inset-x-0 top-0 h-0.5 bg-slate-300 dark:bg-slate-700" aria-hidden="true" />
+                            <div className="flex gap-0.5 px-1.5 pt-4 sm:px-2 2xl:gap-1 2xl:px-4">
                                 {layout.lowerLeft.map((tooth) => renderTooth(tooth, 'lower'))}
                             </div>
                             <div className="w-0.5" />
-                            <div className="flex gap-1 px-3 pt-4 sm:px-4">
+                            <div className="flex gap-0.5 px-1.5 pt-4 sm:px-2 2xl:gap-1 2xl:px-4">
                                 {layout.lowerRight.map((tooth) => renderTooth(tooth, 'lower'))}
                             </div>
                         </div>
@@ -587,11 +587,11 @@ export default memo(function DentalChartSVG({
                 </div>
             </div>
 
-            <div className="mt-10 flex flex-wrap justify-center gap-3 border-t border-slate-200 pt-5 text-sm sm:mt-12 sm:gap-6 sm:pt-6" dir="rtl">
+            <div className="mt-10 flex flex-wrap justify-center gap-3 border-t border-slate-200 dark:border-slate-800 pt-5 text-sm sm:mt-12 sm:gap-6 sm:pt-6" dir="rtl">
                 {Object.entries(STATUS_STYLES).map(([status, statusStyle]) => (
                     <div key={status} className="flex min-h-8 items-center gap-2">
                         <div className="h-5 w-5 shrink-0 rounded-full border shadow-sm" style={{ backgroundColor: statusStyle.fill, borderColor: statusStyle.stroke, borderWidth: 2 }} aria-hidden="true" />
-                        <span className="font-medium text-slate-600">
+                        <span className="font-medium text-slate-600 dark:text-slate-300">
                             {status === 'Healthy' ? t('dental_chart.status_healthy', 'سليم') :
                                 status === 'Decayed' ? t('dental_chart.status_decayed', 'تسوس') :
                                     status === 'Filled' ? t('dental_chart.status_filled', 'حشو') :
