@@ -3423,7 +3423,11 @@
       "staff_settings_title": "قواعد راتب الموظف",
       "base_salary_label": "الراتب الأساسي الشهري (جنيه)",
       "hire_date_label": "تاريخ بداية العمل / التعيين",
-      "hire_date_hint": "يستخدم لاحتساب نسبة الأيام الفعلية للموظف في شهر التعيين"
+      "hire_date_hint": "يستخدم لاحتساب نسبة الأيام الفعلية للموظف في شهر التعيين",
+      "hired_on": "تعيين:",
+      "prorated_formula": "الحسبة:",
+      "prorated_explanation": "محتسب بالتناسب منذ تاريخ التعيين",
+      "days_worked_hint": "الراتب المستحق يُحسب تلقائياً حسب تاريخ التعيين؛ هذا الحقل لتوثيق أيام العمل في إيصال الصرف."
     },
     "activity": {
       "title": "سجل الحركات المالية",
@@ -3872,6 +3876,8 @@
     "proc_short": "إجراء",
     "procedure_label": "إجراء",
     "selected_procedure": "الإجراء المحدد",
+    "step_update_error": "تعذر تحديث حالة الخطوة، حاول مرة أخرى",
+    "confirm_skip": "تأكيد التخطي",
     "notes_require_procedure": "اربط إجراءً علاجيًا بهذه الجلسة لحفظ ملاحظات الإجراء والخطوة القادمة. يمكنك أيضًا كتابة ملخص الزيارة عند إنهاء الجلسة."
   },
   "dental_chart": {
@@ -3925,6 +3931,7 @@
     "lab_select": "اختر المعمل",
     "in_clinic": "بدون معمل (داخل العيادة)",
     "lab_choice_required": "يرجى اختيار معمل أو بدون معمل داخل العيادة",
+    "go_to_lab_select": "اختر المعمل الآن",
     "shade_label": "درجة اللون (Shade)",
     "material_label": "المادة (Material)",
     "delivery_date_label": "موعد الاستلام المتوقع",
@@ -3964,7 +3971,9 @@
     "errors": {
       "surfaces_required_for_teeth": "يرجى تحديد أسطح للأسنان التالية: {{teeth}}",
       "tooth_prefix": "السن",
-      "save_failed": "فشل حفظ الإجراء"
+      "save_failed": "فشل حفظ الإجراء",
+      "negative_values": "لا يمكن أن تكون التكلفة أو الخصم قيمة سالبة",
+      "discount_exceeds_cost": "الخصم لا يمكن أن يتجاوز التكلفة"
     }
   },
   "insurance": {

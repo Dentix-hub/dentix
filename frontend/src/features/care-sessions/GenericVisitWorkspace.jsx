@@ -91,6 +91,7 @@ export default function GenericVisitWorkspace({
     });
     const [resource, setResource] = useState(null);
     const [isSavingMeasurements, setIsSavingMeasurements] = useState(false);
+    const [isSkippingStep, setIsSkippingStep] = useState(false);
     const previousVisits = useQuery({
         queryKey: ['patient', session?.patient_id, 'care-sessions'],
         queryFn: async () => {
@@ -369,13 +370,30 @@ export default function GenericVisitWorkspace({
     };
 
     const handleSkipStepSubmit = async () => {
-        if (!skippingStepId) return;
-        if (onUpdateStepStatus) {
-            await onUpdateStepStatus(skippingStepId, 'skipped', skipReason || 'Skipped by clinician');
+        if (!skippingStepId || isSkippingStep) return;
+        setIsSkippingStep(true);
+        setActionError(null);
+        try {
+            const payload = {
+                status: 'skipped',
+                notes: skipReason.trim() || 'Skipped by clinician',
+            };
+            const result = onUpdateStepStatus
+                ? await onUpdateStepStatus(skippingStepId, payload)
+                : true;
+            if (result === false) {
+                return;
+            }
+            setSkippingStepId(null);
+            setSkipReason('');
+            if (refetchSession) await refetchSession();
+        } catch (err) {
+            setActionError(
+                formatApiError(err, t('care_session.step_update_error', 'Failed to update step'))
+            );
+        } finally {
+            setIsSkippingStep(false);
         }
-        setSkippingStepId(null);
-        setSkipReason('');
-        if (refetchSession) await refetchSession();
     };
 
     // Check if RCT procedure
@@ -787,7 +805,9 @@ export default function GenericVisitWorkspace({
                                                     type="button"
                                                     onClick={() =>
                                                         onUpdateStepStatus &&
-                                                        onUpdateStepStatus(step.id, isDone ? 'pending' : 'completed')
+                                                        onUpdateStepStatus(step.id, {
+                                                            status: isDone ? 'pending' : 'completed',
+                                                        })
                                                     }
                                                     data-testid={`btn-toggle-step-${step.id}`}
                                                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors ${
@@ -836,10 +856,9 @@ export default function GenericVisitWorkspace({
                                                         type="button"
                                                         onClick={() =>
                                                             onUpdateStepStatus &&
-                                                            onUpdateStepStatus(
-                                                                step.id,
-                                                                isInProgress ? 'pending' : 'in_progress'
-                                                            )
+                                                            onUpdateStepStatus(step.id, {
+                                                                status: isInProgress ? 'pending' : 'in_progress',
+                                                            })
                                                         }
                                                         data-testid={`btn-in-progress-step-${step.id}`}
                                                         className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${
@@ -892,17 +911,29 @@ export default function GenericVisitWorkspace({
                             </h5>
                             <input
                                 type="text"
+                                data-testid="input-skip-step-reason"
                                 value={skipReason}
                                 onChange={(e) => setSkipReason(e.target.value)}
                                 placeholder="e.g. Clinical assessment determined step not indicated"
                                 className="w-full rounded-lg border border-border bg-surface px-3 py-1.5 text-xs text-text-primary"
                             />
                             <div className="flex justify-end gap-2 mt-2">
-                                <Button size="xs" variant="outline" onClick={() => setSkippingStepId(null)}>
-                                    Cancel
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={isSkippingStep}
+                                    onClick={() => setSkippingStepId(null)}
+                                >
+                                    {t('common.cancel', 'Cancel')}
                                 </Button>
-                                <Button size="xs" variant="danger" onClick={handleSkipStepSubmit}>
-                                    Confirm Skip
+                                <Button
+                                    size="sm"
+                                    variant="danger"
+                                    data-testid="btn-confirm-skip-step"
+                                    disabled={isSkippingStep}
+                                    onClick={handleSkipStepSubmit}
+                                >
+                                    {t('care_session.confirm_skip', 'Confirm Skip')}
                                 </Button>
                             </div>
                         </div>

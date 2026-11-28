@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LabOrdersTab from './LabOrdersTab';
 import * as api from '@/api';
+import { toast } from '@/shared/ui';
 
 vi.mock('@/api', () => ({
     getPatientLabOrders: vi.fn(),
@@ -10,6 +11,14 @@ vi.mock('@/api', () => ({
     createLabOrder: vi.fn(),
     updateLabOrder: vi.fn(),
     deleteLabOrder: vi.fn(),
+}));
+
+vi.mock('@/shared/ui', () => ({
+    toast: {
+        error: vi.fn(),
+        success: vi.fn(),
+        info: vi.fn(),
+    },
 }));
 
 vi.mock('react-i18next', () => ({
@@ -135,14 +144,20 @@ describe('LabOrdersTab (D2, D3, Step 6)', () => {
         const paidNowInput = screen.getByLabelText(/دفعت الآن للمعمل/i);
         expect(paidNowInput).toBeInTheDocument();
 
-        // Enter paid_now > cost (600) -> inline warning appears
+        // Enter paid_now > cost (600) -> inline warning + toast + modal error without blocking alert
         fireEvent.change(paidNowInput, { target: { value: '600' } });
-        expect(screen.getByText(/المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب/i)).toBeInTheDocument();
+        expect(screen.getAllByText(/المبلغ المدفوع الآن لا يمكن أن يتجاوز تكلفة الطلب/i).length).toBeGreaterThanOrEqual(1);
 
-        // Try submitting -> blocked by alert
+        // Try submitting -> blocked via non-blocking toast + inline error, never window.alert
         const saveBtn = screen.getByRole('button', { name: /save_add/i });
         fireEvent.click(saveBtn);
-        expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('المبلغ المدفوع الآن لا يمكن أن يتجاوز'));
+        expect(alertSpy).not.toHaveBeenCalled();
+        expect(toast.error).toHaveBeenCalledWith(
+            expect.stringContaining('المبلغ المدفوع الآن لا يمكن أن يتجاوز')
+        );
+        expect(screen.getByTestId('lab-order-modal-error')).toHaveTextContent(
+            /المبلغ المدفوع الآن لا يمكن أن يتجاوز/i
+        );
         expect(api.createLabOrder).not.toHaveBeenCalled();
 
         // Fix paid_now to 200 and submit
@@ -159,7 +174,55 @@ describe('LabOrdersTab (D2, D3, Step 6)', () => {
         alertSpy.mockRestore();
     });
 
-    it('renders payment status chips and cost/paid amounts in orders table', async () => {
+    it('renders linked bilingual treatment procedure in work_type select and handles 422 without blocking alert', async () => {
+        const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {});
+        const arabicTreatments = [
+            { id: 88, procedure: 'تاج زيركون – Zirconia Crown', tooth_number: 16 },
+            { id: 89, procedure: 'جسر ثابت', tooth_number: 24, lab_choice: 'in_clinic' },
+        ];
+        api.createLabOrder.mockRejectedValueOnce({
+            response: {
+                status: 422,
+                data: { detail: 'إجراء طلب المعمل لا يطابق العلاج' },
+            },
+        });
+
+        render(<LabOrdersTab patientId={12} treatments={arabicTreatments} />);
+
+        const addBtn = await screen.findByRole('button', { name: /add_empty|إضافة/i });
+        fireEvent.click(addBtn);
+
+        // in_clinic treatment should not appear in treatment link options
+        expect(screen.queryByText(/#89 — جسر ثابت/)).toBeNull();
+
+        const treatmentSelect = await screen.findByLabelText(/ربط بإجراء علاجي/i);
+        fireEvent.change(treatmentSelect, { target: { value: '88' } });
+
+        const workTypeSelect = screen.getAllByRole('combobox')[2];
+        expect(workTypeSelect.value).toBe('تاج زيركون – Zirconia Crown');
+
+        fireEvent.change(screen.getAllByRole('combobox')[1], { target: { value: '1' } });
+        const saveBtn = screen.getByRole('button', { name: /save_add/i });
+        fireEvent.click(saveBtn);
+
+        await waitFor(() => {
+            expect(api.createLabOrder).toHaveBeenCalledTimes(1);
+        });
+        expect(alertSpy).not.toHaveBeenCalled();
+        expect(await screen.findByTestId('lab-order-modal-error')).toHaveTextContent(
+            'إجراء طلب المعمل لا يطابق العلاج'
+        );
+        expect(toast.error).toHaveBeenCalledWith('إجراء طلب المعمل لا يطابق العلاج');
+
+        // Retry succeeds cleanly without hanging
+        fireEvent.click(saveBtn);
+        await waitFor(() => {
+            expect(api.createLabOrder).toHaveBeenCalledTimes(2);
+        });
+        alertSpy.mockRestore();
+    });
+
+    it('renders payment status chips and sums lab cost (not price_to_patient) excluding cancelled orders', async () => {
         const mockOrders = [
             {
                 id: 101,
@@ -221,6 +284,9 @@ describe('LabOrdersTab (D2, D3, Step 6)', () => {
         expect(screen.getByText('جزئي')).toBeInTheDocument();
         expect(screen.getByText('مدفوع')).toBeInTheDocument();
         expect(screen.getAllByText('ملغي').length).toBeGreaterThan(0);
+
+        // Bug 5: prosthetics_cost stat card must show lab cost sum (600 + 800 + 400 = 1800), not price_to_patient
+        expect(screen.getByTestId('lab-orders-prosthetics-cost')).toHaveTextContent('1800');
 
         // Check cost and paid values rendered
         expect(screen.getByText('600')).toBeInTheDocument();

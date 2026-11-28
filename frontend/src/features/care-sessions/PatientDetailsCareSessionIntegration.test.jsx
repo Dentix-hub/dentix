@@ -10,17 +10,33 @@ const {
     mockRecord, mockFinish, mockFlush, mockDiscard,
     mockStartSession,
     mockApplyTemplate,
+    mockUpdateStep,
     mockUseResumableCareSession,
     mockUseActiveCareSession,
     mockUseTenantFeatures,
+    mockToastError,
 } = vi.hoisted(() => ({
     mockRecord: vi.fn(), mockFinish: vi.fn(), mockFlush: vi.fn(), mockDiscard: vi.fn(),
     mockStartSession: vi.fn(),
     mockApplyTemplate: vi.fn(),
+    mockUpdateStep: vi.fn(),
     mockUseResumableCareSession: vi.fn(),
     mockUseActiveCareSession: vi.fn(() => ({ data: null, isLoading: false, refetch: vi.fn() })),
     mockUseTenantFeatures: vi.fn(),
+    mockToastError: vi.fn(),
 }));
+
+vi.mock('@/shared/ui', async (original) => {
+    const actual = await original();
+    return {
+        ...actual,
+        toast: Object.assign(vi.fn(), actual.toast || {}, {
+            error: mockToastError,
+            success: vi.fn(),
+            info: vi.fn(),
+        }),
+    };
+});
 
 vi.mock('@/auth/useAuth', () => ({
     useAuth: () => ({
@@ -136,7 +152,7 @@ vi.mock('@/hooks/usePatientDetails', () => ({
     }),
     useFinishCareSession: () => ({ mutateAsync: mockFinish, isPending: false }),
     useTransitionCareSession: () => ({ mutateAsync: vi.fn(), isPending: false }),
-    useUpdateCareSessionStep: () => ({ mutateAsync: vi.fn(), isPending: false }),
+    useUpdateCareSessionStep: () => ({ mutateAsync: mockUpdateStep, isPending: false }),
     useApplyCareSessionTemplate: () => ({
         mutateAsync: mockApplyTemplate,
         isPending: false,
@@ -277,5 +293,50 @@ describe('PatientDetails Care Session Integration', () => {
         await waitFor(() => expect(mockFinish).toHaveBeenCalledTimes(1));
         expect(mockFlush).toHaveBeenCalledTimes(1);
         expect(mockFlush.mock.invocationCallOrder[0]).toBeLessThan(mockFinish.mock.invocationCallOrder[0]);
+    });
+
+    it('sends object payload on Confirm Skip and safely formats FastAPI 422 array errors without crashing', async () => {
+        mockUpdateStep.mockReset();
+        mockToastError.mockReset();
+        mockUpdateStep
+            .mockRejectedValueOnce({
+                response: {
+                    status: 422,
+                    data: {
+                        detail: [
+                            { type: 'model_attributes_type', loc: ['body'], msg: 'Input should be a valid dictionary', input: 'skipped' },
+                        ],
+                    },
+                },
+            })
+            .mockResolvedValueOnce({ data: { id: 501, status: 'skipped' } });
+
+        renderActivePatient({
+            steps: [
+                { id: 501, work_item_id: 101, title: 'Rubber Dam Placement', status: 'pending' },
+            ],
+        });
+
+        fireEvent.click(await screen.findByTestId('btn-open-active-workflow'));
+        fireEvent.click(await screen.findByTestId('btn-skip-step-501'));
+        fireEvent.change(screen.getByTestId('input-skip-step-reason'), {
+            target: { value: 'Teeth isolation modified' },
+        });
+
+        // First attempt rejects with FastAPI 422 array -> toast receives formatted string and page remains interactive
+        fireEvent.click(screen.getByTestId('btn-confirm-skip-step'));
+        await waitFor(() => expect(mockUpdateStep).toHaveBeenCalledTimes(1));
+        expect(mockUpdateStep.mock.calls[0][0].data).toEqual({
+            status: 'skipped',
+            notes: 'Teeth isolation modified',
+        });
+        await waitFor(() => {
+            expect(mockToastError).toHaveBeenCalledWith('Input should be a valid dictionary');
+        });
+        expect(screen.getByTestId('input-skip-step-reason')).toHaveValue('Teeth isolation modified');
+
+        // Retry succeeds cleanly
+        fireEvent.click(screen.getByTestId('btn-confirm-skip-step'));
+        await waitFor(() => expect(mockUpdateStep).toHaveBeenCalledTimes(2));
     });
 });

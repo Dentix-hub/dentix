@@ -785,6 +785,8 @@ describe('N3: Multi-tooth quick treatment apply', () => {
                             target_kind: 'surface',
                             surfaces: ['O'],
                         }}
+                        isEditing={props.isEditing}
+                        isNativeWritesEnabled={props.isNativeWritesEnabled}
                         procedures={props.procedures || mockProcedures}
                         selectedTeeth={props.selectedTeeth}
                         selectedSurfacesByTooth={props.selectedSurfacesByTooth}
@@ -1066,6 +1068,121 @@ describe('N3: Multi-tooth quick treatment apply', () => {
             expect(onSave).toHaveBeenCalledTimes(1);
         });
         expect(onClose).toHaveBeenCalled();
+    });
+
+    it('saves decimal cost and discount, handles no-tooth picker without stale chart teeth, and shows validation/lab hints', async () => {
+        const onSave = vi.fn().mockResolvedValue({});
+        const onClose = vi.fn();
+        const prostheticProcedures = [
+            ...mockProcedures,
+            {
+                id: 9,
+                name: 'Crown Zirconia',
+                canonical_code: 'PROS_CROWN',
+                category: 'prosthetics',
+                price: 2000,
+                requires_lab: true,
+                suggestedMaterials: [],
+            },
+        ];
+
+        // 1. Header Advanced Entry ("continue without tooth") ignores stale selectedTeeth and saves decimal values
+        const { unmount } = renderSheet({
+            onSave,
+            onClose,
+            isNativeWritesEnabled: true,
+            selectedTeeth: ['16', '26'],
+            procedures: prostheticProcedures,
+            initialData: {
+                tooth_number: '',
+                prefill_source: 'tooth_picker_no_tooth',
+                procedure: 'حشوة تجميلي خاص',
+                cost: '150.5',
+                discount: '10.5',
+                target_kind: 'tooth',
+            },
+        });
+
+        // Should NOT show multi-tooth header from stale chart selection
+        expect(screen.queryByTestId('quick-treatment-multi-tooth-count')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+
+        await waitFor(() => {
+            expect(onSave).toHaveBeenCalledTimes(1);
+        });
+        expect(onSave.mock.calls[0][0]).toMatchObject({
+            tooth_number: null,
+            cost: 150.5,
+            discount: 10.5,
+        });
+        unmount();
+
+        // 2. Prosthetic procedure with native writes enabled displays inline required lab guidance near Save
+        onSave.mockClear();
+        const { unmount: unmountLab } = renderSheet({
+            onSave,
+            onClose: vi.fn(),
+            isNativeWritesEnabled: true,
+            procedures: prostheticProcedures,
+            initialData: {
+                tooth_number: '16',
+                prefill_source: 'tooth_picker',
+                procedure: 'Crown Zirconia',
+                cost: '2000',
+                discount: '0',
+                target_kind: 'tooth',
+            },
+        });
+
+        expect(screen.getByTestId('quick-treatment-lab-required-hint')).toBeInTheDocument();
+        expect(screen.getByTestId('quick-treatment-jump-to-lab')).toBeInTheDocument();
+        expect(screen.getByTestId('quick-treatment-save-button')).toBeDisabled();
+
+        // Choose in_clinic -> hint disappears and Save works
+        const labSelect = await screen.findByLabelText(/اختر المعمل/);
+        fireEvent.change(labSelect, { target: { value: 'in_clinic' } });
+        expect(screen.queryByTestId('quick-treatment-lab-required-hint')).not.toBeInTheDocument();
+        fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+        await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+        unmountLab();
+
+        // 3. Fallback when globalThis.crypto.randomUUID is unavailable + discount > cost inline validation
+        onSave.mockClear();
+        const origCrypto = globalThis.crypto;
+        Object.defineProperty(globalThis, 'crypto', {
+            configurable: true,
+            value: {},
+        });
+        try {
+            renderSheet({
+                onSave,
+                onClose: vi.fn(),
+                isNativeWritesEnabled: true,
+                procedures: prostheticProcedures,
+                initialData: {
+                    tooth_number: '16',
+                    prefill_source: 'tooth_picker',
+                    procedure: 'حشوة تجميلي خاص',
+                    cost: '100',
+                    discount: '150',
+                    target_kind: 'tooth',
+                },
+            });
+
+            fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+            expect(screen.getByTestId('quick-treatment-validation-error')).toBeInTheDocument();
+            expect(onSave).not.toHaveBeenCalled();
+
+            fireEvent.change(screen.getByLabelText('الخصم'), { target: { value: '10' } });
+            fireEvent.click(screen.getByTestId('quick-treatment-save-button'));
+            await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+            expect(onSave.mock.calls[0][0].idempotency_key).toMatch(/^[A-Za-z0-9_-]+$/);
+        } finally {
+            Object.defineProperty(globalThis, 'crypto', {
+                configurable: true,
+                value: origCrypto,
+            });
+        }
     });
 });
 

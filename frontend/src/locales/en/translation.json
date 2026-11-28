@@ -3443,7 +3443,11 @@
       "staff_settings_title": "Staff Settings Title",
       "base_salary_label": "Base Salary Label",
       "hire_date_label": "Hire Date Label",
-      "hire_date_hint": "Hire Date Hint"
+      "hire_date_hint": "Hire Date Hint",
+      "hired_on": "Hired:",
+      "prorated_formula": "Calc:",
+      "prorated_explanation": "Prorated from hire date",
+      "days_worked_hint": "Payable salary is calculated automatically from the hire date; this field records worked days on the slip."
     },
     "activity": {
       "title": "Financial Activity Feed",
@@ -3892,6 +3896,8 @@
     "proc_short": "Proc",
     "procedure_label": "Procedure",
     "selected_procedure": "Selected Procedure",
+    "step_update_error": "Failed to update step",
+    "confirm_skip": "Confirm Skip",
     "notes_require_procedure": "Link a clinical procedure to this visit to save procedure notes and next planned action. You can also record final visit notes when finishing the session."
   },
   "dental_chart": {
@@ -3945,6 +3951,7 @@
     "lab_select": "Select Laboratory",
     "in_clinic": "No laboratory (in clinic)",
     "lab_choice_required": "Please select a laboratory or choose treatment in clinic",
+    "go_to_lab_select": "Select Laboratory",
     "shade_label": "Shade",
     "material_label": "Material",
     "delivery_date_label": "Expected Delivery Date",
@@ -3984,7 +3991,9 @@
     "errors": {
       "surfaces_required_for_teeth": "Please specify surfaces for the following teeth: {{teeth}}",
       "tooth_prefix": "Tooth",
-      "save_failed": "Failed to save procedure"
+      "save_failed": "Failed to save procedure",
+      "negative_values": "Cost and discount cannot be negative",
+      "discount_exceeds_cost": "Discount cannot exceed cost"
     }
   },
   "notifications": {

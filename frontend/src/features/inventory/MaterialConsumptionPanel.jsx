@@ -205,6 +205,7 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                                                 </span>
                                             )}
                                             <button
+                                                type="button"
                                                 onClick={() => toggleManualOverride(sugg.category_id)}
                                                 className={`p-1 rounded transition-colors ${isManual ? 'bg-primary text-white' : 'bg-slate-50 hover:bg-slate-100 text-slate-500 border border-slate-200 shadow-sm'}`}
                                                 title={t('inventory.materials.manual_override')}
@@ -215,6 +216,7 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                                     ) : (
                                         <div className="flex items-center gap-1 bg-white rounded border border-slate-200 p-0.5 shadow-sm">
                                             <button
+                                                type="button"
                                                 onClick={() => handleQuantityChange(sugg.category_id, -1)}
                                                 className="p-1 hover:bg-slate-50 rounded text-slate-600 transition-colors"
                                             >
@@ -224,6 +226,7 @@ const MaterialConsumptionPanel = ({ procedureId, doctorId, onMaterialsChange, in
                                                 {selected?.quantity || 0}
                                             </span>
                                             <button
+                                                type="button"
                                                 onClick={() => handleQuantityChange(sugg.category_id, 1)}
                                                 className="p-1 hover:bg-slate-50 rounded text-slate-600 transition-colors"
                                             >

@@ -10,14 +10,24 @@ _DISPLAY_NAME_CODES = {
     for code, defn in PROCEDURE_DEFINITIONS.items()
 }
 
+_WORK_TYPE_ALIASES = {
+    "bridge": "PROS_BRIDGE",
+    "partial denture": "PROS_DENTURE",
+    "complete denture": "PROS_DENTURE",
+    "full denture": "PROS_DENTURE",
+}
+
 
 def _single_code(name):
     if not isinstance(name, str):
         return None
     if name in CANONICAL_PROCEDURE_CODES:
         return name
-    if name.strip().casefold() in _DISPLAY_NAME_CODES:
-        return _DISPLAY_NAME_CODES[name.strip().casefold()]
+    normalized = name.strip().casefold()
+    if normalized in _DISPLAY_NAME_CODES:
+        return _DISPLAY_NAME_CODES[normalized]
+    if normalized in _WORK_TYPE_ALIASES:
+        return _WORK_TYPE_ALIASES[normalized]
     return map_legacy_procedure(name)[0]
 
 

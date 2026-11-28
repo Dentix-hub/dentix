@@ -84,6 +84,8 @@ const PatientBilling = lazy(() => import('@/features/patients/PatientTabs/Patien
 const LabOrdersTab = lazy(() => import('@/features/lab/LabOrdersTab'));
 const PatientTimeline = lazy(() => import('@/features/patients/PatientTabs/PatientTimeline'));
 
+const EMPTY_ARRAY = [];
+
 const isNativeWritesDisabledError = (err) => {
     if (err?.response?.status !== 404) return false;
     const detail = err?.response?.data?.detail;
@@ -279,7 +281,7 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
         enabled: (activeTab === 'chart' || isToothSelectModalOpen),
     });
 
-    const { data: tenantFeatures = [], isLoading: tenantFeaturesLoading, refetch: refetchTenantFeatures } = useTenantFeatures();
+    const { data: tenantFeatures = EMPTY_ARRAY, isLoading: tenantFeaturesLoading, refetch: refetchTenantFeatures } = useTenantFeatures();
     const isTreatmentPlansEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_treatment_plans');
     const isNativeWritesEnabled = Array.isArray(tenantFeatures) && tenantFeatures.includes('clinical_vnext_native_writes');
 
@@ -338,7 +340,7 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
         return { teeth };
     }, [workspaceSnapshot, teethStatus]);
 
-    const { data: treatmentPlans = [] } = usePatientClinicalPlans(id, {
+    const { data: treatmentPlans = EMPTY_ARRAY } = usePatientClinicalPlans(id, {
         enabled: isTreatmentPlansEnabled && !!id,
     });
 
@@ -348,7 +350,7 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
         treatmentPlans,
     });
 
-    const { data: labOrders = [] } = usePatientLabOrders(
+    const { data: labOrders = EMPTY_ARRAY } = usePatientLabOrders(
         id,
         (activeTab === 'chart' || activeTab === 'labs')
     );
@@ -453,7 +455,7 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
                 setCareSessionDisabledNotice(disabledMsg);
                 return;
             }
-            toast.error(err?.response?.data?.detail?.message || err?.response?.data?.detail || t('care_session.start_error', 'Failed to start care session'));
+            toast.error(formatApiError(err, t('care_session.start_error', 'Failed to start care session')));
         }
     }, [id, resolvedActiveTooth, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
 
@@ -521,24 +523,29 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
                 setCareSessionDisabledNotice(disabledMsg);
                 return;
             }
-            toast.error(err?.response?.data?.detail?.message || err?.response?.data?.detail || t('care_session.resume_error', 'Failed to resume treatment'));
+            toast.error(formatApiError(err, t('care_session.resume_error', 'Failed to resume treatment')));
         }
     }, [id, resumableCareSession?.items, transitionCareSessionMutation, startCareSessionMutation, applyCareSessionTemplateMutation, refetchActiveSession, refetchResumableSession, t]);
 
-    const handleUpdateStepStatus = useCallback(async (stepId, updateData) => {
-        if (!activeCareSession?.id) return;
+    const handleUpdateStepStatus = useCallback(async (stepId, updateData, legacyNotes) => {
+        if (!activeCareSession?.id) return false;
+        const payload = typeof updateData === 'string'
+            ? { status: updateData, ...(legacyNotes ? { notes: legacyNotes } : {}) }
+            : updateData;
         try {
             await updateCareSessionStepMutation.mutateAsync({
                 patientId: id,
                 sessionId: activeCareSession.id,
                 stepId,
-                data: updateData,
+                data: payload,
             });
             await refetchActiveSession();
+            return true;
         } catch (err) {
-            toast.error(err?.response?.data?.detail || 'Failed to update step');
+            toast.error(formatApiError(err, t('care_session.step_update_error', 'Failed to update step')));
+            return false;
         }
-    }, [id, activeCareSession?.id, updateCareSessionStepMutation, refetchActiveSession]);
+    }, [id, activeCareSession?.id, updateCareSessionStepMutation, refetchActiveSession, t]);
 
     const handleSaveObservation = useCallback(async (obsData, { batch = false } = {}) => {
         if (!activeCareSession?.id) return;
@@ -568,7 +575,7 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
             if (!batch) toast.success(t('care_session.length_saved', `Saved ${obsData.canal_id} length: ${lengthMm} mm`));
             return true;
         } catch (err) {
-            if (!batch) toast.error(err?.response?.data?.detail || 'Failed to record measurement');
+            if (!batch) toast.error(formatApiError(err, 'Failed to record measurement'));
             return false;
         }
     }, [id, activeCareSession?.id, recordCareObservationMutation, refetchActiveSession, t]);
@@ -631,16 +638,16 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
     const effectiveTeethStatus = localTeethStatus ?? (workspaceSnapshot ? adaptedChart.teethStatus : teethStatus);
     effectiveTeethStatusRef.current = effectiveTeethStatus;
 
-    const { data: history = [], refetch: refetchHistory } = usePatientTreatments(
+    const { data: history = EMPTY_ARRAY, refetch: refetchHistory } = usePatientTreatments(
         id,
         (activeTab === 'chart' || activeTab === 'history' || activeTab === 'billing' || activeTab === 'timeline' || activeTab === 'labs')
     );
-    const { data: payments = [] } = usePatientPayments(
+    const { data: payments = EMPTY_ARRAY } = usePatientPayments(
         id,
         (activeTab === 'chart' || activeTab === 'billing' || activeTab === 'timeline')
     );
     const {
-        data: attachments = [],
+        data: attachments = EMPTY_ARRAY,
         isLoading: attachmentsLoading,
         refetch: refetchAttachments,
         isPollingStalled: isAttachmentsPollingStalled,
@@ -1270,33 +1277,37 @@ function PatientDetailsContent({ id, patient, authUser, refetchPatient, isStaleI
                 onAdd={handleSavePayment}
             />
 
-            <Modal
-                isOpen={isToothSelectModalOpen}
-                onClose={() => setIsToothSelectModalOpen(false)}
-                title={t('patientDetails.chart.select_tooth')}
-                size="lg"
-            >
-                <div className="min-w-0 space-y-4">
-                    <ClinicalChartRenderer input={adaptedModalChart.rendererInput} />
-                    <div className="sticky bottom-0 z-10 -mx-3 border-t border-border bg-surface-elevated px-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-4 sm:px-4">
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setNewTreatment({
-                                    ...getInitialTreatment(),
-                                    tooth_number: '',
-                                    default_price_list_id: patient?.default_price_list_id,
-                                });
-                                setIsTreatmentSheetOpen(true);
-                                setIsToothSelectModalOpen(false);
-                            }}
-                            className="min-h-11 w-full rounded-xl bg-slate-100 px-4 py-2.5 font-bold text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                        >
-                            {t('patient_details.chart.continue_no_tooth')}
-                        </button>
+            {isToothSelectModalOpen && (
+                <Modal
+                    isOpen={isToothSelectModalOpen}
+                    onClose={() => setIsToothSelectModalOpen(false)}
+                    title={t('patientDetails.chart.select_tooth')}
+                    size="lg"
+                >
+                    <div className="min-w-0 space-y-4">
+                        <ClinicalChartRenderer input={adaptedModalChart.rendererInput} />
+                        <div className="sticky bottom-0 z-10 -mx-3 border-t border-border bg-surface-elevated px-3 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-3 sm:-mx-4 sm:px-4">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setNewTreatment({
+                                        ...getInitialTreatment(),
+                                        tooth_number: '',
+                                        prefill_source: 'tooth_picker_no_tooth',
+                                        selectedTeeth: [],
+                                        default_price_list_id: patient?.default_price_list_id,
+                                    });
+                                    setIsToothSelectModalOpen(false);
+                                    setIsTreatmentSheetOpen(true);
+                                }}
+                                className="min-h-11 w-full rounded-xl bg-slate-100 px-4 py-2.5 font-bold text-slate-600 transition-colors hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                            >
+                                {t('patient_details.chart.continue_no_tooth')}
+                            </button>
+                        </div>
                     </div>
-                </div>
-            </Modal>
+                </Modal>
+            )}
 
             {isRctWorkflowOpen && activeCareSession && (
                 <GenericVisitWorkspace
